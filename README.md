@@ -40,7 +40,7 @@
 
 - `index.html` : 現行v0.4の配布HTMLをそのままコピーしたゲーム本体
 - `tests/` : Playwright を使用する補助的な試験（実機IndexedDB試験を保証するものではありません）
-- `assets/` : 参考スクリーンショット
+- スクリーンショットは配布用ZIPに収録（GitHubにはゲーム本体・検証資料を優先登録）
 
 PlaywrightのテストにはPython環境で `pip install playwright` と `python -m playwright install chromium` が必要です。ローカルにChromiumがある場合、環境変数 `CHROMIUM_EXECUTABLE` を指定して使用できます。
 
