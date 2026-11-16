@@ -1,0 +1,13 @@
+# Browser-exported personal game saves
+*.backup.json
+*.save.json
+*.db
+*.sqlite*
+__pycache__/
+.pytest_cache/
+*.pyc
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+CONGLOMERATE_Prototype_*.zip
