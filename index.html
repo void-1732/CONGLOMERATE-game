@@ -2,20 +2,20 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>CONGLOMERATE | 企業経営シミュレーション 試作版</title>
+<title>CONGLOMERATE v0.5 | 企業経営シミュレーション 開発版</title>
 <style>
 :root{color-scheme:light;--bg:#f3f5f8;--paper:#fff;--ink:#182a40;--muted:#607187;--nav:#14263c;--nav2:#203a56;--line:#dce4eb;--blue:#2865a4;--blue2:#e8f2fb;--green:#16724a;--red:#ae4050;--amber:#9b680c;--radius:13px;--shadow:0 5px 18px #12253b0c;font-family:system-ui,-apple-system,"Yu Gothic","Hiragino Kaku Gothic ProN","Meiryo",sans-serif}
 *{box-sizing:border-box}body{background:var(--bg);color:var(--ink);margin:0;font-size:14px}button,input,select{font:inherit}button{cursor:pointer}a{color:var(--blue)}.shell{display:grid;grid-template-columns:242px 1fr;min-height:100vh}.side{background:var(--nav);color:#ebf4fc;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;padding:20px 13px;gap:11px}.logo{font-weight:900;letter-spacing:1px;font-size:18px;padding:7px 12px;line-height:1.27}.logo small{font-size:11px;font-weight:500;letter-spacing:0;color:#a4bfd6}.prototype{font-size:11px;color:#d7e8f8;background:#2c465f;border-radius:7px;padding:7px 10px;margin:0 10px}.nav{display:grid;gap:3px;margin-top:12px}.nav button{border:0;color:#c9d5e2;background:transparent;text-align:left;padding:10px 13px;border-radius:8px;font-weight:600}.nav button:hover{background:#ffffff18}.nav button.active{background:#dfebf8;color:#163f65}.sidemeta{margin-top:auto;padding:12px;font-size:11px;color:#a8bbcd;line-height:1.7}.main{min-width:0}.topbar{background:#fff;min-height:70px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:12px 28px;border-bottom:1px solid var(--line)}.topright{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.topbar strong{font-size:17px}.wrap{max-width:1480px;margin:auto;padding:24px 28px 40px}.eyebrow{font-size:11px;letter-spacing:.08em;color:var(--blue);font-weight:800;text-transform:uppercase}.hrow{display:flex;align-items:flex-start;justify-content:space-between;gap:15px;flex-wrap:wrap;margin-bottom:18px}h1{margin:4px 0 7px;font-size:26px;letter-spacing:-.03em}h2{font-size:18px;margin:0 0 16px}h3{font-size:15px;margin:0 0 10px}p{line-height:1.65}.muted{color:var(--muted)}.small{font-size:12px}.tiny{font-size:11px}.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:15px}.span3{grid-column:span 3}.span4{grid-column:span 4}.span5{grid-column:span 5}.span6{grid-column:span 6}.span7{grid-column:span 7}.span8{grid-column:span 8}.span9{grid-column:span 9}.span12{grid-column:span 12}.panel{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);min-width:0}.metric{font-size:25px;font-weight:850;line-height:1.35;overflow-wrap:anywhere}.submetric{margin-top:8px;font-size:12px;color:var(--muted)}.unit{font-size:13px;font-weight:500;color:var(--muted)}.label{font-size:12px;color:var(--muted);font-weight:700}.bar{height:8px;background:#e5ebf1;border-radius:10px;overflow:hidden}.bar>span{display:block;background:#337bbb;height:100%;border-radius:10px}.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.between{justify-content:space-between}.btn{border:1px solid #b6c9da;background:#fff;color:#17456e;border-radius:8px;padding:9px 14px;font-weight:750;transition:.15s}.btn:hover{background:#eff6fc}.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}.btn.primary:hover{background:#18568f}.btn.danger{color:var(--red);border-color:#e4b7bd}.btn.sm{padding:6px 10px;font-size:12px}.btn:disabled{opacity:.45;cursor:not-allowed}.field{display:grid;gap:5px;min-width:0}.field label{font-weight:650;font-size:12px;color:#42546a}.field input,.field select,.field textarea,select.topselect{border:1px solid #c6d3dd;background:#fff;color:var(--ink);border-radius:7px;padding:9px 11px;width:100%;min-width:0}.field textarea{resize:vertical}.topselect{max-width:250px;padding:7px 10px}.formgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:13px;align-items:end}.tag{display:inline-block;font-weight:750;font-size:11px;padding:3px 8px;border-radius:999px;background:var(--blue2);color:#245b8c}.tag.good{background:#e3f3eb;color:var(--green)}.tag.warn{background:#fff2d8;color:#915f09}.tag.bad{background:#fbe9ec;color:var(--red)}table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:11px 9px;text-align:left;border-bottom:1px solid #e8edf1;vertical-align:middle}th{font-size:11px;color:var(--muted);background:#f7f9fb;white-space:nowrap}td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}.scroll{overflow:auto}.note{border-left:3px solid #85b4d6;background:#f1f7fc;padding:12px 14px;color:#3b5975;font-size:12px;line-height:1.7;border-radius:0 8px 8px 0}.warnbox{border-left-color:#d3a24d;background:#fffaec}.notice{padding:11px 0;border-bottom:1px solid var(--line);line-height:1.5}.notice:last-child{border-bottom:0}.notice .date{font-size:11px;color:var(--muted);margin-right:8px}.positive{color:var(--green)}.negative{color:var(--red)}.right{text-align:right}.figure{width:100%;height:220px;display:block}.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:15px;margin-bottom:16px}.twocol{display:grid;grid-template-columns:1fr 1fr;gap:15px}.controls{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.pill{background:#f3f6f9;border-radius:40px;padding:6px 11px;font-size:12px;color:#486176}.modalwrap{position:fixed;inset:0;background:#13253be6;display:flex;align-items:center;justify-content:center;z-index:99;padding:20px;overflow:auto}.modal{background:#fff;border-radius:18px;box-shadow:0 24px 65px #05132466;width:min(800px,100%);max-height:94vh;overflow:auto;padding:27px}.modal h1{font-size:26px}.steps{display:flex;gap:6px;margin:15px 0 22px}.steps span{flex:1;height:6px;background:#e5ebf0;border-radius:5px}.steps span.on{background:var(--blue)}.choices{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.choice{padding:13px;border:1px solid var(--line);border-radius:9px;cursor:pointer;background:white;min-height:80px}.choice:has(input:checked){border:2px solid var(--blue);background:#edf6ff;padding:12px}.choice input{margin-right:6px}.choice b{display:block;font-size:14px;margin:5px 0}.footer{border-top:1px solid var(--line);margin-top:24px;padding-top:15px;display:flex;justify-content:space-between;align-items:center;gap:10px}.toast{position:fixed;bottom:22px;right:23px;z-index:130;background:#1a314b;color:#fff;border-radius:10px;padding:12px 18px;box-shadow:0 8px 30px #15293a44;max-width:min(600px,90vw);display:none}.toast.show{display:block}.savebox{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:13px 0;border-bottom:1px solid var(--line)}.savebox:last-child{border:0}.savebox .grow{flex:1;min-width:180px}#importFile{display:none}.chartdots{color:#6688ab}.statrow{display:grid;grid-template-columns:1fr 1fr;gap:9px}.statrow>div{background:#f6f8fa;border-radius:8px;padding:10px}.vlist{display:grid;gap:9px}.vitem{background:#f7f9fb;padding:12px;border:1px solid #e6edf2;border-radius:9px}.tabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px}.tabs .btn.active{background:#dcecf9;border-color:#6597c1}.hidden{display:none!important}.icon{font-size:18px}.whitehead{color:var(--ink);font-size:15px;font-weight:800}.mini{background:#eff3f7;padding:3px 7px;border-radius:5px;font-size:11px}.scenbar{display:flex;flex-wrap:wrap;gap:6px}.scenbar .mini{background:#f0f5fb;color:#375c80}.footnote{font-size:11px;color:var(--muted);margin-top:15px;line-height:1.7}.progress{height:9px;border-radius:9px;background:#e5edf3;overflow:hidden}.progress span{display:block;height:100%;background:#3e8aaa}.itemstat{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid #eaf0f3;padding:8px 0}.itemstat:last-child{border:0}.sep{height:1px;background:var(--line);margin:16px 0}.noprint{}@media(max-width:1180px){.span3{grid-column:span 6}.span4,.span5,.span6,.span7,.span8,.span9{grid-column:span 6}.kpis{grid-template-columns:repeat(2,1fr)}}@media(max-width:800px){.shell{display:block}.side{position:relative;height:auto;padding:10px}.nav{display:flex;flex-wrap:wrap;margin:0}.nav button{padding:7px 9px;font-size:12px}.sidemeta,.prototype{display:none}.logo{font-size:14px}.topbar{padding:11px 16px}.wrap{padding:17px 14px}.grid{grid-template-columns:1fr}.span3,.span4,.span5,.span6,.span7,.span8,.span9,.span12{grid-column:span 1}.twocol{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}.choices{grid-template-columns:1fr}.modal{padding:17px}h1{font-size:22px}}@media print{.side,.topbar,.noprint,.btn{display:none!important}.shell{display:block}.panel{break-inside:avoid}}
 </style>
 </head>
-<body><div class="shell"><aside class="side"><div class="logo">CONGLOMERATE<br><small>企業経営シミュレーション</small></div><div class="prototype">機能検証用・開発版 v0.4</div><nav class="nav" id="nav">
+<body><div class="shell"><aside class="side"><div class="logo">CONGLOMERATE<br><small>企業経営シミュレーション</small></div><div class="prototype">機能検証用・開発版 v0.5</div><nav class="nav" id="nav">
 <button data-page="dashboard">▣　経営概況</button><button data-page="market">◎　市場・世界経済</button><button data-page="product">◇　製品・開発</button><button data-page="factory">▤　工場・調達</button><button data-page="people">♧　研究・人事</button><button data-page="finance">¥　財務・資金</button><button data-page="group">⌘　企業グループ</button><button data-page="consolidated">▥　連結財務三表</button><button data-page="reports">▧　月次レポート</button><button data-page="save">◫　保存・設定</button></nav>
 <div class="sidemeta">オフライン動作・外部通信なし<br>既存 SPEC-001〜094 は変更なし<br>未確定数値は試作パラメータ<br>正式な会計監査・史実検証は未実装</div></aside>
 <main class="main"><header class="topbar"><div><strong id="topCompany">未開始</strong><div class="small muted" id="topDate">開始条件を設定してください</div></div><div class="topright"><select class="topselect" id="companySelect" aria-label="表示会社"></select><select class="topselect" id="regionSelect" aria-label="表示国"></select><button class="btn primary" id="nextMonthBtn" data-action="previewMonth">月末処理 ▸</button></div></header><div class="wrap" id="content"></div></main></div>
 <div id="modalHost"></div><div class="toast" id="toast"></div><input id="importFile" type="file" accept="application/json,.json">
 <script>
 'use strict';
-/* One-file offline prototype v0.4. The selected build direction is B/B/B.
+/* One-file offline prototype v0.5. The selected build direction is B/B/B.
    Historical population anchor estimates are clearly separate from synthetic economy parameters.
    Ratified design is SPEC-001..094; questions 91..93 and SPEC-095+ remain unanswered. */
 // Save format v1 is intentionally retained for compatibility with v0.1 exports.
@@ -212,7 +212,7 @@ function checkMonthPreview(){const f=current();if(!f)return [];const issues=[];f
 async function runMonth(){if(!S||MONTH_RUNNING)return;MONTH_RUNNING=true;if(S.monthCommitted===ym(S.year,S.month)){MONTH_RUNNING=false;toast('この月は既に確定済みです。');return;}const prev=S,trial=structuredClone(S),events=[];try{const startErrors=check(trial);if(startErrors.length)throw Error('処理前検算：'+startErrors.join(' / '));maybeWar(trial);for(const f of trial.firms){f._profitStart=financials(f).profit;planAI(f,trial);}procure(trial,events);laborAndPlant(trial,events);sellMonthly(trial,events);financeMonthly(trial,events);
  const totals={};for(const f of trial.firms){const t=totals[f.country]??={sales:0,prod:0,employed:0};t.sales+=f.monthly.units||0;t.prod+=f._produced||0;t.employed+=f.staff.production+f.staff.research+f.staff.sales;}updateWorld(trial,totals);
  trial.monthCommitted=ym(trial.year,trial.month);const originalDate=dateKey(trial);const ff=company(trial.playerId,trial);const ffin=financials(ff);const snap={date:originalDate,cash:ffin.cash,assets:ffin.assets,equity:ffin.equity,netProfit:ff.monthly.profit,sales:ff.monthly.sales,units:ff.monthly.units,produced:ff._produced||0,events:events.slice(0,40),firms:controlled(trial).length};trial.lastReport=snap;trial.reports.unshift(snap);if(trial.reports.length>24)trial.reports.pop();trial.history.push({date:`${trial.year}/${trial.month}`,baseCash:baseFromLocal(ffin.cash,ff.country),baseEquity:baseFromLocal(ffin.equity,ff.country),profit:baseFromLocal(ff.monthly.profit,ff.country)});if(trial.history.length>1200)trial.history.shift();nextMonthDate(trial);
- const errs=check(trial);if(errs.length)throw Error('月末整合性検証失敗：'+errs.slice(0,5).join(' / '));const reportConso=consolidate(trial,trial.playerId);if(reportConso.errors.length)throw Error('連結整合性検証失敗：'+reportConso.errors.slice(0,3).join(' / '));if(!reportConso.cf.reconciled)logNotice('連結CFの期首期末照合に未解消項目があります。連結財務三表を確認してください。','warn',trial);trial.consoHistory??=[];trial.consoHistory.push({month:trial.monthCommitted,cash:reportConso.bs.cash,fxCash:reportConso.fxBalance?.cash??reportConso.bs.cash,firmCash:reportConso.cashByFirm||{},equity:reportConso.bs.equity,consolidatedProfit:reportConso.pl.profit,cf:reportConso.cf});if(trial.consoHistory.length>1200)trial.consoHistory.shift();S=trial;for(const e of events.slice(0,8))logNotice(e,'info');logNotice(`${originalDate}の月次処理を正常確定しました。`,'good');monthlyPreview=false;const good=await saveAuto();if(!good)logNotice('月次処理は確定しましたが自動保存に失敗。旧保存データは維持されます。','warn');PAGE='reports';render();toast(good?'月次処理完了・自動保存成功':'月次処理完了。保存失敗のため手動保存を推奨します。');}catch(err){S=prev;monthlyPreview=false;render();toast('月次処理中断（確定前状態を保護）：'+err.message);console.error(err)}finally{MONTH_RUNNING=false}}
+ const errs=check(trial);if(errs.length)throw Error('月末整合性検証失敗：'+errs.slice(0,5).join(' / '));const reportConso=consolidate(trial,trial.playerId);if(reportConso.errors.length)throw Error('連結整合性検証失敗：'+reportConso.errors.slice(0,3).join(' / '));if(!reportConso.cf.reconciled)logNotice('連結CFの期首期末照合に未解消項目があります。連結財務三表を確認してください。','warn',trial);trial.consoHistory??=[];trial.consoHistory.push({month:trial.monthCommitted,cash:reportConso.bs.cash,fxCash:reportConso.fxBalance?.cash??reportConso.bs.cash,firmCash:reportConso.cashByFirm||{},equity:reportConso.bs.equity,consolidatedProfit:reportConso.pl.profit,cf:reportConso.cf,periodPL:reportConso.periodPL,spotDeferredInventory:reportConso.spotDeferredInventory,deferredByTx:reportConso.deferredByTx});if(trial.consoHistory.length>1200)trial.consoHistory.shift();S=trial;for(const e of events.slice(0,8))logNotice(e,'info');logNotice(`${originalDate}の月次処理を正常確定しました。`,'good');monthlyPreview=false;const good=await saveAuto();if(!good)logNotice('月次処理は確定しましたが自動保存に失敗。旧保存データは維持されます。','warn');PAGE='reports';render();toast(good?'月次処理完了・自動保存成功':'月次処理完了。保存失敗のため手動保存を推奨します。');}catch(err){S=prev;monthlyPreview=false;render();toast('月次処理中断（確定前状態を保護）：'+err.message);console.error(err)}finally{MONTH_RUNNING=false}}
 function savePayload(s){const json=JSON.stringify(s);return JSON.stringify({format:'CONGLOMERATE',version:VERSION,checksum:hash(json),payload:json,savedAt:new Date().toISOString()})}
 function parsePayload(raw){if(typeof raw!=='string')throw Error('保存データが存在しません');const obj=JSON.parse(raw);if(obj.format!=='CONGLOMERATE'||obj.version!==VERSION)throw Error('対応しない保存形式です');if(hash(obj.payload)!==obj.checksum)throw Error('チェックサム不一致');const s=JSON.parse(obj.payload);const errs=check(s);if(errs.length)throw Error(errs.slice(0,3).join(' / '));return s}
 function openDatabase(){return new Promise((resolve,reject)=>{if(!('indexedDB' in window))return reject(Error('IndexedDBに非対応の環境です'));const req=indexedDB.open(DB_NAME,DB_VERSION);req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains('snapshots'))db.createObjectStore('snapshots',{keyPath:'key'});if(!db.objectStoreNames.contains('meta'))db.createObjectStore('meta',{keyPath:'key'})};req.onsuccess=()=>{req.result.onversionchange=()=>req.result.close();resolve(req.result)};req.onerror=()=>reject(req.error||Error('保存領域の初期化失敗'));req.onblocked=()=>reject(Error('他のタブがデータベースを使用中です'))})}
@@ -585,6 +585,182 @@ consolidate=function(s,rootId=s.playerId){
  g.status='帳簿価額基準の連結試算／期末為替・CFブリッジを表示（正式な公正価値配分・歴史通貨制度は未確定）';
  return g;
 };
+/* CONSOLIDATION v0.5 — an auditable, period-specific FX presentation layer.
+   Book-value PPA remains PROVISIONAL under SPEC-082 / 091.  This layer neither
+   alters individual company ledgers nor invents fair-value adjustments/tax rules.
+   Reporting currency: JPY equivalent (internal integer minor units). */
+function journalAccountFlow(j,k){
+ return (j.dr||[]).filter(a=>a[0]===k).reduce((x,a)=>x+a[1],0)-
+        (j.cr||[]).filter(a=>a[0]===k).reduce((x,a)=>x+a[1],0);
+}
+function journalIncome(j){
+ let revenue=0,expenses=0;
+ for(const [k,t] of Object.entries(ACCTYPE)){
+  const n=journalAccountFlow(j,k);
+  if(t==='revenue')revenue-=n;
+  if(t==='expense')expenses+=n;
+ }
+ return {revenue,expenses,profit:revenue-expenses};
+}
+function accountingFxReview(s,rootId,g){
+ const ids=new Set(g.members),members=g.members.map(id=>company(id,s));
+ const historical=legacyLinks(s).links.filter(l=>ids.has(l.parentId)&&ids.has(l.childId));
+ const starts=consolidatedMonths(s,historical,members);
+ const byId=new Map();let grossAssets=0,grossLiabilities=0,grossCash=0;
+ for(const f of members){
+  const rate=balanceFxRate(s,f),fin=financials(f);
+  const a=Math.round(fin.assets*rate),l=Math.round(fin.liab*rate),cash=Math.round(fin.cash*rate);
+  grossAssets+=a;grossLiabilities+=l;grossCash+=cash;
+  byId.set(f.id,{name:f.name,currency:COUNTRIES[f.country].currency,closingRate:rate,assets:a,liabilities:l,cash,
+   localEquity:fin.equity,openingMonth:starts[f.id]??null});
+ }
+ let investment=0,goodwill=0,bargain=0,goodwillMinority=0;
+ const acquisition=[];
+ for(const l of historical){
+  const par=company(l.parentId,s),child=company(l.childId,s);
+  const buyerRate=balanceFxRate(s,par),targetRate=balanceFxRate(s,child);
+  const acqBuyerRate=Number(l.buyerFxOnAcq??COUNTRIES[par.country].fx);
+  const acqChildRate=Number(l.targetFxOnAcq??COUNTRIES[child.country].fx);
+  // Parent investment remains a non-monetary historical carrying amount in its
+  // local ledger, translated when parent balance sheet is consolidated.
+  const bookedLocal=Number(l.considerationLocal||0),historicalConsideration=Math.round(bookedLocal*acqBuyerRate);
+  const snapshotEquity=Number(l.acquisitionSnapshot?.equity??l.bookEquityLocal??
+    ((l.bookEquityBase||0)/COUNTRIES[child.country].fx));
+  const historicalBookNet=Math.round(snapshotEquity*acqChildRate);
+  const difference=historicalConsideration-Math.round(historicalBookNet*l.ratio);
+  const goodwillClose=difference>0?Math.round(difference*targetRate/acqChildRate):0;
+  const discounted=difference<0?-difference:0;
+  investment+=Math.round(bookedLocal*buyerRate);
+  goodwill+=goodwillClose;
+  bargain+=discounted;
+  goodwillMinority+=Math.round(goodwillClose*(1-(g.shares[l.parentId]??0)));
+  acquisition.push({id:l.id,parent:par.name,child:child.name,month:l.month,ratio:l.ratio,
+   considerationAtAcquisition:historicalConsideration,bookNetAtAcquisition:historicalBookNet,
+   historicalDifference:difference,goodwillAtClose:goodwillClose,
+   closingTargetRate:targetRate,acquisitionTargetRate:acqChildRate,
+   valuation:'BOOK_VALUE_PROVISIONAL',complete:!!l.acquisitionSnapshot});
+ }
+ // Inventory margin is defined in the seller's currency at transfer. Translate
+ // the unrealized profit at closing rates, but retain transaction-date FX for PL.
+ let inventoryProfit=0,internalSalesPeriod=0,interestRevenuePeriod=0,interestExpensePeriod=0;
+ const period=s.monthCommitted;
+ const txs=(s.intercompanyTx||[]).filter(t=>ids.has(t.seller)&&ids.has(t.buyer)
+      &&t.yearMonth>=Math.max(starts[t.seller]??Number.MAX_SAFE_INTEGER,starts[t.buyer]??Number.MAX_SAFE_INTEGER));
+ function relatedJournal(f,id){return f?.journals.find(j=>j.id===id)}
+ for(const t of txs){
+  if(t.kind==='goods'){
+   const seller=company(t.seller,s),buyer=company(t.buyer,s),it=buyer.goods[t.stockKey];
+   const unsold=Math.min(t.q||0,Math.max(0,it?.q||0));
+   const originalBase=COUNTRIES[seller.country].fx;
+   const costLocal=Number(t.marginBase||0)/originalBase;
+   inventoryProfit+=Math.round(costLocal*(t.q?unsold/t.q:0)*balanceFxRate(s,seller));
+   if(t.yearMonth===period){
+    const j=relatedJournal(seller,t.fromJournal);
+    if(j)internalSalesPeriod+=Math.round(journalIncome(j).revenue*Number(j.fxAtPost??originalBase));
+   }
+  }else if(t.kind==='interest'&&t.yearMonth===period){
+   const sj=relatedJournal(company(t.seller,s),t.fromJournal);
+   const bj=relatedJournal(company(t.buyer,s),t.toJournal);
+   if(sj)interestRevenuePeriod+=Math.round(journalIncome(sj).revenue*Number(sj.fxAtPost??COUNTRIES[company(t.seller,s).country].fx));
+   if(bj)interestExpensePeriod+=Math.round(journalIncome(bj).expenses*Number(bj.fxAtPost??COUNTRIES[company(t.buyer,s).country].fx));
+  }
+ }
+ let loanReceivable=0,loanPayable=0,interestReceivable=0,interestPayable=0;
+ for(const f of members)for(const loan of f.loans||[]){
+  if(!loan.parent||!ids.has(loan.parent))continue;
+  const parent=company(loan.parent,s);
+  loanReceivable+=Math.round((loan.parentRemaining||0)*balanceFxRate(s,parent));
+  loanPayable+=Math.round((loan.outstanding||0)*balanceFxRate(s,f));
+  interestReceivable+=Math.round((loan.parentInterestRemaining||0)*balanceFxRate(s,parent));
+  interestPayable+=Math.round((loan.interestOutstanding||0)*balanceFxRate(s,f));
+ }
+ const a=grossAssets-investment+goodwill-inventoryProfit-loanReceivable-interestReceivable;
+ const l=grossLiabilities-loanPayable-interestPayable;
+ const totalEquity=a-l;
+ const heldInvestment={};for(const x of historical){const f=company(x.parentId,s);
+  heldInvestment[f.id]=(heldInvestment[f.id]||0)+Math.round((x.considerationLocal||0)*balanceFxRate(s,f));}
+ let nci=goodwillMinority;
+ for(const f of members){if(f.id===rootId)continue;
+  const effective=g.shares[f.id]??0,translatedNet=Math.round(financials(f).equity*balanceFxRate(s,f));
+  nci+=Math.round((1-effective)*(translatedNet-(heldInvestment[f.id]||0)));
+ }
+ for(const t of txs){if(t.kind!=='goods')continue;
+  const seller=company(t.seller,s),buyer=company(t.buyer,s),units=buyer.goods[t.stockKey]?.q||0;
+  const remaining=Math.min(t.q||0,Math.max(0,units));
+  const defer=Math.round((t.marginBase||0)/COUNTRIES[seller.country].fx*(t.q?remaining/t.q:0)*balanceFxRate(s,seller));
+  nci-=Math.round(defer*(1-(g.shares[seller.id]??0)));
+ }
+ const bs={period:ym(s.year,s.month),assets:a,liabilities:l,equity:totalEquity,parentEquity:totalEquity-nci,
+  nci,cash:grossCash,goodwill,inventoryProfit,investmentEliminated:investment,
+  loanRecEliminated:loanReceivable,loanDebtEliminated:loanPayable,
+  interestRecEliminated:interestReceivable,interestDueEliminated:interestPayable,
+  checkDifference:a-l-(totalEquity-nci)-nci,
+  fxVsReference:{assets:a-g.bs.assets,liabilities:l-g.bs.liab,equity:totalEquity-g.bs.equity},
+  loanTranslationDifference:(loanReceivable+interestReceivable)-(loanPayable+interestPayable)};
+ // Period-only accrued P&L at recognition-date FX. This is not the conversion of
+ // the entire cumulative historical ledger at today's spot rate.
+ const periodEntries={};let rev=0,exp=0,nciProfit=0;
+ for(const f of members){
+  let income=0,revenue=0,expenses=0,entryCount=0;
+  const entry=historical.filter(x=>x.childId===f.id&&x.month===starts[f.id]).sort((a,b)=>a.buyerJournal-b.buyerJournal)[0];
+  for(const j of f.journals){if(j.when!==period||j.when<(starts[f.id]??Number.MAX_SAFE_INTEGER))continue;
+   if(entry&&j.when===entry.month&&j.id<entry.buyerJournal)continue;
+   const jIncome=journalIncome(j),rate=Number(j.fxAtPost??COUNTRIES[f.country].fx);
+   revenue+=Math.round(jIncome.revenue*rate);expenses+=Math.round(jIncome.expenses*rate);entryCount++;
+  }
+  income=revenue-expenses;rev+=revenue;exp+=expenses;
+  if(f.id!==rootId)nciProfit+=Math.round(income*(1-(g.shares[f.id]??0)));
+  periodEntries[f.id]={revenue,expenses,profit:income,entries:entryCount};
+ }
+ // A sale between two consolidated entities does not create group revenue.
+ // The profit embedded in ending internal inventory is deferred. When stock
+ // subsequently leaves the group, the prior deferral is released.
+ const preceding=[...(s.consoHistory||[])].reverse().find(h=>h.month===period-1);
+ const previousDeferred=Number(preceding?.spotDeferredInventory??0);
+ const deltaDeferred=inventoryProfit-previousDeferred;
+ rev-=internalSalesPeriod+interestRevenuePeriod;
+ exp-=internalSalesPeriod+interestExpensePeriod;
+ exp+=deltaDeferred;
+ const bargainCurrent=acquisition.filter(x=>x.month===period).reduce((v,x)=>v+Math.max(0,-x.historicalDifference),0);
+ const profit=rev-exp+bargainCurrent;
+ // For internal transfers, the selling entity's minority holders bear any
+ // deferred markup; complex tiered attribution remains provisional.
+ for(const t of txs){if(t.kind!=='goods')continue;
+  const seller=company(t.seller,s),buyer=company(t.buyer,s),q=buyer.goods[t.stockKey]?.q||0;
+  const old=preceding?.deferredByTx?.[t.id]??0;
+  const current=Math.round((t.marginBase||0)/COUNTRIES[seller.country].fx*(t.q?Math.min(t.q,q)/t.q:0)*balanceFxRate(s,seller));
+  nciProfit-=Math.round((current-old)*(1-(g.shares[t.seller]??0)));
+ }
+ const pl={revision:5,period,revenue:rev,expenses:exp,profit,nciProfit,parentProfit:profit-nciProfit,
+  internalSalesEliminated:internalSalesPeriod,internalInterestRevenueEliminated:interestRevenuePeriod,
+  internalInterestExpenseEliminated:interestExpensePeriod,inventoryDeferralChange:deltaDeferred,
+  acquisitionDiscountGainProvisional:bargainCurrent,accounting:'journal spot FX / monthly accrual'};
+ const already=[...(s.consoHistory||[])].reverse().find(h=>h.month===period&&h.periodPL?.revision===5);
+ const accepted=already?.periodPL??pl;
+ const deferredByTx={};for(const t of txs){if(t.kind!=='goods')continue;
+  const seller=company(t.seller,s),buyer=company(t.buyer,s),remaining=Math.min(t.q||0,Math.max(0,buyer.goods[t.stockKey]?.q||0));
+  deferredByTx[t.id]=Math.round((t.marginBase||0)/COUNTRIES[seller.country].fx*(t.q?remaining/t.q:0)*balanceFxRate(s,seller));
+ }
+ return {bs,periodPL:accepted,periodPLCurrent:pl,periodEntries,deferredByTx,acquisition,
+  acquisitionIncomplete:acquisition.some(x=>!x.complete),
+  warnings:[
+   '期末BSは全資産・全負債を期末レートで換算した試算。為替換算調整勘定・包括利益の正式な仕訳は未実装です。',
+   '取得原価配分は帳簿価額基準の暫定値です。公正価値評価・税効果・正式のれんは未確定です。',
+   ...(Math.abs(bs.loanTranslationDifference)>2?['内部貸付の債権債務に期末換算差が存在します。相殺による換算差の精査が必要です。']:[])
+  ]};
+}
+const consolidateWithFxV04=consolidate;
+consolidate=function(s,rootId=s.playerId){
+ const g=consolidateWithFxV04(s,rootId);
+ const a=accountingFxReview(s,rootId,g);
+ g.spot=a.bs;g.periodPL=a.periodPL;g.spotDeferredInventory=a.bs.inventoryProfit;
+ g.deferredByTx=a.deferredByTx;g.acquisitionReview=a.acquisition;
+ g.spotWarnings=a.warnings;
+ if(a.bs.checkDifference!==0)g.errors.push('全科目期末換算BSが一致しません');
+ if(!Number.isSafeInteger(a.bs.assets)||!Number.isSafeInteger(a.bs.liabilities)||!Number.isSafeInteger(a.bs.equity))g.errors.push('期末換算BSが安全整数範囲を超過');
+ return g;
+};
+
 function companyByName(s,name){return s.firms.find(f=>f.name===name);}
 
 function groupSale(){try{
@@ -613,12 +789,15 @@ function groupSale(){try{
 function formatBase(x){return baseMoney(x)}
 function consolidatedPage(){const g=consolidate(S,S.playerId),b=g.bs,p=g.pl,c=g.cf,ok=!g.errors.length;const resultRows=(rows)=>`<div class="scroll"><table><tbody>${rows.map(([k,v,bold])=>`<tr><td>${bold?`<strong>${esc(k)}</strong>`:esc(k)}</td><td class="num">${bold?`<strong>${formatBase(v)}</strong>`:formatBase(v)}</td></tr>`).join('')}</tbody></table></div>`;
  return titlePage('連結財務三表','支配対象法人を全額合算し、投資・内部取引・非支配株主持分を別途調整します。',tag(ok?(c.reconciled?'BS/CF照合通過・試算':'構造検算通過／CF要確認'):'検算異常',ok?(c.reconciled?'good':'warn'):'bad'))+
- `<div class="note warnbox" style="margin-bottom:15px"><b>会計上の範囲：</b>取得日帳簿残高を凍結し、取得価格差を追跡します。ただし、公正価値への配分・歴史通貨制度・同月中の厳密な損益日割りは未確定です。<b>帳簿価額基準の連結試算であり、監査済みの正式財務諸表ではありません。</b> 連結BS/PLは従来の基準レート（円相当）、期末現金・CFは別枠で変動為替換算を表示します。</div>
+ `<div class="note warnbox" style="margin-bottom:15px"><b>会計上の範囲：</b>取得日帳簿残高を凍結し、取得価格差を追跡します。ただし、公正価値への配分・歴史通貨制度・同月中の厳密な損益日割りは未確定です。<b>帳簿価額基準の連結試算であり、監査済みの正式財務諸表ではありません。</b> 上段は従来の固定基準レートの比較表です。下段に全科目の期末スポット換算BSと取引時レートの月次PL（ともに試算）を追加しました。</div>
  <div class="kpis">${card('連結対象',g.members.length+'社','重複連結なし','')}${card('連結総資産',formatBase(b.assets),'投資相殺・未実現利益調整後','')}${card('親会社株主帰属純資産',formatBase(b.parentEquity),'非支配株主持分を除外','')}${card('非支配株主持分',formatBase(b.nci),'複数階層の経済持分から算出','')}</div>
  <div class="grid"><section class="panel span6"><h2>連結貸借対照表（BS）・現時点</h2>${resultRows([['現金',b.cash],['商品在庫（内部利益消去後）',b.goods],['取得差額（正ののれん）',b.goodwill],['総資産',b.assets,true],['負債',b.liab],['親会社株主帰属純資産',b.parentEquity],['非支配株主持分',b.nci],['負債＋純資産',b.liab+b.parentEquity+b.nci,true],['貸借照合差額',b.liabEquityDiff,true]])}</section>
  <section class="panel span6"><h2>連結損益計算書（PL）・取得後累計</h2>${resultRows([['外部売上・収益（内部売上消去後）',p.revenue],['費用・売上原価（内部調整後）',p.expenses],['帳簿価額基準の割安取得益（仮）',p.bargainGain],['連結当期までの累計損益',p.profit,true],['非支配株主帰属分',p.nciProfit],['親会社株主帰属分',p.parentProfit,true]])}<p class="footnote">取得以前の損益は取得元帳から判定可能な範囲で控除します。過去の取得時点・PPAが欠落する旧セーブでは精度が制限されます。</p></section>
  <section class="panel span6"><h2>連結キャッシュフロー（CF）・直近確定月</h2>${resultRows([['営業キャッシュフロー',c.operating],['投資キャッシュフロー',c.investing],['財務キャッシュフロー',c.financing],['外部との純キャッシュフロー',c.net,true],['前月末連結現金',c.openingCash??0],['当月末連結現金',c.closingCash,true],['取得した会社の現金（投資CF内訳）',c.scopeAdded],['換算差（非資金項目）',c.fxTranslation],['CF照合差額（端数含む）',c.unreconciled??0]])}<p class="footnote">直近確定月：${Math.floor(c.period/12)}年${c.period%12+1}月。${c.fromCommittedSnapshot?'月末の確定時点に保存したCF履歴を表示。':'当月の仕訳と取得範囲から計算。'} 為替換算差は営業・投資・財務CFに含めず別記。照合結果：${c.reconciled?'一致':'要確認'}。差額の許容値：${formatBase(c.roundingTolerance||0)}。未照合額は利益・CFに自動加算しません。</p></section>
  <section class="panel span6"><h2>連結調整・検算</h2>${resultRows([['親子会社の投資勘定消去',g.adjustments.investment],['内部貸付債権消去',g.adjustments.loanRecEliminated],['内部借入債務消去',g.adjustments.loanDebtEliminated],['帳簿価額ベースのれん（仮）',g.adjustments.goodwill],['内部売上消去',g.adjustments.internalSales],['内部在庫未実現利益消去',g.adjustments.inventoryProfit],['未収利息消去',g.adjustments.interestRecEliminated],['未払利息消去',g.adjustments.interestDueEliminated],['内部金利収益消去',g.adjustments.interestRev],['内部金利費用消去',g.adjustments.interestExp]])}<div class="sep"></div>${g.errors.length?g.errors.map(x=>`<div class="notice">${tag('異常','bad')} ${esc(x)}</div>`).join(''):tag('構造・貸借の検算通過','good')}${g.notes.map(x=>`<p class="small muted">・${esc(x)}</p>`).join('')}</section>
+ <section class="panel span6"><h2>全科目・期末為替換算BS（v0.5試算）</h2>${resultRows([['現金（期末スポット）',g.spot.cash],['連結総資産（期末レート）',g.spot.assets,true],['連結負債（期末レート）',g.spot.liabilities],['親会社帰属純資産（暫定）',g.spot.parentEquity],['非支配株主持分（暫定）',g.spot.nci],['負債＋純資産',g.spot.liabilities+g.spot.parentEquity+g.spot.nci,true],['期末換算BS差額',g.spot.checkDifference],['固定参照レートとの総資産差',g.spot.fxVsReference.assets]])}<p class="footnote">資産・負債は各法人の決算時点スポットレートで一括換算。取得原価は親会社通貨の帳簿残高、暫定のれんは取得先通貨で換算。資本の歴史的レート換算と為替換算調整勘定（OCI）は未実装のため、正式連結BSではありません。</p></section>
+ <section class="panel span6"><h2>直近確定月・取引時為替換算PL（v0.5試算）</h2>${resultRows([['外部収益（内部消去後）',g.periodPL.revenue],['費用（内部消去・棚卸調整後）',g.periodPL.expenses],['帳簿価額基準の割安取得益（仮）',g.periodPL.acquisitionDiscountGainProvisional],['当月連結損益',g.periodPL.profit,true],['非支配株主帰属損益（暫定）',g.periodPL.nciProfit],['親会社帰属損益（暫定）',g.periodPL.parentProfit,true],['当月の内部売上消去',g.periodPL.internalSalesEliminated],['内部棚卸利益の増減',g.periodPL.inventoryDeferralChange]])}<p class="footnote">${Math.floor(g.periodPL.period/12)}年${g.periodPL.period%12+1}月の仕訳を認識時レートで換算し、取得以前の損益を除外。当月確定時点のPLを保持し、その後の取得などで過去月を再計算しません。期中の取得時配賦と非支配損益の複雑な帰属は暫定です。</p></section>
+ ${g.spotWarnings.map(x=>`<div class="panel span12 footnote">${esc(x)}</div>`).join('')}
  <section class="panel span12"><h2>外貨換算・取得時点の検証明細（試算）</h2><p class="small muted">換算対象は各法人の実現金残高。取引ごとに認識時のレート、BS期末に各地域の変動スポットレートを使用し、固定基準レートとの差を参考表示します。歴史為替制度・その他包括利益／換算調整勘定は正式未実装です。</p><div class="scroll"><table><thead><tr><th>法人</th><th>通貨</th><th class="num">期末レート（円/現地通貨）</th><th class="num">固定基準レート</th><th class="num">期末現金（スポット円相当）</th></tr></thead><tbody>${g.fxBalance.items.map(x=>`<tr><td>${esc(x.firm)}</td><td>${esc(x.currency)}</td><td class="num">${x.closingRate.toFixed(4)}</td><td class="num">${x.referenceRate.toFixed(4)}</td><td class="num">${formatBase(x.cashSpot)}</td></tr>`).join('')}</tbody></table></div>${rowstat('連結期末現金（スポット円相当）',formatBase(g.fxBalance.cash))}${rowstat('固定基準レートとの差',formatBase(g.fxBalance.deltaCash))}</section> <section class="panel span12"><h2>支配・持分帰属と取得台帳</h2><div class="scroll"><table><thead><tr><th>法人</th><th>議決権・支配</th><th class="num">親会社最終経済持分</th><th class="num">外部帰属比率</th></tr></thead><tbody>${g.members.map(id=>{const f=company(id),v=g.shares[id]||0;return `<tr><td>${esc(f.name)}</td><td>${id===S.playerId?'親会社':tag('連結対象','good')}</td><td class="num">${(v*100).toFixed(2)}%</td><td class="num">${((1-v)*100).toFixed(2)}%</td></tr>`}).join('')}</tbody></table></div><div class="scroll" style="margin-top:12px"><table><thead><tr><th>出資・取得元</th><th>取得対象</th><th>方式</th><th class="num">取得持分</th><th class="num">帳簿価額基準の取得差額</th><th>取得時レート・評価根拠</th></tr></thead><tbody>${g.links.map(l=>`<tr><td>${esc(l.parent)}</td><td>${esc(l.child)}</td><td>${l.kind==='foundation'?'子会社設立':'株式取得'}</td><td class="num">${(l.ratio*100).toFixed(1)}%</td><td class="num">${formatBase(l.residual)}</td><td class="small">${esc(g.acquisitionAudit.find(a=>a.parent===l.parent&&a.child===l.child)?.recognition||'旧版推定')} / ${g.acquisitionAudit.find(a=>a.parent===l.parent&&a.child===l.child)?.targetFxOnAcq??'不明'}</td></tr>`).join('')||'<tr><td colspan="6" class="muted">取得台帳の対象取引はありません</td></tr>'}</tbody></table></div></section>
  </div>`;
 }
