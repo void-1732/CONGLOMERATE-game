@@ -1,0 +1,65 @@
+{
+  "baseline_blob": "9fa201c8f303e71440c25c44e750febc80bf8614",
+  "status": "PASS",
+  "errors": [],
+  "tests": {
+    "G0": {
+      "status": "PASS",
+      "old_git_blob": "9fa201c8f303e71440c25c44e750febc80bf8614",
+      "old_sha256": "e335a6030b1aa39fb04f2033e55184a56c5d969858ed5ccb29c6bbf749dffb2a",
+      "new_sha256": "3e01d4baeede7a31968cf9a3f56c1a4ea75263c868adcc16a64f693eb7d7acfb",
+      "syntax": "PASS",
+      "tech_nodes": 800
+    },
+    "G1": {
+      "status": "PASS",
+      "legacy_save_bytes": 587020,
+      "two_migrations_diff": 0,
+      "serialize_roundtrip": "PASS",
+      "schema_version": 1,
+      "external_format": 1,
+      "rng_and_serial_unchanged": true
+    },
+    "G2": {
+      "status": "PASS",
+      "old_field_hash": "4633a16d",
+      "old_ledger_stock_owners_models_retained": true
+    },
+    "G3": {
+      "status": "PASS",
+      "months": 60,
+      "identical_monthly_hashes": 60,
+      "elapsed_seconds": 25.8,
+      "check_and_consolidation": "PASS",
+      "old_new_monthly_state_equal": true,
+      "month_12_hash": "f0d9df72",
+      "month_60_hash": "7a4fb8b5"
+    },
+    "G4": {
+      "status": "PASS",
+      "invalid_cases": [
+        "checksum",
+        "future_schema",
+        "wrong_next_serial",
+        "bad_collection",
+        "null_firm_operations",
+        "double_spec_id",
+        "missing_firm",
+        "not_yet_supported_orders",
+        "future_model_mode"
+      ],
+      "restore_modified_state": false,
+      "autosave_failure_after_commit": "PASS",
+      "no_duplicate_commit": "PASS"
+    },
+    "G5": {
+      "status": "PASS",
+      "firms": 50,
+      "controlled_subsidiaries": 20,
+      "factory_count": 100,
+      "viewport_px": 390,
+      "search_and_selection": "PASS",
+      "no_horizontal_overflow": "PASS"
+    }
+  }
+}
