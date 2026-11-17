@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>CONGLOMERATE v0.28-dev.1 | 企業経営シミュレーション 開発版</title>
+<title>CONGLOMERATE v0.28-dev.2 | 企業経営シミュレーション 開発版</title>
 <style>
 :root{color-scheme:light;--bg:#f3f5f8;--paper:#fff;--ink:#182a40;--muted:#607187;--nav:#14263c;--nav2:#203a56;--line:#dce4eb;--blue:#2865a4;--blue2:#e8f2fb;--green:#16724a;--red:#ae4050;--amber:#9b680c;--radius:13px;--shadow:0 5px 18px #12253b0c;font-family:system-ui,-apple-system,"Yu Gothic","Hiragino Kaku Gothic ProN","Meiryo",sans-serif}
 *{box-sizing:border-box}body{background:var(--bg);color:var(--ink);margin:0;font-size:14px}button,input,select{font:inherit}button{cursor:pointer}a{color:var(--blue)}.shell{display:grid;grid-template-columns:242px 1fr;min-height:100vh}.side{background:var(--nav);color:#ebf4fc;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;padding:20px 13px;gap:11px}.logo{font-weight:900;letter-spacing:1px;font-size:18px;padding:7px 12px;line-height:1.27}.logo small{font-size:11px;font-weight:500;letter-spacing:0;color:#a4bfd6}.prototype{font-size:11px;color:#d7e8f8;background:#2c465f;border-radius:7px;padding:7px 10px;margin:0 10px}.nav{display:grid;gap:3px;margin-top:12px}.nav button{border:0;color:#c9d5e2;background:transparent;text-align:left;padding:10px 13px;border-radius:8px;font-weight:600}.nav button:hover{background:#ffffff18}.nav button.active{background:#dfebf8;color:#163f65}.sidemeta{margin-top:auto;padding:12px;font-size:11px;color:#a8bbcd;line-height:1.7}.main{min-width:0}.topbar{background:#fff;min-height:70px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:12px 28px;border-bottom:1px solid var(--line)}.topright{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.topbar strong{font-size:17px}.wrap{max-width:1480px;margin:auto;padding:24px 28px 40px}.eyebrow{font-size:11px;letter-spacing:.08em;color:var(--blue);font-weight:800;text-transform:uppercase}.hrow{display:flex;align-items:flex-start;justify-content:space-between;gap:15px;flex-wrap:wrap;margin-bottom:18px}h1{margin:4px 0 7px;font-size:26px;letter-spacing:-.03em}h2{font-size:18px;margin:0 0 16px}h3{font-size:15px;margin:0 0 10px}p{line-height:1.65}.muted{color:var(--muted)}.small{font-size:12px}.tiny{font-size:11px}.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:15px}.span3{grid-column:span 3}.span4{grid-column:span 4}.span5{grid-column:span 5}.span6{grid-column:span 6}.span7{grid-column:span 7}.span8{grid-column:span 8}.span9{grid-column:span 9}.span12{grid-column:span 12}.panel{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);min-width:0}.metric{font-size:25px;font-weight:850;line-height:1.35;overflow-wrap:anywhere}.submetric{margin-top:8px;font-size:12px;color:var(--muted)}.unit{font-size:13px;font-weight:500;color:var(--muted)}.label{font-size:12px;color:var(--muted);font-weight:700}.bar{height:8px;background:#e5ebf1;border-radius:10px;overflow:hidden}.bar>span{display:block;background:#337bbb;height:100%;border-radius:10px}.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.between{justify-content:space-between}.btn{border:1px solid #b6c9da;background:#fff;color:#17456e;border-radius:8px;padding:9px 14px;font-weight:750;transition:.15s}.btn:hover{background:#eff6fc}.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}.btn.primary:hover{background:#18568f}.btn.danger{color:var(--red);border-color:#e4b7bd}.btn.sm{padding:6px 10px;font-size:12px}.btn:disabled{opacity:.45;cursor:not-allowed}.field{display:grid;gap:5px;min-width:0}.field label{font-weight:650;font-size:12px;color:#42546a}.field input,.field select,.field textarea,select.topselect{border:1px solid #c6d3dd;background:#fff;color:var(--ink);border-radius:7px;padding:9px 11px;width:100%;min-width:0}.field textarea{resize:vertical}.topselect{max-width:250px;padding:7px 10px}.formgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:13px;align-items:end}.tag{display:inline-block;font-weight:750;font-size:11px;padding:3px 8px;border-radius:999px;background:var(--blue2);color:#245b8c}.tag.good{background:#e3f3eb;color:var(--green)}.tag.warn{background:#fff2d8;color:#915f09}.tag.bad{background:#fbe9ec;color:var(--red)}table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:11px 9px;text-align:left;border-bottom:1px solid #e8edf1;vertical-align:middle}th{font-size:11px;color:var(--muted);background:#f7f9fb;white-space:nowrap}td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}.scroll{overflow:auto}.note{border-left:3px solid #85b4d6;background:#f1f7fc;padding:12px 14px;color:#3b5975;font-size:12px;line-height:1.7;border-radius:0 8px 8px 0}.warnbox{border-left-color:#d3a24d;background:#fffaec}.notice{padding:11px 0;border-bottom:1px solid var(--line);line-height:1.5}.notice:last-child{border-bottom:0}.notice .date{font-size:11px;color:var(--muted);margin-right:8px}.positive{color:var(--green)}.negative{color:var(--red)}.right{text-align:right}.figure{width:100%;height:220px;display:block}.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:15px;margin-bottom:16px}.twocol{display:grid;grid-template-columns:1fr 1fr;gap:15px}.controls{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.pill{background:#f3f6f9;border-radius:40px;padding:6px 11px;font-size:12px;color:#486176}.modalwrap{position:fixed;inset:0;background:#13253be6;display:flex;align-items:center;justify-content:center;z-index:99;padding:20px;overflow:auto}.modal{background:#fff;border-radius:18px;box-shadow:0 24px 65px #05132466;width:min(800px,100%);max-height:94vh;overflow:auto;padding:27px}.modal h1{font-size:26px}.steps{display:flex;gap:6px;margin:15px 0 22px}.steps span{flex:1;height:6px;background:#e5ebf0;border-radius:5px}.steps span.on{background:var(--blue)}.choices{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.choice{padding:13px;border:1px solid var(--line);border-radius:9px;cursor:pointer;background:white;min-height:80px}.choice:has(input:checked){border:2px solid var(--blue);background:#edf6ff;padding:12px}.choice input{margin-right:6px}.choice b{display:block;font-size:14px;margin:5px 0}.footer{border-top:1px solid var(--line);margin-top:24px;padding-top:15px;display:flex;justify-content:space-between;align-items:center;gap:10px}.toast{position:fixed;bottom:22px;right:23px;z-index:130;background:#1a314b;color:#fff;border-radius:10px;padding:12px 18px;box-shadow:0 8px 30px #15293a44;max-width:min(600px,90vw);display:none}.toast.show{display:block}.savebox{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:13px 0;border-bottom:1px solid var(--line)}.savebox:last-child{border:0}.savebox .grow{flex:1;min-width:180px}#importFile{display:none}.chartdots{color:#6688ab}.statrow{display:grid;grid-template-columns:1fr 1fr;gap:9px}.statrow>div{background:#f6f8fa;border-radius:8px;padding:10px}.vlist{display:grid;gap:9px}.vitem{background:#f7f9fb;padding:12px;border:1px solid #e6edf2;border-radius:9px}.tabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px}.tabs .btn.active{background:#dcecf9;border-color:#6597c1}.hidden{display:none!important}.icon{font-size:18px}.whitehead{color:var(--ink);font-size:15px;font-weight:800}.mini{background:#eff3f7;padding:3px 7px;border-radius:5px;font-size:11px}.scenbar{display:flex;flex-wrap:wrap;gap:6px}.scenbar .mini{background:#f0f5fb;color:#375c80}.footnote{font-size:11px;color:var(--muted);margin-top:15px;line-height:1.7}.progress{height:9px;border-radius:9px;background:#e5edf3;overflow:hidden}.progress span{display:block;height:100%;background:#3e8aaa}.itemstat{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid #eaf0f3;padding:8px 0}.itemstat:last-child{border:0}.sep{height:1px;background:var(--line);margin:16px 0}.noprint{}@media(max-width:1180px){.span3{grid-column:span 6}.span4,.span5,.span6,.span7,.span8,.span9{grid-column:span 6}.kpis{grid-template-columns:repeat(2,1fr)}}@media(max-width:800px){.shell{display:block}.side{position:relative;height:auto;padding:10px}.nav{display:flex;flex-wrap:wrap;margin:0}.nav button{padding:7px 9px;font-size:12px}.sidemeta,.prototype{display:none}.logo{font-size:14px}.topbar{padding:11px 16px}.wrap{padding:17px 14px}.grid{grid-template-columns:1fr}.span3,.span4,.span5,.span6,.span7,.span8,.span9,.span12{grid-column:span 1}.twocol{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}.choices{grid-template-columns:1fr}.modal{padding:17px}h1{font-size:22px}}@media print{.side,.topbar,.noprint,.btn{display:none!important}.shell{display:block}.panel{break-inside:avoid}}
@@ -347,7 +347,7 @@
 @media(max-width:430px){.resource-v026-actions{grid-template-columns:1fr}.resource-v026-actions>div{grid-column:1}}
 </style>
 </head>
-<body><div class="shell"><aside class="side"><div class="logo">CONGLOMERATE<br><small>企業経営シミュレーション</small></div><div class="prototype">機能検証用・開発版 v0.28-dev.1</div><nav class="nav" id="nav">
+<body><div class="shell"><aside class="side"><div class="logo">CONGLOMERATE<br><small>企業経営シミュレーション</small></div><div class="prototype">機能検証用・開発版 v0.28-dev.2</div><nav class="nav" id="nav">
 <button data-section="management">▣　会社経営</button><button data-section="vehicles">◇　製品・研究</button><button data-section="operations">▤　工場・調達</button><button data-section="markets">◎　市場・販売網</button><button data-section="corporate">⌘　企業グループ</button><button data-section="finance">¥　財務・保存</button></nav>
 <div class="sidemeta">オフライン動作・外部通信なし<br>既存 SPEC-001〜094 は変更なし<br>未確定数値は試作パラメータ<br>正式な会計監査・史実検証は未実装</div></aside>
 <main class="main"><header class="topbar"><div><strong id="topCompany">未開始</strong><div class="small muted" id="topDate">開始条件を設定してください</div></div><div class="topright"><select class="topselect" id="companySelect" aria-label="表示会社"></select><select class="topselect" id="regionSelect" aria-label="表示国"></select><button class="btn primary" id="nextMonthBtn" data-action="previewMonth">月末処理 ▸</button></div></header><div class="wrap" id="content"></div></main></div>
@@ -2244,11 +2244,12 @@ function validatePartEconomyV27(s){
   return obj[key];
  };
  for(const key of V27_ECONOMY_LISTS){
-  const rows=validList(p,key,'正本.');const ids=new Set();
-  const idField={specs:'id',licenses:'licenseId',developmentAgreements:'agreementId',contracts:'contractId',orders:'orderId',shipments:'shipmentId',tradeEvents:'eventId',aiInvestmentPlans:'planId'}[key];
+  const rows=validList(p,key,'正本.');if(key==='specs')continue;
+  const ids=new Set();
+  const idField={licenses:'licenseId',developmentAgreements:'agreementId',contracts:'contractId',orders:'orderId',shipments:'shipmentId',tradeEvents:'eventId',aiInvestmentPlans:'planId'}[key];
   for(const [index,row] of rows.entries()){
    if(!row||typeof row!=='object'||Array.isArray(row)){err.push('Ver.0.27：'+key+'['+index+']が不正です');continue}
-   let keyId=row[idField];if(key==='specs'){keyId=(row.specId??row.id)+'@'+row.revision;if(!Number.isSafeInteger(row.revision)||row.revision<1)err.push('Ver.0.27：部品改訂番号が不正です')}
+   const keyId=row[idField];
    if(typeof keyId!=='string'||!keyId||ids.has(keyId))err.push('Ver.0.27：'+key+'のID欠損・重複');
    ids.add(keyId);
    for(const field of ['firmId','ownerFirmId','rightOwnerFirmId','licensorFirmId','licenseeFirmId','sellerFirmId','buyerFirmId']){
@@ -2266,6 +2267,7 @@ function validatePartEconomyV27(s){
   for(const k of V27_OPERATIONS_LISTS){const ar=validList(o,k,f.id+'.');if(ar.length)err.push('Ver.0.27：'+f.id+'.'+k+'はまだ実装対象外です')}
   for(const m of f.models||[])if(m.componentMode!==undefined&&m.componentMode!=='legacy')err.push('Ver.0.27：'+m.id+'の詳細BOM量産はまだ利用できません');
  }
+ err.push(...validatePartDesign(s));
  return err;
 }
 
@@ -2341,6 +2343,7 @@ function processEngineering(s,f){
    if(extra>0){allocation++;extra--;}
   }
   if(!allocation||p.lastAppliedMonth===month)continue;
+  if(p.part&&partResearch(s,f,p.part.family,p.part.values).length){p.status='ON_HOLD';continue;}
   p.status='ACTIVE';
   const funds=Math.min(p.budget-p.actual,Math.max(0,acc(f,'cash')));
   const cumulativeCost=progress=>Math.floor(p.estimate*progress/p.work);
@@ -2355,7 +2358,10 @@ function processEngineering(s,f){
   p.progress=low;
   p.actual+=cost;
   p.lastAppliedMonth=month;
-  if(p.progress===p.work)p.status='COMPLETED';
+  if(p.progress===p.work){
+   if(p.part)releasePartProject(s,f,p,month);
+   p.status='COMPLETED';
+  }
  }
  e.lastAppliedMonth=month;
 }
@@ -2392,6 +2398,11 @@ function engineeringAction(action,id){
     if(others.length>=engineeringSlots(f))throw Error('空き設計枠がありません。人事で採用するか他の案件を一時停止してください');
     if(others.reduce((sum,q)=>sum+(q.fixed??0),fixed??0)>engineers(f)){
      throw Error('固定配属の合計が製品設計技術者数を超えています');
+    }
+    if(approving&&p.part){
+     const locked=partResearch(S,f,p.part.family,p.part.values);
+     if(locked.length)throw Error('必要な年代・研究条件：'+locked.join('、'));
+     if(acc(f,'cash')<p.estimate-p.actual)throw Error('部品開発の見積残額を賄う現金が不足しています');
     }
     if(p.status==='PROPOSED'){
      const budget=localFromBase(aiNumber('engineeringBudget_'+id,0,10000000),f.country);
@@ -2450,6 +2461,347 @@ function engineeringProjectPanel(f,edit){
  </section>`;
 }
 
+/* Released parts are immutable; projects carry candidate specifications until month-end. */
+const PART_COMMON={
+ mass:['重量（kg）',1,10000],
+ cost:['試算単価（円相当）',1,10000000],
+ durability:['耐久指数',1,100]
+};
+const PART_FIELDS={
+ mount:['取付規格',['A','B','C']],
+ drive:['駆動方式',['rwd','fwd','awd']],
+ voltage:['電圧（V）',[0,48,400,800]],
+ length:['全長（mm）',100,10000],
+ torque:['最大トルク（Nm）',1,5000],
+ torqueLimit:['許容トルク（Nm）',1,5000],
+ output:['出力（kW）',1,2000],
+ cooling:['冷却対応出力（kW）',1,2000],
+ clearance:['搭載可能全長（mm）',100,10000],
+ payload:['搭載許容重量（kg）',1,30000],
+ capacity:['電池容量（kWh）',1,500]
+};
+const PART_FAMILIES={
+ engine:{label:'エンジン・モーター',work:240,defaults:{mass:140,cost:1500,durability:75,mount:'A',voltage:0,torque:180,output:60}},
+ transmission:{label:'変速機',work:180,defaults:{mass:65,cost:850,durability:75,mount:'A',drive:'rwd',torqueLimit:200}},
+ chassis:{label:'車台',work:270,defaults:{mass:300,cost:1700,durability:75,mount:'A',drive:'rwd',clearance:4400,payload:1000}},
+ body:{label:'車体',work:220,defaults:{mass:380,cost:1450,durability:75,mount:'A',length:4200}},
+ electronics:{label:'電子装備',work:160,defaults:{mass:35,cost:550,durability:75,voltage:0,cooling:75}},
+ battery:{label:'電池',work:200,defaults:{mass:95,cost:1000,durability:75,voltage:48,capacity:12}}
+};
+const PART_RESULT={OK:'適合',MODIFIABLE:'修正開発可能',RESEARCH_LOCK:'技術・年代の解禁待ち',INFEASIBLE:'構成の見直しが必要'};
+const partFields=family=>Object.keys(PART_FAMILIES[family].defaults);
+const partKey=p=>p.specId+'@'+p.revision;
+const partRecord=(s,key)=>key==null?undefined:s.partEconomy.specs.find(p=>p&&partKey(p)===key);
+const partNameValid=name=>typeof name==='string'&&name.trim().length>0&&name.length<=40;
+
+function partResearch(s,f,family,values){
+ const requirements=[];
+ if(values.voltage===48)requirements.push('energy-1');
+ if(values.voltage>=400)requirements.push('energy-11');
+ if(values.voltage===800)requirements.push('electronics-14');
+ if(values.drive==='fwd')requirements.push('chassis-5');
+ if(values.drive==='awd')requirements.push('chassis-6');
+ if(family==='engine'&&values.output>150)requirements.push('powertrain-9');
+ const done=new Set(f.research?.tree?.done??[]);
+ return [...new Set(requirements)].filter(id=>{
+  const needed=techPathOrder(id);
+  return TECH_BY_ID[id].year>s.year||needed.some(key=>!done.has(key));
+ }).map(id=>TECH_BY_ID[id].name+'（'+TECH_BY_ID[id].year+'年以降・前提研究を含む）');
+}
+
+function validPartValues(family,values){
+ if(!Object.hasOwn(PART_FAMILIES,family)||!values||typeof values!=='object'||Array.isArray(values))return false;
+ const fields=partFields(family);
+ return Object.keys(values).length===fields.length&&fields.every(key=>{
+  const [,min,max]=PART_COMMON[key]??PART_FIELDS[key];
+  const value=values[key];
+  if(key==='voltage'&&family==='battery'&&value===0)return false;
+  return Array.isArray(min)?min.includes(value):Number.isSafeInteger(value)&&value>=min&&value<=max;
+ });
+}
+
+function validatePartDesign(s){
+ const errors=[],specs=s.partEconomy.specs;
+ if(!Array.isArray(specs))return errors;
+ const firms=new Map(s.firms.map(f=>[f.id,f])),seen=new Map(),last=new Map();
+ const serial=s.partEconomy.nextSerial;
+ const month=ym(s.year,s.month);
+ const hasValidSerial=(id,prefix)=>typeof id==='string'&&new RegExp('^'+prefix+'-[1-9]\\d*$').test(id)&&Number.isSafeInteger(Number(id.slice(prefix.length+1)))&&Number(id.slice(prefix.length+1))<serial;
+ for(const spec of specs){
+  if(!spec||!hasValidSerial(spec.specId,'PART')||!Number.isSafeInteger(spec.revision)||!partNameValid(spec.name)||
+     !firms.has(spec.ownerFirmId)||!validPartValues(spec.family,spec.values)||!Number.isSafeInteger(spec.releasedAt)||spec.releasedAt<0||spec.releasedAt>month){
+   errors.push('部品の設計・改訂台帳が不正です');
+   continue;
+  }
+  const previous=last.get(spec.specId);
+  if(spec.revision!==(previous?.revision??0)+1||(previous&&(spec.ownerFirmId!==previous.ownerFirmId||spec.family!==previous.family))){
+   errors.push('部品の改訂順または権利者が不正です');
+  }
+  last.set(spec.specId,spec);
+  seen.set(partKey(spec),spec);
+ }
+ const outputKeys=new Set(),bomIds=new Set();
+ for(const f of s.firms){
+  for(const p of f.partOperations?.engineering?.projects??[]){
+   if(!p||p.part===undefined)continue;
+   const candidate=p.part;
+   const parent=seen.get(candidate?.parent);
+   const output=seen.get(candidate?.output);
+   if(!candidate||!partNameValid(candidate.name)||!validPartValues(candidate.family,candidate.values)||
+      (candidate.parent!==null&&(!parent||parent.ownerFirmId!==f.id||parent.family!==candidate.family))||
+      (p.status==='COMPLETED'
+       ? !output||output.ownerFirmId!==f.id||output.family!==candidate.family||output.name!==candidate.name||
+         output.releasedAt!==p.lastAppliedMonth||!partFields(candidate.family).every(k=>output.values[k]===candidate.values[k])||
+         outputKeys.has(candidate.output)||(parent?(output.specId!==parent.specId||output.revision<=parent.revision):output.revision!==1)
+       : candidate.output!==null)){
+    errors.push(f.id+'：部品設計案件の参照が不正です');
+   }
+   if(output)outputKeys.add(candidate.output);
+  }
+  const boms=f.partOperations?.designBoms;
+  if(boms===undefined)continue;
+  if(!Array.isArray(boms)){errors.push(f.id+'：設計構成の形式が不正です');continue;}
+  for(const bom of boms){
+   if(!bom||!hasValidSerial(bom.id,'BOM')||bomIds.has(bom.id)||!partNameValid(bom.name)||
+      !bom.lines||typeof bom.lines!=='object'||Array.isArray(bom.lines)||
+      Object.entries(bom.lines).some(([family,key])=>!Object.hasOwn(PART_FAMILIES,family)||
+       seen.get(key)?.family!==family||seen.get(key)?.ownerFirmId!==f.id)||
+      !(bom.approvedAt===null||(Number.isSafeInteger(bom.approvedAt)&&bom.approvedAt>=0&&bom.approvedAt<=month))){
+    errors.push(f.id+'：設計構成の参照が不正です');
+   }else if(bom.approvedAt!==null&&inspectPartBom(s,f,bom.lines).status!=='OK'){
+    errors.push(f.id+'：設計承認済みの構成が適合条件を満たしていません');
+   }
+   if(bom?.id)bomIds.add(bom.id);
+  }
+ }
+ if(outputKeys.size!==seen.size)errors.push('完了案件と登録済み部品の対応が不正です');
+ return errors;
+}
+
+function inspectPartBom(s,f,lines){
+ const parts={},issues=[];
+ const issue=(status,text,repair=null)=>issues.push({status,text,repair});
+ for(const [family,key] of Object.entries(lines)){
+  const spec=partRecord(s,key);
+  if(!spec||spec.ownerFirmId!==f.id||spec.family!==family){
+   issue('INFEASIBLE','部品の改訂または自社の利用権を確認してください');
+   continue;
+  }
+  parts[family]=spec;
+  for(const research of partResearch(s,f,family,spec.values))issue('RESEARCH_LOCK',PART_FAMILIES[family].label+'：'+research);
+ }
+ const required=Object.keys(PART_FAMILIES).filter(k=>k!=='battery'||parts.engine?.values.voltage>0);
+ for(const family of required)if(!parts[family])issue('INFEASIBLE',PART_FAMILIES[family].label+'を選択してください');
+ const engine=parts.engine?.values,gear=parts.transmission?.values,chassis=parts.chassis?.values,
+  body=parts.body?.values,electronics=parts.electronics?.values,battery=parts.battery?.values;
+ const adjust=(family,field,value,text)=>{
+  const spec=parts[family],values={...spec.values,[field]:value};
+  values.mass+=Math.ceil(spec.values.mass*.04);
+  values.cost+=Math.ceil(spec.values.cost*.08);
+  if(!validPartValues(family,values)){issue('INFEASIBLE',text+'。仕様の上限を超えるため部品を選び直してください');return;}
+  issue('MODIFIABLE',text,{parent:partKey(spec),family,name:spec.name,values,output:null,field});
+ };
+ if(chassis){
+  for(const family of ['engine','transmission','body']){
+   const v=parts[family]?.values;
+   if(v&&v.mount!==chassis.mount)adjust(family,'mount',chassis.mount,PART_FAMILIES[family].label+'の取付規格を車台に合わせる');
+  }
+  if(gear&&gear.drive!==chassis.drive)issue('INFEASIBLE','変速機と車台の駆動方式が異なります');
+  if(body&&body.length>chassis.clearance)adjust('chassis','clearance',body.length,'車体を搭載できるよう車台の対応全長を延長する');
+  const mass=Object.entries(parts).reduce((sum,[family,p])=>sum+(family==='chassis'?0:p.values.mass),0);
+  if(mass>chassis.payload)adjust('chassis','payload',mass,'車台の搭載許容重量を引き上げる（現在 '+mass+'kg）');
+ }
+ if(engine&&gear&&engine.torque>gear.torqueLimit)adjust('transmission','torqueLimit',engine.torque,'変速機の許容トルクを '+engine.torque+'Nm に引き上げる');
+ if(engine&&electronics&&engine.output>electronics.cooling)adjust('electronics','cooling',engine.output,'冷却対応出力を '+engine.output+'kW に引き上げる');
+ if(engine&&electronics&&engine.voltage!==electronics.voltage)issue('INFEASIBLE','エンジン・モーターと電子装備の電圧規格が異なります');
+ if(engine&&battery&&engine.voltage!==battery.voltage)issue('INFEASIBLE','電池の電圧が動力系に適合していません');
+ for(const [family,p] of Object.entries(parts)){
+  if(p.values.durability<60)adjust(family,'durability',60,PART_FAMILIES[family].label+'の耐久指数を60以上に引き上げる');
+ }
+ const status=['RESEARCH_LOCK','INFEASIBLE','MODIFIABLE'].find(key=>issues.some(x=>x.status===key))??'OK';
+ return {status,issues};
+}
+
+function partProjectQuote(s,f,family,values,parent,repair){
+ const factor=Math.max(1,values.mass/PART_FAMILIES[family].defaults.mass);
+ const scope=repair?0.5:parent?0.75:1;
+ const work=Math.min(ENGINEERING_MAX_WORK,Math.ceil(PART_FAMILIES[family].work*scope*Math.sqrt(factor)));
+ const base=Math.min(10000000,Math.round((work*40+values.cost*.15)*eraCostFactor(s.year)));
+ return {work,estimate:localFromBase(base,f.country)};
+}
+
+function submitPartProject(s,f,part,repair=false){
+ if(!validPartValues(part.family,part.values)||!partNameValid(part.name))throw Error('部品の入力範囲を確認してください');
+ const parent=partRecord(s,part.parent);
+ if(part.parent!==null&&(!parent||parent.ownerFirmId!==f.id||parent.family!==part.family))throw Error('改訂元の部品を選び直してください');
+ const locked=partResearch(s,f,part.family,part.values);
+ if(locked.length)throw Error('必要な年代・研究条件：'+locked.join('、'));
+ const {work,estimate}=partProjectQuote(s,f,part.family,part.values,part.parent,repair);
+ if(f.partOperations.engineering.projects.some(p=>!engineeringFinished(p)&&p.part&&
+   p.part.family===part.family&&p.part.parent===part.parent&&p.part.name===part.name&&
+   partFields(part.family).every(k=>p.part.values[k]===part.values[k])))throw Error('同じ仕様の案件がすでにあります');
+ f.partOperations.engineering.projects.push({id:'D'+s.seq++,name:part.name,work,estimate,budget:0,
+  progress:0,actual:0,status:'PROPOSED',fixed:null,lastAppliedMonth:null,part});
+}
+
+function releasePartProject(s,f,p,month){
+ const candidate=p.part;
+ const parent=partRecord(s,candidate.parent);
+ const specId=parent?.specId??'PART-'+s.partEconomy.nextSerial++;
+ const revision=(parent?s.partEconomy.specs.findLast(x=>x.specId===specId).revision:0)+1;
+ const spec={specId,revision,family:candidate.family,name:candidate.name,values:{...candidate.values},ownerFirmId:f.id,releasedAt:month};
+ s.partEconomy.specs.push(spec);
+ candidate.output=partKey(spec);
+}
+
+let PART_FORM=null;
+const partSelection=f=>PART_FORM?.firm===f.id?PART_FORM:{firm:f.id,family:'engine',parent:null,bom:null};
+
+function partDesignAction(action,id){
+ try{
+  const f=current();
+  if(!f||!engineeringEligible(f)||(action!=='partBomOpen'&&!canEdit(f)))throw Error('この法人の部品設計を変更できません');
+  const ops=f.partOperations,selection=partSelection(f),bom=ops.designBoms?.find(x=>x.id===id);
+  if(action==='partFamily'){
+   if(!Object.hasOwn(PART_FAMILIES,id))throw Error('部品系統が不正です');
+   PART_FORM={...selection,family:id,parent:null,editing:true};
+  }else if(action==='partRevise'){
+   const old=partRecord(S,id);
+   if(!old||old.ownerFirmId!==f.id)throw Error('改訂できる自社部品がありません');
+   PART_FORM={...selection,family:old.family,parent:id,editing:true};
+  }else if(action==='partSubmit'){
+   const {family}=selection;
+   const parent=partRecord(S,selection.parent)?.ownerFirmId===f.id?selection.parent:null;
+   const name=inputValue('partName')?.trim();
+   const values=Object.fromEntries(partFields(family).map(key=>{
+    const [,min,max]=PART_COMMON[key]??PART_FIELDS[key];
+    const field='partValue_'+key;
+    return [key,Array.isArray(min)?(typeof min[0]==='number'?Number(inputValue(field)):inputValue(field)):aiNumber(field,min,max)];
+   }));
+   submitPartProject(S,f,{family,name,values,parent,output:null});
+   PART_FORM={...selection,parent:null};
+  }else if(action==='partBomCreate'){
+   const name=inputValue('partBomName')?.trim();
+   if(!partNameValid(name))throw Error('構成名を1〜40文字で入力してください');
+   const newBom={id:'BOM-'+S.partEconomy.nextSerial++,name,lines:{},approvedAt:null};
+   (ops.designBoms??=[]).push(newBom);
+   PART_FORM={...selection,bom:newBom.id};
+  }else{
+   if(!bom)throw Error('対象の設計構成がありません');
+   if(action==='partBomOpen'){
+    PART_FORM={...selection,bom:id};
+   }else{
+    if(bom.approvedAt!==null)throw Error('設計承認済みの構成は固定されています');
+    if(action==='partBomSave'){
+     const lines={};
+     for(const family of Object.keys(PART_FAMILIES)){
+      const key=inputValue('partBom_'+family);
+      if(!key)continue;
+      const spec=partRecord(S,key);
+      if(!spec||spec.family!==family||spec.ownerFirmId!==f.id)throw Error('選択した部品の利用権を確認してください');
+      lines[family]=key;
+     }
+     bom.lines=lines;
+    }else if(action==='partBomApprove'){
+     if(inspectPartBom(S,f,bom.lines).status!=='OK')throw Error('適合検査に合格してから設計を承認してください');
+     bom.approvedAt=ym(S.year,S.month);
+    }else throw Error('設計操作が不正です');
+   }
+  }
+  render();
+  if(action==='partSubmit')toast('部品開発を申請しました。製品設計専用枠から承認してください。');
+ }catch(e){toast(e.message);}
+}
+
+function partRepairAction(id,index){
+ try{
+  const f=current();
+  if(!canEdit(f)||!engineeringEligible(f))throw Error('この法人の部品を変更できません');
+  const bom=f.partOperations.designBoms?.find(x=>x.id===id);
+  if(!bom||bom.approvedAt!==null)throw Error('編集中の構成がありません');
+  const result=inspectPartBom(S,f,bom.lines);
+  const repair=result.issues[index]?.repair;
+  if(result.status!=='MODIFIABLE'||!repair)throw Error('適用できる修正案がありません');
+  submitPartProject(S,f,repair,true);
+  render();
+  toast('修正開発を申請しました。製品設計専用枠から承認してください。');
+ }catch(e){toast(e.message);}
+}
+
+function partDesignPanel(f,edit){
+ if(!engineeringEligible(f))return '';
+ const selection=partSelection(f),{family,parent}=selection;
+ const specs=S.partEconomy.specs.filter(p=>p.ownerFirmId===f.id);
+ const source=specs.find(p=>partKey(p)===parent);
+ const values=source?.values??PART_FAMILIES[family].defaults;
+ const boms=f.partOperations?.designBoms??[],bom=boms.find(b=>b.id===selection.bom);
+ const disabled=edit?'':'disabled';
+ const button=(action,label,id='')=>`<button class="btn sm" data-action="${action}" data-id="${esc(id)}" ${disabled}>${label}</button>`;
+ const familyButtons=Object.entries(PART_FAMILIES).map(([key,def])=>button('partFamily',def.label,key)).join('');
+ const box=(id,label,control)=>`<div class="field"><label for="${id}">${label}</label>${control}</div>`;
+ const text=(id,label,value='')=>box(id,label,`<input id="${id}" maxlength="40" value="${esc(value)}" ${disabled}>`);
+ const form=partFields(family).map(key=>{
+  const [label,min,max]=PART_COMMON[key]??PART_FIELDS[key],id='partValue_'+key;
+  const control=Array.isArray(min)
+   ?`<select id="${id}" ${disabled}>${min.filter(v=>family!=='battery'||key!=='voltage'||v!==0).map(v=>`<option value="${v}" ${values[key]===v?'selected':''}>${v}</option>`).join('')}</select>`
+   :`<input id="${id}" type="number" min="${min}" max="${max}" value="${values[key]}" ${disabled}>`;
+  return box(id,label,control);
+ }).join('');
+ const library=specs.slice().reverse().map(p=>`<div class="vitem"><div class="row between">
+  <b>${esc(p.name)}（${PART_FAMILIES[p.family].label}・第${p.revision}版）</b>
+  ${button('partRevise','この版から改訂',partKey(p))}</div>
+  <span class="small">${esc(partKey(p))} ／ ${partFields(p.family).map(k=>`${(PART_COMMON[k]??PART_FIELDS[k])[0]} ${esc(p.values[k])}`).join(' ／ ')}</span>
+ </div>`).join('');
+ return `<section class="panel span12 product-pane ${PRODUCT_VIEW==='design'?'current':''}" data-product-pane="design">
+ <h2>部品設計・適合検査</h2>
+ <details class="mk-v25-projects" ${selection.editing?'open':''}>
+ <summary>部品を設計・改訂する</summary>
+ <p class="hint">部品を申請し、製品設計専用枠から承認してください。月末の開発完了時に、新しい版を部品台帳へ登録します。</p>
+ <div class="row">${familyButtons}</div>
+ <h3 style="margin-top:12px">${PART_FAMILIES[family].label} ${source?`・第${source.revision}版から改訂`:'・新規設計'}</h3>
+ <div class="formgrid">${text('partName','部品名',source?.name)}${form}${button('partSubmit','部品開発を申請')}</div>
+ </details>
+ <details class="mk-v25-projects" style="margin-top:10px"><summary>自社の部品台帳（${specs.length}版）</summary>
+ <div class="vlist">${library||'<p class="hint">登録済みの部品がありません。</p>'}</div></details>
+ <details class="mk-v25-projects" style="margin-top:10px" ${bom?'open':''}><summary>車両構成・適合検査（${boms.length}件）</summary>
+ <p class="hint">登録済みの自社部品を版指定で選びます。同じ部品を複数の構成で使用できます。設計承認した構成は選択した版で固定されます。</p>
+ <div class="formgrid">${text('partBomName','構成名')}${button('partBomCreate','新しい構成を作成')}</div>
+ <div class="row" style="margin-top:12px">${boms.map(b=>`<button class="btn sm" data-action="partBomOpen" data-id="${esc(b.id)}">${esc(b.name)}</button>`).join('')}</div>
+ ${bom?partBomPanel(f,bom,specs,edit,button,box):''}
+ </details></section>`;
+}
+
+function partBomPanel(f,bom,specs,edit,button,box){
+ const draft=bom.approvedAt===null;
+ const result=inspectPartBom(S,f,bom.lines);
+ const fields=Object.entries(PART_FAMILIES).map(([family,def])=>{
+  const id='partBom_'+family;
+  const choices=specs.filter(p=>p.family===family).slice().reverse();
+  return box(id,def.label,`<select id="${id}" ${edit&&draft?'':'disabled'}><option value="">未選択</option>
+  ${choices.map(p=>`<option value="${esc(partKey(p))}" ${bom.lines[family]===partKey(p)?'selected':''}>${esc(p.name)} 第${p.revision}版（${esc(p.specId)}）</option>`).join('')}</select>`);
+ }).join('');
+ const issues=result.issues.map(({status,text,repair},i)=>{
+  let details='';
+  if(repair&&result.status==='MODIFIABLE'){
+   const prior=partRecord(S,repair.parent),{work,estimate}=partProjectQuote(S,f,repair.family,repair.values,repair.parent,true);
+   const {field,values}=repair;
+   const changed=[...new Set([field,'mass','cost'])].map(k=>`${(PART_COMMON[k]??PART_FIELDS[k])[0]} ${esc(prior.values[k])} → ${esc(values[k])}`).join(' ／ ');
+   const capacity=engineers(f)*engineeringHoursPerPerson(f);
+   const time=capacity?Math.ceil(work/capacity)+'か月以上':'要採用';
+   details=`<div class="small">${changed}<br>試作・試験費 ${fnum(f,estimate)} ／ ${work}時間（${time}）<br>新しい版で適合検査をやり直してください。工場ラインの適合は量産準備時に別途確認します。</div>
+   <button class="btn sm" data-action="partRepair" data-id="${esc(bom.id)}" data-index="${i}" ${edit?'':'disabled'}>この修正案で開発を申請</button>`;
+  }
+  return `<div class="vitem">${tag(PART_RESULT[status],'warn')} ${esc(text)}${details}</div>`;
+ }).join('');
+ return `<div class="sep"></div><h3>${esc(bom.name)} ${tag(draft?'設計中':'設計承認済み')}</h3>
+ <div class="formgrid">${fields}</div>
+ ${draft?`<div class="row" style="margin-top:12px">${button('partBomSave','構成を保存して適合検査',bom.id)}
+ ${result.status==='OK'?button('partBomApprove','適合済み構成を設計承認',bom.id):''}</div>`:''}
+ <p>保存済み構成の検査結果 ${tag(PART_RESULT[result.status],result.status==='OK'?'good':'warn')}</p>
+ <div class="vlist">${issues}</div>
+ <p class="hint">承認は設計段階の記録です。車種への適用と工場の量産計画は、別の工程で行います。</p>`;
+}
+
 function savePayload(s){const json=JSON.stringify(s);return JSON.stringify({format:'CONGLOMERATE',version:VERSION,checksum:hash(json),payload:json,savedAt:new Date().toISOString()})}
 function parsePayload(raw){if(typeof raw!=='string')throw Error('保存データが存在しません');const obj=JSON.parse(raw);if(obj.format!=='CONGLOMERATE'||obj.version!==VERSION)throw Error('対応しない保存形式です');if(hash(obj.payload)!==obj.checksum)throw Error('チェックサム不一致');const s=JSON.parse(obj.payload);ensureV11(s);ensureMAState(s);ensureV20(s);ensureSupplyNetwork(s);for(const f of s.firms||[]){ensureFirmGameplay(f);ensureNetwork(f,s);}ensureV27(s);const errs=check(s);if(errs.length)throw Error(errs.slice(0,3).join(' / '));return s}
 function openDatabase(){return new Promise((resolve,reject)=>{if(!('indexedDB' in window))return reject(Error('IndexedDBに非対応の環境です'));const req=indexedDB.open(DB_NAME,DB_VERSION);req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains('snapshots'))db.createObjectStore('snapshots',{keyPath:'key'});if(!db.objectStoreNames.contains('meta'))db.createObjectStore('meta',{keyPath:'key'})};req.onsuccess=()=>{req.result.onversionchange=()=>req.result.close();resolve(req.result)};req.onerror=()=>reject(req.error||Error('保存領域の初期化失敗'));req.onblocked=()=>reject(Error('他のタブがデータベースを使用中です'))})}
@@ -2477,7 +2829,7 @@ async function saveAuto(){if(!IDB){if(S)S.autosaveState='保存失敗';saveWarni
 async function saveManual(num){if(!IDB){toast('IndexedDBを使えません。JSONでバックアップしてください。');return}if(SAVE_BUSY){toast('保存中です。重複書込みを回避しました。');return}SAVE_BUSY=true;
  try{const raw=savePayload(S),rec=slotRecord('manual:'+num,raw);await idbWrite('snapshots',rec);const verified=await idbRead('snapshots','manual:'+num);if(!verified||verified.serialized!==raw)throw Error('手動保存の検証に失敗');parsePayload(verified.serialized);await refreshSaveIndex();toast('手動保存 '+(num+1)+' をIndexedDBに記録しました');render()}
  catch(e){toast('手動保存失敗：'+e.message)}finally{SAVE_BUSY=false}}
-function restore(raw){try{const s=parsePayload(raw);S=s;LAST_MONTH_DIAGNOSTIC=null;MONTH_DIAGNOSTIC_OPEN=false;VIEW_FIRM=s.playerId;VIEW_COUNTRY=company(s.playerId,s).country;PAGE='dashboard';monthlyPreview=false;render();toast('保存データを読み込みました：'+dateKey(s));return true}catch(e){toast('ロードできません：'+e.message);return false}}
+function restore(raw){try{const s=parsePayload(raw);S=s;PART_FORM=null;LAST_MONTH_DIAGNOSTIC=null;MONTH_DIAGNOSTIC_OPEN=false;VIEW_FIRM=s.playerId;VIEW_COUNTRY=company(s.playerId,s).country;PAGE='dashboard';monthlyPreview=false;render();toast('保存データを読み込みました：'+dateKey(s));return true}catch(e){toast('ロードできません：'+e.message);return false}}
 async function restoreAuto(){const generations=[{slot:SAVE_INDEX.active,checksum:SAVE_INDEX.activeChecksum},{slot:SAVE_INDEX.previous,checksum:SAVE_INDEX.previousChecksum}];for(const entry of generations){const k=entry.slot;if(k===null||k===undefined||!entry.checksum)continue;const rec=SAVE_INDEX.auto[k];if(rec){try{if(hash(rec.serialized)!==entry.checksum)throw Error('保存世代の確定チェックサムが異なります');const s=parsePayload(rec.serialized);S=s;VIEW_FIRM=s.playerId;VIEW_COUNTRY=company(s.playerId,s).country;return true}catch(e){console.warn('保存世代を検証できません',k,e)}}}return false}
 async function boot(){try{IDB=await openDatabase();SAVE_INDEX.backend='IndexedDB';await importLegacyOnce();await refreshSaveIndex();if(!await restoreAuto()){S=null;wizard=0;}STORAGE_READY=true;}catch(e){SAVE_INDEX.backend='利用不可';saveWarning='IndexedDBの初期化に失敗しました。JSONバックアップで保護してください：'+e.message;console.error(e);S=null;wizard=0;STORAGE_READY=true;}render()}
 function fileDownload(name,contents){const blob=new Blob([contents],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),700)}
@@ -2579,6 +2931,7 @@ function productPage(){const f=current(),edit=canEdit(f);ensureFirmGameplay(f);c
  return titlePage('製品・開発','設計仕様と外観が市場適合・性能・原価に影響します。',tag('10項目・試作係数'))+(!edit?noaccess():'')+productTabs()+`<div class="grid product-grid">
  <section class="panel span12 product-pane ${PRODUCT_VIEW==='production'?'current':''}" data-product-pane="production"><h2>現在の車種・計画生産</h2><div class="scroll"><table><thead><tr><th>車種・ボディ</th><th class="num">性能</th><th class="num">品質</th><th class="num">当月販売</th><th class="num">完成品</th><th class="num">生産計画</th><th class="num">価格（円相当）</th></tr></thead><tbody>${mlist.map(m=>`<tr><td><b>${esc(m.name)}</b><div class="tiny muted">${esc(designLabel('body',m.design?.body||'touring'))} / ${esc(gradeName(m))}</div></td><td class="num">${nfmt(m.performance)}</td><td class="num">${nfmt(m.quality)}</td><td class="num">${nfmt(Object.values(f.marketThisMonth||{}).reduce((a,x)=>a+(x.models?.[m.id]?.units||0),0))}</td><td class="num">${nfmt(f.goods[m.id]?.q||0)}</td><td class="num"><input id="plan_${esc(m.id)}" style="width:86px" type="number" min="0" max="100000" value="${f.plans[m.id]||0}" ${edit?'':'disabled'}></td><td class="num"><input id="price_${esc(m.id)}" style="width:100px" type="number" min="100" max="500000" value="${m.priceBase}" ${edit?'':'disabled'}></td></tr>`).join('')}</tbody></table></div><div class="row" style="margin-top:12px"><button class="btn primary" data-action="setPlan" ${edit?'':'disabled'}>生産計画・価格を反映</button><span class="hint">最新の販売地域・車種別数量は「市場・世界経済」でも確認できます。</span></div></section>
  <section class="panel span12 product-pane ${PRODUCT_VIEW==='design'?'current':''}" data-product-pane="design"><h2>新型車設計 — 10の意思決定</h2><p class="hint">すべて選択できます。年代・研究技術が未達の選択肢は無効です。比較指標は推定値であり、工場・供給・需要によって月末結果が変わります。</p><div class="design-layout"><div class="field"><label>モデル名</label><input id="modelName" maxlength="30" placeholder="例：ツーリングII" ${edit?'':'disabled'}></div><div class="field"><label>発売予定価格（円相当）</label><input id="modelPrice" type="number" min="1000" value="8500" ${edit?'':'disabled'}></div>${designFields}</div><div class="design-preview" id="designPreview"><span class="hint">下の「設計プレビュー」で評価を確認してください。</span></div><div class="row"><button class="btn" data-action="designPreview">設計プレビューを更新</button><button class="btn primary" data-action="develop" ${edit&&['auto','manufacturing'].includes(f.industry)?'':'disabled'}>設計を確定・開発開始（70,000円相当）</button></div></section>
+ ${partDesignPanel(f,edit)}
  ${engineeringProjectPanel(f,edit)}
  <section class="panel span12 product-pane ${PRODUCT_VIEW==='design'?'current':''}" data-product-pane="design"><details class="mk-v25-projects" ${f.projects.length?'open':''}><summary><span>開発進捗・発売予定</span><span class="mk-muted">${f.projects.length}件進行中</span></summary><div class="mk-project-list">${f.projects.length?f.projects.map(p=>`<div class="mk-project-item"><div><b>${esc(p.name)}</b><small>${esc(designLabel('body',p.design?.body||'touring'))} / ${esc(designLabel('power',p.design?.power||'petrol'))}</small></div>${tag(Math.max(0,p.left||0)+'か月後','good')}</div>`).join(''):'<p class="hint">現在進行中の開発はありません。新型車を設計すると、ここで完成予定を確認できます。</p>'}</div></details></section>
  <section class="panel span12 product-pane ${PRODUCT_VIEW==='design'?'current':''}" data-product-pane="design"><h2>モデルチェンジ・製品ライフサイクル</h2><p class="hint">発売からの年数に応じて需要の競争力が緩やかに低下します。フェイスリフト（2か月）・フルモデルチェンジ（5か月）では旧車の実在庫を保持し、新旧モデルが在庫販売で競合します。</p><div class="scroll"><table><thead><tr><th>車種</th><th>状態</th><th class="num">発売後</th><th class="num">世代</th><th class="num">需要係数</th><th class="num">旧型在庫</th></tr></thead><tbody>${f.models.map(m=>`<tr><td>${esc(m.name)}</td><td>${esc(m.status)}</td><td class="num">${m.months||0}か月</td><td class="num">${m.generation||1}</td><td class="num">${nfmt(modelAgeFactor(m)*100)}%</td><td class="num">${nfmt(f.goods[m.id]?.q||0)}</td></tr>`).join('')}</tbody></table></div><div class="formgrid"><div class="field"><label>改良元の現行車種</label><select id="renewModel">${mlist.map(m=>`<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('')}</select></div><div class="field"><label>方式</label><select id="renewKind"><option value="facelift">フェイスリフト：2か月／36,000円相当</option><option value="full">フルモデルチェンジ：5か月／115,000円相当</option></select></div><div class="field"><label>新モデル名</label><input id="renewName" maxlength="30" placeholder="例：ツーリング 02"></div><div class="field"><label>新モデルの希望価格（円相当）</label><input id="renewPrice" type="number" min="1000" max="900000" value="8500"></div><button class="btn primary" data-action="renewModel" ${edit&&mlist.length?'':'disabled'}>モデル改良を開始</button></div><p class="hint">フルモデルチェンジは設計・商品企画タブの10項目設計を利用します。フェイスリフトは現在の設計を引き継ぎ、性能・品質を小幅改善します。旧モデルは追加生産せず、残った在庫だけを販売します。</p></section>
@@ -3179,7 +3532,7 @@ function render(){if(!S){document.getElementById('content').innerHTML='';documen
 function monthModal(){const issues=checkMonthPreview(),f=current();return `<div class="modalwrap"><div class="modal" role="dialog" aria-modal="true"><div class="eyebrow">MONTH-END / PRE-FLIGHT</div><h1>${dateKey()}の月末処理</h1><p class="muted">処理前チェックは確定状態を変更しません。実行後は当月を固定順序で計算し、資源・会計の整合性を検証して結果を確定します。</p><div class="grid">${card('対象',esc(dateKey()),'月次一括処理','span4')}${card('支配下法人',controlled().length+'社','計算は全世界の企業を含む','span4')}${card('現金残高',fnum(f,financials(f).cash),'現在選択中の法人','span4')}</div><h2 style="margin-top:20px">事前確認・警告</h2>${issues.length?issues.map(v=>`<div class="notice">${tag('注意','warn')}　${esc(v)}</div>`).join(''):`<div class="note">現時点の計画に重大な資源警告は見つかりませんでした。価格変化や供給不足など、実際の月末処理で決定される結果もあります。</div>`}<div class="note warnbox" style="margin-top:15px">数値計算は試作係数に基づきます。正式SPEC-095以降の計算方式は未確定です。処理失敗時は計算前の状態を保護します。</div><div class="footer"><button class="btn" data-action="cancelMonth">計画に戻る</button><button class="btn primary" data-action="runMonth">この月を確定する</button></div></div></div>`}
 function wizardHTML(){const stepLabels=['開始年代','創業国','モードと難易度','創業条件確認'];return `<div class="modalwrap"><div class="modal" role="dialog" aria-modal="true"><div class="eyebrow">NEW GAME / STEP ${wizard+1} OF 4</div><h1>新しい企業経営を始める</h1><p class="muted small">自動車メーカーを創業する試作版です。人口は史実推計の基準値、その他の経済係数は仮設定です。</p><div class="steps">${stepLabels.map((x,i)=>`<span class="${i<=wizard?'on':''}" title="${x}"></span>`).join('')}</div>${wizard===0?`<h2>1. 開始年代</h2><div class="choices">${[1900,1920,1950,1980,2020].map(y=>`<label class="choice"><input type="radio" name="era" value="${y}" ${setup.era===y?'checked':''}><b>${y}年</b><span class="small muted">${y===1900?'工業化初期・自動車市場の草創期':y===1920?'自動車普及期':y===1950?'戦後産業復興期':y===1980?'世界市場拡大期':'現代のグローバル市場'}</span></label>`).join('')}</div>`:wizard===1?`<h2>2. 創業国</h2><div class="choices">${Object.keys(NAMES).map(c=>`<label class="choice"><input type="radio" name="country" value="${c}" ${setup.country===c?'checked':''}><b>${NAMES[c]}</b><span class="small muted">試作通貨：${COUNTRIES[c].currency} / 人口基準値 ${nfmt(anchorPopulation(c,setup.era))}百万人</span></label>`).join('')}</div>`:wizard===2?`<h2>3. 歴史モードと難易度</h2><div class="formgrid"><div class="field"><label>歴史モード</label><select id="wizardHistory"><option value="historical" ${setup.history==='historical'?'selected':''}>史実モード</option><option value="alternate" ${setup.history==='alternate'?'selected':''}>仮想歴史モード</option></select></div><div class="field"><label>難易度</label><select id="wizardDifficulty"><option value="easy" ${setup.difficulty==='easy'?'selected':''}>易しい（資本1.6倍）</option><option value="normal" ${setup.difficulty==='normal'?'selected':''}>標準</option><option value="hard" ${setup.difficulty==='hard'?'selected':''}>難しい（資本0.7倍）</option></select></div><div class="field"><label>会社名</label><input id="wizardName" maxlength="38" value="${esc(setup.name)}"></div></div><div class="note" style="margin-top:20px">史実モードは主要な歴史イベントを扱い、景気循環は固定日付では発生しません。現段階ではイベントや歴史的国境・通貨の厳密再現は未完成です。</div>`:`<h2>4. 創業条件の確認</h2><div class="statrow">${[['会社名',esc(setup.name)],['開始年月',setup.era+'年1月'],['創業国',NAMES[setup.country]],['歴史モード',setup.history==='historical'?'史実':'仮想'],['難易度',setup.difficulty==='easy'?'易しい':setup.difficulty==='hard'?'難しい':'標準'],['初期資本（円相当）',nfmt((setup.era<1930?2400000:setup.era<1960?4200000:setup.era<1990?7000000:12000000)*(setup.difficulty==='easy'?1.6:setup.difficulty==='hard'?.7:1))]].map(([k,v])=>`<div><div class="label">${k}</div><strong>${v}</strong></div>`).join('')}</div><div class="note warnbox" style="margin-top:20px">人口は史実推計の概数を基準値に採用（${nfmt(anchorPopulation(setup.country,setup.era))}百万人）。現在の国境に対応した人口推計であり、当時の国境・通貨を再現するものではありません。為替・価格・需要は試作値です。</div>`}<div class="footer"><button class="btn" data-action="wizardBack" ${wizard===0?'disabled':''}>戻る</button><button class="btn primary" data-action="wizardNext">${wizard===3?'この条件で創業する':'次へ進む ▸'}</button></div></div></div>`}
 async function wizardNext(){if(S)return;if(wizard===0)setup.era=Number(document.querySelector('input[name="era"]:checked')?.value||1900);if(wizard===1)setup.country=document.querySelector('input[name="country"]:checked')?.value||'JP';if(wizard===2){setup.history=inputValue('wizardHistory')||'historical';setup.difficulty=inputValue('wizardDifficulty')||'normal';setup.name=(inputValue('wizardName')||'').trim().slice(0,38)||'新規自動車メーカー'}if(wizard<3){wizard++;render();return}try{S=newGame(setup);LAST_MONTH_DIAGNOSTIC=null;MONTH_DIAGNOSTIC_OPEN=false;VIEW_FIRM=S.playerId;VIEW_COUNTRY=setup.country;PAGE='dashboard';render();const saved=await saveAuto();render();toast(saved?'創業しました。IndexedDBに自動保存しました。':'創業しましたが、自動保存に失敗しました。JSONバックアップを保存してください。')}catch(e){S=null;toast('創業設定エラー：'+e.message);console.error(e)}}
-function actions(action,elem){if(MONTH_RUNNING){toast('月次処理中です。保存・計算の確定を進めています。');return;}if(action==='wizardNext')return wizardNext();if(action==='wizardBack'){wizard=Math.max(0,wizard-1);return render()}if(!S)return;switch(action){case 'previewMonth':monthlyPreview=true;return render();case 'cancelMonth':monthlyPreview=false;return render();case 'runMonth':return runMonth();case 'monthDiagnosticShow':case 'monthDiagnosticDismiss':case 'monthDiagnosticCopy':case 'monthDiagnosticDownload':case 'monthDiagnosticJump':return monthlyDiagAction(action);case 'staffToHrV023':PEOPLE_VIEW='hr';PAGE='people';render();return;case 'goProductionV023':PRODUCT_VIEW='production';PAGE='product';render();return;case 'setPlan':return setPlan();case 'createGrade':return createGrade();case 'saveQualityPolicy':return saveQualityPolicy();case 'recallModel':return recallModel(elem.dataset.modelId);case 'changeBudget':return changeBudget();case 'researchFocusSave':return researchFocusSave();case 'roadmapAdd':return roadmapAdd(elem.dataset.techId);case 'roadmapRemove':return roadmapRemove(elem.dataset.techId);case 'roadmapToggle':return roadmapToggle();case 'hireStaff':return hireStaff();case 'engineeringTraining':case 'engineeringPropose':case 'engineeringApprove':case 'engineeringAllocate':case 'engineeringPause':case 'engineeringCancel':return engineeringAction(action,elem.dataset.id);case 'hrSave':return saveHRPolicy();case 'hrNegotiate':return negotiateLabor();case 'maintain':return maintain();case 'expand':return expand();case 'develop':return develop();case 'renewModel':return startModelRevision();case 'maFilter':return maFilter();case 'maSelect':return maSelect(elem.dataset.id);case 'maQuote':return maPreview();case 'maBuy':return maBuy();case 'maIntegrate':return maStartIntegration();case 'issueShares':return issueSharesUI();case 'buyBackSharesV0271':return buyBackSharesUI();case 'cancelTreasurySharesV0271':return cancelTreasurySharesUI();case 'negPreview':return negotiationPreview();case 'buyStake':return buyNegotiatedStake();case 'saveDelegate':return saveDelegationPolicy();case 'designPreview':return designPreview();case 'saveSupply':return saveSupply();case 'saveDistribution':return saveDistribution();case 'establishSalesCorp':return establishSalesCorporation();case 'factoryBuild':return factoryBuild();case 'factoryManageV21':return manageFactoryV21(elem.dataset.plantId);case 'factoryModeV21':return saveFactoryModeV21();case 'moduleShipV21':return shipModuleV21();case 'v21RouteSave':return saveRoutesV21();case 'partsPlan':try{return partPlanning()}catch(e){toast(e.message);return}case 'shipParts':return shipInterplant();case 'reorgTransfer':return transferBusinessUI();case 'reorgIntegrate':return integrateBusinessUI();case 'plantSettings':return plantSettings();case 'maintainPlant':return maintainPlant();case 'researchChoose':return researchChoose();case 'startTech':return startTech(elem.dataset.techId);case 'cancelTech':return cancelTech(elem.dataset.techId);case 'borrow':return borrow();case 'spendAd':return spendAd();case 'createSub':return createSub();case 'renameCompany':return renameCompany();case 'renamePlant':return renamePlant(elem.dataset.plantId);case 'factoryRouteSaveOne':return saveFactoryRouteOne(elem.dataset.plantId);case 'factoryManageSelected':return manageFactoryV21(elem.dataset.plantId,document.getElementById('factoryOneAction')?.value);case 'acquire':return acquire(elem.dataset.id);case 'groupLoan':return groupLoan();case 'groupSale':return groupSale();case 'diagnoseStorage':return diagnoseStorage();case 'saveManual':return saveManual(Number(elem.dataset.slot));case 'loadManual':{const i=Number(elem.dataset.slot);if(confirm('現在の未保存変更を破棄し、手動保存'+(i+1)+'を読み込みますか？'))return restore(SAVE_INDEX.manual[i]?.serialized);return}case 'loadAutoSlot':{const i=Number(elem.dataset.slot);if(confirm('自動保存世代'+(i+1)+'を読み込みますか？'))return restore(SAVE_INDEX.auto[i]?.serialized);return}case 'export':try{fileDownload(`conglomerate_${S.year}_${S.month}.json`,savePayload(S));toast('JSONバックアップを書き出しました')}catch(e){toast('書き出しに失敗：'+e.message)}return;case 'import':document.getElementById('importFile').click();return;case 'newGame':if(confirm('現在のセッションを終了し、新しいゲームを開始しますか？ 保存済みデータは削除しません。')){S=null;wizard=0;monthlyPreview=false;PAGE='dashboard';render()}return;}}
+function actions(action,elem){if(MONTH_RUNNING){toast('月次処理中です。保存・計算の確定を進めています。');return;}if(action==='wizardNext')return wizardNext();if(action==='wizardBack'){wizard=Math.max(0,wizard-1);return render()}if(!S)return;switch(action){case 'previewMonth':monthlyPreview=true;return render();case 'cancelMonth':monthlyPreview=false;return render();case 'runMonth':return runMonth();case 'monthDiagnosticShow':case 'monthDiagnosticDismiss':case 'monthDiagnosticCopy':case 'monthDiagnosticDownload':case 'monthDiagnosticJump':return monthlyDiagAction(action);case 'staffToHrV023':PEOPLE_VIEW='hr';PAGE='people';render();return;case 'goProductionV023':PRODUCT_VIEW='production';PAGE='product';render();return;case 'setPlan':return setPlan();case 'createGrade':return createGrade();case 'saveQualityPolicy':return saveQualityPolicy();case 'recallModel':return recallModel(elem.dataset.modelId);case 'changeBudget':return changeBudget();case 'researchFocusSave':return researchFocusSave();case 'roadmapAdd':return roadmapAdd(elem.dataset.techId);case 'roadmapRemove':return roadmapRemove(elem.dataset.techId);case 'roadmapToggle':return roadmapToggle();case 'hireStaff':return hireStaff();case 'partFamily':case 'partRevise':case 'partSubmit':case 'partBomCreate':case 'partBomOpen':case 'partBomSave':case 'partBomApprove':return partDesignAction(action,elem.dataset.id);case 'partRepair':return partRepairAction(elem.dataset.id,Number(elem.dataset.index));case 'engineeringTraining':case 'engineeringPropose':case 'engineeringApprove':case 'engineeringAllocate':case 'engineeringPause':case 'engineeringCancel':return engineeringAction(action,elem.dataset.id);case 'hrSave':return saveHRPolicy();case 'hrNegotiate':return negotiateLabor();case 'maintain':return maintain();case 'expand':return expand();case 'develop':return develop();case 'renewModel':return startModelRevision();case 'maFilter':return maFilter();case 'maSelect':return maSelect(elem.dataset.id);case 'maQuote':return maPreview();case 'maBuy':return maBuy();case 'maIntegrate':return maStartIntegration();case 'issueShares':return issueSharesUI();case 'buyBackSharesV0271':return buyBackSharesUI();case 'cancelTreasurySharesV0271':return cancelTreasurySharesUI();case 'negPreview':return negotiationPreview();case 'buyStake':return buyNegotiatedStake();case 'saveDelegate':return saveDelegationPolicy();case 'designPreview':return designPreview();case 'saveSupply':return saveSupply();case 'saveDistribution':return saveDistribution();case 'establishSalesCorp':return establishSalesCorporation();case 'factoryBuild':return factoryBuild();case 'factoryManageV21':return manageFactoryV21(elem.dataset.plantId);case 'factoryModeV21':return saveFactoryModeV21();case 'moduleShipV21':return shipModuleV21();case 'v21RouteSave':return saveRoutesV21();case 'partsPlan':try{return partPlanning()}catch(e){toast(e.message);return}case 'shipParts':return shipInterplant();case 'reorgTransfer':return transferBusinessUI();case 'reorgIntegrate':return integrateBusinessUI();case 'plantSettings':return plantSettings();case 'maintainPlant':return maintainPlant();case 'researchChoose':return researchChoose();case 'startTech':return startTech(elem.dataset.techId);case 'cancelTech':return cancelTech(elem.dataset.techId);case 'borrow':return borrow();case 'spendAd':return spendAd();case 'createSub':return createSub();case 'renameCompany':return renameCompany();case 'renamePlant':return renamePlant(elem.dataset.plantId);case 'factoryRouteSaveOne':return saveFactoryRouteOne(elem.dataset.plantId);case 'factoryManageSelected':return manageFactoryV21(elem.dataset.plantId,document.getElementById('factoryOneAction')?.value);case 'acquire':return acquire(elem.dataset.id);case 'groupLoan':return groupLoan();case 'groupSale':return groupSale();case 'diagnoseStorage':return diagnoseStorage();case 'saveManual':return saveManual(Number(elem.dataset.slot));case 'loadManual':{const i=Number(elem.dataset.slot);if(confirm('現在の未保存変更を破棄し、手動保存'+(i+1)+'を読み込みますか？'))return restore(SAVE_INDEX.manual[i]?.serialized);return}case 'loadAutoSlot':{const i=Number(elem.dataset.slot);if(confirm('自動保存世代'+(i+1)+'を読み込みますか？'))return restore(SAVE_INDEX.auto[i]?.serialized);return}case 'export':try{fileDownload(`conglomerate_${S.year}_${S.month}.json`,savePayload(S));toast('JSONバックアップを書き出しました')}catch(e){toast('書き出しに失敗：'+e.message)}return;case 'import':document.getElementById('importFile').click();return;case 'newGame':if(confirm('現在のセッションを終了し、新しいゲームを開始しますか？ 保存済みデータは削除しません。')){S=null;wizard=0;monthlyPreview=false;PAGE='dashboard';render()}return;}}
 document.addEventListener('click',e=>{const product=e.target.closest('[data-product-view]');if(product&&S){PRODUCT_VIEW=product.dataset.productView;render();window.scrollTo({top:0,behavior:'instant'});return;}const people=e.target.closest('[data-people-view]');if(people&&S){PEOPLE_VIEW=people.dataset.peopleView;render();window.scrollTo({top:0,behavior:'instant'});return;}const group=e.target.closest('[data-tech-family]');if(group&&S){TECH_FAMILY=group.dataset.techFamily;TECH_DOMAIN=TECH_FAMILIES[TECH_FAMILY].domains[0];TECH_SELECTED=TECH_DOMAIN+'-1';return redrawResearchPanel({centerSelected:false})}const field=e.target.closest('[data-tech-domain]');if(field&&S){TECH_DOMAIN=field.dataset.techDomain;techScrollDomain(TECH_DOMAIN);document.querySelectorAll('[data-tech-domain]').forEach(x=>x.classList.toggle('active',x.dataset.techDomain===TECH_DOMAIN));return}const tech=e.target.closest('[data-tech-select]');if(tech&&S){chooseTech(tech.dataset.techSelect);return}const section=e.target.closest('[data-section]');if(section&&S){PAGE=SECTIONS[section.dataset.section].pages[0][0];monthlyPreview=false;render();window.scrollTo({top:0,behavior:'instant'});return}const nav=e.target.closest('[data-page]');if(nav&&S){PAGE=nav.dataset.page;monthlyPreview=false;render();window.scrollTo({top:0,behavior:'instant'});return}const el=e.target.closest('[data-action]');if(el&&!el.disabled)actions(el.dataset.action,el)});
 document.addEventListener('change',e=>{if(e.target.matches('[data-design-field]')||e.target.id==='modelPrice')designPreview();if(['factorySite','factoryScale','factoryKind'].includes(e.target.id))factorySitePreview()});document.addEventListener('input',e=>{if(e.target.id==='modelPrice')designPreview()});document.getElementById('companySelect').addEventListener('change',e=>{VIEW_FIRM=e.target.value;render()});document.getElementById('regionSelect').addEventListener('change',e=>{VIEW_COUNTRY=e.target.value;render()});document.getElementById('importFile').addEventListener('change',async e=>{const file=e.target.files[0];if(!file)return;try{const raw=await file.text();if(confirm('読み込み中のゲーム状態をJSONバックアップで置き換えますか？'))restore(raw)}catch(err){toast('ファイルを読み込めません：'+err.message)}e.target.value=''});
 
