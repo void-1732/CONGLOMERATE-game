@@ -1,3 +1,4 @@
+- **現行v0.27.1:** `python tests/test_v0271_smoke.py`。開発版v0.27と以前のスモークテストは回帰記録として保持。
 # テスト
 
 - **現行v0.27:** `python tests/test_v027_gate.py`（G0〜G5）。旧Ver.0.26のHTMLはGit履歴のコミット `17c73e9343bb2eba9f3a6226caaea41c7856b75d` から抽出して基準にします。旧版のテストは履歴として保持します。
