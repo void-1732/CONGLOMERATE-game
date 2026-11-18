@@ -2129,7 +2129,7 @@ function validateMarketV031(s){
    const market=f.marketThisMonth?.[code]?.models||{};
    return total+Object.entries(market).reduce((n,[id,x])=>n+(f.models?.some(m=>m.id===id)?x.units||0:0),0);
   },0);
-  if(rec.month===ym(s.year,s.month)&&vehicleSales>rec.demand)errors.push('市場需要を超える車両販売 '+code);
+  if((rec.month===ym(s.year,s.month)||rec.month===s.monthCommitted)&&vehicleSales>rec.demand)errors.push('市場需要を超える車両販売 '+code);
  }
  return errors;
 }
