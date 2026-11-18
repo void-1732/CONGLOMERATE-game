@@ -2642,6 +2642,10 @@ function transferBusinessUI(){try{const source=current(),to=company(inputValue('
  const err=check(trial),g=consolidate(trial);if(err.length||g.errors.length||!g.cf.reconciled)throw Error('再編検算に失敗：'+err.concat(g.errors).slice(0,3).join('、')+(g.cf.reconciled?'':'／CF照合'));
  S=trial;render();toast('工場・事業の簿価移管が完了しました。統治上の持分は変更していません。');}catch(e){toast(e.message)}}
 function integrateBusiness(s,source,target){reorganizeEligibility(s,source,target);ensureV09Firm(source,s);ensureV09Firm(target,s);
+ const logistics=ensureWarehouseV038(source);
+ if(logistics.rawShipments.length)throw Error('事業統合前に国内輸送中の資材を検収してください');
+ const incomingRaw=RAW_TYPES_V032.reduce((sum,type)=>sum+(source.stock[type]?.q??0),0);
+ if(incomingRaw>rawSpaceForTransferV038(target,'warehouse')+1e-8)throw Error('統合先の中央倉庫の保管能力が不足しています');
  if(source.projects.length)throw Error('開発中の車両がある場合は統合前に完了させてください');
  if(source.partOperations?.approvedModels.length)throw Error('事業統合前にBOM車種の在庫を解消し、組立設定を解除してください');
  if(source.partOperations?.engineering.projects.some(p=>!engineeringFinished(p)))throw Error('統合前に製品設計案件を完了または中止してください');
@@ -2663,6 +2667,7 @@ function integrateBusiness(s,source,target){reorganizeEligibility(s,source,targe
  for(const [k,lot] of Object.entries(source.stock)){if(!lot?.q)continue;
   if(lot.v){if(acc(target,'cash')<lot.v)throw Error('統合先の材料買取資金が不足');localAssetTransfer(s,source,target,'materials',lot.q,lot.v,'事業統合・残余原材料の簿価譲渡');}
   target.stock[k]??={q:0,v:0};target.stock[k].q+=lot.q;target.stock[k].v+=lot.v;source.stock[k]={q:0,v:0};}
+ for(const depot of logistics.depots)depot.stock={};
  for(const key of ['production','research','sales']){target.staff[key]+=source.staff[key];source.staff[key]=0;}
  if(sourceEngineers){
   const policy=ensureV27Firm(target).partOperations.engineering.policy;
@@ -6901,6 +6906,10 @@ function manageFactoryV21(id,actionOverride=null){let backup=null;try{const f=cu
   if(stock||availableOps||(f.interplant.siteComponents[p.id]||0)||f.interplant.shipments.some(x=>x.from===p.id||x.to===p.id))throw Error('在庫・輸送中部品を移送または消費してから縮小・廃止してください');
   if(a==='shrink'&&p.capacity<=5)throw Error('縮小可能な設備がありません');
   const delta=a==='close'?p.capacity:Math.min(p.capacity-5,Math.max(5,Math.round(p.capacity*.25)));
+  if(a==='shrink'){
+   const arrivals=ensureWarehouseV038(f).rawShipments.filter(sh=>sh.to===p.id).reduce((n,sh)=>n+sh.quantity,0);
+   if(rawStorageOccupancyV038(f,p.id)+arrivals>(p.capacity-delta)*8+1e-8)throw Error('縮小後の保管能力を超える資材・入荷予定があります');
+  }
   if(a==='shrink'&&delta>lineSpace(S,p))throw Error('縮小すると既設ラインの共通設備能力を維持できません');
   if(a==='close'&&bomPlantInUse(S,f,p.id))throw Error('工場廃止前にBOM在庫・輸送・生産計画を解消してください');
   if(a==='close')for(const j of lineSiteJobs(S,p))cancelLineJob(S,f,j);
@@ -7661,6 +7670,7 @@ function rawPlantCustodyV038(f,plantId){
 function validateRawLogisticsV038(f,errors){
  const logistics=ensureWarehouseV038(f),seen=new Set();
  const plants=new Set(f.plants.map(p=>p.id));
+ const arrivals=new Map();
  let transit=0;
  if(!Array.isArray(logistics.rawShipments)||!logistics.rawAtPlant||typeof logistics.rawAtPlant!=='object'){
   errors.push(f.name+'：国内在庫・輸送台帳の形式不正');
@@ -7704,6 +7714,19 @@ function validateRawLogisticsV038(f,errors){
    errors.push(f.name+'：国内資材輸送の台帳が不正');continue;
   }
   seen.add(shipment.id);transit+=shipment.bookCost;
+  arrivals.set(shipment.to,(arrivals.get(shipment.to)||0)+shipment.quantity);
+ }
+ const usedPlaces=new Set([...arrivals.keys(),...Object.keys(logistics.rawAtPlant),...depots]);
+ if(Number.isSafeInteger(logistics.warehouseCapacity)){
+  const supplyOrders=(f.supply?.inbound??[]).reduce((n,x)=>n+(RAW_TYPES_V032.includes(x.type)?x.qty:0),0);
+  arrivals.set('warehouse',(arrivals.get('warehouse')||0)+supplyOrders);
+  usedPlaces.add('warehouse');
+ }
+ for(const id of usedPlaces){
+  if(id==='warehouse'&&!Number.isSafeInteger(logistics.warehouseCapacity))continue;
+  if(rawStorageOccupancyV038(f,id)+(arrivals.get(id)||0)>rawStorageCapacityV038(f,id)+1e-8){
+   errors.push(f.name+'：保管能力を超える在庫・確定入荷 '+id);
+  }
  }
  return transit;
 }

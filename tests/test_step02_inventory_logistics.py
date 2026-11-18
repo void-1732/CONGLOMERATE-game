@@ -182,6 +182,36 @@ if __name__ == "__main__":
         assert extra_warehouse == {
             "quantity": 3, "view": 3, "cashPosted": True, "transit": 0, "errors": []
         }, extra_warehouse
+        integration = page.evaluate("""() => {
+            S=newGame({era:1900,country:'JP',difficulty:'easy',
+                history:'historical',name:'倉庫を持つ法人の事業統合'});
+            VIEW_FIRM=S.playerId;
+            PAGE='group';
+            render();
+            document.getElementById('subName').value='資材販売子会社';
+            document.getElementById('subCountry').value='JP';
+            document.getElementById('subIndustry').value='manufacturing';
+            document.getElementById('subCapital').value='1400000';
+            createSub();
+            const root=company(S.playerId,S),child=current(),logistics=ensureWarehouseV038(child);
+            const depot={id:'DEPOT-'+S.seq++,name:'資材庫',siteId:'JP-NGO',capacity:50,stock:{steel:{q:7,v:4900}}};
+            logistics.depots.push(depot);
+            child.stock.steel.q+=7;
+            child.stock.steel.v+=4900;
+            post(child,{materials:4900},{cash:4900},'統合検証用の資材仕入','operating',S);
+            const shipment=dispatchRawShipmentV038(S,child,depot.id,'warehouse','steel',2);
+            let blocked=false;
+            try{integrateBusiness(S,child,root);}catch(e){blocked=e.message.includes('国内輸送中');}
+            while(ym(S.year,S.month)<shipment.due)nextMonthDate(S);
+            deliverRawShipmentsV038(S,[]);
+            const original=root.stock.steel.q;
+            const expected=child.stock.steel.q;
+            integrateBusiness(S,child,root);
+            return {blocked,received:root.stock.steel.q-original,expected,
+                source:child.stock.steel.q,depot:depot.stock.steel?.q||0,errors:check(S)};
+        }""")
+        assert integration.pop("expected") == integration.pop("received") > 7, integration
+        assert integration == {"blocked": True, "source": 0, "depot": 0, "errors": []}, integration
         remote = page.evaluate("""() => {
             S = newGame({era:1900, country:'JP', difficulty:'easy',
                 history:'historical', name:'国内自動補充の試験'});
