@@ -69,6 +69,92 @@ def check_local_manufacturing(page):
     assert result["wage"] > 1 and result["tax"] == 0.18 and result["invoice"] > 0 and not result["errors"], result
 
 
+def check_market_entry(page):
+    page.evaluate("""() => {
+        S=newGame({era:1960,country:'JP',difficulty:'easy',history:'historical',name:'海外販路の検証'});
+        VIEW_FIRM=S.playerId;PAGE='distribution';render();
+    }""")
+    page.locator("#marketEntryTarget").select_option("US")
+    assert page.get_by_role("rowheader", name="現地企業の買収").is_visible()
+    assert page.get_by_role("rowheader", name="合弁企業").is_visible()
+    page.locator("#marketEntryMode").select_option("direct")
+    page.get_by_role("button", name="参入・再開").click()
+    assert page.evaluate("current().marketPresence.join('/')") == "JP/US"
+    assert page.evaluate("exportChannel(current(),'US').channel") == "direct"
+    agent = page.evaluate("S.firms.find(f=>f.country==='US').id")
+    page.locator("#marketEntryMode").select_option("dealer")
+    page.locator("#marketEntryAgent").select_option(agent)
+    page.get_by_role("button", name="参入・再開").click()
+    assert page.evaluate("exportChannel(current(),'US').dealerId") == agent
+    capacity = page.evaluate("exportChannel(current(),'US').capacity")
+    page.get_by_role("button", name="販売枠を半減").click()
+    assert page.evaluate("exportChannel(current(),'US').capacity") == capacity // 2
+    sent = page.evaluate("""() => {
+        const f=current(),m=f.models[0];
+        post(f,{goods:10000},{cash:10000},'販売撤退時の輸送在庫','operating',S);
+        f.goods[m.id].q+=2;f.goods[m.id].v+=10000;
+        exportShipment(S,f,m.id,2,m.priceBase,'US',[]);
+        return f.distribution.outbound[0].id;
+    }""")
+    page.get_by_role("button", name="市場から撤退").click()
+    assert page.evaluate("current().marketPresence.includes('US')") is False
+    assert page.evaluate("current().distribution.outbound[0].id") == sent
+    page.locator('#channel_UK').select_option('distributor')
+    page.get_by_role("button", name="販売網の変更を保存").click()
+    assert page.evaluate("current().marketPresence.includes('US')") is False
+    page.locator('[data-action="createMarketSalesAgencyV043"]').click()
+    result = page.evaluate("""() => {
+        const f=current(),child=company(f.distribution.salesCorporations.US,S);
+        const test=structuredClone(S),buyer=company(f.id,test);
+        const target=test.firms.filter(x=>x.country==='DE'&&x.owners.some(o=>o.id==='PUBLIC'))
+            .sort((a,b)=>maValuation(test,a).reference-maValuation(test,b).reference)[0];
+        const amount=acc(buyer,'cash'),month=ym(test.year,test.month);
+        (test.logisticsV041.restrictions??={})['JP/DE']={end:month+1};
+        let blocked=false;
+        try{executeMADeal(test,buyer.id,target.id,60,2.5);}catch(error){blocked=error.message.includes('規制')&&acc(buyer,'cash')===amount;}
+        delete test.logisticsV041.restrictions['JP/DE'];
+        const acquired=executeMADeal(test,buyer.id,target.id,60,2.5);
+        return {subsidiary:child.country,controlled:controller(S,child.id),active:f.marketPresence.includes('US'),
+            blocked,acquired:acquired.control,errors:[...check(test),...consolidate(test).errors]};
+    }""")
+    assert result == {"subsidiary": "US", "controlled": True, "active": True, "blocked": True, "acquired": True, "errors": []}, result
+
+
+def check_joint_company(page):
+    partner = page.evaluate("""() => {
+        S=newGame({era:1960,country:'JP',difficulty:'easy',history:'historical',name:'合弁投資の検証'});
+        VIEW_FIRM=S.playerId;PAGE='group';render();
+        return S.firms.filter(f=>f.country==='US').sort((a,b)=>acc(b,'cash')-acc(a,'cash'))[0].id;
+    }""")
+    for stake in (50, 60):
+        page.locator('#jointNameV043').fill(f'北米合弁 {stake}')
+        page.locator('#jointPartnerV043').select_option(partner)
+        page.locator('#jointStakeV043').select_option(str(stake))
+        page.locator('#jointCapitalV043').fill('1800000')
+        page.get_by_role("button", name="合弁企業を設立").click()
+    result = page.evaluate("""async () => {
+        const children=S.firms.filter(f=>f.jointCompanyV043),root=current();
+        const details=children.map(f=>({
+            ratio:f.owners.find(o=>o.id===root.id).econ,
+            controlled:controller(S,f.id),
+            capital:-acc(f,'capital'),
+            account:f.journals.filter(j=>j.text.startsWith('合弁創業資本')).reduce((n,j)=>n+j.amount,0),
+            links:S.equityLinks.filter(x=>x.childId===f.id).length
+        }));
+        const restored=parsePayload(savePayload(S));
+        S=restored;saveAuto=async()=>true;
+        const before=S.monthCommitted,scope=consolidate(S).members.length;
+        await runMonth();
+        const reports=consolidate(S);
+        return {details,scope,completed:S.monthCommitted===before+1,cf:reports.cf.reconciled,
+            diagnostic:LAST_MONTH_DIAGNOSTIC?.message,errors:[...check(S),...reports.errors]};
+    }""")
+    assert result["scope"] == 2 and result["completed"] and result["cf"] and not result["errors"], result
+    assert [row["ratio"] for row in result["details"]] == [0.5, 0.6], result
+    assert [row["controlled"] for row in result["details"]] == [False, True], result
+    assert all(row["links"] == 2 and row["capital"] == row["account"] > 0 for row in result["details"]), result
+
+
 if __name__ == "__main__":
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(
@@ -81,6 +167,8 @@ if __name__ == "__main__":
         page.on("pageerror", lambda error: errors.append(str(error)))
         page.set_content(HTML.read_text(encoding="utf-8"), wait_until="domcontentloaded")
         check_local_manufacturing(page)
+        check_market_entry(page)
+        check_joint_company(page)
         assert not errors, errors
         browser.close()
-    print("PASS STEP 7: foreign factory custody, local sales, wage and tax, FX and saves")
+    print("PASS STEP 7: foreign factories, agents, subsidiaries, joint ventures, acquisitions, exits, and saves")

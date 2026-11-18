@@ -1592,6 +1592,7 @@ function buyNegotiatedStake(){let before=null;try{
  const buyer=current();if(!canEdit(buyer))throw Error('取得権限がありません');
  const target=company(inputValue('negTarget'));
  if(!target||target.id===buyer.id||controller(S,buyer.id,target.id))throw Error('買収先が不正、または循環保有になります');
+ if(!marketInvestmentAllowedV043(S,buyer,target.country))throw Error('現地の規制により対象企業を買収できません');
  const qty=Math.round(intValue('negPercent',1,100));const factor=intValue('negPremium',75,250)/100;
  const result=shareDealSimulation(S,buyer,target,qty,factor);
  if(!result.accepted)throw Error('提示条件を承諾する外部株主の持分が不足しています。価格倍率または取得割合を見直してください（不足 '+nfmt(result.left*100)+'%）');
@@ -1651,9 +1652,13 @@ function delegatePlanning(f,s){
 function negotiationPanel(f,edit){return `<section class="panel span5"><h2>M&A候補の分析と交渉</h2><p>企業価値、株主別の売却可能持分、買収資金、国・業態・経営状態を比較してから取得します。</p><p class="hint">外部株主には銀行・政府系・機関投資家・個人などを含みます。企業グループ保有株式は別表示です。従来の純資産のみを使った概算から、業績とリスクを反映した企業価値試算に更新しました。</p><button class="btn primary" data-page="ma">M&A分析・交渉へ進む ▸</button></section>`;}
 function delegationPanel(f,edit){ensureGameplayV07(f);const d=f.delegate,rows=(d.reports||[]).slice(0,6);return `<section class="panel span12"><h2>経営委任・予算・目標</h2><p class="hint">現在選択中の法人「${esc(f.name)}」の月次の生産・研究予算を自動計画できます。買収・借入・増設・雇用は承認なしに委任AIが実行しません。</p><div class="setting-split"><label><input type="checkbox" id="delegateProductionAuto" ${d.productionAuto!==false?'checked':''} ${edit?'':'disabled'}> 生産量を自動計画</label><label><input type="checkbox" id="delegateResearchAuto" ${d.researchAuto!==false?'checked':''} ${edit?'':'disabled'}> 研究予算を自動設定</label></div><p class="hint">どちらか一方だけ自動化できます。どちらもOFFの場合は手動計画が優先されます。</p><div class="formgrid"><div class="field"><label>操作方式</label><select id="delegateMode" ${edit?'':'disabled'}><option value="manual" ${d.mode==='manual'?'selected':''}>手動経営</option><option value="delegated" ${d.mode==='delegated'?'selected':''}>予算限定の経営委任</option></select></div><div class="field"><label>優先方針</label><select id="delegatePriority" ${edit?'':'disabled'}>${[['balanced','均衡'],['growth','成長・生産'],['profit','利益・手元資金'],['quality','品質'],['tech','研究開発']].map(([v,n])=>`<option value="${v}" ${d.priority===v?'selected':''}>${n}</option>`).join('')}</select></div><div class="field"><label>月次販売目標（台・件、0は自動）</label><input id="delegateTarget" type="number" min="0" max="100000" value="${d.salesTarget}" ${edit?'':'disabled'}></div><div class="field"><label>最低現金目標（円相当）</label><input id="delegateReserve" type="number" min="0" max="100000000" value="${d.minCashBase}" ${edit?'':'disabled'}></div><div class="field"><label>月次研究費の上限（円相当）</label><input id="delegateRndCap" type="number" min="0" max="50000000" value="${d.researchMaxBase}" ${edit?'':'disabled'}></div><button class="btn primary" data-action="saveDelegate" ${edit?'':'disabled'}>委任方針を保存</button></div><h3>委任AIの実績報告</h3>${rows.length?`<div class="scroll"><table><thead><tr><th>確定月</th><th class="num">販売目標</th><th class="num">実績</th><th class="num">当月利益（円相当）</th><th class="num">期末現金（円相当）</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${Math.floor(r.month/12)}年${r.month%12+1}月</td><td class="num">${r.target||'自動'}</td><td class="num">${nfmt(r.units)}</td><td class="num">${baseMoney(r.profitBase)}</td><td class="num">${baseMoney(r.cashBase)}</td></tr>`).join('')}</tbody></table></div>`:'<div class="hint">委任後に月末処理を実行すると、目標と実績を記録します。</div>'}${automationSettingsPanel(f)}</section>`;}
 
-function initFirm(s,{name,country,industry='auto',player=false,strategy='growth',seedBase=1900000,size=1,publicOwnership=true}){
+function initFirm(s,{name,country,industry='auto',player=false,strategy='growth',seedBase=1900000,size=1,publicOwnership=true,capitalLegs=null}){
  const id='F'+s.seq++,fx=COUNTRIES[country].fx, f={id,name,country,industry,player,strategy,owners:publicOwnership?[{id:'PUBLIC',econ:1,vote:1}]:[],ledger:{},journals:[],payables:[],receivables:[],loans:[],stock:{steel:{q:0,v:0},rubber:{q:0,v:0}},goods:{},models:[],projects:[],rnd:{progress:0,target:'engine',budgetBase:12000},tech:1,plant:{capacity:Math.max(5,Math.round(45*size)),condition:92,assetCost:localFromBase(420000*size*eraCostFactor(s.year),country),construction:null},staff:{production:Math.max(7,Math.round(38*size)),research:Math.max(2,Math.round(5*size)),sales:Math.max(3,Math.round(10*size))},staffTarget:{},brand:{},dealers:{},adBudgets:{},plans:{},researchRights:['basic-engine'],distress:{stage:0,months:0},reserveUnits:4000,resourceStock:0,marketPresence:[country],monthly:{sales:0,cogs:0,profit:0,units:0,spent:0},history:[],auto:!player,contractPriority:'standard'};
- s.firms.push(f);post(f,{cash:localFromBase(seedBase,country)},{capital:localFromBase(seedBase,country)},'創業資本','financing',s);const factoryCost=f.plant.assetCost;post(f,{ppe:factoryCost},{cash:factoryCost},'事業設備・施設の取得','investing',s);f.brand[country]=35;f.dealers[country]=45;
+ s.firms.push(f);
+ for(const leg of capitalLegs??[{amount:localFromBase(seedBase,country),text:'創業資本'}]){
+  post(f,{cash:leg.amount},{capital:leg.amount},leg.text,'financing',s);
+ }
+ const factoryCost=f.plant.assetCost;post(f,{ppe:factoryCost},{cash:factoryCost},'事業設備・施設の取得','investing',s);f.brand[country]=35;f.dealers[country]=45;
  if(industry==='auto'||industry==='manufacturing'){
  const modelId='M'+s.seq++;f.models.push({id:modelId,name:industry==='auto'?'ツーリング 01':'標準製品',priceBase:Math.round(7500*eraCostFactor(s.year)),performance:58,quality:61,segment:'標準',status:'active',months:0});f.goods[modelId]={q:0,v:0};f.plans[modelId]=Math.round(f.plant.capacity*0.86);const steel= Math.round(95*size),rubber=Math.round(95*size),initialMat=eraCostFactor(s.year),val=localFromBase((steel*COUNTRIES[country].steel+rubber*COUNTRIES[country].rubber)*initialMat,country);post(f,{materials:val},{cash:val},'創業時の実材料仕入','operating',s);f.stock.steel={q:steel,v:localFromBase(steel*COUNTRIES[country].steel*initialMat,country)};f.stock.rubber={q:rubber,v:val-f.stock.steel.v};
  }else if(industry==='trade'){f.goods.TRADE={q:60,v:localFromBase(60*900*eraCostFactor(s.year),country)};post(f,{goods:f.goods.TRADE.v},{cash:f.goods.TRADE.v},'開業時の仕入商品','operating',s)}else if(industry==='resource'){const rights=localFromBase(80000*eraCostFactor(s.year),country);post(f,{resourceRights:rights},{cash:rights},'採取権取得','investing',s)}
@@ -2121,6 +2126,89 @@ function internationalTradeAllowedV041(s,origin,destination,cargo){
 }
 function marketInvestmentAllowedV043(s,f,country){
  return !!s.world[country]&&(country===f.country||internationalTradeAllowedV041(s,f.country,country,'vehicle'));
+}
+const ENTRY_LABELS_V043={direct:'直接輸出',dealer:'現地代理店',subsidiary:'現地販売子会社',
+ joint:'合弁企業',factory:'現地工場',acquisition:'現地企業の買収'};
+function foreignMarketSetupV043(f,market,mode){
+ const channel=mode==='factory'?'direct':mode;
+ return (f.marketPresence.includes(market)?0:12000)+(f.distribution?.contracts?.[market]?.channel===channel?0:9000);
+}
+function changeForeignMarketV043(s,f,market,action,mode,agentId){
+ if(!s.world[market]||market===f.country)throw Error('海外市場を選択してください');
+ const channel=exportChannel(f,market,s),previous=f.foreignMarketsV043?.[market];
+ const month=ym(s.year,s.month),active=f.marketPresence.includes(market);
+ if(action==='withdraw'||action==='reduce'){
+  if(!active)throw Error('現在参入している市場を選択してください');
+  const phase=action==='withdraw'?'withdrawn':'reduced';
+  if(action==='withdraw'){
+   f.marketPresence=f.marketPresence.filter(code=>code!==market);
+   for(const p of f.plants.filter(p=>p.siteCountry===market&&!p.paused)){
+    p.paused=true;p.marketExitPausedV043=true;
+   }
+   syncPlant(f);
+  }else channel.capacity=Math.max(1,Math.floor(channel.capacity/2));
+  (f.foreignMarketsV043??={})[market]={...previous,mode:previous?.mode??channel.channel,phase,month};
+  return 0;
+ }
+ if(action!=='enter'||!['direct','dealer','subsidiary','factory'].includes(mode))throw Error('利用する進出方式を選択してください');
+ if(!marketInvestmentAllowedV043(s,f,market))throw Error('対象市場は現在、新規の進出を制限しています');
+ let partner=null;
+ if(mode==='dealer'){
+  partner=company(agentId,s);
+  if(!partner||partner.country!==market||partner.lifecycle?.phase==='withdrawn'||partner.reorgStatus==='integrated')
+   throw Error('進出先で活動している代理店を指定してください');
+ }
+ if(mode==='subsidiary'){
+  partner=company(f.distribution.salesCorporations[market],s);
+  if(!partner||!controller(s,partner.id,f.id)||partner.lifecycle?.phase==='withdrawn')throw Error('対象市場の現地販売子会社を設立してください');
+ }
+ if(mode==='factory'&&!f.plants.some(p=>p.siteCountry===market&&!p.construction&&(!p.paused||p.marketExitPausedV043)))
+  throw Error('対象市場で稼働できる工場を準備してください');
+ const cost=localFromBase(foreignMarketSetupV043(f,market,mode),f.country);
+ if(cost>acc(f,'cash'))throw Error('市場参入のための現金が不足しています');
+ if(cost)post(f,{advert:cost},{cash:cost},'海外市場の販路開設：'+NAMES[market],'operating',s);
+ channel.channel=mode==='factory'?'direct':mode;
+ channel.dealerId=partner?.id??'';
+ if(!active)f.marketPresence.push(market);
+ if(partner)f.dealers[market]=Math.max(f.dealers[market]||0,mode==='dealer'?35:65);
+ if(mode==='factory'){
+  for(const p of f.plants.filter(p=>p.siteCountry===market&&p.marketExitPausedV043)){
+   p.paused=false;delete p.marketExitPausedV043;
+  }
+  syncPlant(f);
+ }
+ (f.foreignMarketsV043??={})[market]={mode,phase:'active',month};
+ return cost;
+}
+function establishJointCompanyV043(s,parent,partner,name,industry,stake,capitalBase){
+ const minimum=Math.round(450000*eraCostFactor(s.year));
+ if(!partner||partner.id===parent.id||partner.country===parent.country||controller(s,partner.id)||
+    partner.lifecycle?.phase==='withdrawn'||partner.reorgStatus==='integrated')throw Error('進出先の独立した合弁相手を選択してください');
+ if(!marketInvestmentAllowedV043(s,parent,partner.country))throw Error('現地の規制により合弁企業を設立できません');
+ if(!name||s.firms.some(f=>f.name===name)||!['auto','manufacturing','trade'].includes(industry)||
+    ![25,50,60,75].includes(stake)||!Number.isSafeInteger(capitalBase)||capitalBase<minimum)
+  throw Error('合弁会社の名称・資本金・持分を確認してください');
+ const country=partner.country,total=localFromBase(capitalBase,country),ratio=stake/100;
+ const parentCapital=Math.round(total*ratio),partnerCapital=total-parentCapital;
+ const parentPayment=corporateSettlementLocalV041(s,partner,parent,parentCapital);
+ if(parentPayment<1||partnerCapital<1||acc(parent,'cash')<parentPayment||acc(partner,'cash')<partnerCapital)
+  throw Error('両社が出資に必要な金額を保有している必要があります');
+ const investors=[{firm:parent,ratio,capital:parentCapital,payment:parentPayment},
+  {firm:partner,ratio:1-ratio,capital:partnerCapital,payment:partnerCapital}];
+ const legs=investors.map(({firm,payment,capital})=>{
+  const journal=s.seq,text='合弁創業資本の受入 '+firm.id;
+  post(firm,{investment:payment},{cash:payment},'合弁企業への出資：'+name,'investing',s);
+  return {journal,amount:capital,text};
+ });
+ const child=initFirm(s,{name,country,industry,size:.32,publicOwnership:false,capitalLegs:legs});
+ child.owners=investors.map(({firm,ratio})=>({id:firm.id,econ:ratio,vote:ratio}));
+ child.jointCompanyV043={founders:investors.map(({firm})=>firm.id),month:ym(s.year,s.month)};
+ for(const [i,{firm,ratio,payment,capital}] of investors.entries()){
+  registerEquityLink(s,{parentId:firm.id,childId:child.id,ratio,kind:'foundation',considerationLocal:payment,
+   buyerJournal:legs[i].journal,childJournal:child.journals.find(j=>j.text===legs[i].text).id,
+   bookEquityBase:baseFromLocal(financials(child).equity,country),cashAcquiredBase:baseFromLocal(capital,country)});
+ }
+ return child;
 }
 function corporateTaxRateV043(s,f){
  const rate=MARKET_TAX_V043[f.country]??.15,sales=f.localSalesV043;
@@ -2735,22 +2823,23 @@ function saveDistribution(){let before=null;try{
   const channel=inputValue('channel_'+code),capacity=Math.round(intValue('capacity_'+code,1,10000));
   if(!['direct','dealer','distributor','subsidiary'].includes(channel))throw Error('販売契約種別が不正です');
   if(channel==='subsidiary'&&!f.distribution.salesCorporations[code]&&!controller(S,inputValue('dealer_'+code)))throw Error('支配下の現地販売会社がありません：'+NAMES[code]);
-  const dealerId=inputValue('dealer_'+code)||'',dealer=dealerId?company(dealerId):null;if(dealerId&&(!dealer||dealer.id===f.id||dealer.country!==code))throw Error('販売店の契約法人が不正です');const old=f.distribution.contracts[code],newMarket=code!==f.country&&!f.marketPresence.includes(code);
+  const dealerId=inputValue('dealer_'+code)||'',dealer=dealerId?company(dealerId):null;if(dealerId&&(!dealer||dealer.id===f.id||dealer.country!==code))throw Error('販売店の契約法人が不正です');const old=f.distribution.contracts[code],suspended=f.foreignMarketsV043?.[code]?.phase==='withdrawn',newMarket=code!==f.country&&!f.marketPresence.includes(code)&&!suspended;
   if(channel!==old.channel||capacity>old.capacity||newMarket){
    setupCost+=Math.round(Math.max(0,capacity-old.capacity)*(channel==='distributor'?450:channel==='subsidiary'?280:300)+(channel!==old.channel?9000:0)+(newMarket?12000:0));
   }
-  proposed.push({code,old,channel,capacity,dealerId});
+  proposed.push({code,old,channel,capacity,dealerId,suspended});
  }
  const localCost=localFromBase(setupCost,f.country);if(localCost>acc(f,'cash'))throw Error('販売店契約・物流投資に必要な資金が不足しています：'+baseMoney(cents(setupCost)));
  before=structuredClone(S);
  if(localCost)post(f,{advert:localCost},{cash:localCost},'国別販売店契約・物流能力の新規投資','operating');
- for(const {code,old,channel,capacity,dealerId} of proposed){f.distribution.contracts[code]={...old,channel,capacity,dealerId};
-  if(!f.marketPresence.includes(code)&&channel!=='direct')f.marketPresence.push(code);
+ for(const {code,old,channel,capacity,dealerId,suspended} of proposed){f.distribution.contracts[code]={...old,channel,capacity,dealerId};
+  if(!suspended&&!f.marketPresence.includes(code)&&channel!=='direct')f.marketPresence.push(code);
   if(channel==='dealer'||channel==='distributor'||channel==='subsidiary')f.dealers[code]=Math.max(f.dealers[code]||0,channel==='subsidiary'?65:35);
  }
  render();toast('販売網契約を更新しました。契約・能力増設費用：'+baseMoney(cents(setupCost)));
  }catch(e){if(before)S=before;render();toast(e.message)}}
-function establishSalesCorporation(){let prior=null;try{const f=current(),code=inputValue('salesCorpCountry');if(!canEdit(f)||!code||code===f.country)throw Error('設立対象国を確認してください');ensureNetwork(f);if(f.distribution.salesCorporations[code])throw Error('この国にはすでに販売法人があります');const amount=verifyMoney(f,450000);prior=structuredClone(S);
+function establishSalesCorporation(code=inputValue('salesCorpCountry')){let prior=null;try{const f=current();if(!canEdit(f)||!code||code===f.country)throw Error('設立対象国を確認してください');
+ if(!marketInvestmentAllowedV043(S,f,code))throw Error('現地の規制により販売法人を設立できません');ensureNetwork(f);if(f.distribution.salesCorporations[code])throw Error('この国にはすでに販売法人があります');const amount=verifyMoney(f,450000);prior=structuredClone(S);
  post(f,{investment:amount},{cash:amount},'海外地域販売法人への資本払込','investing');const buyerJournal=f.journals.at(-1)?.id;
  const seedSpotBase=baseFromLocal(amount,f.country)/100; // parent local cents -> yen-equivalent base units
  const child=initFirm(S,{name:f.name+' '+NAMES[code]+'販売',country:code,industry:'sales',seedBase:seedSpotBase,size:.12,strategy:'balanced',publicOwnership:false});
@@ -2758,6 +2847,7 @@ function establishSalesCorporation(){let prior=null;try{const f=current(),code=i
  registerEquityLink(S,{parentId:f.id,childId:child.id,ratio:1,kind:'foundation',considerationLocal:amount,buyerJournal,childJournal:child.journals.find(j=>j.text==='創業資本')?.id,bookEquityBase:baseFromLocal(amount,f.country),cashAcquiredBase:baseFromLocal(acc(child,'cash'),child.country)});
  f.distribution.salesCorporations[code]=child.id;f.distribution.contracts[code]={...f.distribution.contracts[code],channel:'subsidiary',capacity:Math.max(60,f.distribution.contracts[code].capacity)};
  if(!f.marketPresence.includes(code))f.marketPresence.push(code);f.dealers[code]=Math.max(f.dealers[code]||0,65);
+ (f.foreignMarketsV043??={})[code]={mode:'subsidiary',phase:'active',month:ym(S.year,S.month)};
  const errs=check(S),c=consolidate(S);if(errs.length||c.errors.length)throw Error('設立後の会計検算失敗：'+[...errs,...c.errors].join('／'));
  render();toast('地域販売法人を設立しました。法人会計と製造元売上を区別しています。');
  }catch(e){if(prior)S=prior;render();toast(e.message)}}
@@ -2886,6 +2976,85 @@ function logisticsComparisonPanelV041(s,f){
   <p class="hint">${esc(model.name)}の1台あたりの見積。現地生産費は現地の材料・賃金・工場条件から算定します。</p>
   <div class="mk-table-wrap"><table class="mk-table"><thead><tr><th>市場</th><th>現在の輸送経路</th><th>運賃等</th><th>関税</th>
   <th>国内生産＋輸出</th><th>現地生産</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+}
+let MARKET_ENTRY_REGION_V043='';
+function foreignEntryPanelV043(s,f,edit){
+ const markets=Object.keys(s.world).filter(code=>code!==f.country);
+ if(!markets.length)return '';
+ const market=markets.includes(MARKET_ENTRY_REGION_V043)?MARKET_ENTRY_REGION_V043:markets[0];
+ const world=s.world[market],state=f.foreignMarketsV043?.[market],active=f.marketPresence.includes(market);
+ const local=s.firms.filter(x=>x.country===market&&x.lifecycle?.phase!=='withdrawn'&&x.reorgStatus!=='integrated');
+ const acquisition=local.filter(x=>!controller(s,x.id)&&x.owners.some(o=>o.id==='PUBLIC'&&o.vote>.5))
+  .map(x=>maValuation(s,x).reference*.6);
+ const availableTarget=acquisition.length?Math.min(...acquisition):null;
+ const model=f.models.find(m=>m.status==='active'),site=homeSite(market);
+ const quote=model?supplyAndChannelQuote(f,model,market,s):null;
+ const channelCost=mode=>quote?.routing?baseMoney(cents(Math.round(quote.routing.freightUnitBase*exportChannelMultiplierV041({channel:mode}))+quote.duty)):'—';
+ const entryCapital=Math.round(450000*eraCostFactor(s.year));
+ const rows=[
+  ['direct',foreignMarketSetupV043(f,market,'direct'),channelCost('direct'),'自社で販路を運営'],
+  ['dealer',foreignMarketSetupV043(f,market,'dealer'),channelCost('dealer'),'販売は代理店との契約に従う'],
+  ['subsidiary',f.distribution.salesCorporations[market]?0:450000,channelCost('subsidiary'),'自社が販売法人を支配'],
+  ['joint',entryCapital/2,'現地経費と資本金を持分で分担','50%の場合は共同所有'],
+  ['factory',siteInvestmentQuote(site.id,'small','integrated',s),'現地の原材料・労務・保管費','自社が工場を運営'],
+  ['acquisition',availableTarget,'現地法人の運転資金','議決権の取得比率で決定']
+ ].map(([mode,cost,run,control])=>`<tr><th scope="row">${ENTRY_LABELS_V043[mode]}</th><td>${cost===null?'候補なし':baseMoney(cents(Math.round(cost)))}</td>
+  <td>${run}</td><td>${control}</td></tr>`).join('');
+ const areas=markets.map(code=>`<option value="${code}" ${code===market?'selected':''}>${esc(NAMES[code])}</option>`).join('');
+ const modes=['direct','dealer','subsidiary','factory'].map(mode=>`<option value="${mode}" ${state?.mode===mode?'selected':''}>${ENTRY_LABELS_V043[mode]}</option>`).join('');
+ const agents=local.map(x=>`<option value="${esc(x.id)}" ${f.distribution.contracts[market].dealerId===x.id?'selected':''}>${esc(x.name)}</option>`).join('');
+ const controls=edit?`<div class="formgrid"><label class="field">進出・再開方式<select id="marketEntryMode">${modes}</select></label>
+  <label class="field">現地代理店<select id="marketEntryAgent"><option value="">代理店契約時に選択</option>${agents}</select></label>
+  <button class="btn primary" data-action="foreignEnterV043">参入・再開</button>
+  <button class="btn" data-action="foreignReduceV043" ${active?'':'disabled'}>販売枠を半減</button>
+  <button class="btn" data-action="foreignWithdrawV043" ${active?'':'disabled'}>市場から撤退</button></div>`:'';
+ const links=edit?`<div class="row"><button class="btn sm" data-action="createMarketSalesAgencyV043" ${f.distribution.salesCorporations[market]?'disabled':''}>現地販売子会社を設立</button><button class="btn sm" data-page="group">合弁の設立</button>
+  <button class="btn sm" data-page="factory">工場を建設</button><button class="btn sm" data-page="ma">買収候補を調べる</button></div>`:'';
+ return `<section class="mk-panel mk-span-12"><h2>海外市場への進出</h2><label class="field">対象市場<select id="marketEntryTarget">${areas}</select></label>
+  <p class="hint">${active?(state?.phase==='reduced'?'販売枠を縮小中':'販売中'):'販売停止'} ／ 月間需要 ${nfmt(marketDemandSnapshotV031(s,market).demand)}台
+  ／ 現地企業 ${nfmt(local.length)}社 ／ 自社認知度 ${nfmt(f.brand[market]??0)}%<br>
+  現地の基準賃金 ${baseMoney(cents(world.wage*eraCostFactor(s.year)))} ／ 試算法人税率 ${nfmt((MARKET_TAX_V043[market]??.15)*100)}%
+  ／ 新規投資 ${marketInvestmentAllowedV043(s,f,market)?'可能':'規制中'}</p>
+  <div class="mk-table-wrap"><table class="mk-table"><thead><tr><th>進出方式</th><th>初期投資の目安</th><th>主な運営費・台</th><th>支配・契約</th></tr></thead>
+  <tbody>${rows}</tbody></table></div>${controls}${links}</section>`;
+}
+function changeForeignMarketUIV043(action){
+ try{
+  const f=current();if(!canEdit(f))throw Error('進出方針の変更権限がありません');
+  const market=inputValue('marketEntryTarget'),trial=structuredClone(S),firm=company(f.id,trial);
+  const cost=changeForeignMarketV043(trial,firm,market,action,inputValue('marketEntryMode'),inputValue('marketEntryAgent'));
+  const errors=check(trial);
+  if(errors.length)throw Error(errors[0]);
+  S=trial;MARKET_ENTRY_REGION_V043=market;
+  render();toast(NAMES[market]+'の進出方針を更新しました'+(cost?' ／ 開設費 '+fnum(f,cost):''));
+ }catch(error){toast(error.message);}
+}
+function jointCompanyPanelV043(s,f,edit){
+ const ventures=s.firms.filter(x=>x.jointCompanyV043?.founders.includes(f.id));
+ const options=s.firms.filter(x=>x.country!==f.country&&!controller(s,x.id)&&
+  x.lifecycle?.phase!=='withdrawn'&&x.reorgStatus!=='integrated').map(x=>
+   `<option value="${esc(x.id)}">${esc(NAMES[x.country])} ／ ${esc(x.name)}</option>`).join('');
+ const rows=ventures.map(x=>`<li>${esc(x.name)} ／ ${esc(NAMES[x.country])} ／ 自社持分 ${nfmt((x.owners.find(o=>o.id===f.id)?.econ??0)*100)}%</li>`).join('');
+ const form=edit&&options?`<div class="formgrid">
+  <label class="field">名称<input id="jointNameV043" maxlength="38"></label>
+  <label class="field">現地の合弁相手<select id="jointPartnerV043">${options}</select></label>
+  <label class="field">業態<select id="jointIndustryV043"><option value="manufacturing">製造業</option><option value="auto">自動車</option><option value="trade">商社</option></select></label>
+  <label class="field">自社持分<select id="jointStakeV043">${[25,50,60,75].map(n=>`<option value="${n}" ${n===50?'selected':''}>${n}%</option>`).join('')}</select></label>
+  <label class="field">資本金（円相当）<input id="jointCapitalV043" type="number" min="1" step="1" value="${Math.round(450000*eraCostFactor(s.year))}"></label>
+  <button class="btn" data-action="jointCompanyV043">合弁企業を設立</button></div>`:'';
+ return `<section class="panel span12"><h2>現地の合弁企業</h2><p class="hint">両社が持分に応じて出資します。議決権が過半数の場合に経営を支配できます。</p>
+  ${form}${rows?`<ul>${rows}</ul>`:''}</section>`;
+}
+function establishJointCompanyUIV043(){
+ try{
+  const f=current();if(!canEdit(f))throw Error('設立権限がありません');
+  const trial=structuredClone(S),parent=company(f.id,trial),partner=company(inputValue('jointPartnerV043'),trial);
+  const child=establishJointCompanyV043(trial,parent,partner,inputValue('jointNameV043').trim().slice(0,38),
+   inputValue('jointIndustryV043'),Number(inputValue('jointStakeV043')),Number(inputValue('jointCapitalV043')));
+  const errors=[...check(trial),...consolidate(trial).errors];
+  if(errors.length)throw Error(errors[0]);
+  S=trial;render();toast(child.name+'を設立しました');
+ }catch(error){toast(error.message);}
 }
 
 /* v0.9 — N1-B competitor ecology / N2-B shared services / G7-B HR.
@@ -7093,7 +7262,7 @@ function groupPage(){const f=current(),edit=canEdit(f),grp=controlled(),candidat
  <div class="kpis">${card('支配下の法人',grp.length+' 社','議決権過半数の連鎖','')}${card('単体現金の合算',baseMoney(sum.cash),'法人間で現金は自動融通されません','')}${card('単体資産の合算',baseMoney(sum.assets),'内部調整前・正式連結値ではない','')}${card('前月売上の合算',baseMoney(sum.sales),'内部消去前・正式連結値ではない','')}</div>
  <div class="grid"><section class="panel span12"><h2>自社・子会社の社名変更</h2><p class="hint">名称のみ変更します。法人ID・株式所有・買収履歴・過去の会計仕訳は保持します。他社は選択できません。</p><div class="formgrid"><div class="field"><label>変更対象（自社グループのみ）</label><select id="renameCompanyId">${grp.map(x=>`<option value="${esc(x.id)}" ${x.id===f.id?'selected':''}>${esc(x.name)}（${NAMES[x.country]}・${industryName(x.industry)}）</option>`).join('')}</select></div><div class="field"><label>新しい社名</label><input id="renameCompanyName" maxlength="38" placeholder="1～38文字"></div><button class="btn primary" data-action="renameCompany">社名を変更</button></div></section>
  <section class="panel span7"><h2>会社と直接保有株主（外部／企業別）</h2><div class="scroll"><table><thead><tr><th>法人</th><th>国・業態</th><th>株主・持分</th><th>状態</th></tr></thead><tbody>${S.firms.map(x=>`<tr><td><strong>${esc(x.name)}</strong></td><td>${NAMES[x.country]} / ${industryName(x.industry)}</td><td>${ownershipShort(x)}</td><td>${x.reorgStatus==='integrated'?tag('事業統合済（法人残置）','warn'):controller(S,x.id)?tag('支配下','good'):tag('独立')}</td></tr>`).join('')}</tbody></table></div></section>
- ${negotiationPanel(f,edit)}
+ ${negotiationPanel(f,edit)}${jointCompanyPanelV043(S,f,edit)}
  <section class="panel span7"><h2>子会社・新規事業の設立</h2><p class="small muted">資本金は設立元法人の現金から実際に移転し、新会社が事業用設備・必要在庫を購入します。</p><div class="formgrid"><div class="field"><label for="subName">新会社名</label><input id="subName" maxlength="38" placeholder="例：東亜エネルギー" ${edit?'':'disabled'}></div><div class="field"><label for="subCountry">創業国</label><select id="subCountry" ${edit?'':'disabled'}>${Object.keys(S.world).map(c=>`<option value="${c}" ${f.country===c?'selected':''}>${NAMES[c]}</option>`).join('')}</select></div><div class="field"><label for="subIndustry">業態</label><select id="subIndustry" ${edit?'':'disabled'}><option value="manufacturing">製造業</option><option value="resource">資源業</option><option value="trade">商業・流通</option><option value="service">サービス業</option></select></div><div class="field"><label for="subCapital">払込資本金（円相当）</label><input type="number" id="subCapital" value="${Math.round(600000*eraCostFactor(S.year))}" min="${Math.round(450000*eraCostFactor(S.year))}" max="20000000" ${edit?'':'disabled'}></div><button class="btn primary" data-action="createSub" ${edit?'':'disabled'}>子会社を設立</button></div></section>
  <section class="panel span5"><h2>グループ内貸付</h2><p class="small muted">親会社の現金を減少させ、子会社の現金・債務を増加させます。</p><div class="formgrid"><div class="field"><label for="loanSubs">借り手の子会社</label><select id="loanSubs" ${edit?'':'disabled'}>${S.firms.filter(x=>x.id!==f.id&&controller(S,x.id,f.id)).map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')||'<option value="">対象なし</option>'}</select></div><div class="field"><label for="loanAmount">貸付金額（円相当）</label><input id="loanAmount" type="number" value="100000" min="10000" ${edit?'':'disabled'}></div><button class="btn" data-action="groupLoan" ${edit?'':'disabled'}>貸付を実行</button></div><div class="footnote">会社間貸付は両社の単体会計に記録され、連結財務三表では内部債権債務・利息を調整します。</div></section>
  <section class="panel span12"><h2>グループ内商品売買・未実現利益テスト</h2><p class="small muted">選択中の法人の実在する完成品を、支配下の商業子会社へ現金決済で移転します。両社の単体売買を残し、連結では内部売上と売れ残り在庫の未実現利益を消去します。買い手の現金・売り手の在庫を確認してください。</p><div class="formgrid"><div class="field"><label>移転商品</label><select id="internalProduct">${Object.entries(f.goods).filter(([k,v])=>v.q>0&&!k.startsWith('IT')).map(([k,v])=>`<option value="${esc(k)}">${esc(f.models.find(m=>m.id===k)?.name||k)}（${v.q}個）</option>`).join('')||'<option value="">在庫なし</option>'}</select></div><div class="field"><label>購入側（支配下商業子会社）</label><select id="internalBuyer">${S.firms.filter(x=>x.industry==='trade'&&x.id!==f.id&&controller(S,x.id)).map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')||'<option value="">対象なし</option>'}</select></div><div class="field"><label>移転数量</label><input id="internalQuantity" type="number" min="1" max="100000" value="1"></div><button class="btn primary" data-action="groupSale" ${edit?'':'disabled'}>実物売買・連結調整</button></div><p class="footnote">移転価格は帳簿原価に20%を加算する試作方式です。製品移転価格の正式係数は未確定です。買い手が商業子会社の場合のみ対応しています。</p></section>${groupSynergyPanel(f)}${reorganizationPanel(f,edit)}</div>`}
@@ -7132,7 +7301,7 @@ function render(){if(!S){document.getElementById('content').innerHTML='';documen
 function monthModal(){const issues=checkMonthPreview(),f=current();return `<div class="modalwrap"><div class="modal" role="dialog" aria-modal="true"><div class="eyebrow">MONTH-END / PRE-FLIGHT</div><h1>${dateKey()}の月末処理</h1><p class="muted">処理前チェックは確定状態を変更しません。実行後は当月を固定順序で計算し、資源・会計の整合性を検証して結果を確定します。</p><div class="grid">${card('対象',esc(dateKey()),'月次一括処理','span4')}${card('支配下法人',controlled().length+'社','計算は全世界の企業を含む','span4')}${card('現金残高',fnum(f,financials(f).cash),'現在選択中の法人','span4')}</div><h2 style="margin-top:20px">事前確認・警告</h2>${issues.length?issues.map(v=>`<div class="notice">${tag('注意','warn')}　${esc(v)}</div>`).join(''):`<div class="note">現時点の計画に重大な資源警告は見つかりませんでした。価格変化や供給不足など、実際の月末処理で決定される結果もあります。</div>`}<div class="note warnbox" style="margin-top:15px">数値計算は試作係数に基づきます。正式SPEC-095以降の計算方式は未確定です。処理失敗時は計算前の状態を保護します。</div><div class="footer"><button class="btn" data-action="cancelMonth">計画に戻る</button><button class="btn primary" data-action="runMonth">この月を確定する</button></div></div></div>`}
 function wizardHTML(){const stepLabels=['開始年代','創業国','モードと難易度','創業条件確認'];return `<div class="modalwrap"><div class="modal" role="dialog" aria-modal="true"><div class="eyebrow">NEW GAME / STEP ${wizard+1} OF 4</div><h1>新しい企業経営を始める</h1><p class="muted small">自動車メーカーを創業する試作版です。人口は史実推計の基準値、その他の経済係数は仮設定です。</p><div class="steps">${stepLabels.map((x,i)=>`<span class="${i<=wizard?'on':''}" title="${x}"></span>`).join('')}</div>${wizard===0?`<h2>1. 開始年代</h2><div class="choices">${[1900,1920,1950,1980,2020].map(y=>`<label class="choice"><input type="radio" name="era" value="${y}" ${setup.era===y?'checked':''}><b>${y}年</b><span class="small muted">${y===1900?'工業化初期・自動車市場の草創期':y===1920?'自動車普及期':y===1950?'戦後産業復興期':y===1980?'世界市場拡大期':'現代のグローバル市場'}</span></label>`).join('')}</div>`:wizard===1?`<h2>2. 創業国</h2><div class="choices">${Object.keys(NAMES).map(c=>`<label class="choice"><input type="radio" name="country" value="${c}" ${setup.country===c?'checked':''}><b>${NAMES[c]}</b><span class="small muted">試作通貨：${COUNTRIES[c].currency} / 人口基準値 ${nfmt(anchorPopulation(c,setup.era))}百万人</span></label>`).join('')}</div>`:wizard===2?`<h2>3. 歴史モードと難易度</h2><div class="formgrid"><div class="field"><label>歴史モード</label><select id="wizardHistory"><option value="historical" ${setup.history==='historical'?'selected':''}>史実モード</option><option value="alternate" ${setup.history==='alternate'?'selected':''}>仮想歴史モード</option></select></div><div class="field"><label>難易度</label><select id="wizardDifficulty"><option value="easy" ${setup.difficulty==='easy'?'selected':''}>易しい（資本1.6倍）</option><option value="normal" ${setup.difficulty==='normal'?'selected':''}>標準</option><option value="hard" ${setup.difficulty==='hard'?'selected':''}>難しい（資本0.7倍）</option></select></div><div class="field"><label>会社名</label><input id="wizardName" maxlength="38" value="${esc(setup.name)}"></div></div><div class="note" style="margin-top:20px">史実モードは主要な歴史イベントを扱い、景気循環は固定日付では発生しません。現段階ではイベントや歴史的国境・通貨の厳密再現は未完成です。</div>`:`<h2>4. 創業条件の確認</h2><div class="statrow">${[['会社名',esc(setup.name)],['開始年月',setup.era+'年1月'],['創業国',NAMES[setup.country]],['歴史モード',setup.history==='historical'?'史実':'仮想'],['難易度',setup.difficulty==='easy'?'易しい':setup.difficulty==='hard'?'難しい':'標準'],['初期資本（円相当）',nfmt((setup.era<1930?2400000:setup.era<1960?4200000:setup.era<1990?7000000:12000000)*(setup.difficulty==='easy'?1.6:setup.difficulty==='hard'?.7:1))]].map(([k,v])=>`<div><div class="label">${k}</div><strong>${v}</strong></div>`).join('')}</div><div class="note warnbox" style="margin-top:20px">人口は史実推計の概数を基準値に採用（${nfmt(anchorPopulation(setup.country,setup.era))}百万人）。現在の国境に対応した人口推計であり、当時の国境・通貨を再現するものではありません。為替・価格・需要は試作値です。</div>`}<div class="footer"><button class="btn" data-action="wizardBack" ${wizard===0?'disabled':''}>戻る</button><button class="btn primary" data-action="wizardNext">${wizard===3?'この条件で創業する':'次へ進む ▸'}</button></div></div></div>`}
 async function wizardNext(){if(S)return;if(wizard===0)setup.era=Number(document.querySelector('input[name="era"]:checked')?.value||1900);if(wizard===1)setup.country=document.querySelector('input[name="country"]:checked')?.value||'JP';if(wizard===2){setup.history=inputValue('wizardHistory')||'historical';setup.difficulty=inputValue('wizardDifficulty')||'normal';setup.name=(inputValue('wizardName')||'').trim().slice(0,38)||'新規自動車メーカー'}if(wizard<3){wizard++;render();return}try{S=newGame(setup);LAST_MONTH_DIAGNOSTIC=null;MONTH_DIAGNOSTIC_OPEN=false;VIEW_FIRM=S.playerId;VIEW_COUNTRY=setup.country;PAGE='dashboard';render();const saved=await saveAuto();render();toast(saved?'創業しました。IndexedDBに自動保存しました。':'創業しましたが、自動保存に失敗しました。JSONバックアップを保存してください。')}catch(e){S=null;toast('創業設定エラー：'+e.message);console.error(e)}}
-function actions(action,elem){if(MONTH_RUNNING){toast('月次処理中です。保存・計算の確定を進めています。');return;}if(action==='wizardNext')return wizardNext();if(action==='wizardBack'){wizard=Math.max(0,wizard-1);return render()}if(!S)return;switch(action){case 'previewMonth':monthlyPreview=true;return render();case 'cancelMonth':monthlyPreview=false;return render();case 'runMonth':return runMonth();case 'monthDiagnosticShow':case 'monthDiagnosticDismiss':case 'monthDiagnosticCopy':case 'monthDiagnosticDownload':case 'monthDiagnosticJump':return monthlyDiagAction(action);case 'staffToHrV023':PEOPLE_VIEW='hr';PAGE='people';render();return;case 'goProductionV023':PRODUCT_VIEW='production';PAGE='product';render();return;case 'setPlan':return setPlan();case 'createGrade':return createGrade();case 'saveQualityPolicy':return saveQualityPolicy();case 'recallModel':return recallModel(elem.dataset.modelId);case 'changeBudget':return changeBudget();case 'researchFocusSave':return researchFocusSave();case 'roadmapAdd':return roadmapAdd(elem.dataset.techId);case 'roadmapRemove':return roadmapRemove(elem.dataset.techId);case 'roadmapToggle':return roadmapToggle();case 'hireStaff':return hireStaff();case 'partOrderPlace':case 'partOrderDispatch':case 'partOrderCancel':return partTradeAction(action,elem.dataset.id);case 'bomAssemblySave':case 'bomLineSave':case 'bomShipment':return bomFactoryAction(action,elem.dataset.id);case 'lineReview':case 'linePropose':case 'lineApprove':case 'lineCancel':return lineUIAction(action,elem);case 'partLicensePropose':case 'partLicenseApprove':case 'partLicenseEnd':case 'partDevelopmentPropose':case 'partDevelopmentApprove':case 'partDevelopmentEnd':return partContractsAction(action,elem.dataset.id);case 'partFamily':case 'partRevise':case 'partSubmit':case 'partBomCreate':case 'partBomOpen':case 'partBomSave':case 'partBomApprove':return partDesignAction(action,elem.dataset.id);case 'partRepair':return partRepairAction(elem.dataset.id,Number(elem.dataset.index));case 'engineeringTraining':case 'engineeringPropose':case 'engineeringApprove':case 'engineeringAllocate':case 'engineeringPause':case 'engineeringCancel':return engineeringAction(action,elem.dataset.id);case 'hrSave':return saveHRPolicy();case 'hrNegotiate':return negotiateLabor();case 'maintain':return maintain();case 'expand':return expand();case 'develop':return develop();case 'renewModel':return startModelRevision();case 'maFilter':return maFilter();case 'maSelect':return maSelect(elem.dataset.id);case 'maQuote':return maPreview();case 'maBuy':return maBuy();case 'maIntegrate':return maStartIntegration();case 'issueShares':return issueSharesUI();case 'buyBackSharesV0271':return buyBackSharesUI();case 'cancelTreasurySharesV0271':return cancelTreasurySharesUI();case 'negPreview':return negotiationPreview();case 'buyStake':return buyNegotiatedStake();case 'saveDelegate':return saveDelegationPolicy();case 'designPreview':return designPreview();case 'openSupplyContracts':return openSupplyContracts();case 'saveSupply':return saveSupply();case 'saveDistribution':return saveDistribution();case 'establishSalesCorp':return establishSalesCorporation();case 'factoryBuild':return factoryBuild();case 'dispatchRawShipmentV038':return dispatchRawShipmentUIV038();case 'updateRawWarehouseV038':return updateRawWarehouseV038();case 'openWarehouseDepotV038':return openWarehouseDepotV038();case 'openOverseasDepotV041':return openWarehouseDepotV038(true);case 'resourceDevelopmentV037':return resourceDevelopmentUIV037();case 'factoryManageV21':return manageFactoryV21(elem.dataset.plantId);case 'factoryModeV21':return saveFactoryModeV21();case 'moduleShipV21':return shipModuleV21();case 'v21RouteSave':return saveRoutesV21();case 'partsPlan':try{return partPlanning()}catch(e){toast(e.message);return}case 'shipParts':return shipInterplant();case 'reorgTransfer':return transferBusinessUI();case 'reorgIntegrate':return integrateBusinessUI();case 'plantSettings':return plantSettings();case 'maintainPlant':return maintainPlant();case 'researchChoose':return researchChoose();case 'startTech':return startTech(elem.dataset.techId);case 'cancelTech':return cancelTech(elem.dataset.techId);case 'borrow':return borrow();case 'exchangeForeignV042':return exchangeForeignUIV042();case 'saveForeignReceiptsV042':return saveForeignReceiptsV042();case 'signForeignForwardV042':return signForeignForwardUIV042();case 'spendAd':return spendAd();case 'createSub':return createSub();case 'renameCompany':return renameCompany();case 'renamePlant':return renamePlant(elem.dataset.plantId);case 'factoryRouteSaveOne':return saveFactoryRouteOne(elem.dataset.plantId);case 'factoryManageSelected':return manageFactoryV21(elem.dataset.plantId,document.getElementById('factoryOneAction')?.value);case 'acquire':return acquire(elem.dataset.id);case 'groupLoan':return groupLoan();case 'groupSale':return groupSale();case 'diagnoseStorage':return diagnoseStorage();case 'saveManual':return saveManual(Number(elem.dataset.slot));case 'loadManual':{const i=Number(elem.dataset.slot);if(confirm('現在の未保存変更を破棄し、手動保存'+(i+1)+'を読み込みますか？'))return restore(SAVE_INDEX.manual[i]?.serialized);return}case 'loadAutoSlot':{const i=Number(elem.dataset.slot);if(confirm('自動保存世代'+(i+1)+'を読み込みますか？'))return restore(SAVE_INDEX.auto[i]?.serialized);return}case 'export':try{fileDownload(`conglomerate_${S.year}_${S.month}.json`,savePayload(S));toast('JSONバックアップを書き出しました')}catch(e){toast('書き出しに失敗：'+e.message)}return;case 'import':document.getElementById('importFile').click();return;case 'newGame':if(confirm('現在のセッションを終了し、新しいゲームを開始しますか？ 保存済みデータは削除しません。')){S=null;wizard=0;monthlyPreview=false;PAGE='dashboard';render()}return;}}
+function actions(action,elem){if(MONTH_RUNNING){toast('月次処理中です。保存・計算の確定を進めています。');return;}if(action==='wizardNext')return wizardNext();if(action==='wizardBack'){wizard=Math.max(0,wizard-1);return render()}if(!S)return;switch(action){case 'previewMonth':monthlyPreview=true;return render();case 'cancelMonth':monthlyPreview=false;return render();case 'runMonth':return runMonth();case 'monthDiagnosticShow':case 'monthDiagnosticDismiss':case 'monthDiagnosticCopy':case 'monthDiagnosticDownload':case 'monthDiagnosticJump':return monthlyDiagAction(action);case 'staffToHrV023':PEOPLE_VIEW='hr';PAGE='people';render();return;case 'goProductionV023':PRODUCT_VIEW='production';PAGE='product';render();return;case 'setPlan':return setPlan();case 'createGrade':return createGrade();case 'saveQualityPolicy':return saveQualityPolicy();case 'recallModel':return recallModel(elem.dataset.modelId);case 'changeBudget':return changeBudget();case 'researchFocusSave':return researchFocusSave();case 'roadmapAdd':return roadmapAdd(elem.dataset.techId);case 'roadmapRemove':return roadmapRemove(elem.dataset.techId);case 'roadmapToggle':return roadmapToggle();case 'hireStaff':return hireStaff();case 'partOrderPlace':case 'partOrderDispatch':case 'partOrderCancel':return partTradeAction(action,elem.dataset.id);case 'bomAssemblySave':case 'bomLineSave':case 'bomShipment':return bomFactoryAction(action,elem.dataset.id);case 'lineReview':case 'linePropose':case 'lineApprove':case 'lineCancel':return lineUIAction(action,elem);case 'partLicensePropose':case 'partLicenseApprove':case 'partLicenseEnd':case 'partDevelopmentPropose':case 'partDevelopmentApprove':case 'partDevelopmentEnd':return partContractsAction(action,elem.dataset.id);case 'partFamily':case 'partRevise':case 'partSubmit':case 'partBomCreate':case 'partBomOpen':case 'partBomSave':case 'partBomApprove':return partDesignAction(action,elem.dataset.id);case 'partRepair':return partRepairAction(elem.dataset.id,Number(elem.dataset.index));case 'engineeringTraining':case 'engineeringPropose':case 'engineeringApprove':case 'engineeringAllocate':case 'engineeringPause':case 'engineeringCancel':return engineeringAction(action,elem.dataset.id);case 'hrSave':return saveHRPolicy();case 'hrNegotiate':return negotiateLabor();case 'maintain':return maintain();case 'expand':return expand();case 'develop':return develop();case 'renewModel':return startModelRevision();case 'maFilter':return maFilter();case 'maSelect':return maSelect(elem.dataset.id);case 'maQuote':return maPreview();case 'maBuy':return maBuy();case 'maIntegrate':return maStartIntegration();case 'issueShares':return issueSharesUI();case 'buyBackSharesV0271':return buyBackSharesUI();case 'cancelTreasurySharesV0271':return cancelTreasurySharesUI();case 'negPreview':return negotiationPreview();case 'buyStake':return buyNegotiatedStake();case 'saveDelegate':return saveDelegationPolicy();case 'designPreview':return designPreview();case 'openSupplyContracts':return openSupplyContracts();case 'saveSupply':return saveSupply();case 'saveDistribution':return saveDistribution();case 'establishSalesCorp':return establishSalesCorporation();case 'createMarketSalesAgencyV043':return establishSalesCorporation(inputValue('marketEntryTarget'));case 'foreignEnterV043':return changeForeignMarketUIV043('enter');case 'jointCompanyV043':return establishJointCompanyUIV043();case 'foreignReduceV043':return changeForeignMarketUIV043('reduce');case 'foreignWithdrawV043':return changeForeignMarketUIV043('withdraw');case 'factoryBuild':return factoryBuild();case 'dispatchRawShipmentV038':return dispatchRawShipmentUIV038();case 'updateRawWarehouseV038':return updateRawWarehouseV038();case 'openWarehouseDepotV038':return openWarehouseDepotV038();case 'openOverseasDepotV041':return openWarehouseDepotV038(true);case 'resourceDevelopmentV037':return resourceDevelopmentUIV037();case 'factoryManageV21':return manageFactoryV21(elem.dataset.plantId);case 'factoryModeV21':return saveFactoryModeV21();case 'moduleShipV21':return shipModuleV21();case 'v21RouteSave':return saveRoutesV21();case 'partsPlan':try{return partPlanning()}catch(e){toast(e.message);return}case 'shipParts':return shipInterplant();case 'reorgTransfer':return transferBusinessUI();case 'reorgIntegrate':return integrateBusinessUI();case 'plantSettings':return plantSettings();case 'maintainPlant':return maintainPlant();case 'researchChoose':return researchChoose();case 'startTech':return startTech(elem.dataset.techId);case 'cancelTech':return cancelTech(elem.dataset.techId);case 'borrow':return borrow();case 'exchangeForeignV042':return exchangeForeignUIV042();case 'saveForeignReceiptsV042':return saveForeignReceiptsV042();case 'signForeignForwardV042':return signForeignForwardUIV042();case 'spendAd':return spendAd();case 'createSub':return createSub();case 'renameCompany':return renameCompany();case 'renamePlant':return renamePlant(elem.dataset.plantId);case 'factoryRouteSaveOne':return saveFactoryRouteOne(elem.dataset.plantId);case 'factoryManageSelected':return manageFactoryV21(elem.dataset.plantId,document.getElementById('factoryOneAction')?.value);case 'acquire':return acquire(elem.dataset.id);case 'groupLoan':return groupLoan();case 'groupSale':return groupSale();case 'diagnoseStorage':return diagnoseStorage();case 'saveManual':return saveManual(Number(elem.dataset.slot));case 'loadManual':{const i=Number(elem.dataset.slot);if(confirm('現在の未保存変更を破棄し、手動保存'+(i+1)+'を読み込みますか？'))return restore(SAVE_INDEX.manual[i]?.serialized);return}case 'loadAutoSlot':{const i=Number(elem.dataset.slot);if(confirm('自動保存世代'+(i+1)+'を読み込みますか？'))return restore(SAVE_INDEX.auto[i]?.serialized);return}case 'export':try{fileDownload(`conglomerate_${S.year}_${S.month}.json`,savePayload(S));toast('JSONバックアップを書き出しました')}catch(e){toast('書き出しに失敗：'+e.message)}return;case 'import':document.getElementById('importFile').click();return;case 'newGame':if(confirm('現在のセッションを終了し、新しいゲームを開始しますか？ 保存済みデータは削除しません。')){S=null;wizard=0;monthlyPreview=false;PAGE='dashboard';render()}return;}}
 document.addEventListener('click',e=>{const product=e.target.closest('[data-product-view]');if(product&&S){PRODUCT_VIEW=product.dataset.productView;render();window.scrollTo({top:0,behavior:'instant'});return;}const people=e.target.closest('[data-people-view]');if(people&&S){PEOPLE_VIEW=people.dataset.peopleView;render();window.scrollTo({top:0,behavior:'instant'});return;}const group=e.target.closest('[data-tech-family]');if(group&&S){TECH_FAMILY=group.dataset.techFamily;TECH_DOMAIN=TECH_FAMILIES[TECH_FAMILY].domains[0];TECH_SELECTED=TECH_DOMAIN+'-1';return redrawResearchPanel({centerSelected:false})}const field=e.target.closest('[data-tech-domain]');if(field&&S){TECH_DOMAIN=field.dataset.techDomain;techScrollDomain(TECH_DOMAIN);document.querySelectorAll('[data-tech-domain]').forEach(x=>x.classList.toggle('active',x.dataset.techDomain===TECH_DOMAIN));return}const tech=e.target.closest('[data-tech-select]');if(tech&&S){chooseTech(tech.dataset.techSelect);return}const section=e.target.closest('[data-section]');if(section&&S){PAGE=SECTIONS[section.dataset.section].pages[0][0];monthlyPreview=false;render();window.scrollTo({top:0,behavior:'instant'});return}const nav=e.target.closest('[data-page]');if(nav&&S){PAGE=nav.dataset.page;monthlyPreview=false;render();window.scrollTo({top:0,behavior:'instant'});return}const el=e.target.closest('[data-action]');if(el&&!el.disabled)actions(el.dataset.action,el)});
 document.addEventListener('change',e=>{if(e.target.matches('[data-design-field]')||e.target.id==='modelPrice')designPreview();if(['factorySite','factoryScale','factoryKind'].includes(e.target.id))factorySitePreview()});document.addEventListener('input',e=>{if(e.target.id==='modelPrice')designPreview()});document.getElementById('companySelect').addEventListener('change',e=>{VIEW_FIRM=e.target.value;render()});document.getElementById('regionSelect').addEventListener('change',e=>{VIEW_COUNTRY=e.target.value;render()});document.getElementById('importFile').addEventListener('change',async e=>{const file=e.target.files[0];if(!file)return;try{const raw=await file.text();if(confirm('読み込み中のゲーム状態をJSONバックアップで置き換えますか？'))restore(raw)}catch(err){toast('ファイルを読み込めません：'+err.message)}e.target.value=''});
 
@@ -7213,6 +7382,7 @@ function maQuote(s,buyer,target,percent,multiplier){
 function executeMADeal(s,buyerId,targetId,percent,multiplier,actor='player'){
  ensureMAState(s);const buyer=company(buyerId,s),target=company(targetId,s);
  const quote=maQuote(s,buyer,target,percent,multiplier);
+ if(!marketInvestmentAllowedV043(s,buyer,target.country))throw Error('現地の規制により対象企業を買収できません');
  if(!quote.consent)throw Error('必要な株式が集まりません。売却条件を引き上げるか取得割合を減らしてください（不足'+maPct(quote.missing)+'）');
  if(!quote.affordable)throw Error('買収資金不足：見積 '+maMoney(quote.total)+'、手元現金 '+maMoney(quote.available));
  const paid=localFromBase(quote.total,buyer.country);
@@ -9284,7 +9454,7 @@ distributionPages=function(){const f=current(),edit=canEdit(f);ensureNetwork(f);
 return `<div class="mk-v25">${mkHeadV025('DISTRIBUTION / SALES NETWORK','販売網・輸出管理','販売ルートの設定と採算性の検討を、同じページで行います。',`<span class="mk-tag warn">操作モード：変更は保存後に適用</span>`)}${!edit?noaccess():''}
 <div class="mk-grid"><div class="mk-span-3">${mkKpiV025('販売契約市場',Object.keys(S.world).length+'市場','5か国の販売方式')}</div><div class="mk-span-3">${mkKpiV025('契約出荷能力',nfmt(capacity)+'台/月','全市場の上限単純合計')}</div><div class="mk-span-3">${mkKpiV025('輸送中の完成車',nfmt(outbound.reduce((a,x)=>a+x.qty,0))+'台','入荷予定に計上')}</div><div class="mk-span-3">${mkKpiV025('地域販売法人',nfmt(established)+'社','代理契約の補助')}</div></div>
 <div class="mk-grid"><section class="mk-panel mk-span-8"><div class="mk-progress-summary"><div><h2>地域別の販売網契約</h2><p class="mk-sub">販売方式・契約先・月間能力を指定。保存前はゲーム状態を変更しません。</p></div><span class="mk-tag" id="mkContractState">保存済みの条件を表示中</span></div><div class="mk-cards mk-section-bottom">${Object.keys(S.world).map(c=>mkContractCardV025(f,c,edit)).join('')}</div><div class="mk-actions"><button class="btn primary" data-action="saveDistribution" ${edit?'':'disabled'}>販売網の変更を保存</button><span class="mk-muted">販売方式・能力増設には投資資金が必要です。</span></div></section><section class="mk-panel mk-span-4"><h2>販売方式の特徴</h2>${[['直接販売','中間手数料を抑えるが、販路整備と販売能力が重要。'],['販売店契約','現地企業と販売を分担。販売費と契約条件を確認。'],['地域販売網','販売網の拡充で輸送・販売能力を補完。'],['地域販売法人','現地の支配下法人が代理を担当。法人の設立が必要。']].map(([k,v])=>`<div class="mk-method"><b>${k}</b><p>${v}</p></div>`).join('')}<div class="mk-callout">契約変更はその場で在庫や売上を増やしません。海外販売は輸送期間を経て月末に確定します。</div></section></div>
-<div class="mk-grid">${mkDistributionSimulatorV025(f)}${logisticsComparisonPanelV041(S,f)}</div>
+<div class="mk-grid">${mkDistributionSimulatorV025(f)}${logisticsComparisonPanelV041(S,f)}${foreignEntryPanelV043(S,f,edit)}</div>
 <div class="mk-grid"><section class="mk-panel mk-span-8"><h2>輸出中・到着予定</h2><div class="mk-table-wrap"><table class="mk-table"><thead><tr><th>製品</th><th>販売市場</th><th class="mk-number">台数</th><th>経路</th><th>到着予定</th><th class="mk-number">予定売上（円相当）</th></tr></thead><tbody>${outbound.slice(0,100).map(x=>`<tr><td>${esc(f.models.find(m=>m.id===x.key)?.name||x.key)}</td><td>${esc(NAMES[x.country])}</td><td class="mk-number">${nfmt(x.qty)}</td><td>${x.internationalV041?ROUTE_NAMES_V041[x.internationalV041.routeId.split('/').at(-1)]:'—'}</td><td>${Math.floor(x.due/12)}年${x.due%12+1}月</td><td class="mk-number">${nfmt((x.unitPriceBase||0)*x.qty)}</td></tr>`).join('')||'<tr><td colspan="6">現在、輸送中の完成車はありません。</td></tr>'}</tbody></table></div><p class="mk-note">最大100件を表示。荷物の詳細原価や会計は財務画面で確認できます。</p></section><section class="mk-panel mk-span-4"><h2>地域販売法人の新設</h2><p class="mk-sub">支配下の現地法人を設立し、販路の運営を補助します。</p><div class="mk-field"><label for="salesCorpCountry">設立国（自国以外）</label><select class="mk-control" id="salesCorpCountry" ${edit?'':'disabled'}>${Object.keys(S.world).filter(c=>c!==f.country&&!f.distribution.salesCorporations[c]).map(c=>`<option value="${c}">${esc(NAMES[c])}</option>`).join('')||'<option value="">設立できる市場なし</option>'}</select></div><div class="mk-actions"><button class="btn" data-action="establishSalesCorp" ${edit?'':'disabled'}>販売法人を設立（450,000円相当）</button></div><p class="mk-note">法人格と帳簿を分けて設立します。製造会社からの無記録の卸売や現金移転は行いません。</p></section></div></div>`;};
 function mkUpdateDistributionQuoteV025(){const n=id=>Math.max(0,Number(document.getElementById(id)?.value)||0),price=n('mkSimPrice'),cost=n('mkSimCost'),freight=n('mkSimFreight'),tariff=Math.min(100,n('mkSimTariff'))/100,fee=Math.min(100,n('mkSimFee'))/100,qty=Math.min(100000,n('mkSimQty'));const duty=price*tariff,comm=price*fee,margin=price-cost-freight-duty-comm;
 for(const [id,text] of [['mkSimUnit',baseMoney(cents(Math.round(margin)))],['mkSimTariffCost',baseMoney(cents(Math.round(duty)))],['mkSimFeeCost',baseMoney(cents(Math.round(comm)))],['mkSimTotal',baseMoney(cents(Math.round(margin*qty)))]]){const el=document.getElementById(id);if(el)el.textContent=text;}}
@@ -9296,6 +9466,7 @@ document.addEventListener('click',e=>{if(!S)return;const region=e.target.closest
 document.addEventListener('change',e=>{const sel=e.target.closest('[data-mk-select]');if(sel){const id=sel.dataset.mkSelect;if(sel.checked&&!MK_V025.selected.includes(id)){if(MK_V025.selected.length>=4){sel.checked=false;toast('比較は最大4社までです');return;}MK_V025.selected.push(id);}if(!sel.checked)MK_V025.selected=MK_V025.selected.filter(x=>x!==id);mkRefreshRivalsV025();return;}const id=e.target.id;if(['mkRivalsCountry','mkRivalsIndustry','mkRivalsSort'].includes(id)){const key={mkRivalsCountry:'country',mkRivalsIndustry:'industry',mkRivalsSort:'sort'}[id];MK_V025[key]=e.target.value;MK_V025.page=0;mkRefreshRivalsV025();return;}if(e.target.closest('.mk-contract')){const x=document.getElementById('mkContractState');if(x)x.textContent='未保存の変更があります';}});
 document.addEventListener('input',e=>{if(e.target.id==='mkRivalsQuery'){MK_V025.query=e.target.value;MK_V025.page=0;mkRefreshRivalsV025();}if(e.target.closest('.mk-contract')){const mark=document.getElementById('mkContractState');if(mark)mark.textContent='未保存の変更があります';}if(/^mkSim(Region|Price|Cost|Freight|Tariff|Fee|Qty)$/.test(e.target.id))mkUpdateDistributionQuoteV025();});
 /* Update the export calculator on each visit; avoid resetting any input during typing. */
+document.addEventListener('change',e=>{if(e.target.id==='marketEntryTarget'){MARKET_ENTRY_REGION_V043=e.target.value;render();}});
 const mkPriorRenderV025=render;
 render=function(){mkPriorRenderV025();if(PAGE==='distribution')mkUpdateDistributionQuoteV025();};
 
