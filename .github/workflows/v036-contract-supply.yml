@@ -35,6 +35,9 @@ jobs:
       - name: STEP 2 Factory and warehouse inventories
         if: ${{ hashFiles('tests/test_step02_inventory_logistics.py') != '' }}
         run: python tests/test_step02_inventory_logistics.py
+      - name: STEP 2 Long-running localized inventory and logistics
+        if: ${{ hashFiles('tests/test_step02_inventory_endurance.py') != '' }}
+        run: python tests/test_step02_inventory_endurance.py
       - name: STEP 1 Long-running resource ledgers and previous saves
         if: ${{ hashFiles('tests/test_step01_resource_endurance.py') != '' }}
         run: |

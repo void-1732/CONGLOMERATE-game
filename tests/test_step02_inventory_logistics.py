@@ -20,6 +20,7 @@ if __name__ == "__main__":
         page = browser.new_page(offline=True, viewport={"width": 390, "height": 840})
         errors = []
         page.on("pageerror", lambda error: errors.append(str(error)))
+        page.on("dialog", lambda dialog: dialog.accept())
         page.set_content(HTML.read_text(encoding="utf-8"), wait_until="domcontentloaded")
         migrated = page.evaluate("""() => {
             saveAuto = async () => true;
@@ -152,6 +153,35 @@ if __name__ == "__main__":
         assert used["cleared"], used
         assert abs(used["remaining"] - (5 - used["produced"] * used["required"])) <= 1e-8, used
         assert not used["errors"], used
+        page.evaluate("render()")
+        page.get_by_text("中央倉庫の保管在庫", exact=True).click()
+        page.get_by_text("国内倉庫を取得する", exact=True).click()
+        page.locator("#warehouseDepotName").fill("中京倉庫")
+        page.locator("#warehouseDepotSite").select_option("JP-NGO")
+        page.locator("#warehouseDepotCapacity").fill("4")
+        page.get_by_role("button", name="倉庫を取得", exact=True).click()
+        depot = page.evaluate("current().inventoryLogisticsV038.depots[0].id")
+        page.locator("#rawShipmentTo").select_option(depot)
+        page.locator("#rawShipmentQuantity").fill("3")
+        page.get_by_role("button", name="資材を発送").click()
+        page.locator("#rawShipmentTo").select_option(depot)
+        page.locator("#rawShipmentQuantity").fill("2")
+        page.get_by_role("button", name="資材を発送").click()
+        assert page.evaluate("current().inventoryLogisticsV038.rawShipments.length") == 1
+        extra_warehouse = page.evaluate("""id => {
+            const due=current().inventoryLogisticsV038.rawShipments[0].due;
+            S=parsePayload(savePayload(S));
+            while(ym(S.year,S.month)<due)nextMonthDate(S);
+            deliverRawShipmentsV038(S,[]);
+            const f=current(), stock=depotV038(f,id).stock.steel;
+            const view=inventoryLocationsV038(S,f).otherWarehouses.get(id);
+            return {quantity:stock.q, view:view.items.get('materials:steel').quantity,
+                cashPosted:f.journals.some(j=>j.text==='国内倉庫の取得：中京倉庫'),
+                transit:acc(f,'materialsTransit'), errors:check(S)};
+        }""", depot)
+        assert extra_warehouse == {
+            "quantity": 3, "view": 3, "cashPosted": True, "transit": 0, "errors": []
+        }, extra_warehouse
         remote = page.evaluate("""() => {
             S = newGame({era:1900, country:'JP', difficulty:'easy',
                 history:'historical', name:'国内自動補充の試験'});

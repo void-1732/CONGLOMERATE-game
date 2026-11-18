@@ -2729,7 +2729,8 @@ function procureOld(s,events){const avail={};for(const [c,w] of Object.entries(s
 function consume(f,key,q){
  if(q<=0)return 0;
  const atPlant=f.inventoryLogisticsV038?.rawAtPlant;
- if(RAW_TYPES_V032.includes(key)&&atPlant&&Object.keys(atPlant).length)return consumeLocatedRawStockV038(f,key,q);
+ const inDepot=f.inventoryLogisticsV038?.depots?.some(depot=>depot.stock[key]);
+ if(RAW_TYPES_V032.includes(key)&&(inDepot||atPlant&&Object.keys(atPlant).length))return consumeLocatedRawStockV038(f,key,q);
  const stock=f.stock[key],amount=q===stock.q?stock.v:Math.round(stock.v*q/stock.q);
  stock.q-=q;stock.v-=amount;
  return amount;
@@ -6360,7 +6361,7 @@ function render(){if(!S){document.getElementById('content').innerHTML='';documen
 function monthModal(){const issues=checkMonthPreview(),f=current();return `<div class="modalwrap"><div class="modal" role="dialog" aria-modal="true"><div class="eyebrow">MONTH-END / PRE-FLIGHT</div><h1>${dateKey()}の月末処理</h1><p class="muted">処理前チェックは確定状態を変更しません。実行後は当月を固定順序で計算し、資源・会計の整合性を検証して結果を確定します。</p><div class="grid">${card('対象',esc(dateKey()),'月次一括処理','span4')}${card('支配下法人',controlled().length+'社','計算は全世界の企業を含む','span4')}${card('現金残高',fnum(f,financials(f).cash),'現在選択中の法人','span4')}</div><h2 style="margin-top:20px">事前確認・警告</h2>${issues.length?issues.map(v=>`<div class="notice">${tag('注意','warn')}　${esc(v)}</div>`).join(''):`<div class="note">現時点の計画に重大な資源警告は見つかりませんでした。価格変化や供給不足など、実際の月末処理で決定される結果もあります。</div>`}<div class="note warnbox" style="margin-top:15px">数値計算は試作係数に基づきます。正式SPEC-095以降の計算方式は未確定です。処理失敗時は計算前の状態を保護します。</div><div class="footer"><button class="btn" data-action="cancelMonth">計画に戻る</button><button class="btn primary" data-action="runMonth">この月を確定する</button></div></div></div>`}
 function wizardHTML(){const stepLabels=['開始年代','創業国','モードと難易度','創業条件確認'];return `<div class="modalwrap"><div class="modal" role="dialog" aria-modal="true"><div class="eyebrow">NEW GAME / STEP ${wizard+1} OF 4</div><h1>新しい企業経営を始める</h1><p class="muted small">自動車メーカーを創業する試作版です。人口は史実推計の基準値、その他の経済係数は仮設定です。</p><div class="steps">${stepLabels.map((x,i)=>`<span class="${i<=wizard?'on':''}" title="${x}"></span>`).join('')}</div>${wizard===0?`<h2>1. 開始年代</h2><div class="choices">${[1900,1920,1950,1980,2020].map(y=>`<label class="choice"><input type="radio" name="era" value="${y}" ${setup.era===y?'checked':''}><b>${y}年</b><span class="small muted">${y===1900?'工業化初期・自動車市場の草創期':y===1920?'自動車普及期':y===1950?'戦後産業復興期':y===1980?'世界市場拡大期':'現代のグローバル市場'}</span></label>`).join('')}</div>`:wizard===1?`<h2>2. 創業国</h2><div class="choices">${Object.keys(NAMES).map(c=>`<label class="choice"><input type="radio" name="country" value="${c}" ${setup.country===c?'checked':''}><b>${NAMES[c]}</b><span class="small muted">試作通貨：${COUNTRIES[c].currency} / 人口基準値 ${nfmt(anchorPopulation(c,setup.era))}百万人</span></label>`).join('')}</div>`:wizard===2?`<h2>3. 歴史モードと難易度</h2><div class="formgrid"><div class="field"><label>歴史モード</label><select id="wizardHistory"><option value="historical" ${setup.history==='historical'?'selected':''}>史実モード</option><option value="alternate" ${setup.history==='alternate'?'selected':''}>仮想歴史モード</option></select></div><div class="field"><label>難易度</label><select id="wizardDifficulty"><option value="easy" ${setup.difficulty==='easy'?'selected':''}>易しい（資本1.6倍）</option><option value="normal" ${setup.difficulty==='normal'?'selected':''}>標準</option><option value="hard" ${setup.difficulty==='hard'?'selected':''}>難しい（資本0.7倍）</option></select></div><div class="field"><label>会社名</label><input id="wizardName" maxlength="38" value="${esc(setup.name)}"></div></div><div class="note" style="margin-top:20px">史実モードは主要な歴史イベントを扱い、景気循環は固定日付では発生しません。現段階ではイベントや歴史的国境・通貨の厳密再現は未完成です。</div>`:`<h2>4. 創業条件の確認</h2><div class="statrow">${[['会社名',esc(setup.name)],['開始年月',setup.era+'年1月'],['創業国',NAMES[setup.country]],['歴史モード',setup.history==='historical'?'史実':'仮想'],['難易度',setup.difficulty==='easy'?'易しい':setup.difficulty==='hard'?'難しい':'標準'],['初期資本（円相当）',nfmt((setup.era<1930?2400000:setup.era<1960?4200000:setup.era<1990?7000000:12000000)*(setup.difficulty==='easy'?1.6:setup.difficulty==='hard'?.7:1))]].map(([k,v])=>`<div><div class="label">${k}</div><strong>${v}</strong></div>`).join('')}</div><div class="note warnbox" style="margin-top:20px">人口は史実推計の概数を基準値に採用（${nfmt(anchorPopulation(setup.country,setup.era))}百万人）。現在の国境に対応した人口推計であり、当時の国境・通貨を再現するものではありません。為替・価格・需要は試作値です。</div>`}<div class="footer"><button class="btn" data-action="wizardBack" ${wizard===0?'disabled':''}>戻る</button><button class="btn primary" data-action="wizardNext">${wizard===3?'この条件で創業する':'次へ進む ▸'}</button></div></div></div>`}
 async function wizardNext(){if(S)return;if(wizard===0)setup.era=Number(document.querySelector('input[name="era"]:checked')?.value||1900);if(wizard===1)setup.country=document.querySelector('input[name="country"]:checked')?.value||'JP';if(wizard===2){setup.history=inputValue('wizardHistory')||'historical';setup.difficulty=inputValue('wizardDifficulty')||'normal';setup.name=(inputValue('wizardName')||'').trim().slice(0,38)||'新規自動車メーカー'}if(wizard<3){wizard++;render();return}try{S=newGame(setup);LAST_MONTH_DIAGNOSTIC=null;MONTH_DIAGNOSTIC_OPEN=false;VIEW_FIRM=S.playerId;VIEW_COUNTRY=setup.country;PAGE='dashboard';render();const saved=await saveAuto();render();toast(saved?'創業しました。IndexedDBに自動保存しました。':'創業しましたが、自動保存に失敗しました。JSONバックアップを保存してください。')}catch(e){S=null;toast('創業設定エラー：'+e.message);console.error(e)}}
-function actions(action,elem){if(MONTH_RUNNING){toast('月次処理中です。保存・計算の確定を進めています。');return;}if(action==='wizardNext')return wizardNext();if(action==='wizardBack'){wizard=Math.max(0,wizard-1);return render()}if(!S)return;switch(action){case 'previewMonth':monthlyPreview=true;return render();case 'cancelMonth':monthlyPreview=false;return render();case 'runMonth':return runMonth();case 'monthDiagnosticShow':case 'monthDiagnosticDismiss':case 'monthDiagnosticCopy':case 'monthDiagnosticDownload':case 'monthDiagnosticJump':return monthlyDiagAction(action);case 'staffToHrV023':PEOPLE_VIEW='hr';PAGE='people';render();return;case 'goProductionV023':PRODUCT_VIEW='production';PAGE='product';render();return;case 'setPlan':return setPlan();case 'createGrade':return createGrade();case 'saveQualityPolicy':return saveQualityPolicy();case 'recallModel':return recallModel(elem.dataset.modelId);case 'changeBudget':return changeBudget();case 'researchFocusSave':return researchFocusSave();case 'roadmapAdd':return roadmapAdd(elem.dataset.techId);case 'roadmapRemove':return roadmapRemove(elem.dataset.techId);case 'roadmapToggle':return roadmapToggle();case 'hireStaff':return hireStaff();case 'partOrderPlace':case 'partOrderDispatch':case 'partOrderCancel':return partTradeAction(action,elem.dataset.id);case 'bomAssemblySave':case 'bomLineSave':case 'bomShipment':return bomFactoryAction(action,elem.dataset.id);case 'lineReview':case 'linePropose':case 'lineApprove':case 'lineCancel':return lineUIAction(action,elem);case 'partLicensePropose':case 'partLicenseApprove':case 'partLicenseEnd':case 'partDevelopmentPropose':case 'partDevelopmentApprove':case 'partDevelopmentEnd':return partContractsAction(action,elem.dataset.id);case 'partFamily':case 'partRevise':case 'partSubmit':case 'partBomCreate':case 'partBomOpen':case 'partBomSave':case 'partBomApprove':return partDesignAction(action,elem.dataset.id);case 'partRepair':return partRepairAction(elem.dataset.id,Number(elem.dataset.index));case 'engineeringTraining':case 'engineeringPropose':case 'engineeringApprove':case 'engineeringAllocate':case 'engineeringPause':case 'engineeringCancel':return engineeringAction(action,elem.dataset.id);case 'hrSave':return saveHRPolicy();case 'hrNegotiate':return negotiateLabor();case 'maintain':return maintain();case 'expand':return expand();case 'develop':return develop();case 'renewModel':return startModelRevision();case 'maFilter':return maFilter();case 'maSelect':return maSelect(elem.dataset.id);case 'maQuote':return maPreview();case 'maBuy':return maBuy();case 'maIntegrate':return maStartIntegration();case 'issueShares':return issueSharesUI();case 'buyBackSharesV0271':return buyBackSharesUI();case 'cancelTreasurySharesV0271':return cancelTreasurySharesUI();case 'negPreview':return negotiationPreview();case 'buyStake':return buyNegotiatedStake();case 'saveDelegate':return saveDelegationPolicy();case 'designPreview':return designPreview();case 'openSupplyContracts':return openSupplyContracts();case 'saveSupply':return saveSupply();case 'saveDistribution':return saveDistribution();case 'establishSalesCorp':return establishSalesCorporation();case 'factoryBuild':return factoryBuild();case 'dispatchRawShipmentV038':return dispatchRawShipmentUIV038();case 'updateRawWarehouseV038':return updateRawWarehouseV038();case 'resourceDevelopmentV037':return resourceDevelopmentUIV037();case 'factoryManageV21':return manageFactoryV21(elem.dataset.plantId);case 'factoryModeV21':return saveFactoryModeV21();case 'moduleShipV21':return shipModuleV21();case 'v21RouteSave':return saveRoutesV21();case 'partsPlan':try{return partPlanning()}catch(e){toast(e.message);return}case 'shipParts':return shipInterplant();case 'reorgTransfer':return transferBusinessUI();case 'reorgIntegrate':return integrateBusinessUI();case 'plantSettings':return plantSettings();case 'maintainPlant':return maintainPlant();case 'researchChoose':return researchChoose();case 'startTech':return startTech(elem.dataset.techId);case 'cancelTech':return cancelTech(elem.dataset.techId);case 'borrow':return borrow();case 'spendAd':return spendAd();case 'createSub':return createSub();case 'renameCompany':return renameCompany();case 'renamePlant':return renamePlant(elem.dataset.plantId);case 'factoryRouteSaveOne':return saveFactoryRouteOne(elem.dataset.plantId);case 'factoryManageSelected':return manageFactoryV21(elem.dataset.plantId,document.getElementById('factoryOneAction')?.value);case 'acquire':return acquire(elem.dataset.id);case 'groupLoan':return groupLoan();case 'groupSale':return groupSale();case 'diagnoseStorage':return diagnoseStorage();case 'saveManual':return saveManual(Number(elem.dataset.slot));case 'loadManual':{const i=Number(elem.dataset.slot);if(confirm('現在の未保存変更を破棄し、手動保存'+(i+1)+'を読み込みますか？'))return restore(SAVE_INDEX.manual[i]?.serialized);return}case 'loadAutoSlot':{const i=Number(elem.dataset.slot);if(confirm('自動保存世代'+(i+1)+'を読み込みますか？'))return restore(SAVE_INDEX.auto[i]?.serialized);return}case 'export':try{fileDownload(`conglomerate_${S.year}_${S.month}.json`,savePayload(S));toast('JSONバックアップを書き出しました')}catch(e){toast('書き出しに失敗：'+e.message)}return;case 'import':document.getElementById('importFile').click();return;case 'newGame':if(confirm('現在のセッションを終了し、新しいゲームを開始しますか？ 保存済みデータは削除しません。')){S=null;wizard=0;monthlyPreview=false;PAGE='dashboard';render()}return;}}
+function actions(action,elem){if(MONTH_RUNNING){toast('月次処理中です。保存・計算の確定を進めています。');return;}if(action==='wizardNext')return wizardNext();if(action==='wizardBack'){wizard=Math.max(0,wizard-1);return render()}if(!S)return;switch(action){case 'previewMonth':monthlyPreview=true;return render();case 'cancelMonth':monthlyPreview=false;return render();case 'runMonth':return runMonth();case 'monthDiagnosticShow':case 'monthDiagnosticDismiss':case 'monthDiagnosticCopy':case 'monthDiagnosticDownload':case 'monthDiagnosticJump':return monthlyDiagAction(action);case 'staffToHrV023':PEOPLE_VIEW='hr';PAGE='people';render();return;case 'goProductionV023':PRODUCT_VIEW='production';PAGE='product';render();return;case 'setPlan':return setPlan();case 'createGrade':return createGrade();case 'saveQualityPolicy':return saveQualityPolicy();case 'recallModel':return recallModel(elem.dataset.modelId);case 'changeBudget':return changeBudget();case 'researchFocusSave':return researchFocusSave();case 'roadmapAdd':return roadmapAdd(elem.dataset.techId);case 'roadmapRemove':return roadmapRemove(elem.dataset.techId);case 'roadmapToggle':return roadmapToggle();case 'hireStaff':return hireStaff();case 'partOrderPlace':case 'partOrderDispatch':case 'partOrderCancel':return partTradeAction(action,elem.dataset.id);case 'bomAssemblySave':case 'bomLineSave':case 'bomShipment':return bomFactoryAction(action,elem.dataset.id);case 'lineReview':case 'linePropose':case 'lineApprove':case 'lineCancel':return lineUIAction(action,elem);case 'partLicensePropose':case 'partLicenseApprove':case 'partLicenseEnd':case 'partDevelopmentPropose':case 'partDevelopmentApprove':case 'partDevelopmentEnd':return partContractsAction(action,elem.dataset.id);case 'partFamily':case 'partRevise':case 'partSubmit':case 'partBomCreate':case 'partBomOpen':case 'partBomSave':case 'partBomApprove':return partDesignAction(action,elem.dataset.id);case 'partRepair':return partRepairAction(elem.dataset.id,Number(elem.dataset.index));case 'engineeringTraining':case 'engineeringPropose':case 'engineeringApprove':case 'engineeringAllocate':case 'engineeringPause':case 'engineeringCancel':return engineeringAction(action,elem.dataset.id);case 'hrSave':return saveHRPolicy();case 'hrNegotiate':return negotiateLabor();case 'maintain':return maintain();case 'expand':return expand();case 'develop':return develop();case 'renewModel':return startModelRevision();case 'maFilter':return maFilter();case 'maSelect':return maSelect(elem.dataset.id);case 'maQuote':return maPreview();case 'maBuy':return maBuy();case 'maIntegrate':return maStartIntegration();case 'issueShares':return issueSharesUI();case 'buyBackSharesV0271':return buyBackSharesUI();case 'cancelTreasurySharesV0271':return cancelTreasurySharesUI();case 'negPreview':return negotiationPreview();case 'buyStake':return buyNegotiatedStake();case 'saveDelegate':return saveDelegationPolicy();case 'designPreview':return designPreview();case 'openSupplyContracts':return openSupplyContracts();case 'saveSupply':return saveSupply();case 'saveDistribution':return saveDistribution();case 'establishSalesCorp':return establishSalesCorporation();case 'factoryBuild':return factoryBuild();case 'dispatchRawShipmentV038':return dispatchRawShipmentUIV038();case 'updateRawWarehouseV038':return updateRawWarehouseV038();case 'openWarehouseDepotV038':return openWarehouseDepotV038();case 'resourceDevelopmentV037':return resourceDevelopmentUIV037();case 'factoryManageV21':return manageFactoryV21(elem.dataset.plantId);case 'factoryModeV21':return saveFactoryModeV21();case 'moduleShipV21':return shipModuleV21();case 'v21RouteSave':return saveRoutesV21();case 'partsPlan':try{return partPlanning()}catch(e){toast(e.message);return}case 'shipParts':return shipInterplant();case 'reorgTransfer':return transferBusinessUI();case 'reorgIntegrate':return integrateBusinessUI();case 'plantSettings':return plantSettings();case 'maintainPlant':return maintainPlant();case 'researchChoose':return researchChoose();case 'startTech':return startTech(elem.dataset.techId);case 'cancelTech':return cancelTech(elem.dataset.techId);case 'borrow':return borrow();case 'spendAd':return spendAd();case 'createSub':return createSub();case 'renameCompany':return renameCompany();case 'renamePlant':return renamePlant(elem.dataset.plantId);case 'factoryRouteSaveOne':return saveFactoryRouteOne(elem.dataset.plantId);case 'factoryManageSelected':return manageFactoryV21(elem.dataset.plantId,document.getElementById('factoryOneAction')?.value);case 'acquire':return acquire(elem.dataset.id);case 'groupLoan':return groupLoan();case 'groupSale':return groupSale();case 'diagnoseStorage':return diagnoseStorage();case 'saveManual':return saveManual(Number(elem.dataset.slot));case 'loadManual':{const i=Number(elem.dataset.slot);if(confirm('現在の未保存変更を破棄し、手動保存'+(i+1)+'を読み込みますか？'))return restore(SAVE_INDEX.manual[i]?.serialized);return}case 'loadAutoSlot':{const i=Number(elem.dataset.slot);if(confirm('自動保存世代'+(i+1)+'を読み込みますか？'))return restore(SAVE_INDEX.auto[i]?.serialized);return}case 'export':try{fileDownload(`conglomerate_${S.year}_${S.month}.json`,savePayload(S));toast('JSONバックアップを書き出しました')}catch(e){toast('書き出しに失敗：'+e.message)}return;case 'import':document.getElementById('importFile').click();return;case 'newGame':if(confirm('現在のセッションを終了し、新しいゲームを開始しますか？ 保存済みデータは削除しません。')){S=null;wizard=0;monthlyPreview=false;PAGE='dashboard';render()}return;}}
 document.addEventListener('click',e=>{const product=e.target.closest('[data-product-view]');if(product&&S){PRODUCT_VIEW=product.dataset.productView;render();window.scrollTo({top:0,behavior:'instant'});return;}const people=e.target.closest('[data-people-view]');if(people&&S){PEOPLE_VIEW=people.dataset.peopleView;render();window.scrollTo({top:0,behavior:'instant'});return;}const group=e.target.closest('[data-tech-family]');if(group&&S){TECH_FAMILY=group.dataset.techFamily;TECH_DOMAIN=TECH_FAMILIES[TECH_FAMILY].domains[0];TECH_SELECTED=TECH_DOMAIN+'-1';return redrawResearchPanel({centerSelected:false})}const field=e.target.closest('[data-tech-domain]');if(field&&S){TECH_DOMAIN=field.dataset.techDomain;techScrollDomain(TECH_DOMAIN);document.querySelectorAll('[data-tech-domain]').forEach(x=>x.classList.toggle('active',x.dataset.techDomain===TECH_DOMAIN));return}const tech=e.target.closest('[data-tech-select]');if(tech&&S){chooseTech(tech.dataset.techSelect);return}const section=e.target.closest('[data-section]');if(section&&S){PAGE=SECTIONS[section.dataset.section].pages[0][0];monthlyPreview=false;render();window.scrollTo({top:0,behavior:'instant'});return}const nav=e.target.closest('[data-page]');if(nav&&S){PAGE=nav.dataset.page;monthlyPreview=false;render();window.scrollTo({top:0,behavior:'instant'});return}const el=e.target.closest('[data-action]');if(el&&!el.disabled)actions(el.dataset.action,el)});
 document.addEventListener('change',e=>{if(e.target.matches('[data-design-field]')||e.target.id==='modelPrice')designPreview();if(['factorySite','factoryScale','factoryKind'].includes(e.target.id))factorySitePreview()});document.addEventListener('input',e=>{if(e.target.id==='modelPrice')designPreview()});document.getElementById('companySelect').addEventListener('change',e=>{VIEW_FIRM=e.target.value;render()});document.getElementById('regionSelect').addEventListener('change',e=>{VIEW_COUNTRY=e.target.value;render()});document.getElementById('importFile').addEventListener('change',async e=>{const file=e.target.files[0];if(!file)return;try{const raw=await file.text();if(confirm('読み込み中のゲーム状態をJSONバックアップで置き換えますか？'))restore(raw)}catch(err){toast('ファイルを読み込めません：'+err.message)}e.target.value=''});
 
@@ -7312,6 +7313,7 @@ function ensureWarehouseV038(f){
  const logistics=f.inventoryLogisticsV038;
  logistics.rawAtPlant??={};
  logistics.rawShipments??=[];
+ logistics.depots??=[];
  logistics.finishedAtPlant??={};
  logistics.localizedRawTypes??=[...new Set([
   ...Object.values(logistics.rawAtPlant).flatMap(bins=>Object.keys(bins)),
@@ -7328,8 +7330,9 @@ function pendingRawReceiptsV038(f,type){
 }
 function centralRawStockV038(f,type){
  const total=f.stock[type],result={q:total.q,v:total.v};
- for(const atPlant of Object.values(ensureWarehouseV038(f).rawAtPlant)){
-  const bin=atPlant[type];
+ const logistics=ensureWarehouseV038(f);
+ for(const inventory of [...Object.values(logistics.rawAtPlant),...logistics.depots.map(d=>d.stock)]){
+  const bin=inventory[type];
   if(bin){result.q-=bin.q;result.v-=bin.v;}
  }
  if(Math.abs(result.q)<1e-8)result.q=0;
@@ -7337,6 +7340,15 @@ function centralRawStockV038(f,type){
 }
 function plantRawStockV038(f,id,type){
  return ensureWarehouseV038(f).rawAtPlant[id]?.[type]??{q:0,v:0};
+}
+function depotV038(f,id){
+ return ensureWarehouseV038(f).depots.find(d=>d.id===id);
+}
+function locatedRawBinsV038(f,id,create=false){
+ const logistics=ensureWarehouseV038(f),depot=logistics.depots.find(d=>d.id===id);
+ if(depot)return depot.stock;
+ if(create)return logistics.rawAtPlant[id]??={};
+ return logistics.rawAtPlant[id];
 }
 function warehouseServesFactoryV038(f,p){
  return p.siteId===ensureWarehouseV038(f).warehouseSiteId;
@@ -7442,15 +7454,15 @@ function reserveAssemblyRawV038(plan,f,p,recipe,quantity,internal=0){
 }
 function takeLocatedRawStockV038(f,id,type,quantity){
  const total=f.stock[type];
- const stock=id==='warehouse'?centralRawStockV038(f,type):plantRawStockV038(f,id,type);
+ const bins=id==='warehouse'?null:locatedRawBinsV038(f,id);
+ const stock=id==='warehouse'?centralRawStockV038(f,type):bins?.[type]??{q:0,v:0};
  if(quantity>stock.q+1e-8||stock.v<0)throw Error('発送元・払出元の在庫が不足しています');
  const empty=Math.abs(stock.q-quantity)<1e-8;
  const value=empty?stock.v:Math.round(stock.v*quantity/stock.q);
  if(id!=='warehouse'){
-  const inventory=ensureWarehouseV038(f).rawAtPlant[id];
-  if(empty)delete inventory[type];
+  if(empty)delete bins[type];
   else{stock.q-=quantity;stock.v-=value;}
-  if(!Object.keys(inventory).length)delete ensureWarehouseV038(f).rawAtPlant[id];
+  if(!Object.keys(bins).length)delete ensureWarehouseV038(f).rawAtPlant[id];
  }
  total.q=Math.max(0,total.q-quantity);total.v-=value;
  return value;
@@ -7464,25 +7476,32 @@ function consumeLocatedRawStockV038(f,type,quantity){
   const use=Math.min(left,plantRawStockV038(f,plantId,type).q);
   if(use){value+=takeLocatedRawStockV038(f,plantId,type,use);left-=use;}
  }
+ for(const depot of ensureWarehouseV038(f).depots){
+  if(left<=1e-8)break;
+  const use=Math.min(left,depot.stock[type]?.q??0);
+  if(use){value+=takeLocatedRawStockV038(f,depot.id,type,use);left-=use;}
+ }
  if(left>1e-8)throw Error('原材料の所在別払出数量が在庫を超えています');
  return value;
 }
 function warehouseDestinationV038(f,id){
  const logistics=ensureWarehouseV038(f);
  if(id==='warehouse')return findSite(logistics.warehouseSiteId);
+ const depot=depotV038(f,id);
+ if(depot)return findSite(depot.siteId);
  const plant=f.plants.find(p=>p.id===id&&!p.construction);
  return plant?ensurePlantLocation(f,plant):null;
 }
 function rawStorageOccupancyV038(f,id){
- return RAW_TYPES_V032.reduce((total,type)=>total+(id==='warehouse'?
-  centralRawStockV038(f,type).q:plantRawStockV038(f,id,type).q),0);
+ if(id!=='warehouse')return Object.values(locatedRawBinsV038(f,id)??{}).reduce((n,x)=>n+x.q,0);
+ return RAW_TYPES_V032.reduce((total,type)=>total+centralRawStockV038(f,type).q,0);
 }
 function rawStorageCapacityV038(f,id){
  const logistics=ensureWarehouseV038(f);
  if(id==='warehouse')return logistics.warehouseCapacity??Math.max(
   600+f.plants.reduce((n,p)=>n+p.capacity*30,0),Math.ceil(rawStorageOccupancyV038(f,id)+
    logistics.rawShipments.filter(s=>s.to===id).reduce((n,s)=>n+s.quantity,0)));
- return (f.plants.find(p=>p.id===id)?.capacity??0)*8;
+ return depotV038(f,id)?.capacity??(f.plants.find(p=>p.id===id)?.capacity??0)*8;
 }
 function rawSpaceForTransferV038(f,id){
  const logistics=ensureWarehouseV038(f);
@@ -7499,7 +7518,7 @@ function openRawStorageV038(f){
 }
 function rawTransportCapacityV038(f,id){
  return id==='warehouse'?Math.max(80,f.plant.capacity*3):
-  (f.plants.find(p=>p.id===id)?.capacity??0)*3;
+  depotV038(f,id)?.capacity??(f.plants.find(p=>p.id===id)?.capacity??0)*3;
 }
 function rawTransportRoomV038(s,f,from,to){
  const month=ym(s.year,s.month);
@@ -7557,7 +7576,7 @@ function deliverRawShipmentsV038(s,events){
    if(shipment.due>month){pending.push(shipment);continue;}
    const {type,quantity,bookCost,to}=shipment;
    if(to!=='warehouse'){
-    const bins=logistics.rawAtPlant[to]??={};
+    const bins=locatedRawBinsV038(f,to,true);
     const bin=bins[type]??={q:0,v:0};
     bin.q+=quantity;bin.v+=bookCost;
    }
@@ -7591,6 +7610,7 @@ function autoRefillRawFactoriesV038(s,events){
   if(!logistics.autoRefill||!logistics.localizedRawTypes.length||f.reorgStatus==='integrated'||
      f.lifecycle?.phase==='withdrawn'||!['auto','manufacturing'].includes(f.industry))continue;
   const warehouse=warehouseDestinationV038(f,'warehouse'),plans=rawFactoryDemandV038(s,f);
+  const origins=[{id:'warehouse',site:warehouse},...logistics.depots.map(d=>({id:d.id,site:findSite(d.siteId),stock:d.stock}))];
   const homeDemand={};
   for(const {p,monthly} of plans)if(p.siteId===warehouse.id){
    for(const [type,qty] of Object.entries(monthly))homeDemand[type]=(homeDemand[type]||0)+qty;
@@ -7598,21 +7618,24 @@ function autoRefillRawFactoriesV038(s,events){
   for(const {p,monthly} of plans){
    const site=warehouseDestinationV038(f,p.id);
    if(!site||site.country!==warehouse.country||site.id===warehouse.id)continue;
-   const lead=v21Freight(warehouse,site,1,s).lead;
-   const requests=[];
-   for(const [type,qty] of Object.entries(monthly)){
-    if(!qty)continue;
-    const onSite=plantRawStockV038(f,p.id,type).q;
-    const onOrder=logistics.rawShipments.filter(x=>x.to===p.id&&x.type===type).reduce((n,x)=>n+x.quantity,0);
-    const shortage=Math.ceil(qty*(lead+1)-onSite-onOrder);
-    const available=Math.floor(centralRawStockV038(f,type).q-(homeDemand[type]||0)+1e-8);
-    if(shortage>0&&available>0)requests.push({id:type,need:Math.min(shortage,available)});
-   }
-   const capacity=Math.min(rawSpaceForTransferV038(f,p.id),rawTransportRoomV038(s,f,'warehouse',p.id));
-   for(const [type,sent] of Object.entries(fairAllocationV033(requests,capacity))){
-    if(sent<1||localFromBase(v21Freight(warehouse,site,sent,s).base,f.country)>acc(f,'cash'))continue;
-    dispatchRawShipmentV038(s,f,'warehouse',p.id,type,sent);
-    events.push(f.name+'：'+p.name+'の'+SUPPLY_LABELS[type]+'を'+nfmt(sent)+'単位自動補充');
+   const nearby=[...origins].sort((a,b)=>Number(b.site.id===site.id)-Number(a.site.id===site.id));
+   for(const origin of nearby){
+    const lead=v21Freight(origin.site,site,1,s).lead,requests=[];
+    for(const [type,qty] of Object.entries(monthly)){
+     if(!qty)continue;
+     const onSite=plantRawStockV038(f,p.id,type).q;
+     const onOrder=logistics.rawShipments.filter(x=>x.to===p.id&&x.type===type).reduce((n,x)=>n+x.quantity,0);
+     const shortage=Math.ceil(qty*(lead+1)-onSite-onOrder);
+     const available=Math.floor(origin.stock?origin.stock[type]?.q??0:
+      centralRawStockV038(f,type).q-(homeDemand[type]||0)+1e-8);
+     if(shortage>0&&available>0)requests.push({id:type,need:Math.min(shortage,available)});
+    }
+    const capacity=Math.min(rawSpaceForTransferV038(f,p.id),rawTransportRoomV038(s,f,origin.id,p.id));
+    for(const [type,sent] of Object.entries(fairAllocationV033(requests,capacity))){
+     if(sent<1||localFromBase(v21Freight(origin.site,site,sent,s).base,f.country)>acc(f,'cash'))continue;
+     dispatchRawShipmentV038(s,f,origin.id,p.id,type,sent);
+     events.push(f.name+'：'+p.name+'の'+SUPPLY_LABELS[type]+'を'+nfmt(sent)+'単位自動補充');
+    }
    }
   }
  }
@@ -7623,6 +7646,7 @@ function chargeRawStorageV038(s){
   if(!logistics.localizedRawTypes.length||f.reorgStatus==='integrated'||f.lifecycle?.phase==='withdrawn')continue;
   const era=eraCostFactor(s.year),warehouseVolume=rawStorageOccupancyV038(f,'warehouse');
   let amount=localFromBase(warehouseVolume*2*era,f.country);
+  for(const depot of logistics.depots)amount+=localFromBase(rawStorageOccupancyV038(f,depot.id)*2*era,f.country);
   for(const p of f.plants){
    const cost=localFromBase(rawStorageOccupancyV038(f,p.id)*3*era,f.country);
    if(cost){plantLogisticsMonthV038(s,f,p.id).storage+=cost;amount+=cost;}
@@ -7649,9 +7673,19 @@ function validateRawLogisticsV038(f,errors){
   errors.push(f.name+'：中央倉庫の保管能力が不正');
  }
  if(logistics.autoRefill!==undefined&&typeof logistics.autoRefill!=='boolean')errors.push(f.name+'：自動補充の設定が不正');
- const assigned=new Map();
- for(const [id,bins] of Object.entries(logistics.rawAtPlant)){
-  if(!plants.has(id)||!bins||typeof bins!=='object'){errors.push(f.name+'：工場別の資材在庫の拠点不正');continue;}
+ const depots=new Set(),assigned=new Map();
+ if(!Array.isArray(logistics.depots)){errors.push(f.name+'：倉庫台帳の形式不正');return 0;}
+ for(const d of logistics.depots){
+  if(!d||typeof d.id!=='string'||!d.id.startsWith('DEPOT-')||depots.has(d.id)||plants.has(d.id)||
+     findSite(d.siteId)?.country!==f.country||typeof d.name!=='string'||!d.name||
+     !Number.isSafeInteger(d.capacity)||d.capacity<1||!d.stock||typeof d.stock!=='object'){
+   errors.push(f.name+'：国内倉庫の台帳が不正');continue;
+  }
+  depots.add(d.id);
+ }
+ const stored=[...Object.entries(logistics.rawAtPlant),...logistics.depots.filter(d=>d&&depots.has(d.id)).map(d=>[d.id,d.stock])];
+ for(const [id,bins] of stored){
+  if((!plants.has(id)&&!depots.has(id))||!bins||typeof bins!=='object'){errors.push(f.name+'：資材在庫の拠点不正');continue;}
   for(const [type,bin] of Object.entries(bins)){
    if(!RAW_TYPES_V032.includes(type)||!bin||!Number.isFinite(bin.q)||bin.q<=0||
       !Number.isSafeInteger(bin.v)||bin.v<0){errors.push(f.name+'：工場別の資材在庫が不正');continue;}
@@ -7664,7 +7698,7 @@ function validateRawLogisticsV038(f,errors){
  }
  for(const shipment of logistics.rawShipments){
   if(!shipment||typeof shipment.id!=='string'||seen.has(shipment.id)||
-     (shipment.to!=='warehouse'&&!plants.has(shipment.to))||!RAW_TYPES_V032.includes(shipment.type)||
+     (shipment.to!=='warehouse'&&!plants.has(shipment.to)&&!depots.has(shipment.to))||!RAW_TYPES_V032.includes(shipment.type)||
      !Number.isSafeInteger(shipment.quantity)||shipment.quantity<1||!Number.isSafeInteger(shipment.bookCost)||
      shipment.bookCost<0||!Number.isSafeInteger(shipment.freight)||shipment.freight<0||!Number.isSafeInteger(shipment.due)){
    errors.push(f.name+'：国内資材輸送の台帳が不正');continue;
@@ -7698,7 +7732,9 @@ function validateFinishedLocationsV038(f,errors){
 }
 function inventoryLocationsV038(s,f){
  const warehouse={name:'中央倉庫',siteId:ensureWarehouseV038(f).warehouseSiteId,items:new Map()};
+ const depots=ensureWarehouseV038(f).depots;
  const locations=new Map(f.plants.map(p=>[p.id,{name:p.name,siteId:p.siteId,items:new Map()}]));
+ const otherWarehouses=new Map(depots.map(d=>[d.id,{name:d.name,siteId:d.siteId,items:new Map()}]));
  const add=(location,key,name,account,quantity,value,reserved=false)=>{
   if(!quantity&&!value)return;
   const id=account+':'+key+(reserved?':reserved':'');
@@ -7723,6 +7759,12 @@ function inventoryLocationsV038(s,f){
    for(const [id,location] of locations){
     const bin=plantRawStockV038(f,id,type);
     add(location,type,name,'materials',bin.q,bin.v);
+    assignedQty+=bin.q;assignedCost+=bin.v;
+   }
+   for(const depot of depots){
+    const bin=depot.stock[type];
+    if(!bin)continue;
+    add(otherWarehouses.get(depot.id),type,name,'materials',bin.q,bin.v);
     assignedQty+=bin.q;assignedCost+=bin.v;
    }
   }
@@ -7766,7 +7808,7 @@ function inventoryLocationsV038(s,f){
   const name=modelNames.get(key)??(key.startsWith('RAW:')?SUPPLY_LABELS[key.slice(4)]:key)??key;
   add(warehouse,key,name,'goods',stock.q-(assigned?.quantity??0),stock.v-(assigned?.value??0));
  }
- return {warehouse,locations};
+ return {warehouse,locations,otherWarehouses};
 }
 function inventoryLocationTableV038(f,location){
  const labels={materials:'原材料・共通部品',componentStock:'BOM部品',goods:'完成品・商品'};
@@ -7813,16 +7855,17 @@ function dispatchRawShipmentUIV038(){
 }
 function rawShipmentPanelV038(f,edit){
  const logistics=ensureWarehouseV038(f);
- const names=new Map([['warehouse','中央倉庫'],...f.plants.map(p=>[p.id,p.name])]);
+ const names=new Map([['warehouse','中央倉庫'],...f.plants.map(p=>[p.id,p.name]),...logistics.depots.map(d=>[d.id,d.name])]);
  const eligible=f.plants.filter(p=>warehouseDestinationV038(f,p.id)?.country===f.country);
  const options='<option value="warehouse">中央倉庫</option>'+
+  logistics.depots.map(d=>`<option value="${esc(d.id)}">${esc(d.name)}（倉庫）</option>`).join('')+
   eligible.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
  const rows=logistics.rawShipments.map(x=>`<tr><td>${esc(names.get(x.from)??x.from)} → ${esc(names.get(x.to)??x.to)}</td>
   <td>${SUPPLY_LABELS[x.type]}</td><td class="num">${nfmt(x.quantity)}</td><td class="num">${fnum(f,x.bookCost)}</td>
   <td class="num">${fnum(f,x.freight)}</td><td>${partContractDate(x.due)}</td></tr>`).join('');
  const transport=rows?`<div class="scroll"><table><thead><tr><th>発送元・届け先</th><th>品目</th>
   <th>数量</th><th>輸送中簿価</th><th>運賃</th><th>到着予定</th></tr></thead><tbody>${rows}</tbody></table></div>`:'';
- const action=edit&&eligible.length?`<div class="formgrid">
+ const action=edit&&(eligible.length||logistics.depots.length)?`<div class="formgrid">
  <label class="field">発送元<select id="rawShipmentFrom">${options}</select></label>
  <label class="field">届け先<select id="rawShipmentTo">${options}</select></label>
  <label class="field">原材料<select id="rawShipmentType">${RAW_TYPES_V032.map(t=>`<option value="${t}">${SUPPLY_LABELS[t]}</option>`).join('')}</select></label>
@@ -7833,9 +7876,33 @@ function rawShipmentPanelV038(f,edit){
    value="${rawStorageCapacityV038(f,'warehouse')}"></label>
   <label><input id="rawWarehouseAuto" type="checkbox" ${logistics.autoRefill?'checked':''}> 国内工場の原材料を自動補充</label>
   <button class="btn" data-action="updateRawWarehouseV038">倉庫設定を保存</button></div>`:'';
+ const locations=SITE_CATALOG.filter(site=>site.country===f.country).map(site=>
+  `<option value="${esc(site.id)}">${esc(site.name)}</option>`).join('');
+ const create=edit?`<details><summary>国内倉庫を取得する</summary><div class="formgrid">
+  <label class="field">倉庫名<input id="warehouseDepotName" maxlength="32"></label>
+  <label class="field">地域<select id="warehouseDepotSite">${locations}</select></label>
+  <label class="field">保管単位数<input id="warehouseDepotCapacity" type="number" min="1" step="1" value="200"></label>
+  <button class="btn" data-action="openWarehouseDepotV038">倉庫を取得</button></div></details>`:'';
  return `<section><h3>資材の国内移送</h3>
   <p>中央倉庫の原材料 ${nfmt(rawStorageOccupancyV038(f,'warehouse'))} ／ ${nfmt(rawStorageCapacityV038(f,'warehouse'))}単位</p>
-  ${settings}${action}${transport}</section>`;
+  ${settings}${action}${transport}${create}</section>`;
+}
+function openWarehouseDepotV038(){
+ try{
+  const f=current();
+  if(!canEdit(f))throw Error('倉庫を取得する権限がありません');
+  const name=inputValue('warehouseDepotName').trim().slice(0,32),site=findSite(inputValue('warehouseDepotSite'));
+  const capacity=Number(inputValue('warehouseDepotCapacity')),logistics=ensureWarehouseV038(f);
+  if(!name||name==='中央倉庫'||logistics.depots.some(d=>d.name===name)||!site||site.country!==f.country||
+     !Number.isSafeInteger(capacity)||capacity<1)throw Error('重複しない倉庫名と国内立地、保管能力を指定してください');
+  const base=Math.round((10000+capacity*40)*eraCostFactor(S.year)*site.land),cost=verifyMoney(f,base);
+  if(!confirm(name+'を'+fnum(f,cost)+'で取得します。'))return;
+  post(f,{ppe:cost},{cash:cost},'国内倉庫の取得：'+name,'investing',S);
+  logistics.depots.push({id:'DEPOT-'+S.seq++,name,siteId:site.id,capacity,stock:{}});
+  openRawStorageV038(f);
+  render();document.querySelector('#rawShipmentFrom')?.closest('details')?.setAttribute('open','');
+  toast(name+'を取得しました。');
+ }catch(e){toast(e.message);}
 }
 function updateRawWarehouseV038(){
  try{
@@ -7893,6 +7960,10 @@ function factoryPage(){const f=current(),edit=canEdit(f);ensureFirmGameplay(f);e
  <h2>中央倉庫</h2><p>${esc(findSite(inventoryView.warehouse.siteId)?.name??NAMES[f.country])}</p>
  ${inventoryLocationTableV038(f,inventoryView.warehouse)}
  ${rawShipmentPanelV038(f,edit)}
+ ${[...inventoryView.otherWarehouses.entries()].map(([id,location])=>`<details>
+ <summary>${esc(location.name)}の保管在庫</summary>
+ <p>${esc(findSite(location.siteId).name)} ・原材料 ${nfmt(rawStorageOccupancyV038(f,id))} ／ ${nfmt(rawStorageCapacityV038(f,id))}単位</p>
+ ${inventoryLocationTableV038(f,location)}</details>`).join('')}
  </section></div></details>`;}
 
 
