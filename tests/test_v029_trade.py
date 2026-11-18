@@ -76,8 +76,8 @@ with sync_playwright() as p:
             f.staff.designEngineers=12;
             f.staff.production=100;
             f.auto=false;
-            # The modern delegation policy is independent of the legacy f.auto
-            # switch; disable it so the test's zero vehicle plans stay fixed.
+            // The modern delegation policy is independent of the legacy f.auto
+            // switch; disable it so the test's zero vehicle plans stay fixed.
             f.delegate.mode='manual';
             for(const model of f.models)f.plans[model.id]=0;
             for(const family of families){
