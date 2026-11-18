@@ -2180,28 +2180,36 @@ function validateSupplyPolicyV045(s){
  }
  return errors;
 }
-function policySupplierV045(s,x,nodes,remaining){
+/* Physical suppliers are indexed once per month; all stock figures stay live. */
+function policyCandidatePoolV045(s,nodes){
+ const byType=new Map(SUPPLY_TYPES.map(type=>[type,[]]));
+ for(const node of nodes.values())if(byType.has(node.type))byType.get(node.type).push(node);
+ return {byType,controlled:controlSet(s),firms:new Map(s.firms.map(f=>[f.id,f]))};
+}
+function policySupplierV045(s,x,nodes,remaining,pool=null){
  const mode=supplyPolicyModeV045(s,x.f);
  if(mode==='manual'||x.needed<=0)return null;
  const cargo=x.type==='components'?'parts':'bulk',options=[];
- for(const node of nodes.values()){
+ const sources=pool?.byType?.get(x.type)??nodes.values();
+ for(const node of sources){
   if(node.type!==x.type||node.firmId===x.f.id)continue;
-  const seller=node.firmId?corporateSupplierV037(s,x.f,node):null;
-  // Only NPC spot supply and controlled group companies can be reassigned
-  // automatically; third-party corporate supply requires an explicit contract.
-  if(!node.npc&&(!seller||!groupSupplyV037(s,x.f,seller)))continue;
+  const seller=node.firmId?(pool?.firms?.get(node.firmId)??corporateSupplierV037(s,x.f,node)):null;
+  // No silent contracts with unaffiliated suppliers, and no invented stock.
+  if(!node.npc&&(!seller||seller.reorgStatus==='integrated'||
+     seller.lifecycle?.phase==='withdrawn'||!(pool?.controlled?
+     pool.controlled.has(x.f.id)&&pool.controlled.has(seller.id):
+     groupSupplyV037(s,x.f,seller))))continue;
   const market=node.npc?npcMarketV033(s,node.country,x.type):null;
   const available=node.npc?Math.max(0,(market?.stock||0)-marketEmergencyReserveV036(market)):
     (remaining.get(node.id)||0);
   if(!available)continue;
-  const abroad=node.country!==x.f.country;
-  const price=supplierPriceBase(s,node),quote=abroad?
-    internationalQuoteV041(s,node.country,x.f.country,cargo,price):null;
+  const abroad=node.country!==x.f.country,price=supplierPriceBase(s,node);
+  const quote=abroad?internationalQuoteV041(s,node.country,x.f.country,cargo,price):null;
   if(abroad&&(!quote||quote.room<1))continue;
   const lead=quote?.route?.months||0;
   const expense=price+(quote?.freightUnitBase||0)+(abroad?price*tariffRateV041(s,node.country,x.f.country,cargo):0);
   const disruption=s.supplyRisk?.active?.[node.id];
-  const reliability=1+(disruption?Math.max(0,1-(disruption.capacityFactor??1)):.0);
+  const reliability=1+(disruption?Math.max(0,1-(disruption.capacityFactor??1)):0);
   const coverage=Math.min(1,available/Math.max(1,x.needed));
   const shock=economicExposureV044(s,node.country);
   let score=expense;
@@ -2215,6 +2223,43 @@ function policySupplierV045(s,x,nodes,remaining){
  options.sort((a,b)=>a.score-b.score||a.id.localeCompare(b.id));
  return options[0]?.id||null;
 }
+function groupSupplyOverviewV045(s){
+ const members=s.firms.filter(f=>controller(s,f.id)&&f.reorgStatus!=='integrated'&&f.lifecycle?.phase!=='withdrawn');
+ const memberById=new Map(members.map(f=>[f.id,f]));
+ const buyers=members.filter(f=>['auto','manufacturing'].includes(f.industry));
+ return SUPPLY_TYPES.map(type=>{
+  let required=0,stock=0,transit=0,free=0,supplierCount=0;
+  for(const f of buyers){
+   const target=factoryResourceTargetV026(f,type,s);
+   const need=resourcePurchaseNeedV034(f,type,s,target);
+   if(f.supply?.contracts?.[type]?.autoOrder!==false)required+=need.requested;
+   stock+=need.stock;
+   transit+=(f.supply?.inbound||[]).filter(x=>x.type===type).reduce((n,x)=>n+x.qty,0);
+  }
+  for(const n of s.supplyNetwork?.nodes||[]){
+   if(n.type!==type||!n.firmId||!memberById.has(n.firmId))continue;
+   const seller=memberById.get(n.firmId);
+   const physical=type==='components'?Math.min(seller.stock?.components?.q||0,interplantUnassigned(seller)):
+     rawBinV032(seller,type).q;
+   const risk=s.supplyRisk?.active?.[n.id]?.capacityFactor??1;
+   const available=Math.max(0,Math.floor(Math.max(0,physical-rawCommittedV032(s,n.id,type))*risk*(s.world[n.country].war?.73:1)));
+   if(available>0){free+=available;supplierCount++}
+  }
+  return {type,required,stock,transit,free,supplierCount,externalNeed:Math.max(0,required-free)};
+ });
+}
+function groupSupplyOverviewPanelV045(s){
+ const items=groupSupplyOverviewV045(s);
+ return '<section class="panel span12"><h2>グループ供給網・需給バランス</h2>'+
+  '<p class="hint">支配下製造法人の必要調達量とグループ資源・部品法人の現物供給余力を比較。予約済み在庫は除外します。グループ外の市場調達は不足見込みに含まれず、実際の納入は取引規制・資金・輸送枠に制約されます。</p>'+
+  '<div class="scroll"><table><thead><tr><th>資材</th><th class="num">必要調達</th><th class="num">現在庫</th><th class="num">輸送中</th><th class="num">内部供給余力</th><th class="num">外部調達必要量</th></tr></thead><tbody>'+
+  items.map(x=>'<tr><td><b>'+SUPPLY_LABELS[x.type]+'</b> <span class="muted small">('+x.supplierCount+'社)</span></td>'+
+   '<td class="num">'+nfmt(x.required)+'</td><td class="num">'+nfmt(x.stock)+'</td>'+
+   '<td class="num">'+nfmt(x.transit)+'</td><td class="num">'+nfmt(x.free)+'</td>'+
+   '<td class="num">'+nfmt(x.externalNeed)+'</td></tr>').join('')+
+  '</tbody></table></div><p class="footnote">必要調達と供給余力は現時点の参考値です。既存の契約・法人・設備を自動変更しません。</p></section>';
+}
+
 function supplyPolicyPanelV045(s,f,editable){
  const root=s.firms.find(item=>item.id===s.playerId),cfg=root?.globalSupplyPolicyV045||{};
  const logistics=cfg.logistics||{};
@@ -2615,7 +2660,7 @@ function productCostQuote(f,design,s=S){
 function supplyContractsPage(){const f=current();ensureNetwork(f);ensureSupplyNetwork(S);const edit=canEdit(f),w=S.world[f.country];return titlePage('サプライヤー・国際調達','実在するゲーム内法人を契約先に選び、7資材の輸送・価格・在庫を管理します。',tag('契約・障害・代替調達・安全在庫・リードタイム'))+(!edit?noaccess():'')+`<div class="grid"><section class="panel span12"><div class="row between"><b>7資材の仕入価格見積（契約先別）</b>${tag('資源市場連動')}</div><div class="formgrid">${SUPPLY_TYPES.map(t=>{const n=S.supplyNetwork.nodes.find(x=>x.id===f.supply.contracts[t].supplierId);return `<div class="resource-mini"><b>${SUPPLY_LABELS[t]}</b><div>${baseMoney(cents(supplierPriceBase(S,n||{country:f.country,type:t})))}/単位</div></div>`}).join('')}</div></section>
  <section class="panel span8"><h2>原材料・部品ごとの購入契約</h2><div class="scroll"><table><thead><tr><th>資材</th><th>主仕入先</th><th>代替仕入先</th><th>安全在庫係数</th><th class="num">現在庫</th><th class="num">輸送中</th></tr></thead><tbody>${SUPPLY_TYPES.map(t=>`<tr><td><b>${SUPPLY_LABELS[t]}</b></td><td><select id="supplier_${t}" ${edit?'':'disabled'}>${S.supplyNetwork.nodes.filter(x=>x.type===t&&x.firmId&&x.firmId!==f.id).map(x=>`<option value="${x.id}" ${f.supply.contracts[t].supplierId===x.id?'selected':''}>${esc(x.label)}${controller(S,x.firmId)?'【グループ内】':''} / ${NAMES[x.country]}（能力${nfmt(x.capacity)}）</option>`).join('')}</select></td><td><select id="backup_${t}" ${edit?'':'disabled'}><option value="">指定なし</option>${S.supplyNetwork.nodes.filter(x=>x.type===t&&x.firmId&&x.firmId!==f.id&&x.id!==f.supply.contracts[t].supplierId).map(x=>`<option value="${esc(x.id)}" ${f.supply.contracts[t].backupId===x.id?'selected':''}>${esc(x.label)} / ${NAMES[x.country]}</option>`).join('')}</select></td><td><select id="buffer_${t}" ${edit?'':'disabled'}>${[[1,'標準'],[1.5,'厚め'],[2,'最大']].map(([v,label])=>`<option value="${v}" ${Number(f.supply.contracts[t].buffer)===v?'selected':''}>${label}</option>`).join('')}</select></td><td class="num">${nfmt(f.stock[t]?.q)}</td><td class="num">${nfmt(f.supply.inbound.filter(x=>x.type===t).reduce((a,x)=>a+x.qty,0))}</td></tr>`).join('')}</tbody></table></div><div class="row" style="margin-top:15px"><button class="btn primary" data-action="saveSupply" ${edit?'':'disabled'}>仕入先・在庫方針を保存</button></div><p class="footnote">契約先は法人IDで管理。自社グループ・同一通貨で在庫がある場合は簿価で実物移管し、双方の現金・在庫を仕訳します。外部企業契約は価格・能力・物流と購入側仕訳を優先した試作方式（売手側の正式売買取引は次段階）。輸送中の注文は契約変更で消えません。</p></section>
  <section class="panel span4"><h2>供給網の階層</h2>${rowstat('第3階層', '鋼材・ゴム・アルミ・銅・ガラス・化学原料')}${rowstat('第2階層','加工・組立前工程（モデル上の制約）')}${rowstat('第1階層','組立用部品セット（原材料価格と連動）')}${rowstat('自社の所在国',NAMES[f.country])}<p class="footnote">第2階層と海外輸送は現在、能力・価格・納期による集約計算です。独立した第2階層企業間の資産譲渡・在庫台帳は次期実装です。</p></section>
- ${supplyPolicyPanelV045(S,f,edit)}${supplyRiskPanel(f)}<section class="panel span12"><h2>入荷予定・国際輸送</h2><div class="scroll"><table><thead><tr><th>材料</th><th>仕入国</th><th>数量</th><th>経路</th><th>到着予定</th><th class="num">見込仕入総額（円相当）</th></tr></thead><tbody>${f.supply.inbound.map(x=>`<tr><td>${SUPPLY_LABELS[x.type]}</td><td>${NAMES[x.origin]}</td><td>${x.qty}</td><td>${x.internationalV041?ROUTE_NAMES_V041[x.internationalV041.routeId.split('/').at(-1)]:'—'}</td><td>${Math.floor(x.due/12)}年${x.due%12+1}月</td><td class="num">${nfmt(x.totalBase)}</td></tr>`).join('')||'<tr><td colspan="6">輸送中の仕入はありません</td></tr>'}</tbody></table></div></section>
+ ${supplyPolicyPanelV045(S,f,edit)}${groupSupplyOverviewPanelV045(S)}${supplyRiskPanel(f)}<section class="panel span12"><h2>入荷予定・国際輸送</h2><div class="scroll"><table><thead><tr><th>材料</th><th>仕入国</th><th>数量</th><th>経路</th><th>到着予定</th><th class="num">見込仕入総額（円相当）</th></tr></thead><tbody>${f.supply.inbound.map(x=>`<tr><td>${SUPPLY_LABELS[x.type]}</td><td>${NAMES[x.origin]}</td><td>${x.qty}</td><td>${x.internationalV041?ROUTE_NAMES_V041[x.internationalV041.routeId.split('/').at(-1)]:'—'}</td><td>${Math.floor(x.due/12)}年${x.due%12+1}月</td><td class="num">${nfmt(x.totalBase)}</td></tr>`).join('')||'<tr><td colspan="6">輸送中の仕入はありません</td></tr>'}</tbody></table></div></section>
  <section class="panel span12"><h2>直近の納入実績</h2>${f.supply.history.slice(-12).reverse().map(x=>`<div class="data-pair"><span>${NAMES[x.origin]} → ${SUPPLY_LABELS[x.type]} ${x.qty}単位</span><b>${baseMoney(cents(x.totalBase))}</b></div>`).join('')||'<p class="muted small">月末処理後に表示されます。</p>'}</section>
  </div>`}
 function saveSupply(){try{const f=current();if(!canEdit(f))throw Error('権限がありません');ensureNetwork(f);ensureSupplyNetwork(S);for(const t of SUPPLY_TYPES){const id=inputValue('supplier_'+t),node=S.supplyNetwork.nodes.find(x=>x.id===id&&x.type===t&&x.firmId&&x.firmId!==f.id);if(!node)throw Error('仕入先が不正です');const back=inputValue('backup_'+t);if(back&&!S.supplyNetwork.nodes.some(x=>x.id===back&&x.type===t&&x.firmId!==f.id&&back!==id))throw Error('代替仕入先が不正です');f.supply.contracts[t]={supplierId:id,backupId:back||'',buffer:Number(inputValue('buffer_'+t))||1}}render();toast('資材の仕入先・安全在庫方針を更新しました。')}catch(e){toast(e.message)}}
@@ -3038,7 +3083,16 @@ function procureNetwork(s,events){
  // Honour active contracts first, then split the remaining purchase request.
  allocateSelected(x=>x.alternate,x=>Math.floor(x.needed*x.backupShare/100));
  // Respect long-term call-offs, then optimize only the outstanding spot request.
- allocateSelected(x=>policySupplierV045(s,x,nodes,remaining),needed);
+ const pool=policyCandidatePoolV045(s,nodes);
+ // Re-evaluate remaining physical supply after each fair allocation.
+ // In a shortage, a second or third supplier can fill the residual order.
+ for(let pass=0;pass<3;pass++){
+  const before=candidates.reduce((n,x)=>n+(supplyPolicyModeV045(s,x.f)!=='manual'?x.needed:0),0);
+  if(before<=0)break;
+  allocateSelected(x=>policySupplierV045(s,x,nodes,remaining,pool),needed);
+  const after=candidates.reduce((n,x)=>n+(supplyPolicyModeV045(s,x.f)!=='manual'?x.needed:0),0);
+  if(after>=before)break;
+ }
  allocateSelected(x=>x.preferred,needed);
  allocateSelected(x=>!x.term&&x.primaryNode?.npc&&!homeMarket(x)?x.primaryNode.id:null,needed);
  allocateSelected(x=>homeMarket(x)?null:x.alternate,needed);
