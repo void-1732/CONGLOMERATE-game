@@ -8,6 +8,7 @@ on:
       - dev/autonomous-step-03-supply-balance
       - dev/autonomous-step-04-supply-contracts
       - dev/autonomous-step-05-international-logistics
+      - dev/autonomous-step-06-international-finance
   pull_request:
     branches:
       - dev/v035-startup-supply-balance
@@ -16,6 +17,7 @@ on:
       - dev/autonomous-step-02-inventory-logistics
       - dev/autonomous-step-03-supply-balance
       - dev/autonomous-step-04-supply-contracts
+      - dev/autonomous-step-05-international-logistics
       - main
 
 jobs:
@@ -35,6 +37,9 @@ jobs:
           python -m playwright install --with-deps chromium
       - name: v0.36 Contracts, physical supply and accounting
         run: python tests/test_v036_contract_supply.py
+      - name: STEP 6 Currency balances and accounting
+        if: ${{ hashFiles('tests/test_step06_foreign_finance.py') != '' }}
+        run: python tests/test_step06_foreign_finance.py
       - name: STEP 5 International shipping, tariffs and inventory
         if: ${{ hashFiles('tests/test_step05_international_logistics.py') != '' }}
         run: python tests/test_step05_international_logistics.py
