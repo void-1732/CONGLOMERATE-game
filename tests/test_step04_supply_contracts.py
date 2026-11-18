@@ -116,6 +116,11 @@ if __name__ == "__main__":
             post(seller,{goods:value},{cash:value},'後続月の入荷','operating',s);
             bin.q+=terms.quantity;
             bin.v+=value;
+            const unfunded=structuredClone(s),unfundedBuyer=company(buyer.id,unfunded),cash=acc(unfundedBuyer,'cash');
+            post(unfundedBuyer,{otherExpense:cash},{cash},'買手への資金不足試験','operating',unfunded);
+            procureNetwork(unfunded,[]);
+            const unpaid=unfundedBuyer.supply.lastAttempt[type];
+            const unfundedClaim=contractV036(unfundedBuyer,type).creditBase;
             procureNetwork(s,events);
             const shipment=buyer.supply.inbound.find(x=>x.contractIdV040===terms.contractIdV040);
             const revised=structuredClone(s),newBuyer=company(buyer.id,revised),newTerm=contractV036(newBuyer,type);
@@ -130,11 +135,13 @@ if __name__ == "__main__":
             const claim=Math.min(localFromBase(credit,buyer.country),Math.floor(shipment.corporateTradeV037.invoice*.10));
             return {credit,due,expectedCredit:Math.round(due*terms.unitBase*.05),remaining:terms.creditBase,
                 gross:shipment.corporateTradeV037.invoice,claim,buyerInvoice,sellerInvoice,revisedInvoice,
-                revisedClaim:newTerm.creditBase,errors:check(s)};
+                revisedClaim:newTerm.creditBase,unfundedClaim,unpaid,errors:check(s)};
         }""", scenario)
         assert claims["due"] == scenario["quota"] and claims["credit"] == claims["expectedCredit"] > 0, claims
         assert claims["buyerInvoice"] == claims["sellerInvoice"] == claims["gross"] - claims["claim"], claims
         assert claims["remaining"] < claims["credit"] == claims["revisedClaim"], claims
+        assert claims["unpaid"]["longTermRequested"] == claims["due"] and claims["unpaid"]["longTermOrdered"] == 0, claims
+        assert claims["unfundedClaim"] == claims["credit"], claims
         assert claims["revisedInvoice"] == claims["gross"] and not claims["errors"], claims
 
         page.evaluate("id=>{VIEW_FIRM=id;render()}", scenario["first"])
@@ -191,6 +198,28 @@ if __name__ == "__main__":
         open_contracts()
         assert page.get_by_text("財務リスク 高 ／操業リスク 高").count() == 1
         assert page.get_by_role("columnheader", name="外販の機会費用").count() == 1
+
+        page.evaluate("""term => {
+            current().supply.contracts.steel.longTermV036=term;
+            S.year=Math.floor(term.end/12);
+            S.month=term.end%12+1;
+            render();
+        }""", contract)
+        open_contracts()
+        page.locator('.supply-v24 [data-action="saveSupply"]').click()
+        renewed = page.evaluate("contractV036(current(),'steel')")
+        assert renewed["start"] == contract["end"] and renewed["end"] == contract["end"] + 12, renewed
+        assert renewed["contractIdV040"] != contract["contractIdV040"], renewed
+        open_contracts()
+        page.locator("#ltRenew_steel").check()
+        page.locator('.supply-v24 [data-action="saveSupply"]').click()
+        auto_renew = page.evaluate("contractV036(current(),'steel')")
+        assert auto_renew["renew"] and auto_renew["contractIdV040"] == renewed["contractIdV040"], auto_renew
+
+        page.set_viewport_size({"width": 390, "height": 844})
+        open_contracts()
+        assert page.locator("#backupShare_steel").is_visible()
+        assert page.locator('.supply-v24 [data-action="saveSupply"]').is_enabled()
         assert not errors, errors
 
         browser.close()
