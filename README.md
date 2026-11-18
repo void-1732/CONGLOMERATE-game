@@ -1,6 +1,6 @@
 # CONGLOMERATE — 企業経営シミュレーション
 
-**現在の開発試作版：v0.29-dev.4（2026-11-18）**
+**現在の開発試作版：v0.30-dev.1（2026-11-18）**
 
 自動車メーカーの創業から車種開発・製造・研究・市場・企業グループ・M&A・財務までを扱う、単一HTMLで動作するオフライン対応の企業経営シミュレーションです。
 
@@ -14,7 +14,9 @@
 
 **保存データの注意：** `file://`、ローカルサーバー、GitHub Pages は異なる保存領域です。更新前に旧バージョンのゲームからJSONバックアップを書き出し、新しいバージョンにインポートしてください。旧バージョンで新形式の保存データを再読み込みすることは保証されません。保存JSONにはプレイ情報が含まれるため、GitHubへコミットしないでください。
 
-## 現行版 v0.29-dev.4 に含まれる主要機能
+## 現行版 v0.30-dev.1 に含まれる主要機能
+
+- **v0.30-dev.1:** 完了済みの研究が部品系統ごとの設計工数・試作費と、BOM量産の材料・加工費・不良率・設備稼働に反映されます。資源業の子会社は設立時に供給網へ登録し、購入する製造会社の「グループ内の供給元」と各原材料の契約欄から確認できます。
 
 - **v0.29-dev.4:** 独立AI企業が、稼働車種のBOM需要または実際の対外受注に基づき、既存工場の部品ラインに投資します。支配下法人はプレイヤーの承認で着工します。年2回の審査で、法人ごとの着工候補は12か月に最大1件です。
 
@@ -57,7 +59,7 @@
 
 - v0.24のJavaScript構文・Chromium操作を検証。旧v0.23 JSONから60か月連続の会計・連結CF検算、提案のみ権限の不実行、保全・広告予算0円時の支出ゼロ、購入契約の手動固定・保存・再読込、100工場・23社での検索／一括設定、390px・768px幅で横はみ出しなしを確認しました。
 - Ver.0.27のG0〜G5は全件PASS。Ver.0.26の同一セーブで60か月比較し、全月の既存状態ハッシュが一致、12/60か月では完全比較も合格。旧セーブの再読込、異常セーブ拒否、100工場・20子会社・390px表示を検証。詳細は [Ver.0.27 品質結果](docs/QUALITY_G0_G5_v027.md)。
-- 設計専用枠・部品の検証は `python tests/test_v028_engineering.py`、`python tests/test_v028_parts.py`、`python tests/test_v028_contracts.py`。工場ラインとBOM量産は `python tests/test_v029_lines.py`、`python tests/test_v029_bom.py`、`python tests/test_v029_trade.py`。AI投資と120か月の混在検証は `python tests/test_v029_ai_investment.py`。保存移行・既存機能の回帰検証は `python tests/test_v027_gate.py` と `python tests/test_v0271_smoke.py`。旧版のテストは回帰記録として保持します。Playwright とChromiumが必要です。旧版名を含むテストスクリプトは過去版用として残しています。
+- 研究効果・資源子会社は `python tests/test_v030_research_supply.py`。設計専用枠・部品の検証は `python tests/test_v028_engineering.py`、`python tests/test_v028_parts.py`、`python tests/test_v028_contracts.py`。工場ラインとBOM量産は `python tests/test_v029_lines.py`、`python tests/test_v029_bom.py`、`python tests/test_v029_trade.py`。AI投資と120か月の混在検証は `python tests/test_v029_ai_investment.py`。保存移行・既存機能の回帰検証は `python tests/test_v027_gate.py` と `python tests/test_v0271_smoke.py`。旧版のテストは回帰記録として保持します。Playwright とChromiumが必要です。旧版名を含むテストスクリプトは過去版用として残しています。
 - **未保証：** 実IndexedDBの終了・再起動後の保存復元を全ブラウザ・全OSで検証したものではありません。厳密な公正価値配分（PPA）・のれん・外貨連結、法的吸収合併、IPO、企業株主からの株式譲渡も未完成です。
 - 正式基本設計はVer.3.0、SPEC-001〜094を維持。質問91〜93とSPEC-095以降は未確定。ライセンスも未決定です。
 
