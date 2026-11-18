@@ -68,7 +68,7 @@ def run():
         shortage=page.evaluate("""() => {
           const s=newGame({era:1900,country:'JP',difficulty:'normal',history:'historical',name:'資源需給テスト'});
           const m=npcMarketV033(s,'JP','steel');
-          m.capacity=5;m.stock=0;m.lastDemand=200;
+          m.capacity=5;m.stock=0;m.producedTotal=m.dispatchedTotal;m.lastDemand=200;
           const initial=m.priceIndex;
           for(let month=1;month<=3;month++){
             s.month=month;m.lastRequested=150;m.lastShipped=1;
