@@ -2020,41 +2020,88 @@ function marketVehicleContendersV031(s,code){
  }
  return contenders;
 }
+/* Demand is allocated as integer cohorts, not one object per consumer.
+   Initial intended choices include sold-out models, making their unmet quota
+   available for same-month substitutions. */
+function largestRemainderV031(eligible,total){
+ const weight=eligible.reduce((sum,x)=>sum+x.score,0);
+ if(!weight||total<=0)return eligible.map(x=>({...x,quota:0}));
+ const rows=eligible.map(x=>({...x,raw:total*x.score/weight,quota:Math.floor(total*x.score/weight)}));
+ let remaining=total-rows.reduce((n,x)=>n+x.quota,0);
+ const sorted=[...rows].sort((a,b)=>(b.raw-b.quota)-(a.raw-a.quota)||a.f.id.localeCompare(b.f.id)||a.m.id.localeCompare(b.m.id));
+ for(let i=0;i<remaining;i++)sorted[i%sorted.length].quota++;
+ return rows;
+}
+function salesRoomV031(s,x,code,remaining){
+ const inventory=Math.max(0,Math.floor(x.f.goods[x.m.id]?.q||0));
+ const channel=exportChannel(x.f,code,s);
+ const already=x.f._shipmentsThisMonth?.[code]||0;
+ const available=Math.max(0,Math.floor((channel.capacity||0)*(1+enterpriseSynergy(s,x.f).distributionBoost))-already);
+ return Math.min(inventory,available,remaining);
+}
+function bookModelSalesV031(s,x,code,segment,units,events){
+ if(!units)return;
+ const f=x.f,m=x.m;
+ f._shipmentsThisMonth??={};f._shipmentsThisMonth[code]=(f._shipmentsThisMonth[code]||0)+units;
+ if(code===f.country)sellGoods(s,f,m.id,units,m.priceBase,code,events,segment);
+ else exportShipment(s,f,m.id,units,m.priceBase,code,events,segment);
+}
+function distributeSegmentV031(s,code,segment,count,contenders,events){
+ if(count<=0||!contenders.length)return {demand:count,initial:0,reassigned:0,unmet:count,byModel:{},lostByModel:{}};
+ const ranked=contenders.map(x=>({...x,score:segmentCompatibility(x.f,x.m,segment,s,code)}));
+ const intended=largestRemainderV031(ranked,count);
+ const byModel={},lostByModel={};
+ const sale=(x,q,reassigned)=>{
+  if(q<=0)return;
+  bookModelSalesV031(s,x,code,segment,q,events);
+  const key=x.f.id+':'+x.m.id;byModel[key]=(byModel[key]||0)+q;
+  return q;
+ };
+ let unfilled=0,initial=0,reassigned=0;
+ for(const x of intended){
+  const available=salesRoomV031(s,x,code,x.quota);
+  const got=sale(x,available,false)||0;
+  initial+=got;
+  const lost=x.quota-got;
+  if(lost){unfilled+=lost;const key=x.f.id+':'+x.m.id;lostByModel[key]=(lostByModel[key]||0)+lost;}
+ }
+ // Repeatedly redistribute only the unsatisfied cohort; each round reduces
+ // outstanding demand or stops if no candidate has inventory/channel capacity.
+ for(let pass=0;unfilled>0&&pass<=ranked.length;pass++){
+  const available=ranked.filter(x=>salesRoomV031(s,x,code,unfilled)>0);
+  if(!available.length)break;
+  const allocation=largestRemainderV031(available,unfilled);
+  let sold=0;
+  for(const x of allocation){
+   const got=sale(x,salesRoomV031(s,x,code,x.quota),true)||0;
+   sold+=got;
+  }
+  if(!sold)break;
+  unfilled-=sold;reassigned+=sold;
+ }
+ return {demand:count,initial,reassigned,unmet:unfilled,byModel,lostByModel};
+}
 function sellMonthly(s,events){
+ s.marketAllocationV031??={};
  for(const [code,w] of Object.entries(s.world)){
   const contenders=marketVehicleContendersV031(s,code);
   for(const f of s.firms){
    if(f.lifecycle?.phase==='withdrawn'||f.reorgStatus==='integrated'||!f.marketPresence.includes(code))continue;
    if(f.industry==='service'){if(f.country===code)sellServices(s,f,code);continue;}
    if(f.industry==='trade'||f.industry==='resource'){
-    const keys=f.industry==='trade'?Object.keys(f.goods).filter(k=>k==='TRADE'||k.startsWith('IT')):['RESOURCE'];let left=Math.round(w.demand*.25);
-    for(const key of keys){const qty=f.goods[key]?.q||0;if(qty&&left>0){const sell=Math.min(qty,left),price=f.goods[key].externalPriceBase||(f.industry==='trade'?1550:1800);sellGoods(s,f,key,sell,price,code,events);left-=sell;}}
-    continue;
+    const keys=f.industry==='trade'?Object.keys(f.goods).filter(k=>k==='TRADE'||k.startsWith('IT')):['RESOURCE'];
+    let left=Math.round(w.demand*.25);
+    for(const key of keys){const qty=f.goods[key]?.q||0;if(qty&&left>0){const q=Math.min(qty,left),price=f.goods[key].externalPriceBase||(f.industry==='trade'?1550:1800);sellGoods(s,f,key,q,price,code,events);left-=q;}}
    }
-
   }
   const market=marketDemandSnapshotV031(s,code);
-  const groups=market.segments;
-  // Rotate which consumer group is fulfilled first, so constrained inventory is not permanently biased.
+  const results={},totals={initial:0,reassigned:0,unmet:0};
   const keys=Object.keys(MARKET_SEGMENTS),offset=ym(s.year,s.month)%keys.length;
-  for(const segment of [...keys.slice(offset),...keys.slice(0,offset)]){
-   const count=groups[segment];if(!count||!contenders.length)continue;
-   const candidates=contenders.map(x=>({...x,score:segmentCompatibility(x.f,x.m,segment,s,code)}));
-   const sum=candidates.reduce((a,b)=>a+b.score,0);
-   const weighted=candidates.map(x=>({...x,raw:count*x.score/Math.max(.0001,sum),allocated:Math.floor(count*x.score/Math.max(.0001,sum))}));
-   const left=count-weighted.reduce((a,b)=>a+b.allocated,0);
-   const sorted=[...weighted].sort((a,b)=>(b.raw-b.allocated)-(a.raw-a.allocated)||a.f.id.localeCompare(b.f.id)||a.m.id.localeCompare(b.m.id));
-   for(let i=0;i<Math.min(left,sorted.length);i++)sorted[i].allocated++;
-   for(const x of weighted){
-    const qty=Math.min(x.f.goods[x.m.id]?.q||0,x.allocated);if(qty<=0)continue;
-    const channel=exportChannel(x.f,code,s),routed=x.f._shipmentsThisMonth?.[code]||0;
-    const maxQty=Math.max(0,Math.floor((channel.capacity||0)*(1+enterpriseSynergy(s,x.f).distributionBoost))-routed);
-    const approved=Math.min(qty,maxQty);if(approved<=0)continue;
-    x.f._shipmentsThisMonth??={};x.f._shipmentsThisMonth[code]=routed+approved;
-    if(code===x.f.country)sellGoods(s,x.f,x.m.id,approved,x.m.priceBase,code,events,segment);
-    else exportShipment(s,x.f,x.m.id,approved,x.m.priceBase,code,events,segment);
-   }
+  for(const seg of [...keys.slice(offset),...keys.slice(0,offset)]){
+   const res=distributeSegmentV031(s,code,seg,market.segments[seg],contenders,events);
+   results[seg]=res;for(const k of ['initial','reassigned','unmet'])totals[k]+=res[k];
   }
+  s.marketAllocationV031[code]={month:market.month,demand:market.demand,segments:results,...totals};
  }
 }
 
