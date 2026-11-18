@@ -13,6 +13,16 @@ def run():
         faults=[]
         page.on("pageerror",lambda error:faults.append(str(error)))
         page.set_content(HTML,wait_until="domcontentloaded")
+        starting=page.evaluate("""() => {
+          const s=newGame({era:1900,country:'JP',difficulty:'normal',history:'historical',name:'NPC初期在庫'});
+          const m=npcMarketV033(s,'JP','steel'),before=m.stock;
+          const produced=m.producedTotal;
+          produceNpcV033(s,[]);
+          return {before,after:m.stock,produced:m.producedTotal,errors:check(s)};
+        }""")
+        assert starting['before']>0 and starting['after']==starting['before'],starting
+        assert starting['produced']==starting['after'] and not starting['errors'],starting
+
         deterministic=page.evaluate("""() => {
           const allocate=(requests,cap)=>fairAllocationV033(requests,cap);
           const sample=[{id:'F1:steel',need:80},{id:'F2:steel',need:20},{id:'F3:steel',need:40}];
