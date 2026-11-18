@@ -92,3 +92,18 @@ jobs:
           python -m playwright install --with-deps chromium
       - name: STEP 4 Contract renewal, supply disruptions and ledger reconciliation
         run: python tests/test_step04_contract_endurance.py
+
+  international-route-endurance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Playwright Chromium
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: STEP 5 International route, warehouse and customs endurance
+        run: python tests/test_step05_route_endurance.py
