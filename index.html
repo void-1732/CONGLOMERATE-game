@@ -2130,6 +2130,25 @@ const SUPPLY_POLICY_MODES_V045={
  manual:'従来の契約・手動設定',cost:'低コスト重視',stable:'安定供給重視',
  domestic:'国内優先',group:'企業グループ優先'
 };
+/* Unit 2: physical warehouse transfers remain opt-in, not a new source of stock. */
+const SUPPLY_LOGISTICS_MODES_V045={
+ manual:'従来の自動補充順序',economy:'運賃・物流費優先',
+ fast:'短納期優先',resilient:'安定稼働・安全在庫優先'
+};
+function logisticsPolicyModeV045(s,f){
+ if(!controller(s,f.id))return 'manual';
+ const policy=s.firms.find(x=>x.id===s.playerId)?.globalSupplyPolicyV045?.logistics;
+ const regional=policy?.regions?.[f.country],mode=regional&&regional!=='inherit'?regional:policy?.mode;
+ return Object.hasOwn(SUPPLY_LOGISTICS_MODES_V045,mode)?mode:'manual';
+}
+function logisticsOriginScoreV045(s,f,site,origin,type,mode){
+ const quote=v21Freight(origin.site,site,1,s),same=site.id===origin.site.id;
+ if(mode==='manual')return same?-1:0;
+ const stock=origin.stock?origin.stock[type]?.q??0:centralRawStockV038(f,type).q;
+ if(mode==='economy')return quote.base+quote.lead*6;
+ if(mode==='fast')return quote.lead*10000+quote.base;
+ return quote.lead*650+quote.base-Math.min(200,Math.max(0,stock))*2;
+}
 function supplyPolicyModeV045(s,f){
  if(!controller(s,f.id))return 'manual';
  const policy=s.firms.find(item=>item.id===s.playerId)?.globalSupplyPolicyV045;
@@ -2147,6 +2166,17 @@ function validateSupplyPolicyV045(s){
  for(const [country,mode] of Object.entries(policy.regions)){
   if(!s.world[country]||!Object.hasOwn(SUPPLY_POLICY_MODES_V045,mode))
    errors.push('国別調達方針が不正 '+country);
+ }
+ if(policy.logistics!==undefined){
+  const setting=policy.logistics;
+  if(!setting||typeof setting!=='object'||Array.isArray(setting)||
+     !Object.hasOwn(SUPPLY_LOGISTICS_MODES_V045,setting.mode)||
+     !setting.regions||typeof setting.regions!=='object'||Array.isArray(setting.regions)){
+   errors.push('国際物流AIの方針設定が不正です');
+  }else for(const [country,mode] of Object.entries(setting.regions)){
+   if(!s.world[country]||!Object.hasOwn(SUPPLY_LOGISTICS_MODES_V045,mode))
+    errors.push('国別物流方針が不正 '+country);
+  }
  }
  return errors;
 }
@@ -2187,20 +2217,34 @@ function policySupplierV045(s,x,nodes,remaining){
 }
 function supplyPolicyPanelV045(s,f,editable){
  const root=s.firms.find(item=>item.id===s.playerId),cfg=root?.globalSupplyPolicyV045||{};
+ const logistics=cfg.logistics||{};
  const modes=Object.entries(SUPPLY_POLICY_MODES_V045);
  const options=(chosen,inherit=false)=>
   (inherit?'<option value="inherit"'+(chosen==='inherit'?' selected':'')+'>グループ共通に従う</option>':'')+
   modes.map(entry=>'<option value="'+entry[0]+'"'+(chosen===entry[0]?' selected':'')+'>'+entry[1]+'</option>').join('');
+ const logisticsOptions=(chosen,inherit=false)=>
+  (inherit?'<option value="inherit"'+(chosen==='inherit'?' selected':'')+'>グループ共通に従う</option>':'')+
+  Object.entries(SUPPLY_LOGISTICS_MODES_V045).map(entry=>
+   '<option value="'+entry[0]+'"'+(chosen===entry[0]?' selected':'')+'>'+entry[1]+'</option>').join('');
  const regions=Object.keys(s.world).map(code=>
   '<label class="field"><span>'+esc(NAMES[code])+'</span><select id="supplyPolicyRegionV045_'+code+'"'+(editable?'':' disabled')+'>'+
   options(cfg.regions?.[code]||'inherit',true)+'</select></label>').join('');
+ const logisticsRegions=Object.keys(s.world).map(code=>
+  '<label class="field"><span>'+esc(NAMES[code])+'</span><select id="logisticsPolicyRegionV045_'+code+'"'+(editable?'':' disabled')+'>'+
+  logisticsOptions(logistics.regions?.[code]||'inherit',true)+'</select></label>').join('');
  return '<section class="panel span12"><h2>国際供給網AI・グループ調達方針</h2>'+
-  '<p class="hint">重要な長期契約と既存の代替配分を優先し、残りの通常発注にのみ適用します。実在庫・通関・輸送枠を超える仕入は行いません。初期設定は従来方式で、未設定の旧セーブの動作は変わりません。</p>'+
+  '<p class="hint">長期契約と既存の代替配分を優先し、残りの通常発注に適用します。実在庫・通関・輸送枠を超える仕入は行いません。未設定の旧セーブは従来方式です。</p>'+
   '<div class="formgrid"><label class="field"><span>グループ共通の調達方針</span><select id="supplyPolicyModeV045"'+(editable?'':' disabled')+'>'+
-  options(cfg.mode||'manual')+'</select></label></div><h3>法人の所在国別ルール</h3>'+
+  options(cfg.mode||'manual')+'</select></label></div><h3>法人の所在国別の調達ルール</h3>'+
   '<div class="formgrid">'+regions+'</div>'+
-  '<p class="hint">現在の法人の適用方針：'+esc(SUPPLY_POLICY_MODES_V045[supplyPolicyModeV045(s,f)])+
-  '。他の支配下法人にも所在国に応じて適用します。資金・在庫を伴う資材の移送は従来の会計・物流規則を利用します。</p>'+
+  '<h3>工場・倉庫の自動補充方針</h3>'+
+  '<p class="hint">既存の倉庫設定で「国内工場の原材料を自動補充」をONにした法人だけで利用します。新しい在庫、借入、倉庫・工場の取得は行いません。安定稼働優先は輸送期間を加味して目標在庫を厚めに確保します。</p>'+
+  '<div class="formgrid"><label class="field"><span>グループ共通の物流方針</span><select id="logisticsPolicyModeV045"'+(editable?'':' disabled')+'>'+
+  logisticsOptions(logistics.mode||'manual')+'</select></label></div>'+
+  '<h3>法人の所在国別の物流ルール</h3><div class="formgrid">'+logisticsRegions+'</div>'+
+  '<p class="hint">この法人の調達：'+esc(SUPPLY_POLICY_MODES_V045[supplyPolicyModeV045(s,f)])+
+  ' ／ 物流：'+esc(SUPPLY_LOGISTICS_MODES_V045[logisticsPolicyModeV045(s,f)])+
+  '。支配下の法人に所在国の方針が適用され、既存の会計・物流台帳を利用します。</p>'+
   '<button class="btn primary" data-action="saveSupplyPolicyV045"'+(editable?'':' disabled')+'>グループ調達方針を保存</button></section>';
 }
 function saveSupplyPolicyV045(){
@@ -2208,18 +2252,23 @@ function saveSupplyPolicyV045(){
   const f=current(),root=company(S.playerId,S);
   if(!canEdit(f)||!root||!controller(S,root.id))throw Error('管理権限がありません');
   const mode=inputValue('supplyPolicyModeV045'),regions={};
+  const logisticsMode=inputValue('logisticsPolicyModeV045'),logisticsRegions={};
   if(!Object.hasOwn(SUPPLY_POLICY_MODES_V045,mode))throw Error('調達方針が不正です');
+  if(!Object.hasOwn(SUPPLY_LOGISTICS_MODES_V045,logisticsMode))throw Error('物流方針が不正です');
   for(const country of Object.keys(S.world)){
    const chosen=inputValue('supplyPolicyRegionV045_'+country);
+   const transport=inputValue('logisticsPolicyRegionV045_'+country);
    if(chosen!=='inherit'&&!Object.hasOwn(SUPPLY_POLICY_MODES_V045,chosen))
-    throw Error('地域別方針が不正です');
+    throw Error('地域別調達方針が不正です');
+   if(transport!=='inherit'&&!Object.hasOwn(SUPPLY_LOGISTICS_MODES_V045,transport))
+    throw Error('地域別物流方針が不正です');
    if(chosen!=='inherit')regions[country]=chosen;
+   if(transport!=='inherit')logisticsRegions[country]=transport;
   }
-  root.globalSupplyPolicyV045={mode,regions};
-  render();toast('企業グループの国際調達方針を保存しました');
+  root.globalSupplyPolicyV045={mode,regions,logistics:{mode:logisticsMode,regions:logisticsRegions}};
+  render();toast('企業グループの調達・物流方針を保存しました');
  }catch(e){toast(e.message)}
 }
-
 function activeEconomicShocksV044(s){
  const month=ym(s.year,s.month);
  return (s.economicShocksV044??[]).filter(event=>event.start<=month&&month<event.end);
@@ -8843,7 +8892,7 @@ function rawFactoryDemandV038(s,f){
 }
 function autoRefillRawFactoriesV038(s,events){
  for(const f of s.firms){
-  const logistics=ensureWarehouseV038(f);
+  const logistics=ensureWarehouseV038(f),policy=logisticsPolicyModeV045(s,f);
   if(!logistics.autoRefill||!logistics.localizedRawTypes.length||f.reorgStatus==='integrated'||
      f.lifecycle?.phase==='withdrawn'||!['auto','manufacturing'].includes(f.industry))continue;
   const warehouse=warehouseDestinationV038(f,'warehouse'),plans=rawFactoryDemandV038(s,f);
@@ -8856,14 +8905,19 @@ function autoRefillRawFactoriesV038(s,events){
    const site=warehouseDestinationV038(f,p.id);
    if(!site||site.id===warehouse.id)continue;
    const nearby=origins.filter(origin=>origin.site.country===site.country)
-    .sort((a,b)=>Number(b.site.id===site.id)-Number(a.site.id===site.id));
+    .sort((a,b)=>{
+     if(policy==='manual')return Number(b.site.id===site.id)-Number(a.site.id===site.id);
+     const score=origin=>Object.entries(monthly).reduce((total,[type,qty])=>
+      total+(qty?logisticsOriginScoreV045(s,f,site,origin,type,policy)*Math.min(10,qty):0),0);
+     return score(a)-score(b)||a.id.localeCompare(b.id);
+    });
    for(const origin of nearby){
     const lead=v21Freight(origin.site,site,1,s).lead,requests=[];
     for(const [type,qty] of Object.entries(monthly)){
      if(!qty)continue;
      const onSite=plantRawStockV038(f,p.id,type).q;
      const onOrder=logistics.rawShipments.filter(x=>x.to===p.id&&x.type===type).reduce((n,x)=>n+x.quantity,0);
-     const shortage=Math.ceil(qty*(lead+1)-onSite-onOrder);
+     const shortage=Math.ceil(qty*(lead+(policy==='resilient'?2:1))-onSite-onOrder);
      const available=Math.floor(origin.stock?origin.stock[type]?.q??0:
       centralRawStockV038(f,type).q-(homeDemand[type]||0)+1e-8);
      if(shortage>0&&available>0)requests.push({id:type,need:Math.min(shortage,available)});
