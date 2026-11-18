@@ -2216,7 +2216,7 @@ function policySupplierV045(s,x,nodes,remaining,pool=null){
   if(mode==='stable')score*=1+(1-coverage)*.65+(reliability-1)*1.5+
     Math.max(0,1-shock.supply)*.8+lead*.07;
   if(mode==='domestic')score*=abroad?1.6:.7;
-  if(mode==='group')score*=seller&&groupSupplyV037(s,x.f,seller)?.45:abroad?1.6:1.1;
+  if(mode==='group')score*=seller&&(pool?.controlled?pool.controlled.has(seller.id):groupSupplyV037(s,x.f,seller))?.45:abroad?1.6:1.1;
   if(mode==='cost')score*=1+(reliability-1)*.10;
   options.push({id:node.id,score});
  }
@@ -2224,7 +2224,8 @@ function policySupplierV045(s,x,nodes,remaining,pool=null){
  return options[0]?.id||null;
 }
 function groupSupplyOverviewV045(s){
- const members=s.firms.filter(f=>controller(s,f.id)&&f.reorgStatus!=='integrated'&&f.lifecycle?.phase!=='withdrawn');
+ const groupIds=controlSet(s);
+ const members=s.firms.filter(f=>groupIds.has(f.id)&&f.reorgStatus!=='integrated'&&f.lifecycle?.phase!=='withdrawn');
  const memberById=new Map(members.map(f=>[f.id,f]));
  const buyers=members.filter(f=>['auto','manufacturing'].includes(f.industry));
  return SUPPLY_TYPES.map(type=>{
