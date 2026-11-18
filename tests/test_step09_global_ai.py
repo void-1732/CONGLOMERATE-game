@@ -17,7 +17,11 @@ def policy_and_save(page):
         const manual=supplyPolicyModeV045(S,f);
         const noPolicy=policySupplierV045(S,{f,type:'steel',needed:20},new Map(),new Map());
         const japan=npcMarketV033(S,'JP','steel'),america=npcMarketV033(S,'US','steel');
-        japan.stock=Math.max(600,japan.stock);america.stock=Math.max(600,america.stock);
+        // Fixture injects only accounted NPC production, never free inventory.
+        for(const market of [japan,america]){
+            const added=Math.max(0,600-market.stock);
+            market.stock+=added;market.producedTotal+=added;
+        }
         ensureSupplyNetwork(S);
         const nodes=new Map(S.supplyNetwork.nodes.map(node=>[node.id,node]));
         const remaining=new Map(),request={f,type:'steel',needed:20};
