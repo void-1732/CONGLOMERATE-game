@@ -1,0 +1,42 @@
+name: v0.36 Supply Contract and Allocation Regression
+on:
+  push:
+    branches:
+      - dev/v036-contract-supply
+  pull_request:
+    branches:
+      - dev/v035-startup-supply-balance
+      - main
+
+jobs:
+  contract-supply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Playwright Chromium
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: v0.36 Contracts, physical supply and accounting
+        run: python tests/test_v036_contract_supply.py
+      - name: v0.35 Startup supply
+        run: python tests/test_v035_startup_supply.py
+      - name: v0.34 Forecast and order point regression
+        run: python tests/test_v034_inventory_forecast.py
+      - name: v0.33 NPC supply and fair allocations
+        run: python tests/test_v033_npc_supply.py
+      - name: v0.32 Backed stock and partial delivery
+        run: python tests/test_v032_supply_foundation.py
+      - name: Era supply balance diagnostics
+        run: python tests/test_v033_supply_balance_probe.py
+      - name: Earlier manufacturing and consolidated accounts
+        run: |
+          python tests/test_v029_bom.py
+          python tests/test_v029_trade.py
+          python tests/test_v031_demand_allocation.py
