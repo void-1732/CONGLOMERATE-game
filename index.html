@@ -2084,14 +2084,15 @@ function bookModelSalesV031(s,x,code,segment,units,events){
  else exportShipment(s,f,m.id,units,m.priceBase,code,events,segment);
 }
 function distributeSegmentV031(s,code,segment,count,contenders,events){
- if(count<=0||!contenders.length)return {demand:count,initial:0,reassigned:0,unmet:count,byModel:{},lostByModel:{}};
+ if(count<=0||!contenders.length)return {demand:count,initial:0,reassigned:0,unmet:count,byModel:{},lostByModel:{},reassignedByModel:{}};
  const ranked=contenders.map(x=>({...x,score:segmentCompatibility(x.f,x.m,segment,s,code)}));
  const intended=largestRemainderV031(ranked,count);
- const byModel={},lostByModel={};
- const sale=(x,q,reassigned)=>{
-  if(q<=0)return;
+ const byModel={},lostByModel={},reassignedByModel={};
+ const sale=(x,q,isReassigned)=>{
+  if(q<=0)return 0;
   bookModelSalesV031(s,x,code,segment,q,events);
   const key=x.f.id+':'+x.m.id;byModel[key]=(byModel[key]||0)+q;
+  if(isReassigned)reassignedByModel[key]=(reassignedByModel[key]||0)+q;
   return q;
  };
  let unfilled=0,initial=0,reassigned=0;
@@ -2116,7 +2117,7 @@ function distributeSegmentV031(s,code,segment,count,contenders,events){
   if(!sold)break;
   unfilled-=sold;reassigned+=sold;
  }
- return {demand:count,initial,reassigned,unmet:unfilled,byModel,lostByModel};
+ return {demand:count,initial,reassigned,unmet:unfilled,byModel,lostByModel,reassignedByModel};
 }
 function validateMarketV031(s){
  const errors=[];
@@ -6649,17 +6650,49 @@ function mkMarketReadinessV025(){const f=current(),sold=mkGroupSalesV025(f.count
  if(sold===0&&mkLastV025(f))problems.push(['販売','直近確定月の国内実販売が0台です','distribution']);
  if(!problems.length)problems.push(['運営','現在の販路・在庫・資金を確認できます','distribution']);
  return problems.slice(0,3).map((x,i)=>`<div class="mk-row"><b>${String(i+1).padStart(2,'0')}　${esc(x[1])}</b><button class="mk-link" data-page="${x[2]}">関連画面 →</button></div>`).join('');}
+function mkAllocationPanelV031(code){
+ const rec=S.marketAllocationV031?.[code];
+ if(!rec)return '';
+ const monthLabel=Math.floor(rec.month/12)+'年'+(rec.month%12+1)+'月';
+ const segments=Object.entries(rec.segments||{});
+ const cells=[
+  ['対象月の自動車需要',rec.demand],
+  ['海外からの当月到着販売',rec.delivered||0],
+  ['当月の初回成立配分',rec.initial],
+  ['同月の代替販売・出荷配分',rec.reassigned],
+  ['未充足の購入需要',rec.unmet]
+ ];
+ const modelTotals={};
+ for(const [segment,entry] of segments){
+  for(const [key,qty] of Object.entries(entry.byModel||{})){
+   const x=modelTotals[key]??={qty:0,reassigned:0,lost:0};
+   x.qty+=qty;
+  }
+  for(const [key,qty] of Object.entries(entry.reassignedByModel||{})){
+   const x=modelTotals[key]??={qty:0,reassigned:0,lost:0};x.reassigned+=qty;
+  }
+  for(const [key,qty] of Object.entries(entry.lostByModel||{})){
+   const x=modelTotals[key]??={qty:0,reassigned:0,lost:0};x.lost+=qty;
+  }
+ }
+ const byModel=Object.entries(modelTotals).sort((a,b)=>b[1].reassigned-a[1].reassigned||a[0].localeCompare(b[0])).slice(0,15);
+ const rows=byModel.map(([key,x])=>{
+  const cut=key.indexOf(':'),firm=company(key.slice(0,cut)),model=firm?.models.find(m=>m.id===key.slice(cut+1));
+  return `<tr><td>${esc(firm?.name||key)}</td><td>${esc(model?.name||'不明')}</td><td class="mk-number">${nfmt(x.qty)}</td><td class="mk-number">${nfmt(x.reassigned)}</td><td class="mk-number">${nfmt(x.lost)}</td></tr>`;
+ }).join('');
+ return `<section class="mk-panel mk-span-12"><h2>v0.31 月間需要の再配分</h2><p class="mk-sub">${esc(monthLabel)}の確定配分。輸出分の「配分」は出荷予約であり、売上実績は到着月に計上されます。</p><div class="mk-grid">${cells.map(([title,value])=>`<div class="mk-span-2 mk-kpi"><small>${esc(title)}</small><strong>${nfmt(value)}台</strong></div>`).join('')}</div><details><summary>車種別の代替獲得・初回購入機会損失</summary><div class="mk-table-wrap"><table class="mk-table"><thead><tr><th>企業</th><th>車種</th><th class="mk-number">当月配分</th><th class="mk-number">代替獲得</th><th class="mk-number">初回需要の未達</th></tr></thead><tbody>${rows||'<tr><td colspan="5">対象となる車種はありません</td></tr>'}</tbody></table></div><p class="mk-note">初回需要の未達は当初希望の未販売数量であり、同一企業の別車種や競合へ再配分された人数を含みます。直接の移動元・移動先を特定するデータではありません。</p></details></section>`;
+}
 function marketOverviewV025(){const country=current().country,d=mkDemandV025(country),sold=mkGroupSalesV025(country),obs=mkObservedV025(country),f=current(),h=mkLastV025(f),cash=financials(f).cash,active=f.models.filter(x=>x.status==='active').length;
  const warning=sold===0&&h?`<div class="mk-banner"><div class="mk-main"><div class="mk-symbol">!</div><div><b>確認事項：国内の販売実績がありません</b><p>${esc(mkPeriodV025(h))}の国内販売は0台です。製品在庫、地域の販路、価格、出荷上限を確認してください。</p></div></div><button class="btn sm" data-page="distribution">販売網を確認 →</button></div>`:'';
  return `<div class="mk-v25">${mkHeadV025('MARKET INTELLIGENCE / EXECUTIVE VIEW','市場・競合分析センター','市場の変化と自社の位置を、実際の販売データと推計需要に分けて確認します。',`<button class="btn" data-page="marketRegion">地域を比較する →</button><button class="btn primary" data-page="marketRivals">競合を見る →</button>`)}${warning}
  <div class="mk-grid"><div class="mk-span-3">${mkKpiV025('国内の推計需要',nfmt(d)+' 台/月','今月のゲーム内需要計算')}</div><div class="mk-span-3">${mkKpiV025('国内のグループ販売',mkQtyV025(sold),sold===null?'月末処理後に実績確定':'グループ自動車部門の直近実売',sold===0?'mk-critical':'')}</div><div class="mk-span-3">${mkKpiV025('国内の観測販売総数',obs.hasRecord?nfmt(obs.qty)+' 台':'未確定','記録がある自動車企業の販売合算')}</div><div class="mk-span-3">${mkKpiV025('現役の自社車種',nfmt(active)+' 車種','表示法人の販売可能な車種')}</div></div>
- <div class="mk-grid"><section class="mk-panel mk-span-7"><h2>地域別 自動車市場の需要比較</h2><p class="mk-sub">主要5市場の今月の潜在需要（確定販売実績ではありません）</p>${Object.keys(S.world).map(code=>mkBarV025(code,code===country)).join('')}<div class="mk-actions"><button class="btn primary" data-page="marketRegion">国別の需要構成を調べる →</button></div></section><section class="mk-panel mk-span-5"><h2>経営判断のための注目点</h2><p class="mk-sub">ゲームの確定データと現在の設定から確認事項を表示</p>${mkMarketReadinessV025()}<div class="mk-callout">世界市場の需要はモデル推計値、販売台数は月末確定値です。両者を同じ「シェア」として扱いません。</div></section></div>
+ <div class="mk-grid">${mkAllocationPanelV031(country)}<section class="mk-panel mk-span-7"><h2>地域別 自動車市場の需要比較</h2><p class="mk-sub">主要5市場の今月の潜在需要（確定販売実績ではありません）</p>${Object.keys(S.world).map(code=>mkBarV025(code,code===country)).join('')}<div class="mk-actions"><button class="btn primary" data-page="marketRegion">国別の需要構成を調べる →</button></div></section><section class="mk-panel mk-span-5"><h2>経営判断のための注目点</h2><p class="mk-sub">ゲームの確定データと現在の設定から確認事項を表示</p>${mkMarketReadinessV025()}<div class="mk-callout">世界市場の需要はモデル推計値、販売台数は月末確定値です。両者を同じ「シェア」として扱いません。</div></section></div>
  <div class="mk-grid"><section class="mk-panel mk-span-7"><div class="mk-progress-summary"><div><h2>市場スナップショット</h2><p class="mk-sub">需要とグループの確定実績を市場ごとに比較</p></div><button class="mk-link" data-page="marketRegion">地域分析 →</button></div><div class="mk-table-wrap"><table class="mk-table"><thead><tr><th>市場</th><th class="mk-number">推計需要</th><th class="mk-number">自社グループ</th><th class="mk-number">観測販売総数</th><th class="mk-number">観測内構成比</th><th>販路</th><th>詳しく</th></tr></thead><tbody>${mkRegionRowsV025()}</tbody></table></div><p class="mk-note">観測内構成比はゲーム内で販売実績が記録された自動車企業の合計に対する比率です。市場全体シェアとは異なります。</p></section><section class="mk-panel mk-span-5"><h2>競合ウォッチリスト</h2><p class="mk-sub">販売実績がない競合は「未確定」と表示します</p>${S.firms.filter(x=>!controller(S,x.id)&&x.industry==='auto'&&x.lifecycle?.phase!=='withdrawn').sort((a,b)=>(mkFirmSalesV025(b)||0)-(mkFirmSalesV025(a)||0)).slice(0,5).map(x=>`<div class="mk-row"><div><b>${esc(x.name)}</b><div class="mk-sub">${esc(NAMES[x.country])} · ${mkQtyV025(mkFirmSalesV025(x))}</div></div><button class="mk-link" data-mk-open-firm="${esc(x.id)}">比較 →</button></div>`).join('')||'<div class="mk-empty">競合企業がありません</div>'}<div class="mk-actions"><button class="btn" data-page="marketRivals">競合を詳しく比較 →</button></div></section></div>
  </div>`;}
 function marketRegionV025(){const code=Object.hasOwn(S.world,VIEW_COUNTRY)?VIEW_COUNTRY:current().country,w=S.world[code],d=mkDemandV025(code),grp=mkGroupSalesV025(code),obs=mkObservedV025(code),share=mkShareV025(code),segments=segmentedDemandUnits(S,code,d),ctr=exportChannel(current(),code),m=MK_CHANNEL_NAMES[ctr.channel]||'未設定',last=mkLastV025(current()),selected=last?.markets?.[code]?.units??null,maximum=Math.max(1,...Object.keys(S.world).map(mkDemandV025));
  return `<div class="mk-v25">${mkHeadV025('MARKET / REGIONS','地域別市場分析','市場規模、購買層構成、販路、直近の販売実績を比較して進出先を検討します。',`<button class="btn" data-page="distribution">販売網を設定 →</button>`)}<div class="mk-toolbar mk-chiprow">${Object.keys(S.world).map(k=>`<button class="mk-chip ${k===code?'active':''}" aria-pressed="${k===code}" data-mk-region="${k}">${esc(NAMES[k])}</button>`).join('')}</div>
  <div class="mk-grid"><div class="mk-span-3">${mkKpiV025('選択市場の推計需要',nfmt(d)+' 台/月','景気補正後の潜在需要')}</div><div class="mk-span-3">${mkKpiV025('グループ実販売',mkQtyV025(grp),'直近確定月の自動車実績',grp===0?'mk-critical':'')}</div><div class="mk-span-3">${mkKpiV025('観測内の販売割合',mkPctV025(share),'記録済み自動車企業の合計比')}</div><div class="mk-span-3">${mkKpiV025('現在の販売方式',esc(m),'選択法人の設定')}</div></div>
- <div class="mk-grid"><section class="mk-panel mk-span-7"><h2>主要市場の需要ランキング</h2><p class="mk-sub">同じ推計式による相対比較</p>${Object.keys(S.world).map(k=>mkBarV025(k,k===code)).join('')}</section><section class="mk-panel mk-span-5"><h2>${esc(NAMES[code])}市場の分析メモ</h2><div class="mk-row"><span>潜在市場需要</span><strong>${nfmt(d)}台/月</strong></div><div class="mk-row"><span>直近の自社法人販売</span><strong>${mkQtyV025(selected)}</strong></div><div class="mk-row"><span>観測された自動車販売</span><strong>${obs.hasRecord?nfmt(obs.qty)+'台':'未確定'}</strong></div><div class="mk-row"><span>販売上限（契約）</span><strong>${nfmt(ctr.capacity)}台/月</strong></div><div class="mk-row"><span>現在の販路</span><strong>${esc(m)}</strong></div><div class="mk-row"><span>経済循環指数</span><strong>${nfmt(100+w.cycle*100)}</strong></div><div class="mk-callout">市場への輸出では輸送期間と販売方式による費用が発生します。契約の設定と実販売には時間差があります。</div><div class="mk-actions"><button class="btn primary" data-page="distribution">この市場の販売網を検討 →</button></div></section></div>
+ <div class="mk-grid">${mkAllocationPanelV031(code)}<section class="mk-panel mk-span-7"><h2>主要市場の需要ランキング</h2><p class="mk-sub">同じ推計式による相対比較</p>${Object.keys(S.world).map(k=>mkBarV025(k,k===code)).join('')}</section><section class="mk-panel mk-span-5"><h2>${esc(NAMES[code])}市場の分析メモ</h2><div class="mk-row"><span>潜在市場需要</span><strong>${nfmt(d)}台/月</strong></div><div class="mk-row"><span>直近の自社法人販売</span><strong>${mkQtyV025(selected)}</strong></div><div class="mk-row"><span>観測された自動車販売</span><strong>${obs.hasRecord?nfmt(obs.qty)+'台':'未確定'}</strong></div><div class="mk-row"><span>販売上限（契約）</span><strong>${nfmt(ctr.capacity)}台/月</strong></div><div class="mk-row"><span>現在の販路</span><strong>${esc(m)}</strong></div><div class="mk-row"><span>経済循環指数</span><strong>${nfmt(100+w.cycle*100)}</strong></div><div class="mk-callout">市場への輸出では輸送期間と販売方式による費用が発生します。契約の設定と実販売には時間差があります。</div><div class="mk-actions"><button class="btn primary" data-page="distribution">この市場の販売網を検討 →</button></div></section></div>
  <div class="mk-grid"><section class="mk-panel mk-span-7"><h2>購買層別の推計需要</h2><p class="mk-sub">ゲーム内の6購買層（確定販売台数ではありません）</p>${Object.entries(MARKET_SEGMENTS).map(([k,v])=>`<div class="mk-bar"><b>${esc(v.label)}</b><span class="mk-bar-line"><span style="width:${Math.min(100,segments[k]/Math.max(1,d)*100*2.4)}%"></span></span><em>${nfmt(segments[k])}台</em></div>`).join('')}<div class="mk-note">購入価格感応度や各車種の適合性は販売配分に反映されます。</div></section><section class="mk-panel mk-span-5"><h2>参入時の確認事項</h2><div class="mk-row"><span>国内／海外</span><strong>${code===current().country?'国内市場':'海外輸出先'}</strong></div><div class="mk-row"><span>販売契約の方式</span><strong>${esc(m)}</strong></div><div class="mk-row"><span>契約先法人</span><strong>${ctr.dealerId?esc(company(ctr.dealerId)?.name||'契約先不明'):'直接販売'}</strong></div><div class="mk-row"><span>広告・販売店投資</span><strong>${nfmt(current().brand?.[code]||0)} / ${nfmt(current().dealers?.[code]||0)}</strong></div><div class="mk-actions"><button class="btn" data-page="marketOwn">自社販売実績 →</button><button class="btn" data-page="market">マクロ詳細 →</button></div></section></div>
  <section class="mk-panel"><h2>地域の比較表</h2><div class="mk-table-wrap"><table class="mk-table"><thead><tr><th>市場</th><th class="mk-number">推計需要</th><th class="mk-number">自社グループ</th><th class="mk-number">観測販売</th><th class="mk-number">観測内構成比</th><th>販路</th><th>操作</th></tr></thead><tbody>${mkRegionRowsV025()}</tbody></table></div><p class="mk-note">観測販売数には記録済みの自動車企業のみを含みます。製品別実績と販路は実ゲームデータです。</p></section></div>`;}
 function mkCompetitorPoolV025(){const q=MK_V025.query.toLocaleLowerCase();let fs=S.firms.filter(x=>x.lifecycle?.phase!=='withdrawn'&&x.reorgStatus!=='integrated');if(q)fs=fs.filter(x=>x.name.toLocaleLowerCase().includes(q)||String(NAMES[x.country]||'').includes(q));if(MK_V025.country!=='all')fs=fs.filter(x=>x.country===MK_V025.country);if(MK_V025.industry!=='all')fs=fs.filter(x=>x.industry===MK_V025.industry);return fs.sort((a,b)=>MK_V025.sort==='sales'?(mkFirmSalesV025(b)||0)-(mkFirmSalesV025(a)||0):MK_V025.sort==='models'?(b.models?.filter(m=>m.status==='active').length||0)-(a.models?.filter(m=>m.status==='active').length||0):a.name.localeCompare(b.name,'ja'));}
