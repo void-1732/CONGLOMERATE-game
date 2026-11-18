@@ -3,9 +3,11 @@ on:
   push:
     branches:
       - dev/v036-contract-supply
+      - dev/autonomous-step-01-resource-trade
   pull_request:
     branches:
       - dev/v035-startup-supply-balance
+      - dev/v036-contract-supply
       - main
 
 jobs:
@@ -25,6 +27,15 @@ jobs:
           python -m playwright install --with-deps chromium
       - name: v0.36 Contracts, physical supply and accounting
         run: python tests/test_v036_contract_supply.py
+      - name: STEP 1 Resource transactions and inventory
+        if: ${{ hashFiles('tests/test_step01_resource_trade.py') != '' }}
+        run: python tests/test_step01_resource_trade.py
+      - name: STEP 1 Long-running resource ledgers and previous saves
+        if: ${{ hashFiles('tests/test_step01_resource_endurance.py') != '' }}
+        run: |
+          python tests/test_step01_resource_endurance.py
+          python tests/test_v029_ai_investment.py
+          python tests/test_v0271_smoke.py
       - name: v0.35 Startup supply
         run: python tests/test_v035_startup_supply.py
       - name: v0.34 Forecast and order point regression
