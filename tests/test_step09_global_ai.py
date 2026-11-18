@@ -150,6 +150,67 @@ def logistics_physical_transfer(page):
     assert not result['errors'], result
 
 
+
+def group_network_allocation(page):
+    result = page.evaluate("""()=>{
+        S=newGame({era:1900,country:'JP',difficulty:'normal',history:'historical',name:'グループ全体調達の検証'});
+        VIEW_FIRM=S.playerId;
+        const buyer=current(),sourceAmounts=[6,9],suppliers=[];
+        for(const [index,qty] of sourceAmounts.entries()){
+            const firm=initFirm(S,{name:'グループ試験鉱山'+index,country:'JP',
+                industry:'resource',seedBase:3000000});
+            firm.owners=[{id:buyer.id,econ:1,vote:1}];
+            firm.shareBlocks=[];
+            ensureRawV032(firm);
+            const bin=rawBinV032(firm,'steel'),value=qty*1000;
+            post(firm,{goods:value},{cash:value},'確認済み実在庫','operating',S);
+            bin.q=qty;bin.v=value;
+            suppliers.push(firm);
+        }
+        buyer.globalSupplyPolicyV045={mode:'group',regions:{},
+            logistics:{mode:'manual',regions:{}}};
+        for(const model of buyer.models.filter(m=>m.status==='active')){
+            buyer.plans[model.id]=Math.max(1000,buyer.plans[model.id]||0);
+        }
+        buyer.supply.contracts.steel.longTermV036.enabled=false;
+        ensureSupplyNetwork(S);
+        const nodes=new Map(S.supplyNetwork.nodes.map(node=>[node.id,node]));
+        const pool=policyCandidatePoolV045(S,nodes);
+        const entries=suppliers.map(f=>({id:'CORP:'+f.id+':steel',qty:rawBinV032(f,'steel').q}));
+        const remaining=new Map(entries.map(x=>[x.id,x.qty]));
+        const request={f:buyer,type:'steel',needed:40};
+        const chosen=policySupplierV045(S,request,nodes,remaining,pool);
+        remaining.set(chosen,0);
+        const alternate=policySupplierV045(S,request,nodes,remaining,pool);
+        remaining.set(alternate,0);
+        const external=policySupplierV045(S,request,nodes,remaining,pool);
+        const overview=groupSupplyOverviewV045(S).find(x=>x.type==='steel');
+        PAGE='supply';render();
+        const before=suppliers.map(f=>rawBinV032(f,'steel').q);
+        const stockBefore=buyer.stock.steel.q;
+        const events=[];
+        procureNetwork(S,events);
+        const after=suppliers.map(f=>rawBinV032(f,'steel').q);
+        const stockAfter=buyer.stock.steel.q;
+        const saved=parsePayload(savePayload(S));
+        const groupReceipts=buyer.supply.history.filter(x=>x.type==='steel'&&x.group)
+            .reduce((n,x)=>n+x.qty,0);
+        return {entries,chosen,alternate,external,overview,before,after,stockBefore,stockAfter,
+            groupReceipts,errors:check(S),restoredErrors:check(saved),events:events.length};
+    }""")
+    ids = {x['id'] for x in result['entries']}
+    assert result['chosen'] in ids and result['alternate'] in ids, result
+    assert result['chosen'] != result['alternate'], result
+    assert result['external'].startswith('NPC:'), result
+    assert result['overview']['free'] == sum(x['qty'] for x in result['entries']), result
+    assert result['overview']['supplierCount'] == 2, result
+    assert result['groupReceipts'] > 0, result
+    assert sum(result['before']) - sum(result['after']) == result['groupReceipts'], result
+    assert result['stockAfter'] >= result['stockBefore'] + result['groupReceipts'], result
+    assert not result['errors'] and not result['restoredErrors'], result
+    assert page.get_by_role('heading', name='グループ供給網・需給バランス').is_visible()
+
+
 if __name__ == '__main__':
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(
@@ -163,6 +224,7 @@ if __name__ == '__main__':
         run_with_policy(page)
         logistics_policy_and_save(page)
         logistics_physical_transfer(page)
+        group_network_allocation(page)
         assert not errors, errors
         browser.close()
-    print('PASS STEP 9: procurement and logistics policy, physical transfer, save, finite supply and 24-month accounting')
+    print('PASS STEP 9: multi-source group allocation, procurement and logistics, physical inventory, save and 24-month accounting')
