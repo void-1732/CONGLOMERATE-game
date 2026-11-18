@@ -82,6 +82,74 @@ def run_with_policy(page):
     assert not observed['errors'], observed
 
 
+
+def logistics_policy_and_save(page):
+    result = page.evaluate("""()=>{
+        S=newGame({era:1900,country:'JP',difficulty:'normal',history:'historical',name:'物流方針検証'});
+        VIEW_FIRM=S.playerId;
+        const root=current();
+        const missing=logisticsPolicyModeV045(S,root);
+        root.globalSupplyPolicyV045={
+            mode:'manual',regions:{},logistics:{mode:'fast',regions:{JP:'resilient',US:'economy'}}
+        };
+        const chosen=logisticsPolicyModeV045(S,root);
+        const bad=structuredClone(S);
+        bad.firms.find(f=>f.id===bad.playerId).globalSupplyPolicyV045.logistics.regions.JP='invalid';
+        const saved=parsePayload(savePayload(S));
+        PAGE='supply';render();
+        return {missing,chosen,bad:check(bad),errors:check(S),
+            saved:saved.firms.find(f=>f.id===saved.playerId).globalSupplyPolicyV045.logistics};
+    }""")
+    assert result['missing'] == 'manual' and result['chosen'] == 'resilient', result
+    assert result['saved']['regions'] == {'JP': 'resilient', 'US': 'economy'}, result
+    assert result['bad'] and not result['errors'], result
+    assert page.get_by_role('heading', name='工場・倉庫の自動補充方針').is_visible()
+    page.locator('#logisticsPolicyModeV045').select_option('economy')
+    page.locator('#logisticsPolicyRegionV045_JP').select_option('fast')
+    page.get_by_role('button', name='グループ調達方針を保存').click()
+    after = page.evaluate("""()=>{
+        const f=current(),source=f.globalSupplyPolicyV045;
+        const restored=parsePayload(savePayload(S)).firms.find(x=>x.id===S.playerId).globalSupplyPolicyV045;
+        return {mode:logisticsPolicyModeV045(S,f),source,restored,errors:check(S)};
+    }""")
+    assert after['mode'] == 'fast' and after['source'] == after['restored'], after
+    assert after['source']['logistics']['mode'] == 'economy', after
+    assert not after['errors'], after
+
+
+def logistics_physical_transfer(page):
+    result = page.evaluate("""()=>{
+        S=newGame({era:1900,country:'JP',difficulty:'normal',history:'historical',name:'現物補充検証'});
+        VIEW_FIRM=S.playerId;
+        const f=current(),home=homeSite(f.country);
+        const away=SITE_CATALOG.find(site=>site.country===f.country&&site.id!==home.id);
+        if(!away)return {failed:'同国内に第二拠点がありません'};
+        const p=f.plants.find(plant=>['integrated','assembly'].includes(plant.kind));
+        if(!p)return {failed:'生産工場がありません'};
+        p.siteId=away.id;p.siteCountry=away.country;
+        const logistics=ensureWarehouseV038(f);
+        logistics.autoRefill=true;logistics.localizedRawTypes=['steel'];
+        f.globalSupplyPolicyV045={
+            mode:'manual',regions:{},logistics:{mode:'resilient',regions:{}}
+        };
+        const opening=centralRawStockV038(f,'steel').q,events=[];
+        const scoreFast=logisticsOriginScoreV045(S,f,away,{id:'warehouse',site:home},'steel','fast');
+        const scoreLocal=logisticsOriginScoreV045(S,f,away,{id:'onSite',site:away,stock:{steel:{q:50}}},'steel','fast');
+        autoRefillRawFactoriesV038(S,events);
+        const dispatched=logistics.rawShipments.filter(shipment=>shipment.to===p.id&&shipment.type==='steel');
+        const closing=centralRawStockV038(f,'steel').q;
+        const restored=parsePayload(savePayload(S));
+        return {opening,closing,scoreFast,scoreLocal,dispatched,events,errors:check(S),
+            restoredShipments:restored.firms.find(row=>row.id===f.id).inventoryLogisticsV038.rawShipments};
+    }""")
+    assert 'failed' not in result and result['scoreLocal'] < result['scoreFast'], result
+    assert result['opening'] > 0, result
+    assert result['dispatched'] and result['dispatched'][0]['quantity'] > 0, result
+    assert result['opening'] - result['closing'] == sum(x['quantity'] for x in result['dispatched']), result
+    assert len(result['dispatched']) == len(result['restoredShipments']), result
+    assert not result['errors'], result
+
+
 if __name__ == '__main__':
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(
@@ -93,6 +161,8 @@ if __name__ == '__main__':
         page.set_content(HTML.read_text(encoding='utf-8'), wait_until='domcontentloaded')
         policy_and_save(page)
         run_with_policy(page)
+        logistics_policy_and_save(page)
+        logistics_physical_transfer(page)
         assert not errors, errors
         browser.close()
-    print('PASS STEP 9: policy mode, regional override, UI, save, finite supply and 24-month ledger reconciliation')
+    print('PASS STEP 9: procurement and logistics policy, physical transfer, save, finite supply and 24-month accounting')
