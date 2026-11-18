@@ -7183,8 +7183,8 @@ function saveSupply(){let backup=null;try{
   const months=Number(inputValue('ltMonths_'+t)),quantity=Number(inputValue('ltQty_'+t));
   if(!V036_CONTRACT_MONTHS.includes(months)||!Number.isSafeInteger(quantity)||quantity<0||quantity>10000)
    throw Error('契約数量／契約期間が不正：'+SUPPLY_LABELS[t]);
-  if(enabled&&(!main.npc||!autoOrder))
-   throw Error('長期契約はNPC市場との自動発注が必要です：'+SUPPLY_LABELS[t]);
+  if(enabled&&!main.npc)
+   throw Error('長期契約はNPC市場から選択してください：'+SUPPLY_LABELS[t]);
   const previous=f.supply.contracts[t];
   const old=contractV036(f,t);
   const same=old&&old.enabled===enabled&&(!enabled||
