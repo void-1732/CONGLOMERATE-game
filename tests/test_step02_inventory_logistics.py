@@ -136,11 +136,20 @@ if __name__ == "__main__":
             const before = centralRawStockV038(f,'steel').q;
             const required = materialRequirement(f.models[0].design,f).steel;
             laborAndPlant(S,[],'auto');
+            const key=f.models[0].id;
+            const finished=inventoryLocationsV038(S,f).locations.get(id).items.get('goods:'+key);
+            const productionCost=onSite.inventoryMonthV038.manufacturingCost;
+            const stockBefore=f.goods[key].q;
+            sellGoods(S,f,key,stockBefore,f.models[0].priceBase,f.country,[]);
+            const cleared=!inventoryLocationsV038(S,f).locations.get(id).items.has('goods:'+key);
             return {produced:f._produced, remaining:plantRawStockV038(f,id,'steel').q,
                 warehouseUnchanged:centralRawStockV038(f,'steel').q === before,
-                required, errors:check(S)};
+                required, finished:finished.quantity, cost:finished.value, productionCost,
+                cleared, errors:check(S)};
         }""", migrated["second"])
         assert used["produced"] > 0 and used["warehouseUnchanged"], used
+        assert used["finished"] == used["produced"] and used["cost"] == used["productionCost"] > 0, used
+        assert used["cleared"], used
         assert abs(used["remaining"] - (5 - used["produced"] * used["required"])) <= 1e-8, used
         assert not used["errors"], used
         remote = page.evaluate("""() => {
