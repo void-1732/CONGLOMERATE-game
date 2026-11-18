@@ -230,14 +230,17 @@ with sync_playwright() as p:
         f.ledger.cash=0;nextMonthDate(trial);settlePartClaims(trial);
         return e.settlement===null&&-acc(f,'partPayable')===e.amount;
     }""", buyer)
-    page.evaluate("""([buyer,model])=>{
+    export_due = page.evaluate("""([buyer,model])=>{
         const f=company(buyer,S);
         f.plans[model]=0;
         const quantity=f.goods[model].q;
         exportShipment(S,f,model,quantity,6000,'UK',[]);
+        return f.distribution.outbound.at(-1).due;
     }""", [buyer, data["model"]])
     assert page.evaluate("consolidate(S).pl.unrealizedProfit") == margin + royalty["amount"]
-    month()
+    while page.evaluate("ym(S.year,S.month)") < export_due:
+        month()
+        assert page.evaluate("consolidate(S).pl.unrealizedProfit") == margin + royalty["amount"]
     month()
     assert page.evaluate("consolidate(S).pl.unrealizedProfit") == 0
     assert page.evaluate("S.partEconomy.tradeEvents.length") == 2
