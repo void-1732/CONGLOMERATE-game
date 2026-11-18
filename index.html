@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>CONGLOMERATE v0.32-dev.1 | 企業経営シミュレーション 開発版</title>
+<title>CONGLOMERATE v0.33-dev.1 | 企業経営シミュレーション 開発版</title>
 <style>
 :root{color-scheme:light;--bg:#f3f5f8;--paper:#fff;--ink:#182a40;--muted:#607187;--nav:#14263c;--nav2:#203a56;--line:#dce4eb;--blue:#2865a4;--blue2:#e8f2fb;--green:#16724a;--red:#ae4050;--amber:#9b680c;--radius:13px;--shadow:0 5px 18px #12253b0c;font-family:system-ui,-apple-system,"Yu Gothic","Hiragino Kaku Gothic ProN","Meiryo",sans-serif}
 *{box-sizing:border-box}body{background:var(--bg);color:var(--ink);margin:0;font-size:14px}button,input,select{font:inherit}button{cursor:pointer}a{color:var(--blue)}.shell{display:grid;grid-template-columns:242px 1fr;min-height:100vh}.side{background:var(--nav);color:#ebf4fc;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;padding:20px 13px;gap:11px}.logo{font-weight:900;letter-spacing:1px;font-size:18px;padding:7px 12px;line-height:1.27}.logo small{font-size:11px;font-weight:500;letter-spacing:0;color:#a4bfd6}.prototype{font-size:11px;color:#d7e8f8;background:#2c465f;border-radius:7px;padding:7px 10px;margin:0 10px}.nav{display:grid;gap:3px;margin-top:12px}.nav button{border:0;color:#c9d5e2;background:transparent;text-align:left;padding:10px 13px;border-radius:8px;font-weight:600}.nav button:hover{background:#ffffff18}.nav button.active{background:#dfebf8;color:#163f65}.sidemeta{margin-top:auto;padding:12px;font-size:11px;color:#a8bbcd;line-height:1.7}.main{min-width:0}.topbar{background:#fff;min-height:70px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:12px 28px;border-bottom:1px solid var(--line)}.topright{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.topbar strong{font-size:17px}.wrap{max-width:1480px;margin:auto;padding:24px 28px 40px}.eyebrow{font-size:11px;letter-spacing:.08em;color:var(--blue);font-weight:800;text-transform:uppercase}.hrow{display:flex;align-items:flex-start;justify-content:space-between;gap:15px;flex-wrap:wrap;margin-bottom:18px}h1{margin:4px 0 7px;font-size:26px;letter-spacing:-.03em}h2{font-size:18px;margin:0 0 16px}h3{font-size:15px;margin:0 0 10px}p{line-height:1.65}.muted{color:var(--muted)}.small{font-size:12px}.tiny{font-size:11px}.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:15px}.span3{grid-column:span 3}.span4{grid-column:span 4}.span5{grid-column:span 5}.span6{grid-column:span 6}.span7{grid-column:span 7}.span8{grid-column:span 8}.span9{grid-column:span 9}.span12{grid-column:span 12}.panel{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);min-width:0}.metric{font-size:25px;font-weight:850;line-height:1.35;overflow-wrap:anywhere}.submetric{margin-top:8px;font-size:12px;color:var(--muted)}.unit{font-size:13px;font-weight:500;color:var(--muted)}.label{font-size:12px;color:var(--muted);font-weight:700}.bar{height:8px;background:#e5ebf1;border-radius:10px;overflow:hidden}.bar>span{display:block;background:#337bbb;height:100%;border-radius:10px}.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.between{justify-content:space-between}.btn{border:1px solid #b6c9da;background:#fff;color:#17456e;border-radius:8px;padding:9px 14px;font-weight:750;transition:.15s}.btn:hover{background:#eff6fc}.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}.btn.primary:hover{background:#18568f}.btn.danger{color:var(--red);border-color:#e4b7bd}.btn.sm{padding:6px 10px;font-size:12px}.btn:disabled{opacity:.45;cursor:not-allowed}.field{display:grid;gap:5px;min-width:0}.field label{font-weight:650;font-size:12px;color:#42546a}.field input,.field select,.field textarea,select.topselect{border:1px solid #c6d3dd;background:#fff;color:var(--ink);border-radius:7px;padding:9px 11px;width:100%;min-width:0}.field textarea{resize:vertical}.topselect{max-width:250px;padding:7px 10px}.formgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:13px;align-items:end}.tag{display:inline-block;font-weight:750;font-size:11px;padding:3px 8px;border-radius:999px;background:var(--blue2);color:#245b8c}.tag.good{background:#e3f3eb;color:var(--green)}.tag.warn{background:#fff2d8;color:#915f09}.tag.bad{background:#fbe9ec;color:var(--red)}table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:11px 9px;text-align:left;border-bottom:1px solid #e8edf1;vertical-align:middle}th{font-size:11px;color:var(--muted);background:#f7f9fb;white-space:nowrap}td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}.scroll{overflow:auto}.note{border-left:3px solid #85b4d6;background:#f1f7fc;padding:12px 14px;color:#3b5975;font-size:12px;line-height:1.7;border-radius:0 8px 8px 0}.warnbox{border-left-color:#d3a24d;background:#fffaec}.notice{padding:11px 0;border-bottom:1px solid var(--line);line-height:1.5}.notice:last-child{border-bottom:0}.notice .date{font-size:11px;color:var(--muted);margin-right:8px}.positive{color:var(--green)}.negative{color:var(--red)}.right{text-align:right}.figure{width:100%;height:220px;display:block}.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:15px;margin-bottom:16px}.twocol{display:grid;grid-template-columns:1fr 1fr;gap:15px}.controls{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.pill{background:#f3f6f9;border-radius:40px;padding:6px 11px;font-size:12px;color:#486176}.modalwrap{position:fixed;inset:0;background:#13253be6;display:flex;align-items:center;justify-content:center;z-index:99;padding:20px;overflow:auto}.modal{background:#fff;border-radius:18px;box-shadow:0 24px 65px #05132466;width:min(800px,100%);max-height:94vh;overflow:auto;padding:27px}.modal h1{font-size:26px}.steps{display:flex;gap:6px;margin:15px 0 22px}.steps span{flex:1;height:6px;background:#e5ebf0;border-radius:5px}.steps span.on{background:var(--blue)}.choices{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.choice{padding:13px;border:1px solid var(--line);border-radius:9px;cursor:pointer;background:white;min-height:80px}.choice:has(input:checked){border:2px solid var(--blue);background:#edf6ff;padding:12px}.choice input{margin-right:6px}.choice b{display:block;font-size:14px;margin:5px 0}.footer{border-top:1px solid var(--line);margin-top:24px;padding-top:15px;display:flex;justify-content:space-between;align-items:center;gap:10px}.toast{position:fixed;bottom:22px;right:23px;z-index:130;background:#1a314b;color:#fff;border-radius:10px;padding:12px 18px;box-shadow:0 8px 30px #15293a44;max-width:min(600px,90vw);display:none}.toast.show{display:block}.savebox{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:13px 0;border-bottom:1px solid var(--line)}.savebox:last-child{border:0}.savebox .grow{flex:1;min-width:180px}#importFile{display:none}.chartdots{color:#6688ab}.statrow{display:grid;grid-template-columns:1fr 1fr;gap:9px}.statrow>div{background:#f6f8fa;border-radius:8px;padding:10px}.vlist{display:grid;gap:9px}.vitem{background:#f7f9fb;padding:12px;border:1px solid #e6edf2;border-radius:9px}.tabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px}.tabs .btn.active{background:#dcecf9;border-color:#6597c1}.hidden{display:none!important}.icon{font-size:18px}.whitehead{color:var(--ink);font-size:15px;font-weight:800}.mini{background:#eff3f7;padding:3px 7px;border-radius:5px;font-size:11px}.scenbar{display:flex;flex-wrap:wrap;gap:6px}.scenbar .mini{background:#f0f5fb;color:#375c80}.footnote{font-size:11px;color:var(--muted);margin-top:15px;line-height:1.7}.progress{height:9px;border-radius:9px;background:#e5edf3;overflow:hidden}.progress span{display:block;height:100%;background:#3e8aaa}.itemstat{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid #eaf0f3;padding:8px 0}.itemstat:last-child{border:0}.sep{height:1px;background:var(--line);margin:16px 0}.noprint{}@media(max-width:1180px){.span3{grid-column:span 6}.span4,.span5,.span6,.span7,.span8,.span9{grid-column:span 6}.kpis{grid-template-columns:repeat(2,1fr)}}@media(max-width:800px){.shell{display:block}.side{position:relative;height:auto;padding:10px}.nav{display:flex;flex-wrap:wrap;margin:0}.nav button{padding:7px 9px;font-size:12px}.sidemeta,.prototype{display:none}.logo{font-size:14px}.topbar{padding:11px 16px}.wrap{padding:17px 14px}.grid{grid-template-columns:1fr}.span3,.span4,.span5,.span6,.span7,.span8,.span9,.span12{grid-column:span 1}.twocol{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}.choices{grid-template-columns:1fr}.modal{padding:17px}h1{font-size:22px}}@media print{.side,.topbar,.noprint,.btn{display:none!important}.shell{display:block}.panel{break-inside:avoid}}
@@ -347,7 +347,7 @@
 @media(max-width:430px){.resource-v026-actions{grid-template-columns:1fr}.resource-v026-actions>div{grid-column:1}}
 </style>
 </head>
-<body><div class="shell"><aside class="side"><div class="logo">CONGLOMERATE<br><small>企業経営シミュレーション</small></div><div class="prototype">機能検証用・開発版 v0.32-dev.1</div><nav class="nav" id="nav">
+<body><div class="shell"><aside class="side"><div class="logo">CONGLOMERATE<br><small>企業経営シミュレーション</small></div><div class="prototype">機能検証用・開発版 v0.33-dev.1</div><nav class="nav" id="nav">
 <button data-section="management">▣　会社経営</button><button data-section="vehicles">◇　製品・研究</button><button data-section="operations">▤　工場・調達</button><button data-section="markets">◎　市場・販売網</button><button data-section="corporate">⌘　企業グループ</button><button data-section="finance">¥　財務・保存</button></nav>
 <div class="sidemeta">オフライン動作・外部通信なし<br>既存 SPEC-001〜094 は変更なし<br>未確定数値は試作パラメータ<br>正式な会計監査・史実検証は未実装</div></aside>
 <main class="main"><header class="topbar"><div><strong id="topCompany">未開始</strong><div class="small muted" id="topDate">開始条件を設定してください</div></div><div class="topright"><select class="topselect" id="companySelect" aria-label="表示会社"></select><select class="topselect" id="regionSelect" aria-label="表示国"></select><button class="btn primary" id="nextMonthBtn" data-action="previewMonth">月末処理 ▸</button></div></header><div class="wrap" id="content"></div></main></div>
@@ -1414,8 +1414,106 @@ function rawSplitV032(f,quantity){
  for(const x of [...entries].sort((a,b)=>(b.raw-b.q)-(a.raw-a.q)||a.t.localeCompare(b.t))){if(extra<=0)break;x.q++;extra--}
  return Object.fromEntries(entries.map(x=>[x.t,x.q]));
 }
+/* v0.33 STEP 2: Exogenous producers are finite businesses with physical
+   inventories and monthly output journals, not magic supplier capacity. */
+const NPC_TYPES_V033=SUPPLY_TYPES;
+const npcIdV033=(country,type)=>'NPC:'+country+':'+type;
+function ensureNpcV033(s){
+ s.npcSupplyV033??={markets:{},history:[],lastProduction:null};
+ for(const country of Object.keys(s.world)){
+  const region=s.npcSupplyV033.markets[country]??={};
+  for(const type of NPC_TYPES_V033){
+   region[type]??={capacity:0,stock:0,priceIndex:1,producedTotal:0,dispatchedTotal:0,
+    monthProduced:null,lastProduced:0,lastRequested:0,lastShipped:0,shortageStreak:0,construction:[]};
+  }
+ }
+ return s.npcSupplyV033;
+}
+function npcMarketV033(s,country,type){
+ return ensureNpcV033(s).markets[country]?.[type]??null;
+}
+function npcDemandV033(s,country,type){
+ let demand=0;
+ for(const f of s.firms){
+  if(f.country!==country||!['auto','manufacturing'].includes(f.industry)||f.lifecycle?.phase==='withdrawn'||f.reorgStatus==='integrated')continue;
+  demand+=Math.max(0,Math.ceil(factoryResourceTargetV026(f,type,s).demand));
+ }
+ return demand;
+}
+function npcTotalSupplyV033(s,country,type){
+ let extra=0;
+ for(const f of s.firms){
+  if(f.country!==country||f.industry!=='resource'||f.lifecycle?.phase==='withdrawn'||f.reorgStatus==='integrated')continue;
+  ensureRawV032(f);
+  const shares=rawSplitV032(f,Math.max(0,Math.floor(f.plant.capacity*f.plant.condition/100*Math.min(1,f.staff.production/40))));
+  extra+=Math.max(0,shares[type]||0);
+ }
+ return extra;
+}
+function produceNpcV033(s,events=[]){
+ const npc=ensureNpcV033(s),month=ym(s.year,s.month);
+ if(npc.lastProduction===month)return;
+ for(const [country,types] of Object.entries(npc.markets)){
+  for(const [type,market] of Object.entries(types)){
+   const demand=npcDemandV033(s,country,type),target=Math.max(12,Math.ceil(demand*1.18)-npcTotalSupplyV033(s,country,type));
+   if(!market.capacity)market.capacity=target;
+   if(!Array.isArray(market.construction))market.construction=[];
+   const completed=market.construction.filter(x=>x.due<=month);
+   if(completed.length){market.capacity+=completed.reduce((n,x)=>n+x.units,0);events.push('NPC原材料市場：'+NAMES[country]+' '+SUPPLY_LABELS[type]+'供給設備が増強');}
+   market.construction=market.construction.filter(x=>x.due>month);
+   const toMake=Math.max(0,Math.min(market.capacity,Math.ceil(market.capacity*1.25)-market.stock));
+   market.stock+=toMake;market.producedTotal+=toMake;market.lastProduced=toMake;market.monthProduced=month;
+   market.lastRequested=0;market.lastShipped=0;market.lastDemand=demand;
+   market.monthOpeningStock=market.stock-toMake;
+  }
+ }
+ npc.lastProduction=month;
+}
+function fairAllocationV033(rows,capacity){
+ // Proportional, deterministic integer allocation; stable IDs break equal remainders.
+ const ordered=[...rows].filter(x=>x.need>0).sort((a,b)=>a.id.localeCompare(b.id));
+ const total=ordered.reduce((n,x)=>n+x.need,0),take=Math.min(Math.max(0,Math.floor(capacity)),total);
+ if(!total||!take)return {};
+ const base=ordered.map(x=>({id:x.id,raw:x.need*take/total,quota:Math.floor(x.need*take/total)}));
+ let rest=take-base.reduce((n,x)=>n+x.quota,0);
+ for(const x of [...base].sort((a,b)=>(b.raw-b.quota)-(a.raw-a.quota)||a.id.localeCompare(b.id))){
+  if(rest--<=0)break;x.quota++;
+ }
+ return Object.fromEntries(base.map(x=>[x.id,x.quota]));
+}
+function settleNpcMarketV033(s){
+ const npc=ensureNpcV033(s),month=ym(s.year,s.month);
+ if(npc.lastSettled===month)return;
+ for(const [country,types] of Object.entries(npc.markets)){
+  for(const [type,m] of Object.entries(types)){
+   const shortage=m.lastRequested>0?Math.max(0,m.lastRequested-m.lastShipped)/m.lastRequested:0;
+   const tight=m.lastRequested/Math.max(1,m.capacity);
+   const change=clamp((tight-.85)*.045+shortage*.045,-.035,.06);
+   m.priceIndex=Math.round(clamp(m.priceIndex*(1+change),.65,2.5)*10000)/10000;
+   m.shortageStreak=shortage>.12?m.shortageStreak+1:Math.max(0,m.shortageStreak-1);
+   if(m.shortageStreak>=3&&!m.construction.length){
+    const gap=Math.max(0,m.lastDemand*1.18-m.capacity),units=Math.max(6,Math.round(Math.max(gap,m.capacity*.25)));
+    m.construction.push({units,due:month+4});m.shortageStreak=0;
+   }
+   npc.history.push({month,country,type,stock:m.stock,capacity:m.capacity,produced:m.lastProduced,
+    shipped:m.lastShipped,requested:m.lastRequested,priceIndex:m.priceIndex});
+  }
+ }
+ npc.history=npc.history.slice(-840);npc.lastSettled=month;
+}
+function validateNpcV033(s){
+ const errs=[],npc=s.npcSupplyV033;if(!npc)return errs;
+ for(const [country,types] of Object.entries(npc.markets||{}))for(const [type,m] of Object.entries(types)){
+  if(!s.world[country]||!NPC_TYPES_V033.includes(type)||!Number.isSafeInteger(m.stock)||m.stock<0||
+     !Number.isSafeInteger(m.capacity)||m.capacity<0||!Number.isSafeInteger(m.producedTotal)||
+     !Number.isSafeInteger(m.dispatchedTotal)||m.stock+m.dispatchedTotal!==m.producedTotal)
+   errs.push('NPC市場の物量不一致 '+country+' '+type);
+  if(!(m.priceIndex>0&&Number.isFinite(m.priceIndex)))errs.push('NPC市場価格不正 '+country+' '+type);
+ }
+ return errs;
+}
 function ensureSupplyNetwork(s){
- s.supplyNetwork??={nodes:[]};const old=s.supplyNetwork.nodes||[];const legacy=old.filter(n=>!n.firmId);
+ s.supplyNetwork??={nodes:[]};const old=s.supplyNetwork.nodes||[];const legacy=old.filter(n=>!n.firmId&&!n.npc);
  const firms=s.firms.filter(f=>f.reorgStatus!=='integrated'&&f.lifecycle?.phase!=='withdrawn');
  for(const firm of firms)ensureRawV032(firm);
  const corporate=firms.flatMap(f=>{
@@ -1424,20 +1522,24 @@ function ensureSupplyNetwork(s){
    upstream:t==='components'?['steel','rubber','copper'].map(k=>'CORP:'+f.id+':'+k):[],
    label:f.name,capacity:f.industry==='resource'?rawBinV032(f,t).q:Math.max(0,Math.floor(f.stock?.components?.q||0)),quality:Math.round(55+(f.tech||1)*5)}));
  });
- // Use real firms as contract counterparties; legacy synthetic nodes stay only for saved shipments.
- s.supplyNetwork.nodes=[...corporate,...legacy];
+ // Real producers and finite non-player market nodes; old synthetic nodes are kept only for old pending deliveries.
+ const npc=ensureNpcV033(s),marketNodes=Object.entries(npc.markets).flatMap(([country,types])=>Object.entries(types).map(([type,m])=>({
+  id:npcIdV033(country,type),npc:true,country,type,firmId:null,tier:type==='components'?1:3,
+  label:'世界市場・'+NAMES[country],capacity:m.stock,quality:65
+ })));
+ s.supplyNetwork.nodes=[...corporate,...marketNodes,...legacy];
  for(const f of s.firms){if(!f.supply?.contracts)continue;
   for(const t of SUPPLY_TYPES){const contract=f.supply.contracts[t];if(!contract)continue;
-   const target=s.supplyNetwork.nodes.find(n=>n.id===contract.supplierId&&n.firmId&&n.firmId!==f.id);
+   const target=s.supplyNetwork.nodes.find(n=>n.id===contract.supplierId&&n.type===t&&((n.firmId&&n.firmId!==f.id)||n.npc));
    if(!target){const prev=s.supplyNetwork.nodes.find(n=>n.id===contract.supplierId);const available=corporate.filter(n=>n.type===t&&n.firmId!==f.id);
-    const selected=available.find(n=>n.country===(prev?.country||f.country))||available[0];if(selected)contract.supplierId=selected.id;}
+    const selected=available.find(n=>n.country===(prev?.country||f.country))||available[0]||marketNodes.find(n=>n.type===t&&n.country===f.country);if(selected)contract.supplierId=selected.id;}
   }
  }
 }
 function supplierPriceBase(s,node){const w=s.world[node.country];
  const price=node.type==='steel'?w.steelPrice:node.type==='rubber'?w.rubberPrice:node.type==='components'?Math.round(w.steelPrice*.53+w.rubberPrice*.65+230):
  s.resourceMarkets?.[node.country]?.[node.type]||Math.round(w.steelPrice*({aluminum:1.75,copper:1.42,glass:.74,chemicals:.92}[node.type]||1));
- const disruption=s.supplyRisk?.active?.[node.id];return Math.max(1,Math.round(price*eraCostFactor(s.year)*(node.firmId?1+Math.min(.12,Math.max(-.06,(node.quality-70)*-.001)):1)*(1+(disruption?.pricePct||0))));
+ const disruption=s.supplyRisk?.active?.[node.id];return Math.max(1,Math.round(price*eraCostFactor(s.year)*(node.firmId?1+Math.min(.12,Math.max(-.06,(node.quality-70)*-.001)):1)*(node.npc?(npcMarketV033(s,node.country,node.type)?.priceIndex||1):1)*(1+(disruption?.pricePct||0))));
 }
 function ensureNetwork(f,s=S){
  for(const t of SUPPLY_TYPES)f.stock[t]??={q:0,v:0};
@@ -2000,7 +2102,7 @@ function reorganizationPanel(f,edit){ensureV11Firm(f);
  ${S.reorgHistory?.length?`<div class="scroll"><table><thead><tr><th>年月</th><th>取引</th><th>移管元</th><th>移管先</th><th>内容</th></tr></thead><tbody>${S.reorgHistory.slice(-7).reverse().map(r=>`<tr><td>${Math.floor(r.month/12)}年${r.month%12+1}月</td><td>${r.kind==='business-transfer'?'事業移管':'事業統合'}</td><td>${esc(company(r.source)?.name||r.source)}</td><td>${esc(company(r.target)?.name||r.target)}</td><td>${esc(r.plantName||'全事業')}（簿価処理）</td></tr>`).join('')}</tbody></table></div>`:''}</section>`;
 }
 
-function check(s=S){let errs=[];if(!s||s.schema!==VERSION)return ['保存版の互換性がありません'];if(!Array.isArray(s.firms)||!s.firms.length)return ['法人情報がありません'];const ids=new Set();for(const f of s.firms){if(ids.has(f.id))errs.push('法人ID重複 '+f.id);ids.add(f.id);const fin=financials(f);if(Math.abs(fin.bsDiff)>1)errs.push(f.name+'：貸借不一致 '+fin.bsDiff);const glSum=Object.values(f.ledger).reduce((a,b)=>a+b,0);if(glSum!==0)errs.push(f.name+'：借貸不一致');if(!Number.isSafeInteger(glSum))errs.push(f.name+'：数値異常');const stk=Object.values(f.stock||{}).reduce((a,b)=>a+(b.v||0),0);if(Math.abs(stk-acc(f,'materials'))>2)errs.push(f.name+'：材料原価台帳不一致');const goods=Object.values(f.goods||{}).reduce((a,b)=>a+(b.v||0),0);if(Math.abs(goods-acc(f,'goods'))>2)errs.push(f.name+'：製品原価台帳不一致');if(f.distribution){const transit=f.distribution.outbound.reduce((sum,x)=>sum+x.bookCost,0);if(Math.abs(transit-acc(f,'goodsTransit'))>2)errs.push(f.name+'：輸送中製品原価不一致');if(f.distribution.outbound.some(x=>x.qty<1||x.bookCost<0))errs.push(f.name+'：輸送中製品数量異常');}if(f.supply?.inbound?.some(x=>x.qty<1||x.totalBase<0))errs.push(f.name+'：輸送中材料数量異常');if(f.industry==='resource'&&f.rawOpsV032){if(f.goods.RESOURCE?.q>0)errs.push(f.name+'：資源在庫の旧新重複');for(const type of RAW_TYPES_V032){const bin=rawBinV032(f,type);if(!Number.isSafeInteger(bin.q)||bin.q<0||!Number.isSafeInteger(bin.v)||bin.v<0)errs.push(f.name+'：資材別在庫異常 '+type);}}for(const [k,it] of Object.entries(f.stock||{}))if(it.q<0||it.v<0)errs.push(f.name+'：負材料 '+k);for(const [k,it] of Object.entries(f.goods||{}))if(it.q<0||it.v<0)errs.push(f.name+'：負製品 '+k);if(!Number.isFinite(f.plant.condition)||f.plant.condition<0||f.plant.condition>100)errs.push(f.name+'：設備状態不正');if(f.plants){const ids=new Set();for(const p of f.plants){if(ids.has(p.id)||!FACTORY_KINDS[p.kind]||!Number.isSafeInteger(p.capacity)||p.capacity<1||p.condition<0||p.condition>100)errs.push(f.name+'：工場情報不正 '+p.id);ids.add(p.id)}if(f.plant.capacity!==activeFactories(f).reduce((a,p)=>a+p.capacity,0))errs.push(f.name+'：工場能力台帳不一致');if(f.plants.some(p=>!findSite(p.siteId)))errs.push(f.name+'：工場立地が不正')}if(f.research&&!RND_DOMAINS[f.research.topic])errs.push(f.name+'：研究テーマ不正');let sum=0;for(const o of f.owners){sum+=o.econ;if(o.econ<0||o.vote<0||o.vote>1)errs.push(f.name+'：持分比率不正');if(o.id!== 'PUBLIC'&&!company(o.id,s))errs.push(f.name+'：株主参照不正');}if(Math.abs(sum-1)>0.000001)errs.push(f.name+'：持分合計不正');if(f.shareBlocks){const pool=f.owners.find(o=>o.id==='PUBLIC')?.econ||0;const out=f.shareBlocks.reduce((a,x)=>a+x.holding,0);if(Math.abs(pool-out)>0.000002||f.shareBlocks.some(x=>x.holding<-.000001))errs.push(f.name+'：外部株主台帳不一致');}if(f.sharesOutstanding!==undefined&&(!Number.isSafeInteger(f.sharesOutstanding)||f.sharesOutstanding<1))errs.push(f.name+'：発行済株式数不正');if(!Number.isSafeInteger(f.treasuryShares||0)||(f.treasuryShares||0)<0||(f.treasuryShares||0)>=f.sharesOutstanding)errs.push(f.name+'：自己株式数不正');if(!Number.isSafeInteger(f.treasuryCostLocal||0)||(f.treasuryCostLocal||0)<0||Math.abs((f.treasuryCostLocal||0)-acc(f,'treasuryStock'))>1)errs.push(f.name+'：自己株式の取得原価台帳不一致');const votes=f.owners.reduce((a,o)=>a+(o.vote||0),0);if(Math.abs(votes-1)>.000002)errs.push(f.name+'：議決権合計不正');}for(const f of s.firms){ensureV11Firm(f);const qty=Object.values(f.interplant.siteComponents).reduce((a,b)=>a+b,0);if(qty>(f.stock.components?.q||0)||qty<0)errs.push(f.name+'：工場専用部品台帳不一致');const cash=f.interplant.shipments.reduce((a,t)=>a+t.bookCost,0)+(f.factoryOps?.shipments||[]).reduce((a,t)=>a+t.bookCost,0);if(Math.abs(cash-acc(f,'materialsTransit'))>2)errs.push(f.name+'：工場輸送中在庫の簿価不一致');if(f.interplant.shipments.some(t=>!Number.isSafeInteger(t.qty)||t.qty<1||!f.plants.some(p=>p.id===t.to)))errs.push(f.name+'：工場間輸送が不正');validateFactoryV21(f,errs,s);}errs.push(...validatePartEconomyV27(s));errs.push(...validateMarketV031(s));return errs}
+function check(s=S){let errs=[];if(!s||s.schema!==VERSION)return ['保存版の互換性がありません'];if(!Array.isArray(s.firms)||!s.firms.length)return ['法人情報がありません'];const ids=new Set();for(const f of s.firms){if(ids.has(f.id))errs.push('法人ID重複 '+f.id);ids.add(f.id);const fin=financials(f);if(Math.abs(fin.bsDiff)>1)errs.push(f.name+'：貸借不一致 '+fin.bsDiff);const glSum=Object.values(f.ledger).reduce((a,b)=>a+b,0);if(glSum!==0)errs.push(f.name+'：借貸不一致');if(!Number.isSafeInteger(glSum))errs.push(f.name+'：数値異常');const stk=Object.values(f.stock||{}).reduce((a,b)=>a+(b.v||0),0);if(Math.abs(stk-acc(f,'materials'))>2)errs.push(f.name+'：材料原価台帳不一致');const goods=Object.values(f.goods||{}).reduce((a,b)=>a+(b.v||0),0);if(Math.abs(goods-acc(f,'goods'))>2)errs.push(f.name+'：製品原価台帳不一致');if(f.distribution){const transit=f.distribution.outbound.reduce((sum,x)=>sum+x.bookCost,0);if(Math.abs(transit-acc(f,'goodsTransit'))>2)errs.push(f.name+'：輸送中製品原価不一致');if(f.distribution.outbound.some(x=>x.qty<1||x.bookCost<0))errs.push(f.name+'：輸送中製品数量異常');}if(f.supply?.inbound?.some(x=>x.qty<1||x.totalBase<0))errs.push(f.name+'：輸送中材料数量異常');if(f.industry==='resource'&&f.rawOpsV032){if(f.goods.RESOURCE?.q>0)errs.push(f.name+'：資源在庫の旧新重複');for(const type of RAW_TYPES_V032){const bin=rawBinV032(f,type);if(!Number.isSafeInteger(bin.q)||bin.q<0||!Number.isSafeInteger(bin.v)||bin.v<0)errs.push(f.name+'：資材別在庫異常 '+type);}}for(const [k,it] of Object.entries(f.stock||{}))if(it.q<0||it.v<0)errs.push(f.name+'：負材料 '+k);for(const [k,it] of Object.entries(f.goods||{}))if(it.q<0||it.v<0)errs.push(f.name+'：負製品 '+k);if(!Number.isFinite(f.plant.condition)||f.plant.condition<0||f.plant.condition>100)errs.push(f.name+'：設備状態不正');if(f.plants){const ids=new Set();for(const p of f.plants){if(ids.has(p.id)||!FACTORY_KINDS[p.kind]||!Number.isSafeInteger(p.capacity)||p.capacity<1||p.condition<0||p.condition>100)errs.push(f.name+'：工場情報不正 '+p.id);ids.add(p.id)}if(f.plant.capacity!==activeFactories(f).reduce((a,p)=>a+p.capacity,0))errs.push(f.name+'：工場能力台帳不一致');if(f.plants.some(p=>!findSite(p.siteId)))errs.push(f.name+'：工場立地が不正')}if(f.research&&!RND_DOMAINS[f.research.topic])errs.push(f.name+'：研究テーマ不正');let sum=0;for(const o of f.owners){sum+=o.econ;if(o.econ<0||o.vote<0||o.vote>1)errs.push(f.name+'：持分比率不正');if(o.id!== 'PUBLIC'&&!company(o.id,s))errs.push(f.name+'：株主参照不正');}if(Math.abs(sum-1)>0.000001)errs.push(f.name+'：持分合計不正');if(f.shareBlocks){const pool=f.owners.find(o=>o.id==='PUBLIC')?.econ||0;const out=f.shareBlocks.reduce((a,x)=>a+x.holding,0);if(Math.abs(pool-out)>0.000002||f.shareBlocks.some(x=>x.holding<-.000001))errs.push(f.name+'：外部株主台帳不一致');}if(f.sharesOutstanding!==undefined&&(!Number.isSafeInteger(f.sharesOutstanding)||f.sharesOutstanding<1))errs.push(f.name+'：発行済株式数不正');if(!Number.isSafeInteger(f.treasuryShares||0)||(f.treasuryShares||0)<0||(f.treasuryShares||0)>=f.sharesOutstanding)errs.push(f.name+'：自己株式数不正');if(!Number.isSafeInteger(f.treasuryCostLocal||0)||(f.treasuryCostLocal||0)<0||Math.abs((f.treasuryCostLocal||0)-acc(f,'treasuryStock'))>1)errs.push(f.name+'：自己株式の取得原価台帳不一致');const votes=f.owners.reduce((a,o)=>a+(o.vote||0),0);if(Math.abs(votes-1)>.000002)errs.push(f.name+'：議決権合計不正');}for(const f of s.firms){ensureV11Firm(f);const qty=Object.values(f.interplant.siteComponents).reduce((a,b)=>a+b,0);if(qty>(f.stock.components?.q||0)||qty<0)errs.push(f.name+'：工場専用部品台帳不一致');const cash=f.interplant.shipments.reduce((a,t)=>a+t.bookCost,0)+(f.factoryOps?.shipments||[]).reduce((a,t)=>a+t.bookCost,0);if(Math.abs(cash-acc(f,'materialsTransit'))>2)errs.push(f.name+'：工場輸送中在庫の簿価不一致');if(f.interplant.shipments.some(t=>!Number.isSafeInteger(t.qty)||t.qty<1||!f.plants.some(p=>p.id===t.to)))errs.push(f.name+'：工場間輸送が不正');validateFactoryV21(f,errs,s);}errs.push(...validatePartEconomyV27(s));errs.push(...validateMarketV031(s));errs.push(...validateNpcV033(s));return errs}
 function isPastOrDue(entry,s=S){return entry.due<=ym(s.year,s.month)}
 function payUpTo(f,debitAcc,amount,desc,kind='operating',s=S){amount=Math.max(0,Math.round(amount));const paid=Math.min(amount,Math.max(0,acc(f,'cash')));const rest=amount-paid;const credit={};if(paid)credit.cash=paid;if(rest)credit[debitAcc==='wip'?'wagesDue':'payable']=rest;post(f,{[debitAcc]:amount},credit,desc,kind,s);return {paid,rest}}
 function spendExpense(f,acct,amount,desc,kind='operating',s=S){amount=Math.round(Math.max(0,amount));if(!amount)return;const paid=Math.min(amount,Math.max(0,acc(f,'cash')));const cr={};if(paid)cr.cash=paid;if(amount-paid)cr.payable=amount-paid;post(f,{[acct]:amount},cr,desc,kind,s);if(amount-paid){f.payables.push({amount:amount-paid,due:ym(s.year,s.month)+1,account:'payable',note:desc});f.distress.stage=Math.max(f.distress.stage,1)}}
@@ -2346,7 +2448,9 @@ async function runMonth(){
   step('AI_PREPARE',()=>{for(const f of trial.firms){ensureFirmGameplay(f);f.marketThisMonth={};f._profitStart=financials(f).profit;rivalMonthlyStrategy(trial,f,events);planAI(f,trial);autoOperations(trial,f)}});
   step('PEOPLE',()=>processHumanResources(trial,events));
   step('RESOURCE_PRODUCTION',()=>laborAndPlant(trial,events,'resource'));
+  step('NPC_PRODUCTION',()=>produceNpcV033(trial,events));
    step('PROCUREMENT',()=>{for(const f of trial.firms){ensureNetwork(f,trial);f.supply.monthFlow=Object.fromEntries(SUPPLY_TYPES.map(t=>[t,{month:ym(trial.year,trial.month),start:f.stock[t]?.q||0}]));}procureNetwork(trial,events)});
+  step('NPC_SETTLEMENT',()=>settleNpcMarketV033(trial));
   step('LEGACY_RECEIPTS',()=>deliverInterplant(trial,events));
   step('MODULE_RECEIPTS',()=>deliverModulesV21(trial,events));
   step('BOM_RECEIPTS',()=>{dispatchExternalPartOrders(trial);receiveBomParts(trial);acceptPartOrders(trial)});
