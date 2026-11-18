@@ -309,6 +309,47 @@ def test_external_supply(page):
     assert returned == {"q": 2, "v": 1400, "transit": 0, "buyerQty": 10, "errors": []}, returned
 
 
+def test_competitor_investment(page):
+    result = page.evaluate("""() => {
+        S = newGame({era:1900, country:'JP', difficulty:'normal',
+            history:'historical', name:'競合の資源設備投資'});
+        const depleted = initFirm(S,{name:'埋蔵量の少ない鉱山',country:'JP',
+            industry:'resource',seedBase:4000000});
+        depleted.reserveUnits = 6;
+        ensureRawV032(depleted);
+        depleted.rawOpsV032.lastProduction = {byType:{steel:4},unitCosts:{steel:10}};
+        const cashBefore = acc(depleted,'cash'),rightsBefore = acc(depleted,'resourceRights');
+        rivalMonthlyStrategy(S,depleted,[]);
+        const project = depleted.rawOpsV032.developments[0];
+        const funded = cashBefore-acc(depleted,'cash') === project.cost &&
+            acc(depleted,'resourceRights')-rightsBefore === project.cost &&
+            depleted.reserveUnits === 6;
+        rivalMonthlyStrategy(S,depleted,[]);
+
+        const expanding = initFirm(S,{name:'人員が充足している鉱山',country:'JP',
+            industry:'resource',seedBase:8000000});
+        ensureRawV032(expanding);
+        expanding.staff.production = 100;
+        expanding.monthly.units = 45;
+        expanding.monthly.profit = 100000;
+        expanding.rawOpsV032.lastProduction = {
+            byType:Object.fromEntries(RAW_TYPES_V032.map(t => [t,7])),
+            unitCosts:Object.fromEntries(RAW_TYPES_V032.map(t => [t,100]))
+        };
+        const before = acc(expanding,'ppe');
+        rivalMonthlyStrategy(S,expanding,[]);
+        const plant = expanding.plants.find(p => p.construction);
+        return {project:project.type, funded,
+            projects:depleted.rawOpsV032.developments.length,
+            newCapacity:plant?.capacity, activeCapacity:expanding.plant.capacity,
+            invested:acc(expanding,'ppe')>before, errors:check(S)};
+    }""")
+    assert result == {
+        "project": "steel", "funded": True, "projects": 1, "newCapacity": 25,
+        "activeCapacity": 45, "invested": True, "errors": [],
+    }, result
+
+
 if __name__ == "__main__":
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(
@@ -327,6 +368,7 @@ if __name__ == "__main__":
         test_resource_production(page)
         test_resource_investment(page)
         test_external_supply(page)
+        test_competitor_investment(page)
         assert not errors, errors
         browser.close()
     print("PASS STEP 1: physical delivery, resource production, accounting, saves and offline UI")
