@@ -63,6 +63,26 @@ def run():
         assert metrics["forecastMonths"]==6 and metrics["arrivals"][2]==5 and metrics["arrivals"][3]==7,metrics
         assert metrics["conserved"] and not metrics["errors"],metrics
 
+        launch=page.evaluate("""() => {
+            const f=company(S.playerId,S),parent=f.models.find(m=>m.status==='active');
+            if(!parent)throw Error('発売済み車種がありません');
+            const type='steel',base=factoryResourceTargetV026(f,type,S).demand;
+            const oldSafety=f.supply.contracts[type].safetyMonths;
+            f.supply.contracts[type].safetyMonths=1;
+            const without=factoryResourceTargetV026(f,type,S).target;
+            f.projects.push({kind:'grade',gradeParent:parent.id,design:parent.design,
+                name:'次期グレード',status:'developing',left:2});
+            const first=supplyExpectedDemandV034(f,type,S,1,base);
+            const second=supplyExpectedDemandV034(f,type,S,2,base);
+            const scheduled=factoryResourceTargetV026(f,type,S).target;
+            const notice=supplyFutureEventsV034(f,S).some(x=>x.description.includes('次期グレード'));
+            f.projects.pop();
+            f.supply.contracts[type].safetyMonths=oldSafety;
+            return {first,second,base,without,scheduled,notice,errors:check(S)};
+        }""")
+        assert launch["first"]==launch["base"] and launch["second"]>launch["base"],launch
+        assert launch["scheduled"]>launch["without"] and launch["notice"] and not launch["errors"],launch
+
         # All seven material policies are saved by the actual UI, not only helpers.
         settings=page.evaluate("""() => {
             PAGE='supply';VIEW_FIRM=S.playerId;render();
