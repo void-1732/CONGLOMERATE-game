@@ -76,9 +76,6 @@ with sync_playwright() as p:
             f.staff.designEngineers=12;
             f.staff.production=100;
             f.auto=false;
-            // The modern delegation policy is independent of the legacy f.auto
-            // switch; disable it so the test's zero vehicle plans stay fixed.
-            f.delegate.mode='manual';
             for(const model of f.models)f.plans[model.id]=0;
             for(const family of families){
                 submitPartProject(S,f,{family,name:PART_FAMILIES[family].label,values:{...PART_FAMILIES[family].defaults},
@@ -191,6 +188,16 @@ with sync_playwright() as p:
             approvedAt:ym(S.year,S.month),useLicenses:{engine:licenseId}};
         f.partOperations.designBoms=[bom];
         f.partOperations.approvedModels=[{modelId:data.model,plantId:data.destination,bomId:bom.id}];
+        // Changing a model to detailed BOM production requires its old-style
+        // finished goods to be cleared first. Increased raw-material supply
+        // can make previous legacy production accumulate on this fixture.
+        const legacy=f.goods[data.model]||{q:0,v:0};
+        if(legacy.q||legacy.v){
+            const carryingValue=legacy.v;
+            legacy.q=0;legacy.v=0;
+            if(carryingValue)post(f,{otherExpense:carryingValue},{goods:carryingValue},
+                'BOM方式切替前の旧車在庫処分（検証用）','operating',S);
+        }
         f.models[0].componentMode='detailed';
         f.plans[data.model]=5;
         sellMonthly=()=>{};
