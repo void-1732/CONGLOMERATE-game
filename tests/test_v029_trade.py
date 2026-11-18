@@ -128,6 +128,12 @@ with sync_playwright() as p:
     assert page.evaluate("check(S).length") == 0
     ordered = order(5)
     assert page.evaluate("S.partEconomy.orders.at(-1).state==='ORDERED'")
+    assert page.evaluate("""() => {
+        const order = S.partEconomy.orders.at(-1), seller = company(order.seller,S);
+        const view = inventoryLocationsV038(S,seller).locations.get(order.from);
+        const reserved = view.items.get('componentStock:'+order.specKey+':reserved');
+        return reserved.quantity === order.quantity && reserved.value === order.bookCost;
+    }""")
     page.locator("#partOrderQty").fill("999")
     action("partOrderPlace")
     assert page.evaluate("S.partEconomy.orders.length") == 2
@@ -208,6 +214,12 @@ with sync_playwright() as p:
     assert royalty["quantity"] == batch["initialQty"] == 5
     assert royalty["amount"] == 5 * 12000 and royalty["batchId"] == batch["batchId"]
     assert batch["initialCost"] >= royalty["amount"] + sum(x["cost"] for x in batch["inputs"])
+    assert page.evaluate("""({buyer,batch}) => {
+        const f = company(buyer,S), view = inventoryLocationsV038(S,f);
+        const item = view.locations.get(batch.plantId).items.get('goods:'+batch.modelId);
+        return item.quantity === batch.quantity && item.value === batch.cost &&
+            !view.warehouse.items.has('goods:'+batch.modelId);
+    }""", {"buyer": buyer, "batch": batch})
     assert page.evaluate("S.partEconomy.tradeEvents[0].settlement.settlementId").endswith("-PAY")
     assert page.evaluate("consolidate(S).cf.internalCashLegs") >= 1
     assert page.evaluate("consolidate(S).pl.unrealizedProfit") == margin + royalty["amount"]
