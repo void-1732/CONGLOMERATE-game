@@ -26,9 +26,9 @@ with sync_playwright() as p:
     page.set_content(HTML,wait_until="domcontentloaded")
     scenarios=[]
     for difficulty,era,country,months in [
-        ("easy",1900,"JP",24),
-        ("normal",1960,"US",24),
-        ("hard",2010,"DE",24)]:
+        ("easy",1900,"JP",36),
+        ("normal",1960,"US",36),
+        ("hard",2010,"DE",36)]:
         start=page.evaluate("""({difficulty,era,country})=>{
             saveAuto=async()=>true;
             S=newGame({era,country,difficulty,history:'historical',name:'STEP4 難易度と創業'});
@@ -88,7 +88,7 @@ with sync_playwright() as p:
         output=0
         planned=0
         months_with_raw_shortage=0
-        for i in range(24):
+        for i in range(36):
             result=page.evaluate("""async()=>{
                 const f=company(S.playerId,S),plan=Object.values(f.plans).reduce((a,x)=>a+x,0);
                 const old=S.monthCommitted;
@@ -129,6 +129,6 @@ with sync_playwright() as p:
     }""",old["save"])
     assert loaded["ok"] and loaded["stock"]==old["stock"] and loaded["cash"]==old["cash"] and not loaded["errors"],loaded
     assert not errors,errors
-    print("PASS v0.35: difficulty starts, finite new firms, NPC disruptions, 72 months, legacy saves")
+    print("PASS v0.35: difficulty starts, finite new firms, NPC disruptions, 108 months, legacy saves")
     print("V035_BALANCE",json.dumps(scenarios,ensure_ascii=False))
     browser.close()
