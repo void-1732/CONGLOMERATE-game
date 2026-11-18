@@ -262,6 +262,7 @@ if __name__ == "__main__":
         check_wallets(page)
         check_foreign_invoices(page)
         check_forwards(page)
+        page.evaluate("() => { PAGE='finance'; render(); }")
         page.set_viewport_size({"width": 390, "height": 844})
         assert page.get_by_role("heading", name="通貨別の現金・両替").is_visible()
         assert page.get_by_role("button", name="為替予約を締結").is_visible()
