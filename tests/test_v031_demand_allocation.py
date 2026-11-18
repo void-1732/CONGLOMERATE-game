@@ -63,6 +63,24 @@ def run():
             assert item["a"] + item["b"] + item["out"]["unmet"] == demand, item
             assert min(item["stocks"]) >= 0, item
 
+        # Confirm that the production scoring function responds to price and
+        # retail reach; v0.31 must reuse these signals for substitutions.
+        price_and_channel = page.evaluate("""() => {
+            const f=company(S.playerId,S),m=f.models[0];
+            const code=f.country,segment='mass',price=m.priceBase;
+            const base=segmentCompatibility(f,m,segment,S,code);
+            m.priceBase=price*1.5;
+            const expensive=segmentCompatibility(f,m,segment,S,code);
+            m.priceBase=price;
+            const oldDealers=f.dealers[code];
+            f.dealers[code]=Math.min(100,oldDealers+35);
+            const expanded=segmentCompatibility(f,m,segment,S,code);
+            f.dealers[code]=oldDealers;
+            return {base,expensive,expanded};
+        }""")
+        assert price_and_channel["expensive"] < price_and_channel["base"], price_and_channel
+        assert price_and_channel["expanded"] > price_and_channel["base"], price_and_channel
+
         # Run actual month closes; demand ledgers, books, and CF must reconcile.
         for i in range(12):
             result = page.evaluate("""async()=> {
