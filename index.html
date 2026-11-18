@@ -1186,7 +1186,10 @@ function rivalMonthlyStrategy(s,f,events){
   for(const model of f.models.filter(m=>m.status==='active')){
    const margin=productCostQuote(f,model.design||DESIGN_DEFAULT,s).unitCost;
    const inventory=f.goods[model.id]?.q||0,plan=f.plans[model.id]||0;
-   const move=(strategy==='growth'?-.025:strategy==='profit'?.025:strategy==='quality'?.010:strategy==='tech'?.006:-.008)+(inventory>plan*2?-.012:0);
+   const recent=recentModelSalesV039(f,model.id);
+   const stockPressure=recent===null?(inventory>plan*2?-.012:0):
+    clamp((1-inventory/Math.max(1,recent))*.014,-.04,.012);
+   const move=(strategy==='growth'?-.025:strategy==='profit'?.025:strategy==='quality'?.010:strategy==='tech'?.006:-.008)+stockPressure;
    model.priceBase=Math.round(clamp(model.priceBase*(1+move),Math.max(150,margin*.85),500000));
   }
   c.priceMoves++;c.lastPriceMonth=month;
@@ -1673,6 +1676,23 @@ function resourceProductionPanelV037(f,edit){
    inventories and monthly output journals, not magic supplier capacity. */
 const NPC_TYPES_V033=SUPPLY_TYPES;
 const npcIdV033=(country,type)=>'NPC:'+country+':'+type;
+const SUPPLY_BALANCE_V039={
+ easy:{capacity:1.27,stockMonths:1.35,investmentMonths:3,riskChance:.22,maxRisks:2,spotPremium:.20,inventoryInsurance:.006},
+ normal:{capacity:1.20,stockMonths:1.25,investmentMonths:4,riskChance:.38,maxRisks:4,spotPremium:.35,inventoryInsurance:.010},
+ hard:{capacity:1.14,stockMonths:1.15,investmentMonths:5,riskChance:.46,maxRisks:5,spotPremium:.50,inventoryInsurance:.014}
+};
+function supplyBalancePolicyV039(s){
+ return SUPPLY_BALANCE_V039[s.config?.difficulty]??SUPPLY_BALANCE_V039.normal;
+}
+function npcCapacityTargetV039(s,country,type,demand,corporateSupply=0){
+ const w=s.world[country],policy=supplyBalancePolicyV039(s);
+ const steel=w.steelSupply??COUNTRIES[country]?.steelSupply??1200;
+ const rubber=w.rubberSupply??COUNTRIES[country]?.rubberSupply??1200;
+ const source=type==='steel'?steel:type==='rubber'?rubber:(steel+rubber)/2;
+ const regional=1+clamp((source-1200)/800,-1,1)*.025;
+ const industrialEra=s.year<1930?.98:s.year<1970?1:1.03;
+ return Math.max(12,Math.ceil(demand*policy.capacity*industrialEra*regional)-Math.min(corporateSupply,Math.ceil(demand*.1)));
+}
 function ensureNpcV033(s){
  s.npcSupplyV033??={markets:{},history:[],lastProduction:null};
  for(const country of Object.keys(s.world)){
@@ -1708,17 +1728,21 @@ function npcTotalSupplyV033(s,country,type){
 function produceNpcV033(s,events=[]){
  const npc=ensureNpcV033(s),month=ym(s.year,s.month);
  if(npc.lastProduction===month)return;
+ const policy=supplyBalancePolicyV039(s);
  for(const [country,types] of Object.entries(npc.markets)){
   for(const [type,market] of Object.entries(types)){
-   const demand=npcDemandV033(s,country,type),target=Math.max(12,Math.ceil(demand*1.18)-npcTotalSupplyV033(s,country,type));
+   const demand=npcDemandV033(s,country,type),target=npcCapacityTargetV039(s,country,type,demand,npcTotalSupplyV033(s,country,type));
    if(!market.capacity)market.capacity=target;
    if(!Array.isArray(market.construction))market.construction=[];
    const completed=market.construction.filter(x=>x.due<=month);
    if(completed.length){market.capacity+=completed.reduce((n,x)=>n+x.units,0);events.push('NPC原材料市場：'+NAMES[country]+' '+SUPPLY_LABELS[type]+'供給設備が増強');}
    market.construction=market.construction.filter(x=>x.due>month);
-   const toMake=Math.max(0,Math.min(market.capacity,Math.ceil(market.capacity*1.25)-market.stock));
+   const disruption=s.supplyRisk?.active?.[npcIdV033(country,type)];
+   const effective=Math.max(0,Math.floor(market.capacity*(disruption?.capacityFactor??1)*(s.world[country].war?.85:1)));
+   const toMake=Math.max(0,Math.min(effective,Math.ceil(market.capacity*policy.stockMonths)-market.stock));
    market.stock+=toMake;market.producedTotal+=toMake;market.lastProduced=toMake;market.monthProduced=month;
    market.lastRequested=0;market.lastShipped=0;market.lastDemand=demand;
+   market.lastEffectiveCapacity=effective;market.lastCapacityTarget=target;
    market.monthOpeningStock=market.stock-toMake;
   }
  }
@@ -1739,16 +1763,27 @@ function fairAllocationV033(rows,capacity){
 function settleNpcMarketV033(s){
  const npc=ensureNpcV033(s),month=ym(s.year,s.month);
  if(npc.lastSettled===month)return;
+ const policy=supplyBalancePolicyV039(s);
  for(const [country,types] of Object.entries(npc.markets)){
   for(const [type,m] of Object.entries(types)){
    const shortage=m.lastRequested>0?Math.max(0,m.lastRequested-m.lastShipped)/m.lastRequested:0;
-   const tight=m.lastRequested/Math.max(1,m.capacity);
-   const change=clamp((tight-.85)*.045+shortage*.045,-.035,.06);
+   const tight=m.lastRequested/Math.max(1,m.lastEffectiveCapacity??m.capacity);
+   const stockMonths=m.stock/Math.max(1,m.lastDemand||0);
+   const surplus=clamp((stockMonths-policy.stockMonths)*.01,0,.025);
+   const change=clamp((tight-.85)*.045+shortage*.045-surplus,-.04,.065);
    m.priceIndex=Math.round(clamp(m.priceIndex*(1+change),.65,2.5)*10000)/10000;
    m.shortageStreak=shortage>.12?m.shortageStreak+1:Math.max(0,m.shortageStreak-1);
    if(m.shortageStreak>=3&&!m.construction.length){
-    const gap=Math.max(0,m.lastDemand*1.18-m.capacity),units=Math.max(6,Math.round(Math.max(gap,m.capacity*.25)));
-    m.construction.push({units,due:month+4});m.shortageStreak=0;
+    const target=m.lastCapacityTarget??npcCapacityTargetV039(s,country,type,m.lastDemand||0);
+    const gap=Math.max(0,target-m.capacity),units=Math.max(6,Math.round(Math.max(gap,m.capacity*.18)));
+    m.construction.push({units,due:month+policy.investmentMonths});m.shortageStreak=0;
+   }
+   const target=m.lastCapacityTarget??m.capacity;
+   m.idleStreak=m.lastRequested<m.capacity*.60&&target<m.capacity*.85&&m.stock>m.lastDemand?
+    (m.idleStreak||0)+1:0;
+   if(m.idleStreak>=9&&!m.construction.length){
+    m.capacity=Math.max(target,m.capacity-Math.max(1,Math.round(m.capacity*.08)));
+    m.idleStreak=0;
    }
    npc.history.push({month,country,type,stock:m.stock,capacity:m.capacity,produced:m.lastProduced,
     shipped:m.lastShipped,requested:m.lastRequested,priceIndex:m.priceIndex});
@@ -2373,11 +2408,16 @@ function competitorEvolution(s,events){
   h.growthStreak=f.monthly.profit>0?h.growthStreak+1:Math.max(0,h.growthStreak-1);
   if((s.month===1||s.month===7)&&h.growthStreak>=5&&h.investmentMonth<month-10&&['auto','manufacturing'].includes(f.industry)){
    const indexedCapex=Math.round(120000*eraCostFactor(s.year)),capex=localFromBase(indexedCapex,f.country);
-   if(capitalBudgetAvailable(s,f,indexedCapex)&&acc(f,'cash')>capex+localFromBase(Math.round(140000*eraCostFactor(s.year)),f.country)&&f.plants?.length){
+   const plant=activeFactories(f).find(p=>p.lastUtilization>=.75);
+   const payback=expansionPaybackV039(s,f,capex);
+   if(plant&&payback<=60&&capitalBudgetAvailable(s,f,indexedCapex)&&
+      acc(f,'cash')>capex+localFromBase(Math.round(140000*eraCostFactor(s.year)),f.country)){
     post(f,{ppe:capex},{cash:capex},'競合企業の設備投資・能力拡大','investing',s);
-    const plant=f.plants.find(p=>!p.construction&&['integrated','assembly'].includes(p.kind));
-    if(plant){plant.capacity+=8;f.staff.production+=5;syncPlant(f);h.investmentMonth=month;h.lastAction='設備能力を増強';f.competitive.spentThisYearBase+=indexedCapex;recordRivalAction(s,f,'capex','設備投資で月産能力を8増強');
-      events.push(`${f.name}：利益を再投資し月産能力を8増強`);s.competition.history.push({month,company:f.id,type:'growth',text:f.name+'が工場増強'});}
+    plant.capacity+=8;f.staff.production+=5;syncPlant(f);h.investmentMonth=month;h.lastAction='設備能力を増強';
+    f.competitive.spentThisYearBase+=indexedCapex;f.competitive.lastExpansionV039={month,payback,amount:capex};
+    recordRivalAction(s,f,'capex','月産能力を8増強、回収見込み '+payback+'か月');
+    events.push(`${f.name}：利益を再投資し月産能力を8増強`);
+    s.competition.history.push({month,company:f.id,type:'growth',text:f.name+'が工場増強'});
    }
   }
  }
@@ -2729,7 +2769,39 @@ function planAI(f,s){ensureGameplayV07(f);
  }
  planAILegacy(f,s);
 }
-function planAILegacy(f,s){if(!f.auto)return;const runway=acc(f,'cash')/(Math.max(1,(f.staff.production+f.staff.research+f.staff.sales+engineers(f))*localFromBase(s.world[f.country].wage,f.country)));const target=f.plant.capacity*(runway<1?.4:.83);for(const m of f.models.filter(m=>m.status==='active'))f.plans[m.id]=Math.round(target/Math.max(1,f.models.filter(m=>m.status==='active').length));if(f.strategy==='tech')f.rnd.budgetBase=16000;else if(f.strategy==='profit')f.rnd.budgetBase=5000;else if(f.strategy==='growth')f.rnd.budgetBase=9500;else f.rnd.budgetBase=8000;if(f.competitive&&f.lifecycle?.phase==='active')f.rnd.budgetBase=f.strategy==='tech'?18000:f.strategy==='quality'?13000:f.strategy==='profit'?4500:8000;autoSelectTech(f,s);}
+function recentModelSalesV039(f,modelId){
+ const months=(f.marketHistory??[]).slice(-3);
+ if(months.length<3)return null;
+ return months.reduce((sum,row)=>sum+Object.values(row.markets??{}).reduce((n,market)=>
+  n+(market.models?.[modelId]?.units??0),0),0)/months.length;
+}
+function expansionPaybackV039(s,f,investment){
+ const sold=f.monthly.units,produced=f._produced||0;
+ if(!sold||!produced||sold<produced*.85)return Infinity;
+ const margin=(f.monthly.sales-f.monthly.cogs)/sold;
+ const extraUnits=Math.min(8,Math.max(0,sold-Math.max(0,produced-8)));
+ const expenses=localFromBase((s.world[f.country].wage*5+8*52)*eraCostFactor(s.year),f.country);
+ const contribution=margin*extraUnits-expenses;
+ return contribution>0?Math.ceil(investment/contribution):Infinity;
+}
+function planAILegacy(f,s){
+ if(!f.auto)return;
+ const workers=f.staff.production+f.staff.research+f.staff.sales+engineers(f);
+ const runway=acc(f,'cash')/Math.max(1,workers*localFromBase(s.world[f.country].wage,f.country));
+ const models=f.models.filter(m=>m.status==='active');
+ const target=f.plant.capacity*(runway<1?.4:.83),share=Math.round(target/Math.max(1,models.length));
+ for(const m of models){
+  const sold=recentModelSalesV039(f,m.id),inventory=f.goods[m.id]?.q??0;
+  const expected=inventory>Math.max(4,(sold??share)*1.5)?Math.max(0,Math.ceil((sold??share)*1.5-inventory+2)):share;
+  f.plans[m.id]=Math.min(share,expected);
+ }
+ if(f.strategy==='tech')f.rnd.budgetBase=16000;
+ else if(f.strategy==='profit')f.rnd.budgetBase=5000;
+ else if(f.strategy==='growth')f.rnd.budgetBase=9500;
+ else f.rnd.budgetBase=8000;
+ if(f.competitive&&f.lifecycle?.phase==='active')f.rnd.budgetBase=f.strategy==='tech'?18000:f.strategy==='quality'?13000:f.strategy==='profit'?4500:8000;
+ autoSelectTech(f,s);
+}
 function procureOld(s,events){const avail={};for(const [c,w] of Object.entries(s.world))avail[c]={steel:w.steelSupply*(w.war?.75:1),rubber:w.rubberSupply*(w.war?.8:1)};for(const typ of ['steel','rubber'])for(const code of Object.keys(s.world)){const buyers=s.firms.filter(f=>f.country===code&&(f.industry==='auto'||f.industry==='manufacturing'));let req=buyers.map(f=>({f,q:Math.max(0,Math.round(f.plant.capacity*1.1)-f.stock[typ].q)}));const total=req.reduce((a,b)=>a+b.q,0);const limit=Math.floor(avail[code][typ]);const ratio=total?Math.min(1,limit/total):1;let assigned=0;for(let i=0;i<req.length;i++){const {f,q}=req[i];let amount=Math.min(q,i===req.length-1?Math.max(0,limit-assigned):Math.floor(q*ratio));if(amount<=0)continue;assigned+=amount;const basePrice=currentMonthPrice(s,code,typ),amountLocal=localFromBase(amount*basePrice,code);post(f,{materials:amountLocal},{payable:amountLocal},'原材料受領：'+(typ==='steel'?'鋼材':'ゴム')+' '+amount+'単位','operating',s);f.stock[typ].q+=amount;f.stock[typ].v+=amountLocal;f.payables.push({amount:amountLocal,due:ym(s.year,s.month)+1,note:'材料仕入',account:'payable'});}if(total>limit)events.push(`${NAMES[code]}：${typ==='steel'?'鋼材':'ゴム'}の供給不足 ${total-limit}単位`);}}
 function consume(f,key,q){
  if(q<=0)return 0;
@@ -2946,6 +3018,17 @@ function journalizeRepayment(parent,account,bookAmount,cashReceived,kind,desc,s)
  if(cashReceived<bookAmount)dr.fxLoss=bookAmount-cashReceived;
  post(parent,dr,cr,desc,kind,s);
 }
+function inventoryInsuranceV039(s){
+ const rate=supplyBalancePolicyV039(s).inventoryInsurance/12;
+ for(const f of s.firms){
+  f._inventoryInsuranceV039=0;
+  if(f.lifecycle?.phase==='withdrawn'||f.reorgStatus==='integrated')continue;
+  const cost=Math.round((acc(f,'materials')+acc(f,'materialsTransit')+acc(f,'componentStock')+acc(f,'componentTransit'))*rate);
+  if(!cost)continue;
+  spendExpense(f,'otherExpense',cost,'資材在庫の保険・管理費','operating',s);
+  f._inventoryInsuranceV039=cost;
+ }
+}
 function recordSupplyBalanceV039(s,f){
  if(!['auto','manufacturing'].includes(f.industry)||f.lifecycle?.phase==='withdrawn'||f.reorgStatus==='integrated')return;
  const month=ym(s.year,s.month),planned=f._plannedProductionV039||0,produced=f._produced||0;
@@ -2956,7 +3039,7 @@ function recordSupplyBalanceV039(s,f){
  const inventory=acc(f,'materials')+acc(f,'materialsTransit')+acc(f,'componentStock')+acc(f,'componentTransit');
  const sales=f.monthly.sales,cogs=f.monthly.cogs;
  const history=f.supply.balanceHistoryV039??=[];
- history.push({month,planned,produced,capacityGap,operatingGap,unfilled,inventory,
+ history.push({month,planned,produced,capacityGap,operatingGap,unfilled,inventory,insurance:f._inventoryInsuranceV039||0,
   grossMargin:sales>0?(sales-cogs)/sales:null});
  if(history.length>12)history.shift();
 }
@@ -3100,7 +3183,7 @@ async function runMonth(){
   step('EXPORTS',()=>deliverExports(trial,events));
   step('WARRANTIES',()=>{for(const f of trial.firms)processWarrantyMonth(trial,f,events)});
   step('SALES',()=>sellMonthly(trial,events));
-  step('GROUP_ADMIN',()=>{chargeGroupAdministration(trial,events);chargeRawStorageV038(trial)});
+  step('GROUP_ADMIN',()=>{chargeGroupAdministration(trial,events);chargeRawStorageV038(trial);inventoryInsuranceV039(trial)});
   step('MA',()=>processMAMonth(trial,events));
   step('EQUITY',()=>aiCapitalIssuance(trial,events));
   step('FINANCE',()=>{financeMonthly(trial,events);settlePartClaims(trial)});
@@ -6619,12 +6702,19 @@ function advanceSupplierRisks(s,events){
  for(const [id,evt] of Object.entries(r.active)){
   if(--evt.remaining<=0){delete r.active[id];const name=evt.supplierName||'取引先';events.push(name+'：'+SUPPLY_LABELS[evt.type]+'の供給障害が解消');}
  }
- const candidates=s.supplyNetwork.nodes.filter(x=>x.firmId&&x.capacity>=12&&!(x.id in r.active));
- if(candidates.length&&Object.keys(r.active).length<4&&random(s)<.38){
+ const policy=supplyBalancePolicyV039(s),markets=ensureNpcV033(s).markets;
+ const candidates=s.supplyNetwork.nodes.filter(x=>{
+  const capacity=x.npc?markets[x.country]?.[x.type]?.capacity:x.firmId?x.capacity:0;
+  return capacity>=12&&!(x.id in r.active);
+ });
+ if(candidates.length&&Object.keys(r.active).length<policy.maxRisks&&random(s)<policy.riskChance){
   const source=candidates[Math.floor(random(s)*candidates.length)];
   const severity=['軽度の納入遅延','設備故障','輸送障害','原材料不足'][Math.floor(random(s)*4)];
-  const capacityFactor=severity==='軽度の納入遅延'?.85:severity==='設備故障'?.33:severity==='輸送障害'?.64:.47;
-  const remaining=severity==='設備故障'?3:severity==='原材料不足'?2:1+Math.floor(random(s)*2);
+  const normalFactor=severity==='軽度の納入遅延'?.85:severity==='設備故障'?.33:severity==='輸送障害'?.64:.47;
+  const normalLength=severity==='設備故障'?3:severity==='原材料不足'?2:1+Math.floor(random(s)*2);
+  const capacityFactor=s.config?.difficulty==='easy'?Math.max(.64,normalFactor):
+   s.config?.difficulty==='hard'?Math.max(.25,normalFactor-.08):normalFactor;
+  const remaining=Math.max(1,normalLength+(s.config?.difficulty==='easy'?-1:s.config?.difficulty==='hard'?1:0));
   const evt={type:source.type,country:source.country,supplierName:company(source.firmId,s)?.name||source.label,
    reason:severity,capacityFactor,pricePct:severity==='原材料不足'?.22:.08,delay:severity==='輸送障害'?2:severity==='軽度の納入遅延'?1:0,remaining,start:month};
   r.active[source.id]=evt;
@@ -8232,7 +8322,7 @@ function buySpotV026(){let snap=null;try{
  const market=npcMarketV033(S,f.country,t),available=Math.min(30,market?.stock||0,Math.max(0,Math.floor((market?.capacity||0)*.1)));
  if(q>rawSpaceForTransferV038(f,'warehouse'))throw Error('中央倉庫の受入余力が不足しています');
  if(q>available)throw Error('有限NPC緊急市場の供給在庫または割当上限を超えています（現在'+available+'単位）');
- const node={type:t,country:f.country,npc:true},unit=Math.ceil(supplierPriceBase(S,node)*(S.config?.difficulty==='easy'?1.2:S.config?.difficulty==='hard'?1.5:1.35)),cost=localFromBase(unit*q,f.country);
+ const node={type:t,country:f.country,npc:true},unit=Math.ceil(supplierPriceBase(S,node)*(1+supplyBalancePolicyV039(S).spotPremium)),cost=localFromBase(unit*q,f.country);
  if(cost>acc(f,'cash'))throw Error('緊急調達の現金が不足しています。必要 '+nfmt(cost)+'円相当');
  if(!confirm(SUPPLY_LABELS[t]+' '+q+'単位を、割増価格 '+nfmt(cost)+'円相当で即時購入しますか？'))return;
  snap=structuredClone(S);market.stock-=q;market.dispatchedTotal+=q;market.lastShipped+=q;market.lastRequested+=q;
@@ -8248,11 +8338,12 @@ function supplyBalancePanelV039(f){
  const rows=history.slice().reverse().map(x=>`<tr><th scope="row">${partContractDate(x.month)}</th>
   <td>${nfmt(x.planned)}／${nfmt(x.produced)}</td>
   <td>${nfmt(x.capacityGap)}</td><td>${nfmt(x.operatingGap)}</td><td>${nfmt(x.unfilled)}</td>
-  <td>${fnum(f,x.inventory)}</td><td>${x.grossMargin===null?'—':nfmt(x.grossMargin*100)+'%'}</td></tr>`).join('');
+  <td>${fnum(f,x.inventory)}</td><td>${fnum(f,x.insurance??0)}</td>
+  <td>${x.grossMargin===null?'—':nfmt(x.grossMargin*100)+'%'}</td></tr>`).join('');
  return `<details class="factory-accordion span12"><summary>生産未達と資材在庫の実績</summary>
   <div class="factory-accordion-body"><div class="scroll"><table><thead><tr><th>確定月</th>
   <th>計画／生産</th><th>設備・人員上限による未達</th><th>能力上限内の未達</th><th>資材発注未達</th>
-  <th>資材・部品在庫簿価</th><th>売上総利益率</th></tr></thead><tbody>${rows}</tbody></table></div></div></details>`;
+  <th>資材・部品在庫簿価</th><th>在庫の保険・管理費</th><th>売上総利益率</th></tr></thead><tbody>${rows}</tbody></table></div></div></details>`;
 }
 function procurementComparisonV037(s,f,group){
  if(!['auto','manufacturing'].includes(f.industry))return '';

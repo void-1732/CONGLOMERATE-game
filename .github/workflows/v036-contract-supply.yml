@@ -40,6 +40,9 @@ jobs:
       - name: STEP 3 Supply balance and manufacturing diagnostics
         if: ${{ hashFiles('tests/test_step03_supply_balance.py') != '' }}
         run: python tests/test_step03_supply_balance.py
+      - name: STEP 3 Long-running supply balance and recession scenarios
+        if: ${{ hashFiles('tests/test_step03_balance_endurance.py') != '' }}
+        run: python tests/test_step03_balance_endurance.py
       - name: STEP 2 Long-running localized inventory and logistics
         if: ${{ hashFiles('tests/test_step02_inventory_endurance.py') != '' }}
         run: python tests/test_step02_inventory_endurance.py
