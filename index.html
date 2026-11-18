@@ -1942,7 +1942,7 @@ function newGame(cfg){const era=Number(cfg.era),capitalBase=Math.round((era<1930
  logNotice('創業しました。まず製品価格・生産計画・研究予算を確認し、月末処理を実行してください。','good',s);
  logNotice('人口は史実推計の概数を開始時の基準値に採用しました。通貨・為替・価格・需要は試作係数で、国境・通貨制度の年代別再現は未完成です。','warn',s);
  s.equityLinks=[];s.intercompanyTx=[];s.reorgHistory=[];s.consoHistory=[{month:ym(era,1)-1,cash:baseFromLocal(acc(f,'cash'),f.country),fxCash:Math.round(acc(f,'cash')*(s.world[f.country]?.fx||COUNTRIES[f.country].fx)),firmCash:{[f.id]:{cashLocal:acc(f,'cash'),fx:s.world[f.country]?.fx||COUNTRIES[f.country].fx}},initial:true}];s.history.push({date:`${s.year}/${s.month}`,baseCash:baseFromLocal(acc(f,'cash'),f.country),baseEquity:baseFromLocal(netWorth(f),f.country),profit:0});
- ensureMAState(s);ensureV20(s);ensureV27(s);return s
+ ensureMAState(s);ensureV20(s);ensureV27(s);produceNpcV033(s,[]);ensureSupplyNetwork(s);return s
 }
 function controlSet(s,source=s.playerId){
  const root=company(source,s);if(!root)return new Set();
