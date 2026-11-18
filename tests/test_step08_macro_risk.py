@@ -90,6 +90,58 @@ def check_trade_and_disaster(page):
     assert observed['imported'] == 3 and observed['remaining'] == 0 and observed['customs'] > 0 and not observed['errors'], observed
 
 
+def check_mitigation(page):
+    result = page.evaluate("""async()=>{
+        const fresh=()=>newGame({era:1900,country:'JP',difficulty:'normal',history:'historical',name:'危機対策の比較'});
+        saveAuto=async()=>true;render=()=>{};
+        const prepare=(s,stocked,drain)=>{
+            const f=company(s.playerId,s),steel=f.stock.steel,model=f.models[0];
+            post(f,{otherExpense:steel.v},{materials:steel.v},'対策比較の開始前消費','operating',s);
+            f.stock.steel={q:0,v:0};
+            f.plans[model.id]=12;
+            const market=npcMarketV033(s,'JP','steel'),c=f.supply.contracts.steel;
+            c.backupId=npcIdV033('US','steel');c.backupShareV040=50;c.safetyMonths=stocked?2:.25;
+            if(stocked){
+                const qty=Math.min(market.stock,Math.ceil(materialRequirement(model.design,f).steel*15));
+                const cost=localFromBase(qty*supplierPriceBase(s,{country:'JP',type:'steel',npc:true}),'JP');
+                post(f,{materials:cost},{cash:cost},'危機前の安全在庫確保','operating',s);
+                f.stock.steel={q:qty,v:cost};market.stock-=qty;market.dispatchedTotal+=qty;
+            }
+            if(drain){market.dispatchedTotal+=market.stock;market.stock=0;}
+            return f;
+        };
+        const baseline=fresh(),buffered=structuredClone(baseline);
+        prepare(baseline,false,true);prepare(buffered,true,true);
+        const output=[];
+        for(const game of [baseline,buffered]){
+            S=game;VIEW_FIRM=S.playerId;
+            startEconomicShockV044(S,'disaster',['JP']);
+            const date=S.monthCommitted;
+            await runMonth();
+            const f=current(),g=consolidate(S);
+            output.push({approved:S.monthCommitted===date+1,units:f._produced,errors:check(S),cf:g.cf.reconciled,
+             alternate:f.supply.inbound.find(row=>row.type==='steel'&&row.origin==='US')?.internationalV041?.routeId});
+        }
+        const priced=fresh(),source={country:'JP',type:'steel',npc:true};
+        const locked=supplierPriceBase(priced,source),variable=structuredClone(priced);
+        const prices=[];
+        for(const [game,mode] of [[priced,'fixed'],[variable,'market']]){
+            const f=prepare(game,false,false),term=contractV036(f,'steel');
+            Object.assign(term,{quantity:4,priceMode:mode,unitBase:locked});
+            startEconomicShockV044(game,'energy',['JP']);
+            procureNetwork(game,[]);
+            const entry=f.supply.history.find(row=>row.type==='steel'&&row.qty===4&&row.origin==='JP');
+            prices.push(entry?.totalBase/4);
+        }
+        return {output,locked,prices};
+    }""")
+    exposed, buffered = result['output']
+    assert exposed['alternate'] == 'US/JP/alternateSea' and 0 <= exposed['units'] < buffered['units'], result
+    assert all(row['approved'] and row['cf'] and not row['errors'] for row in result['output']), result
+    assert result['prices'][0] == result['locked'] < result['prices'][1], result
+    print(f"Mitigation: {exposed['units']} versus {buffered['units']} vehicles, fixed/market steel {result['prices']}")
+
+
 if __name__ == '__main__':
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(executable_path=os.getenv('CHROMIUM_EXECUTABLE') or shutil.which('chromium'),
@@ -100,6 +152,7 @@ if __name__ == '__main__':
         page.set_content(HTML.read_text(encoding='utf-8'), wait_until='domcontentloaded')
         check_macro(page)
         check_trade_and_disaster(page)
+        check_mitigation(page)
         assert not errors, errors
         browser.close()
     print('PASS STEP 8: regional cycles, rates, inflation, FX, physical supply, sanctions, tariffs, routing, and saves')

@@ -8045,8 +8045,16 @@ function safetyMonthsV034(contract){
 function supplyLeadV034(f,type,s=S){
  const source=s.supplyNetwork?.nodes?.find(n=>n.id===f.supply?.contracts?.[type]?.supplierId&&n.type===type);
  const overseas=source&&source.country!==f.country;
- const travel=overseas?(internationalRoutesV041(s,source.country,f.country)[0]?.months??2)+(source.firmId?1:0):
-  f.supply?.contracts?.[type]?.corporateSourcesV037?.includes(source?.id)?1:0;
+ let travel=f.supply?.contracts?.[type]?.corporateSourcesV037?.includes(source?.id)?1:0;
+ if(overseas){
+  const routes=internationalRoutesV041(s,source.country,f.country);
+  const available=routes.find(route=>internationalRouteFactorV044(s,route)>.25);
+  const month=ym(s.year,s.month),lane=source.country+'/'+f.country;
+  const regulatory=s.logisticsV041?.restrictions?.[lane]?.end??month;
+  const sanctions=activeEconomicShocksV044(s).filter(event=>event.kind==='sanctions'&&event.lane?.join('/')===lane);
+  const wait=Math.max(0,regulatory-month,...sanctions.map(event=>event.end-month));
+  travel=(available?.months??(routes[0]?.months??2)+1)+(source.firmId?1:0)+wait;
+ }
  const risk=Math.max(0,Math.floor(s.supplyRisk?.active?.[source?.id]?.delay||0));
  return Math.min(5,travel+risk);
 }
@@ -8145,6 +8153,11 @@ function supplyShortageDiagnosisV034(f,type,forecast,s=S){
  if(contract.autoOrder===false)return {cause:'この資材の自動補充が停止中',
   action:'購入契約で自動補充を再開するか、市場から必要量を購入'};
  const source=s.supplyNetwork?.nodes?.find(n=>n.id===contract.supplierId);
+ const cargo=type==='components'?'parts':'bulk';
+ if(source&&source.country!==f.country&&!internationalTradeAllowedV041(s,source.country,f.country,cargo))
+  return {cause:'通商規制で新規出荷・通関が停止',action:'対象外の仕入国・国内市場を選び、調達契約と安全在庫を見直す'};
+ if(source&&economicExposureV044(s,source.country).supply<.9)
+  return {cause:'仕入国の景気・資源・災害による供給減',action:'発注・到着見込みを確認し、別地域の代替契約または安全在庫を利用'};
  const risk=s.supplyRisk?.active?.[source?.id];
  if(risk)return {cause:'契約仕入先の供給障害または納期延長',
   action:'入荷予定月を確認し、代替仕入先・地域市場を活用'};
