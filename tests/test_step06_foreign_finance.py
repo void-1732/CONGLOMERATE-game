@@ -46,7 +46,6 @@ def check_wallets(page):
         const cashMoved=cashOfJournal(sale),gain=sale.cr.find(([a])=>a==='otherRevenue')?.[1];
         S=parsePayload(savePayload(S));
         saveAuto=async()=>true;
-        render=()=>{};
         const prior=S.monthCommitted;
         await runMonth();
         const f=current(),g=consolidate(S),month=S.monthCommitted;
@@ -70,6 +69,66 @@ def check_wallets(page):
     assert not result["errors"] and result["badState"], result
 
 
+def check_foreign_invoices(page):
+    page.evaluate("""() => {
+        S=newGame({era:1960,country:'JP',difficulty:'easy',history:'historical',name:'外貨建て決済の検証'});
+        VIEW_FIRM=S.playerId;
+        PAGE='finance';render();
+    }""")
+    page.locator("#fxKeepReceipts").check()
+    page.get_by_role("button", name="外貨受取方針を保存").click()
+    observed = page.evaluate("""() => {
+        const f=current(),type='steel',m=f.models[0],supplierId=npcIdV033('DE',type);
+        for(const t of SUPPLY_TYPES)f.supply.contracts[t].autoOrder=t===type;
+        Object.assign(f.supply.contracts[type],{supplierId,autoManage:false,longTermV036:null});
+        const used=f.stock[type];
+        post(f,{otherExpense:used.v},{materials:used.v},'調達試験の材料払出','operating',S);
+        f.stock[type]={q:0,v:0};
+        procureNetwork(S,[]);
+        post(f,{goods:4000},{cash:4000},'外貨売上の完成車','operating',S);
+        f.goods[m.id].q+=4;f.goods[m.id].v+=4000;
+        exportShipment(S,f,m.id,4,m.priceBase,'US',[],'mass');
+        const due=Math.max(f.supply.inbound.find(x=>x.supplierId===supplierId).due,f.distribution.outbound[0].due);
+        while(ym(S.year,S.month)<due)nextMonthDate(S);
+        deliverMaterials(S,f,[]);
+        Object.assign(S.world.US,{demand:100,cycle:0,war:false});
+        f._salesNow=0;f._unitsNow=0;f.marketThisMonth={};
+        deliverExports(S,[]);
+        const newDebt=f.payables.find(x=>x.currency==='DEM'),sale=f.receivables.find(x=>x.currency==='USD');
+        const retained=f.foreignFinanceV042.wallets.USD.quantity;
+        const funded=Math.floor(newDebt.foreignMinor/3);
+        const bought=exchangeForeignV042(S,f,'DEM',funded,'buy');
+        const saved=parsePayload(savePayload(S)),buyer=company(f.id,saved),cash=acc(buyer,'cash');
+        post(buyer,{otherExpense:cash},{cash},'決済資金不足の検証','operating',saved);
+        saved.world.US.fx=180;
+        saved.world.DE.fx=205;
+        nextMonthDate(saved);
+        settleScheduled(buyer,saved);
+        const partial=buyer.payables.find(x=>x.currency==='DEM');
+        const debited=buyer.journals.find(j=>j.text.startsWith('外貨建て買掛金決済 DEM'));
+        const income=buyer.journals.find(j=>j.text.startsWith('外貨建て売掛金回収 USD'));
+        const heldAfter=buyer.foreignFinanceV042.wallets.USD.quantity;
+        const walletUsed=debited.cr.find(([a])=>a==='foreignCash')[1];
+        const missingBeforeFunding=acc(buyer,'cash')===0&&buyer.distress.stage>=2;
+        const recovered=income.dr.find(([account])=>account==='foreignCash')[1];
+        const resultAfterPartial=check(saved);
+        post(buyer,{cash:300000000},{capital:300000000},'期日後の資金再建','financing',saved);
+        nextMonthDate(saved);
+        settleScheduled(buyer,saved);
+        const retry=buyer.journals.filter(j=>j.text.startsWith('外貨建て買掛金決済 DEM')).at(-1);
+        const loss=retry.dr.find(([account])=>account==='fxLoss')?.[1]??0;
+        const value=Math.round(sale.foreignMinor*currencyRatioV042(saved,buyer,'USD'));
+        return {funded,retained,partial:partial.foreignMinor,debt:newDebt.foreignMinor,sale:sale.foreignMinor,
+            missingBeforeFunding,walletUsed,bought,recovered,value,heldAfter,loss,remaining:buyer.payables.some(x=>x.currency==='DEM'),
+            errors:[...resultAfterPartial,...check(saved)],receivable:buyer.receivables.some(x=>x.currency==='USD')};
+    }""")
+    assert observed["funded"] > 0 and observed["partial"] == observed["debt"] - observed["funded"], observed
+    assert observed["bought"] == observed["walletUsed"] and observed["missingBeforeFunding"], observed
+    assert observed["heldAfter"] == observed["retained"] + observed["sale"] and observed["retained"] > 0, observed
+    assert observed["recovered"] == observed["value"] and observed["loss"] > 0, observed
+    assert not any(observed[k] for k in ["remaining", "receivable", "errors"]), observed
+
+
 if __name__ == "__main__":
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(
@@ -82,6 +141,7 @@ if __name__ == "__main__":
         page.on("pageerror", lambda error: errors.append(str(error)))
         page.set_content(HTML.read_text(encoding="utf-8"), wait_until="domcontentloaded")
         check_wallets(page)
+        check_foreign_invoices(page)
         assert not errors, errors
         browser.close()
-    print("PASS STEP 6: currency wallets, exchange limits, FX gains, consolidated cash flow and saves")
+    print("PASS STEP 6: currency wallets, exchange limits, invoice settlement, FX gains, consolidated cash flow and saves")
