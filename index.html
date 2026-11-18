@@ -2007,9 +2007,22 @@ function laborAndPlant(s,events){for(const f of s.firms){ensureFirmGameplay(f);e
 }}
 function sellGoods(s,f,key,q,priceBase,code,events,segment=null){const it=f.goods[key];if(!it||q<=0)return;const {cost,batches}=takeFinishedGoods(f,key,q);const netBase=priceBase*(code===f.country?1:.85);const gross=localFromBase(netBase*q,f.country);const cashPart=Math.round(gross*.82),receivable=gross-cashPart;post(f,{...(cashPart?{cash:cashPart}:{}),...(receivable?{ar:receivable}:{})},{sales:gross},'商品販売：'+NAMES[code]+' '+q+'個','operating',s);postFinishedCost(s,f,cost,'goods','売上原価 '+q+'個',batches);if(receivable)f.receivables.push({amount:receivable,due:ym(s.year,s.month)+1,note:'商品売上'});if(code!==f.country)spendExpense(f,'otherExpense',localFromBase(netBase*q*.05,f.country),'輸送・関税費用','operating',s);f._salesNow+=gross;f._unitsNow+=q;recordVehicleProfit(f,key,code,q,gross,cost,s);registerMarketSale(f,code,key,q,gross,s,segment);recordQualitySold(f,key,code,q,s);}
 function sellServices(s,f,code){const possible=Math.max(0,Math.floor((f.staff.sales+f.staff.production)*2.1*f.plant.condition/100));const demand=Math.floor(s.world[code].demand*.32);const qty=Math.min(possible,demand);if(qty<=0)return;const gross=localFromBase(qty*1300,f.country);post(f,{cash:gross},{serviceRevenue:gross},'サービス提供 '+qty+'件','operating',s);f._salesNow+=gross;f._unitsNow+=qty;registerMarketSale(f,code,'SERVICE',qty,gross,s)}
+/* v0.31 — market allocation entry points. Keep non-vehicle sales on the legacy path. */
+function marketDemandSnapshotV031(s,code){
+ const w=s.world[code],demand=Math.max(0,Math.round(w.demand*(1+w.cycle)*(w.war?.6:1)));
+ return {month:ym(s.year,s.month),demand,segments:segmentedDemandUnits(s,code,demand)};
+}
+function marketVehicleContendersV031(s,code){
+ const contenders=[];
+ for(const f of s.firms){
+  if(f.lifecycle?.phase==='withdrawn'||f.reorgStatus==='integrated'||!f.marketPresence.includes(code)||!['auto','manufacturing'].includes(f.industry))continue;
+  for(const m of f.models.filter(m=>m.status==='active'||(m.status==='legacy'&&(f.goods[m.id]?.q||0)>0)))contenders.push({f,m});
+ }
+ return contenders;
+}
 function sellMonthly(s,events){
  for(const [code,w] of Object.entries(s.world)){
-  const contenders=[];
+  const contenders=marketVehicleContendersV031(s,code);
   for(const f of s.firms){
    if(f.lifecycle?.phase==='withdrawn'||f.reorgStatus==='integrated'||!f.marketPresence.includes(code))continue;
    if(f.industry==='service'){if(f.country===code)sellServices(s,f,code);continue;}
@@ -2018,11 +2031,10 @@ function sellMonthly(s,events){
     for(const key of keys){const qty=f.goods[key]?.q||0;if(qty&&left>0){const sell=Math.min(qty,left),price=f.goods[key].externalPriceBase||(f.industry==='trade'?1550:1800);sellGoods(s,f,key,sell,price,code,events);left-=sell;}}
     continue;
    }
-   for(const m of f.models.filter(m=>m.status==='active'||(m.status==='legacy'&&(f.goods[m.id]?.q||0)>0)))
-    contenders.push({f,m});
+
   }
-  const demand=Math.max(0,Math.round(w.demand*(1+w.cycle)*(w.war?.6:1)));
-  const groups=segmentedDemandUnits(s,code,demand);
+  const market=marketDemandSnapshotV031(s,code);
+  const groups=market.segments;
   // Rotate which consumer group is fulfilled first, so constrained inventory is not permanently biased.
   const keys=Object.keys(MARKET_SEGMENTS),offset=ym(s.year,s.month)%keys.length;
   for(const segment of [...keys.slice(offset),...keys.slice(0,offset)]){
