@@ -1410,7 +1410,7 @@ function rawSplitV032(f,quantity){
 function ensureSupplyNetwork(s){
  s.supplyNetwork??={nodes:[]};const old=s.supplyNetwork.nodes||[];const legacy=old.filter(n=>!n.firmId);
  const firms=s.firms.filter(f=>f.reorgStatus!=='integrated'&&f.lifecycle?.phase!=='withdrawn');
- for(const firm of firms)ensureRawV032(f);
+ for(const firm of firms)ensureRawV032(firm);
  const corporate=firms.flatMap(f=>{
   const products=f.industry==='resource'?SUPPLY_TYPES.filter(t=>t!=='components'):f.industry==='manufacturing'?['components']:[];
   return products.map(t=>({id:'CORP:'+f.id+':'+t,firmId:f.id,country:f.country,type:t,tier:t==='components'?1:3,
