@@ -1588,50 +1588,103 @@ function deliverMaterials(s,f,events){const month=ym(s.year,s.month),arrivals=f.
    f.supply.history.push({month,type:shipment.type,origin:shipment.origin,qty:received,totalBase:baseFromLocal(amount,f.country)/100,firmId:seller.id,group:true});continue;
  }
  const total=localFromBase(shipment.totalBase,f.country);if(!total)continue;post(f,{materials:total},{payable:total},'調達品受領：'+SUPPLY_LABELS[shipment.type]+' '+shipment.qty,'operating',s);const stock=f.stock[shipment.type]??={q:0,v:0};stock.q+=shipment.qty;stock.v+=total;f.payables.push({amount:total,due:month+1,note:'国際調達／部品仕入',account:'payable'});f.supply.history.push({month,type:shipment.type,origin:shipment.origin,qty:shipment.qty,totalBase:shipment.totalBase});if(f.supply.history.length>96)f.supply.history.shift();}}
+/* STEP 2: build all monthly purchase requests before assigning suppliers. No
+   company gets priority merely because it appears first in s.firms. */
 function procureNetwork(s,events){
- ensureV20(s);ensureSupplyNetwork(s);
+ ensureV20(s);ensureSupplyNetwork(s);ensureNpcV033(s);
  const month=ym(s.year,s.month),risk=s.supplyRisk.active;
  for(const f of s.firms){ensureNetwork(f,s);deliverMaterials(s,f,events);}
  ensureSupplyNetwork(s);
- const capacity=Object.fromEntries(s.supplyNetwork.nodes.map(node=>{
-  const factor=risk[node.id]?.capacityFactor??1;
-  const vendor=node.firmId?company(node.firmId,s):null;
-   const actual=vendor?(node.type==='components'?Math.min(vendor.stock?.components?.q||0,interplantUnassigned(vendor)):rawBinV032(vendor,node.type).q):node.capacity;
-   const reserved=rawCommittedV032(s,node.id,node.type);
-   return [node.id,Math.max(0,Math.floor(Math.min(node.capacity,Math.max(0,actual-reserved))*(s.world[node.country].war?.73:1)*factor))];
- }));
- for(const f of s.firms.filter(x=>['auto','manufacturing'].includes(x.industry)&&x.lifecycle?.phase!=='withdrawn'&&x.reorgStatus!=='integrated')){
-  const plans=f.models.filter(m=>m.status==='active').map(m=>({q:Math.max(0,Math.ceil(f.plans[m.id]||0)),req:materialRequirement(m.design,f)}));
+ const nodes=new Map(s.supplyNetwork.nodes.map(x=>[x.id,x]));
+ const remaining=new Map();
+ for(const n of nodes.values()){
+  if(n.npc)continue;
+  if(!n.firmId)continue; // Historical synthetic nodes are never new supply.
+  const seller=company(n.firmId,s);
+  const physical=seller?(n.type==='components'?Math.min(seller.stock?.components?.q||0,interplantUnassigned(seller)):rawBinV032(seller,n.type).q):0;
+  const riskFactor=risk[n.id]?.capacityFactor??1;
+  const max=Math.floor(Math.max(0,physical-rawCommittedV032(s,n.id,n.type))*riskFactor*(s.world[n.country].war?.73:1));
+  remaining.set(n.id,Math.max(0,max));
+ }
+ const eligible=f=>['auto','manufacturing'].includes(f.industry)&&f.lifecycle?.phase!=='withdrawn'&&f.reorgStatus!=='integrated';
+ const candidates=[];
+ for(const f of s.firms.filter(eligible)){
   for(const type of SUPPLY_TYPES){
+   const target=factoryResourceTargetV026(f,type,s),transit=f.supply.inbound.filter(x=>x.type===type).reduce((n,x)=>n+x.qty,0);
+   const requested=Math.max(0,Math.ceil(target.target-(f.stock[type]?.q||0)-transit));
    const contract=f.supply.contracts[type];
-   const qualified=x=>x.type===type&&x.firmId&&x.firmId!==f.id;
-   const main=s.supplyNetwork.nodes.find(x=>x.id===contract.supplierId&&qualified(x))||s.supplyNetwork.nodes.find(qualified);
-   if(!main)continue;
-   const alt=s.supplyNetwork.nodes.find(x=>x.id===contract.backupId&&x.id!==main.id&&qualified(x));
-   const target=factoryResourceTargetV026(f,type,s);const minimum=target.target;
-   const inTransit=f.supply.inbound.filter(x=>x.type===type).reduce((sum,x)=>sum+x.qty,0);
-   // Quantize procurement to whole transport units; fractional raw-material consumption must not create sub-unit shipments.
-   let needed=Math.max(0,Math.ceil(minimum-(f.stock[type]?.q||0)-inTransit));
-   f.supply.lastAttempt??={};f.supply.lastAttempt[type]={month,minimum,requested:needed,ordered:0,shortage:0,detail:needed?'調達を依頼':'在庫・輸送中で必要量を確保'};
-   if(!needed)continue;
-   const sourceList=alt?[main,alt]:[main];
-   let alternativeQty=0;
-   for(const node of sourceList){
-    const assigned=Math.min(needed,Math.max(0,capacity[node.id]||0));if(!assigned)continue;
-    needed-=assigned;capacity[node.id]-=assigned;f.supply.lastAttempt[type].ordered+=assigned;
-    if(node.id!==main.id)alternativeQty+=assigned;
-    const overseas=node.country!==f.country,lead=(overseas?2:0)+(risk[node.id]?.delay||0);
-    const rawUnit=supplierPriceBase(s,node),synergy=enterpriseSynergy(s,f);
-    const unit=Math.max(1,Math.round(rawUnit*(1-synergy.resourceDiscount)));
-    const freight=overseas?Math.max(45,Math.round(unit*.09)):0;
-    f.supply.inbound.push({id:'SHIP'+s.seq++,type,origin:node.country,supplierId:node.id,qty:assigned,totalBase:assigned*(unit+freight),due:month+lead});
-    if(lead===0)deliverMaterials(s,f,events);
+   const valid=id=>{
+    const node=nodes.get(id),seller=node?.firmId?company(node.firmId,s):null;
+    return node?.type===type&&seller&&seller.id!==f.id&&seller.country===f.country&&
+     controller(s,f.id)&&controller(s,seller.id)&&remaining.has(id);
+   };
+   const preferred=valid(contract?.supplierId)?contract.supplierId:null;
+   const alternate=valid(contract?.backupId)&&contract.backupId!==preferred?contract.backupId:null;
+   f.supply.lastAttempt??={};
+   f.supply.lastAttempt[type]={month,minimum:target.target,requested,ordered:0,shortage:0,detail:requested?'配分待ち':'在庫と輸送中で目標確保',npcOrdered:0};
+   candidates.push({id:f.id+':'+type,f,type,preferred,alternate,needed:requested,initial:requested});
+  }
+ }
+ // Allocate group contract source capacities by proportional fair shares.
+ const dispatch=(x,node,amount)=>{
+  const qty=Math.max(0,Math.floor(amount));if(!qty)return;
+  const {f,type}=x,overseas=node.country!==f.country;
+  const price=supplierPriceBase(s,node),unit=Math.max(1,Math.round(price*(1-enterpriseSynergy(s,f).resourceDiscount)));
+  const freight=overseas?Math.max(45,Math.round(unit*.09)):0;
+  const lead=(overseas?2:0)+(risk[node.id]?.delay||0);
+  if(node.npc){
+   const market=npcMarketV033(s,node.country,type);
+   if(!market||market.stock<qty)throw Error('NPC市場：裏付け在庫を超える出荷');
+   market.stock-=qty;market.dispatchedTotal+=qty;market.lastShipped+=qty;
+  }
+  f.supply.inbound.push({id:'SHIP'+s.seq++,type,origin:node.country,supplierId:node.id,
+   qty,totalBase:qty*(unit+freight),due:month+lead,npcReserved:!!node.npc});
+  x.needed-=qty;f.supply.lastAttempt[type].ordered+=qty;
+  if(node.npc)f.supply.lastAttempt[type].npcOrdered+=qty;
+  if(!lead)deliverMaterials(s,f,events);
+ };
+ for(const sourceName of ['preferred','alternate']){
+  const grouped=new Map();
+  for(const x of candidates){
+   const id=x[sourceName];if(!id||x.needed<=0)continue;
+   if(!grouped.has(id))grouped.set(id,[]);
+   grouped.get(id).push(x);
+  }
+  for(const [id,group] of [...grouped].sort((a,b)=>a[0].localeCompare(b[0]))){
+   const node=nodes.get(id),room=remaining.get(id)||0;
+   if(!node||room<=0)continue;
+   const fractions=fairAllocationV033(group.map(x=>({id:x.id,need:x.needed})),room);
+   for(const x of [...group].sort((a,b)=>a.id.localeCompare(b.id))){
+    const q=fractions[x.id]||0;if(!q)continue;
+    dispatch(x,node,q);remaining.set(id,remaining.get(id)-q);
    }
-   if(alternativeQty)events.push(f.name+'：'+SUPPLY_LABELS[type]+'を代替供給先から'+alternativeQty+'単位確保');
-   if(needed){events.push(f.name+'：'+SUPPLY_LABELS[type]+'の調達不足 '+needed+'単位'+(risk[main.id]?'（供給障害）':''));f.supplyRiskShortages=(f.supplyRiskShortages||0)+needed;}f.supply.lastAttempt[type].shortage=needed;f.supply.lastAttempt[type].detail=needed?'仕入先の月間供給余力不足。代替先と輸送月を確認':'発注済み（海外の場合は到着待ち）';
+  }
+ }
+ // NPC pool is physical and bounded: allocate all residual orders simultaneously.
+ for(const country of Object.keys(s.world)){
+  for(const type of SUPPLY_TYPES){
+   const group=candidates.filter(x=>x.f.country===country&&x.type===type&&x.needed>0);
+   if(!group.length)continue;
+   const market=npcMarketV033(s,country,type),node=nodes.get(npcIdV033(country,type));
+   if(!market||!node)continue;
+   const requested=group.reduce((n,x)=>n+x.needed,0);
+   market.lastRequested+=requested;
+   const shares=fairAllocationV033(group.map(x=>({id:x.id,need:x.needed})),market.stock);
+   for(const x of group.sort((a,b)=>a.id.localeCompare(b.id))){
+    const qty=shares[x.id]||0;if(qty)dispatch(x,node,qty);
+   }
+  }
+ }
+ for(const x of candidates){
+  const attempt=x.f.supply.lastAttempt[x.type];attempt.shortage=x.needed;
+  attempt.detail=x.needed?'仕入先・世界市場の物理供給上限に到達':'有限供給源へ配分済み';
+  if(x.needed){
+   x.f.supplyRiskShortages=(x.f.supplyRiskShortages||0)+x.needed;
+   events.push(x.f.name+'：'+SUPPLY_LABELS[x.type]+'の供給不足 '+x.needed+'単位');
   }
  }
 }
+
 function exportChannel(f,code,s=S){ensureNetwork(f,s);return f.distribution.contracts[code]}
 function distributionPages(){const f=current();ensureNetwork(f);const edit=canEdit(f);const month=ym(S.year,S.month);return titlePage('販売店網・輸出・地域販売法人','販売店の契約先をゲーム内企業で指定できます。買収・新設した現地子会社も選択可能です。',tag('契約・物流・出荷'))+(!edit?noaccess():'')+`<div class="grid"><section class="panel span8"><h2>国別販売ネットワーク</h2><div class="scroll"><table><thead><tr><th>市場</th><th>販売方式</th><th>契約先企業</th><th class="num">月間出荷上限</th><th class="num">輸送月数</th><th class="num">現地販売法人</th></tr></thead><tbody>${Object.keys(S.world).map(code=>{const c=exportChannel(f,code),agency=f.distribution.salesCorporations[code];return `<tr><td><b>${NAMES[code]}</b></td><td><select id="channel_${code}" ${edit?'':'disabled'}>${[['direct','直接販売'],['dealer','販売店契約'],['distributor','地域販売網'],['subsidiary','地域販売法人代理']].map(([v,label])=>`<option value="${v}" ${c.channel===v?'selected':''} ${v==='subsidiary'&&!agency?'disabled':''}>${label}</option>`).join('')}</select></td><td><select id="dealer_${code}" ${edit?'':'disabled'}>
  <option value="">最終顧客への直接販売</option>${S.firms.filter(x=>x.country===code&&x.id!==f.id&&x.lifecycle?.phase!=='withdrawn'&&x.reorgStatus!=='integrated').map(x=>`<option value="${esc(x.id)}" ${c.dealerId===x.id?'selected':''}>${esc(x.name)}${controller(S,x.id)?'【グループ】':''}</option>`).join('')}</select></td><td class="num"><input id="capacity_${code}" type="number" min="1" max="10000" value="${c.capacity}" style="width:86px" ${edit?'':'disabled'}></td><td class="num">${code===f.country?0:code==='US'||f.country==='US'?2:1}</td><td>${agency?esc(company(agency)?.name||agency):'なし'}</td></tr>`}).join('')}</tbody></table></div><div class="row" style="margin-top:15px"><button class="btn primary" data-action="saveDistribution" ${edit?'':'disabled'}>販売網の契約条件を設定</button></div><p class="footnote">海外出荷は輸送中資産に振替後、到着月に外部売上を計上します。出荷費用は契約方式・輸送距離により変動。国内販売は当月引渡しです。販路の新設・出荷能力増加には投資資金が必要です。</p></section>
