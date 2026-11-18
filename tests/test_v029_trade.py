@@ -181,6 +181,13 @@ with sync_playwright() as p:
     assert page.evaluate("raw=>restore(raw)", snapshot)
 
     # Keep the finished units on hand for one month to check continued deferral.
+    print("V034_BOM_PRE", page.evaluate("""([buyer,data])=>{
+        const f=company(buyer,S),stock=f.goods[data.model];
+        return {id:f.id,model:data.model,stock,plan:f.plans[data.model],
+            modelMode:f.models[0].componentMode,
+            lots:f.partOperations.vehicleLots.filter(x=>x.modelId===data.model),
+            nextMonth:ym(S.year,S.month),errors:check(S)};
+    }""",[buyer,data]),flush=True)
     page.evaluate("""([buyer,data,licenseId])=>{
         const f=company(buyer,S);
         const lines=Object.fromEntries(S.partEconomy.specs.map(p=>[p.family,partKey(p)]));
