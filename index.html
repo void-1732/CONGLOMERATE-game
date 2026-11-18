@@ -1501,7 +1501,8 @@ function planResourceProductionV037(s,f,capacity,availableCash){
   const process=RESOURCE_PROCESS_V037[t];
   const unitCost=localFromBase(process.costBase*eraCostFactor(s.year),f.country);
   const affordable=unitCost?Math.floor(cash/unitCost):capacityByType[t];
-  const reserved=rawCommittedV032(s,'CORP:'+f.id+':'+t,t);
+  const supplierId='CORP:'+f.id+':'+t;
+  const reserved=rawCommittedV032(s,supplierId,t)+contractReservationsV040(s,supplierId,t);
   const priceIndex=npcMarketV033(s,f.country,t)?.priceIndex??1;
   const expectedSales=capacity?marketDemand*capacityByType[t]/capacity:0;
   const target=reserved+Math.ceil(expectedSales+capacityByType[t]*clamp(.75+.5*priceIndex,1,1.8));
@@ -1877,11 +1878,12 @@ function corporateSupplyUnitV037(s,node,seller,stock){
  const quote=localFromBase(supplierPriceBase(s,node),seller.country);
  return Math.max(1,quote,stock?.q?Math.ceil(stock.v/stock.q*1.05):0);
 }
-function dispatchCorporateSupplyV037(s,buyer,seller,node,number,lead){
+function dispatchCorporateSupplyV037(s,buyer,seller,node,number,lead,fixedUnitBase=null){
  const type=node.type,stock=corporateSupplyStockV037(seller,type);
  const available=type==='components'?Math.min(stock?.q||0,interplantUnassigned(seller)):stock.q;
  const unreserved=Math.max(0,available-rawCommittedV032(s,node.id,type));
- const unit=corporateSupplyUnitV037(s,node,seller,stock);
+ const unit=fixedUnitBase===null?corporateSupplyUnitV037(s,node,seller,stock):
+  Math.max(1,localFromBase(fixedUnitBase,seller.country));
  const qty=Math.max(0,Math.floor(Math.min(number,unreserved,acc(buyer,'cash')/unit)));
  if(!qty)return null;
  const bookCost=qty===stock.q?stock.v:Math.round(stock.v*qty/stock.q),invoice=qty*unit;
@@ -1890,7 +1892,7 @@ function dispatchCorporateSupplyV037(s,buyer,seller,node,number,lead){
  post(seller,{[account+'Transit']:bookCost},{[account]:bookCost},'法人間資材の発送 '+id,'operating',s);
  stock.q-=qty;stock.v-=bookCost;
  return {id,type,origin:node.country,supplierId:node.id,qty,totalBase:baseFromLocal(invoice,buyer.country)/100,
-  due:month+1+lead,corporateTradeV037:{sellerId:seller.id,bookCost,invoice,dispatched:month}};
+  due:month+1+lead,corporateTradeV037:{sellerId:seller.id,bookCost,invoice,dispatched:month,fixedPrice:fixedUnitBase!==null}};
 }
 function receiveCorporateSupplyV037(s,buyer,shipment,events){
  const trade=shipment.corporateTradeV037,seller=company(trade.sellerId,s);
@@ -1904,7 +1906,10 @@ function receiveCorporateSupplyV037(s,buyer,shipment,events){
   return;
  }
  const group=groupSupplyV037(s,buyer,seller);
- const amount=group?trade.bookCost:trade.invoice;
+ const term=contractV036(buyer,type);
+ const linked=!group&&shipment.contractIdV040!==undefined&&term?.contractIdV040===shipment.contractIdV040;
+ const claim=linked?Math.min(localFromBase(term.creditBase,buyer.country),Math.floor(trade.invoice*.10)):0;
+ const amount=group?trade.bookCost:trade.invoice-claim;
  if(acc(buyer,'cash')<amount){
   shipment.due=month+1;buyer.supply.inbound.push(shipment);
   events.push(buyer.name+'：決済資金不足で'+SUPPLY_LABELS[type]+'の検収を延期');
@@ -1926,8 +1931,10 @@ function receiveCorporateSupplyV037(s,buyer,shipment,events){
  }
  const stock=buyer.stock[type];
  stock.q+=shipment.qty;stock.v+=amount;
+ const creditBase=baseFromLocal(claim,buyer.country)/100;
+ if(claim)term.creditBase=Math.max(0,term.creditBase-creditBase);
  buyer.supply.history.push({month,type,origin:shipment.origin,qty:shipment.qty,
-  totalBase:baseFromLocal(amount,buyer.country)/100,firmId:seller.id,group});
+  totalBase:baseFromLocal(amount,buyer.country)/100,firmId:seller.id,group,creditBase});
  if(buyer.supply.history.length>96)buyer.supply.history.shift();
 }
 function corporateSupplyTransitV037(s,errors){
@@ -1939,7 +1946,8 @@ function corporateSupplyTransitV037(s,errors){
   if(!seller||seller.id===buyer.id||buyer.country!==seller.country||shipment.origin!==seller.country||
      !SUPPLY_TYPES.includes(type)||shipment.supplierId!=='CORP:'+seller.id+':'+type||ids.has(shipment.id)||
      !Number.isSafeInteger(shipment.qty)||shipment.qty<1||!Number.isSafeInteger(trade.bookCost)||trade.bookCost<0||
-     !Number.isSafeInteger(trade.invoice)||trade.invoice<trade.bookCost||
+     !Number.isSafeInteger(trade.invoice)||trade.invoice<1||(trade.invoice<trade.bookCost&&trade.fixedPrice!==true)||
+     shipment.contractIdV040!==undefined&&(!shipment.contractV036||!Number.isSafeInteger(shipment.contractIdV040)||shipment.contractIdV040<1)||
      !Number.isSafeInteger(trade.dispatched)||!Number.isSafeInteger(shipment.due)||shipment.due<=trade.dispatched){
    errors.push(buyer.name+'：法人間資材の輸送台帳が不正 '+shipment.id);continue;
   }
@@ -1993,10 +2001,9 @@ function deliverMaterials(s,f,events){const month=ym(s.year,s.month),arrivals=f.
  if(f.supply.history.length>96)f.supply.history.shift();
 }}
 
-/* v0.36 STEP 5: monthly call-off contracts with physical allocation, not fictitious stock.
-   Historical saves remain opt-in. A contract reserves priority on the supplier's
-   current real NPC inventory; it never increases monthly production or capacity. */
+/* Monthly call-offs reserve priority on the supplier's real inventory. */
 const V036_CONTRACT_MONTHS=[6,12,24];
+const BACKUP_SHARES_V040=[0,25,50,75];
 function contractV036(f,type){return f.supply?.contracts?.[type]?.longTermV036||null;}
 function contractActiveV036(f,type,s){
  const term=contractV036(f,type);if(!term||!term.enabled)return null;
@@ -2005,6 +2012,36 @@ function contractActiveV036(f,type,s){
   while(month>=term.end)term.end+=term.months;
  }
  return month>=term.start&&month<term.end?term:null;
+}
+function corporateContractSupplierV040(s,id,type){
+ if(typeof id!=='string'||!id.startsWith('CORP:')||!id.endsWith(':'+type))return null;
+ const seller=company(id.slice(5,-type.length-1),s);
+ const industry=type==='components'?'manufacturing':'resource';
+ return seller?.industry===industry?seller:null;
+}
+function corporateContractCapacityV040(seller,type){
+ if(seller.lifecycle?.phase==='withdrawn'||seller.reorgStatus==='integrated')return 0;
+ if(type==='components')return Math.floor(Math.min(seller.plant.capacity,interplantUnassigned(seller)));
+ const capacity=rawSplitV032(seller,resourceCapacityV037(seller))[type];
+ return Math.min(capacity,resourceDepositsV037(seller)[type].remaining);
+}
+function contractReservationsV040(s,id,type,buyerId=null){
+ const month=ym(s.year,s.month);
+ return s.firms.reduce((sum,other)=>{
+  const term=contractV036(other,type);
+  if(other.id===buyerId||other.lifecycle?.phase==='withdrawn'||other.reorgStatus==='integrated'||
+     !term?.enabled||term.supplierId!==id||term.start>month||!term.renew&&term.end<=month)return sum;
+  return sum+term.quantity;
+ },0);
+}
+function availableContractCapacityV040(s,buyer,node,type){
+ const seller=corporateContractSupplierV040(s,node.id,type);
+ return seller?Math.max(0,corporateContractCapacityV040(seller,type)-contractReservationsV040(s,node.id,type,buyer.id)):0;
+}
+function contractUnitBaseV040(s,node){
+ if(node.npc)return supplierPriceBase(s,node);
+ const seller=company(node.firmId,s);
+ return baseFromLocal(corporateSupplyUnitV037(s,node,seller,corporateSupplyStockV037(seller,node.type)),seller.country)/100;
 }
 function marketEmergencyReserveV036(m){
  return m?Math.min(Math.max(0,m.stock),Math.max(0,Math.floor(m.capacity*.10))):0;
@@ -2024,7 +2061,9 @@ function seedContractsV036(s){
 function validateContractsV036(s){
  const errs=[];
  for(const f of s.firms||[])for(const type of SUPPLY_TYPES){
-  const corporate=f.supply?.contracts?.[type]?.corporateSourcesV037;
+  const settings=f.supply?.contracts?.[type],corporate=settings?.corporateSourcesV037;
+  if(settings?.backupShareV040!==undefined&&(!BACKUP_SHARES_V040.includes(settings.backupShareV040)||
+     settings.backupShareV040>0&&!settings.backupId))errs.push(f.name+'：代替調達の配分が不正 '+type);
   if(corporate!==undefined&&(!Array.isArray(corporate)||corporate.length>2||
      corporate.some(id=>typeof id!=='string'||!id.startsWith('CORP:')||!id.endsWith(':'+type)))){
    errs.push(f.name+'：法人仕入先の設定が不正 '+type);
@@ -2034,9 +2073,18 @@ function validateContractsV036(s){
     !V036_CONTRACT_MONTHS.includes(x.months)||!Number.isSafeInteger(x.start)||!Number.isSafeInteger(x.end)||
     x.end<=x.start||typeof x.renew!=='boolean'||!Number.isFinite(x.creditBase)||x.creditBase<0)
     errs.push(f.name+'：長期供給契約条件の異常 '+type);
+  if(x.priceMode!==undefined&&(!['fixed','market'].includes(x.priceMode)||
+     x.priceMode==='fixed'&&(!Number.isFinite(x.unitBase)||x.unitBase<=0))){
+   errs.push(f.name+'：長期供給契約の価格条件が不正 '+type);
+  }
+  if(x.contractIdV040!==undefined&&(!Number.isSafeInteger(x.contractIdV040)||x.contractIdV040<1))
+   errs.push(f.name+'：長期供給契約の識別子が不正 '+type);
   if(x.enabled){
    const node=s.supplyNetwork?.nodes?.find(n=>n.id===x.supplierId&&n.npc&&n.type===type);
-   if(!node)errs.push(f.name+'：長期契約先のNPC市場が存在しません '+type);
+   const seller=corporateContractSupplierV040(s,x.supplierId,type);
+   if(!node&&(!seller||seller.id===f.id||seller.country!==f.country||x.quantity<1)){
+    errs.push(f.name+'：長期契約先の参照・数量が不正 '+type);
+   }
   }
  }
  return errs;
@@ -2076,11 +2124,15 @@ function procureNetwork(s,events){
     return node?.type===type&&seller&&remaining.has(id)&&
      (groupSupplyV037(s,f,seller)||contract?.corporateSourcesV037?.includes(id));
    };
-   const preferred=valid(contract?.supplierId)?contract.supplierId:null;
-   const alternate=valid(contract?.backupId)&&contract.backupId!==preferred?contract.backupId:null;
+   const primaryNode=nodes.get(contract.supplierId);
+   const preferred=valid(contract.supplierId)?contract.supplierId:null;
+   const backupNode=nodes.get(contract.backupId);
+   const alternate=backupNode?.type===type&&backupNode.id!==contract.supplierId&&
+    (backupNode.npc||valid(backupNode.id))?backupNode.id:null;
    f.supply.lastAttempt??={};
    f.supply.lastAttempt[type]={month,minimum:target.target,requested,ordered:0,shortage:0,detail:requested?'配分待ち':f.supply.contracts[type]?.autoOrder===false?'自動発注停止中':'在庫と到着予定で目標確保',npcOrdered:0,longTermRequested:0,longTermOrdered:0,marketOrdered:0};
-   candidates.push({id:f.id+':'+type,f,type,preferred,alternate,needed:requested,initial:requested,demand:target.demand,term});
+   candidates.push({id:f.id+':'+type,f,type,preferred,alternate,primaryNode,backupShare:contract.backupShareV040??0,
+    needed:requested,initial:requested,demand:target.demand,term});
   }
  }
  // Keep market dispatch and real-company dispatch on the same order allocator.
@@ -2088,7 +2140,8 @@ function procureNetwork(s,events){
   let qty=Math.max(0,Math.floor(Math.min(amount,RAW_TYPES_V032.includes(x.type)?rawSpaceForTransferV038(x.f,'warehouse'):Infinity)));
   if(!qty)return 0;
   const {f,type}=x,overseas=node.country!==f.country;
-  const price=supplierPriceBase(s,node),unit=Math.max(1,Math.round(price*(1-enterpriseSynergy(s,f).resourceDiscount)));
+  const fixed=channel==='longTerm'&&x.term?.priceMode==='fixed'?x.term.unitBase:null;
+  const price=supplierPriceBase(s,node),unit=fixed??Math.max(1,Math.round(price*(1-enterpriseSynergy(s,f).resourceDiscount)));
   const freight=overseas?Math.max(45,Math.round(unit*.09)):0;
   let lead=(overseas?2:0)+(risk[node.id]?.delay||0),shipment=null;
   if(node.npc){
@@ -2098,8 +2151,10 @@ function procureNetwork(s,events){
   }else{
    const seller=company(node.firmId,s);
    if(!groupSupplyV037(s,f,seller)){
-    shipment=dispatchCorporateSupplyV037(s,f,seller,node,qty,lead);
+    shipment=dispatchCorporateSupplyV037(s,f,seller,node,qty,lead,fixed);
     if(!shipment)return 0;
+    shipment.contractV036=channel==='longTerm';
+    if(shipment.contractV036)shipment.contractIdV040=x.term.contractIdV040??=s.seq++;
     qty=shipment.qty;lead=shipment.due-month;
    }
   }
@@ -2109,81 +2164,80 @@ function procureNetwork(s,events){
   if(node.npc)f.supply.lastAttempt[type].npcOrdered+=qty;
   if(channel==='longTerm')f.supply.lastAttempt[type].longTermOrdered+=qty;
   if(channel==='market')f.supply.lastAttempt[type].marketOrdered+=qty;
+  if(node.id===x.alternate){const attempt=f.supply.lastAttempt[type];attempt.backupOrdered=(attempt.backupOrdered||0)+qty;}
   if(!lead)deliverMaterials(s,f,events);
   return qty;
  };
- // Priority call-offs: all buyers compete fairly at each contracted NPC market.
+ // Priority call-offs share real inventory fairly at each supplier.
  // Reserve 10% of each market's monthly capacity for manual emergency orders.
  const contracts=new Map();
+ const recordShortDelivery=(x,seller,node,miss,shortfall)=>{
+  const external=!seller||!groupSupplyV037(s,x.f,seller);
+  if(shortfall&&external){
+   const price=x.term.priceMode==='fixed'?x.term.unitBase:contractUnitBaseV040(s,node);
+   x.term.creditBase=Math.min(1e12,x.term.creditBase+Math.round(shortfall*price*.05));
+  }
+  if(miss)x.f.supply.lastAttempt[x.type].longTermShortfall=miss;
+  if(miss)events.push(x.f.name+'：'+SUPPLY_LABELS[x.type]+'の長期契約納入未達 '+miss+
+   '単位'+(shortfall&&external?'（次回請求額で補償）':''));
+ };
  for(const x of candidates){
   if(!x.term||!x.needed)continue;
-  const node=nodes.get(x.term.supplierId);
-  if(!node?.npc||node.type!==x.type)continue;
   const monthly=Math.max(0,x.term.quantity||Math.ceil(x.demand*.65));
   const calloff=Math.min(x.needed,monthly);
   if(!calloff)continue;
-  fmark(x,calloff);
+  const id=x.term.supplierId,node=nodes.get(id),seller=corporateContractSupplierV040(s,id,x.type);
+  if(!node?.npc&&!seller)continue;
+  x.f.supply.lastAttempt[x.type].longTermRequested=calloff;
+  if(seller&&!corporateSupplierV037(s,x.f,node)){
+   recordShortDelivery(x,seller,{id,firmId:seller.id,country:seller.country,type:x.type},calloff,calloff);
+   continue;
+  }
   if(!contracts.has(node.id))contracts.set(node.id,[]);
   contracts.get(node.id).push({x,calloff});
  }
- function fmark(x,calloff){x.f.supply.lastAttempt[x.type].longTermRequested=calloff;}
  for(const [id,entries] of [...contracts].sort((a,b)=>a[0].localeCompare(b[0]))){
-  const node=nodes.get(id),market=npcMarketV033(s,node.country,node.type);
-  if(!market)continue;
-  market.lastRequested+=entries.reduce((n,v)=>n+v.calloff,0);
-  const stock=Math.max(0,market.stock-marketEmergencyReserveV036(market));
+  const node=nodes.get(id),market=node.npc?npcMarketV033(s,node.country,node.type):null;
+  const seller=node.npc?null:company(node.firmId,s);
+  if(market)market.lastRequested+=entries.reduce((n,v)=>n+v.calloff,0);
+  const stock=market?Math.max(0,market.stock-marketEmergencyReserveV036(market)):remaining.get(id)||0;
   const shares=fairAllocationV033(entries.map(e=>({id:e.x.id,need:e.calloff})),stock);
   for(const {x,calloff} of entries.sort((a,b)=>a.x.id.localeCompare(b.x.id))){
    const filled=shares[x.id]||0;
-   if(filled)dispatch(x,node,filled,'longTerm');
-   const miss=calloff-filled;
-   if(miss){
-    // Supplier non-performance creates an invoice credit, never free cash.
-    const claim=Math.round(miss*supplierPriceBase(s,node)*.05);
-    x.term.creditBase=Math.min(1e12,(x.term.creditBase||0)+claim);
-    events.push(x.f.name+'：'+SUPPLY_LABELS[x.type]+'の長期契約納入未達 '+miss+'単位（次回請求額で補償）');
-   }
+   const shipped=filled?dispatch(x,node,filled,'longTerm'):0;
+   if(!market)remaining.set(id,Math.max(0,(remaining.get(id)||0)-shipped));
+   // A buyer's inability to settle an allocated quantity is not a supplier breach.
+   recordShortDelivery(x,seller,node,calloff-shipped,calloff-filled);
   }
  }
- for(const sourceName of ['preferred','alternate']){
+ const allocateSelected=(source,requested)=>{
   const grouped=new Map();
   for(const x of candidates){
-   const id=x[sourceName];if(!id||x.needed<=0)continue;
+   const id=source(x);if(!id||x.needed<=0)continue;
+   const need=requested(x);if(!need)continue;
    if(!grouped.has(id))grouped.set(id,[]);
-   grouped.get(id).push(x);
+   grouped.get(id).push({id:x.id,need,x});
   }
   for(const [id,group] of [...grouped].sort((a,b)=>a[0].localeCompare(b[0]))){
-   const node=nodes.get(id),room=remaining.get(id)||0;
-   if(!node||room<=0)continue;
-   const fractions=fairAllocationV033(group.map(x=>({id:x.id,need:x.needed})),room);
-   for(const x of [...group].sort((a,b)=>a.id.localeCompare(b.id))){
+   const node=nodes.get(id),market=node.npc?npcMarketV033(s,node.country,node.type):null;
+   const room=market?Math.max(0,market.stock-marketEmergencyReserveV036(market)):remaining.get(id)||0;
+   if(market)market.lastRequested+=group.reduce((n,row)=>n+row.need,0);
+   if(!room)continue;
+   const fractions=fairAllocationV033(group,room);
+   for(const {x} of group.sort((a,b)=>a.id.localeCompare(b.id))){
     const q=fractions[x.id]||0;if(!q)continue;
-    const shipped=dispatch(x,node,q);remaining.set(id,remaining.get(id)-shipped);
+    const shipped=dispatch(x,node,q);
+    if(!market)remaining.set(id,remaining.get(id)-shipped);
    }
   }
- }
-
- // Without a long-term contract, explicit foreign NPC primary sources also
- // remain usable. Shipping is accounted for by dispatch() with a 2-month ETA.
- // Reserve emergency inventory in the seller country before dispatch.
- const foreign=new Map();
- for(const x of candidates){
-  if(x.term||!x.needed)continue;
-  const selected=nodes.get(x.f.supply.contracts[x.type]?.supplierId);
-  if(!selected?.npc||selected.country===x.f.country||selected.type!==x.type)continue;
-  if(!foreign.has(selected.id))foreign.set(selected.id,[]);
-  foreign.get(selected.id).push(x);
- }
- for(const [id,group] of [...foreign].sort((a,b)=>a[0].localeCompare(b[0]))){
-  const node=nodes.get(id),market=npcMarketV033(s,node.country,node.type);
-  if(!market)continue;
-  const room=Math.max(0,market.stock-marketEmergencyReserveV036(market));
-  market.lastRequested+=group.reduce((n,x)=>n+x.needed,0);
-  const shares=fairAllocationV033(group.map(x=>({id:x.id,need:x.needed})),room);
-  for(const x of group.sort((a,b)=>a.id.localeCompare(b.id))){
-   const qty=shares[x.id]||0;if(qty)dispatch(x,node,qty,'market');
-  }
- }
+ };
+ const homeMarket=x=>x.primaryNode?.npc&&x.primaryNode.country===x.f.country;
+ const needed=x=>x.needed;
+ // Honour active contracts first, then split the remaining purchase request.
+ allocateSelected(x=>x.alternate,x=>Math.floor(x.needed*x.backupShare/100));
+ allocateSelected(x=>x.preferred,needed);
+ allocateSelected(x=>!x.term&&x.primaryNode?.npc&&!homeMarket(x)?x.primaryNode.id:null,needed);
+ allocateSelected(x=>homeMarket(x)?null:x.alternate,needed);
  // NPC pool is physical and bounded: allocate all residual orders simultaneously.
  for(const country of Object.keys(s.world)){
   for(const type of SUPPLY_TYPES){
@@ -2207,6 +2261,7 @@ function procureNetwork(s,events){
    }
   }
  }
+ allocateSelected(x=>homeMarket(x)?x.alternate:null,needed);
  for(const x of candidates){
   const attempt=x.f.supply.lastAttempt[x.type];attempt.shortage=x.needed;
   attempt.detail=x.needed?'仕入先・世界市場の物理供給上限に到達':'有限供給源へ配分済み';
@@ -8251,22 +8306,44 @@ function openSupplyContracts(){
  contracts.scrollIntoView({block:'start'});
  contracts.querySelector('summary')?.focus({preventScroll:true});
 }
+function supplierAssessmentV040(s,node,type){
+ const seller=corporateContractSupplierV040(s,node.id,type);
+ const obligations=['payable','wagesDue','interestDue','taxDue'].reduce((sum,account)=>sum+acc(seller,account),0);
+ const financeRisk=seller.distress.stage>=2||financials(seller).equity<0||acc(seller,'cash')<obligations;
+ const capacity=corporateContractCapacityV040(seller,type),risk=s.supplyRisk.active[node.id];
+ const effective=Math.floor(capacity*(risk?.capacityFactor??1)*(s.world[seller.country].war?.73:1));
+ const reserved=contractReservationsV040(s,node.id,type);
+ return {financeRisk,capacity,effective,reserved,operatingRisk:!!risk||!effective||effective<reserved};
+}
 function supplierCardV024(f,t,edit,group){const contract=f.supply.contracts[t],nodes=S.supplyNetwork.nodes.filter(x=>x.type===t&&(x.npc||corporateSupplierV037(S,f,x)))
  .sort((a,b)=>Number(group.has(b.firmId))-Number(group.has(a.firmId)));const primary=S.supplyNetwork.nodes.find(x=>x.id===contract.supplierId),stored=f.stock[t]?.q||0,inbound=f.supply.inbound.filter(x=>x.type===t).reduce((n,x)=>n+x.qty,0);const activeRisk=primary&&S.supplyRisk?.active?.[primary.id];
  const term=contractV036(f,t),termOn=!!term?.enabled;
  const expiry=term?.end!=null?(Math.floor(term.end/12)+'年'+(term.end%12+1)+'月'):'未設定';
+ const assessment=primary?.firmId?supplierAssessmentV040(S,primary,t):null;
+ const offer=assessment?`<p class="hint">月間契約枠 ${nfmt(availableContractCapacityV040(S,f,primary,t))}単位
+  ／供給見込み ${nfmt(assessment.effective)}／${nfmt(assessment.capacity)}単位
+  ／予約済み ${nfmt(assessment.reserved)}単位<br>財務リスク ${assessment.financeRisk?'高':'低'} ／操業リスク ${assessment.operatingRisk?'高':'低'}
+  ${group.has(primary.firmId)?'<br>グループ内の検収は簿価で決済します。':''}</p>`:'';
+ const attempts=f.supply.lastAttempt?.[t];
+ const delivery=attempts?.longTermRequested?`<p class="hint">前回の契約出荷 ${nfmt(attempts.longTermOrdered)}／${nfmt(attempts.longTermRequested)}単位
+   ／代替先への発注 ${nfmt(attempts.backupOrdered??0)}単位</p>`:'';
+ const backupShareOptions=BACKUP_SHARES_V040.map(n=>`<option value="${n}" ${(contract.backupShareV040??0)===n?'selected':''}>${n?n+'%':'不足時のみ'}</option>`).join('');
  const termControls='<div class="supply-v24-fields" style="margin-top:10px">'+
-  '<label class="supply-ai-lock"><input type="checkbox" id="ltEnable_'+t+'" '+(termOn?'checked':'')+' '+(!edit?'disabled':'')+'> 長期契約（NPC市場のみ）</label>'+
+  '<label class="supply-ai-lock"><input type="checkbox" id="ltEnable_'+t+'" '+(termOn?'checked':'')+' '+(!edit?'disabled':'')+'> 長期契約</label>'+
   '<label class="field"><span>契約月数</span><select id="ltMonths_'+t+'" '+(!edit?'disabled':'')+'>'+
   V036_CONTRACT_MONTHS.map(n=>'<option value="'+n+'" '+((term?.months||12)===n?'selected':'')+'>'+n+'か月</option>').join('')+'</select></label>'+
-  '<label class="field"><span>月間契約数量（0＝当月需要の65%）</span><input id="ltQty_'+t+'" type="number" min="0" max="10000" value="'+(term?.quantity||0)+'" '+(!edit?'disabled':'')+'></label>'+
-  '</div><p class="hint">長期優先供給65%・通常市場25%・緊急枠10%を目安に運用。仕入先は国内外NPC市場から選択できます。契約先による未達は次回の契約請求額から最大10%を控除。早期解約・数量変更には1か月契約額の8%の違約金。次回更新 '+expiry+'</p>';
+  '<label class="field"><span>月間契約数量（市場では0＝当月需要の65%）</span><input id="ltQty_'+t+'" type="number" min="0" max="10000" value="'+(term?.quantity||0)+'" '+(!edit?'disabled':'')+'></label>'+
+  '<label class="field"><span>契約価格</span><select id="ltPricing_'+t+'" '+(!edit?'disabled':'')+'>'+
+  '<option value="market">市場連動</option><option value="fixed" '+(term?.priceMode==='fixed'?'selected':'')+'>締結時の固定価格</option></select></label>'+
+  '<label><input type="checkbox" id="ltRenew_'+t+'" '+(term?.renew!==false?'checked':'')+' '+(!edit?'disabled':'')+'> 自動更新</label>'+
+  '</div><p class="hint">契約期限 '+expiry+(term?.priceMode==='fixed'?' ／ 固定単価 '+aiMoney(term.unitBase):'')+
+  '</p>'+offer+delivery+(termOn&&term.supplierId!==primary?.id?'<p class="hint">契約先の供給が停止しています。主仕入先と契約条件を確認してください。</p>':'');
  const label=x=>esc(x.label)+(group.has(x.firmId)?' ［グループ］':x.firmId?' ［独立企業］':'');
  const opts=nodes.map(x=>`<option value="${esc(x.id)}" ${contract.supplierId===x.id?'selected':''}>${label(x)} / ${esc(NAMES[x.country]||x.country)} · 能力${nfmt(x.capacity)}</option>`).join('');const backups=nodes.map(x=>`<option value="${esc(x.id)}" ${x.id===contract.backupId?'selected':''} ${x.id===contract.supplierId?'disabled':''}>${label(x)} / ${esc(NAMES[x.country]||x.country)}</option>`).join('');const seller=primary?.firmId?company(primary.firmId,S):null;
  const inventory=seller?corporateSupplyStockV037(seller,t):null;
  const unit=seller&&inventory?.q?baseFromLocal(group.has(seller.id)?Math.round(inventory.v/inventory.q):
   corporateSupplyUnitV037(S,primary,seller,inventory),seller.country)/100:primary?supplierPriceBase(S,primary):0;
- return `<section class="supply-v24-card" data-supply-type="${t}"><header><div><span class="ai-overline">${esc(t.toUpperCase())}</span><h3>${esc(SUPPLY_LABELS[t])}</h3></div>${activeRisk?tag('供給障害中','warn'):tag(inbound?'輸送中あり':'契約中',inbound?'':'good')}</header><div class="supply-mini-metrics"><div><small>在庫</small><strong>${nfmt(stored)}</strong></div><div><small>輸送中</small><strong>${nfmt(inbound)}</strong></div><div><small>概算単価</small><strong>${aiMoney(unit)}</strong></div></div><div class="supply-v24-fields"><label class="field"><span>主仕入先</span><select id="supplier_${t}" ${edit?'':'disabled'}>${opts}</select></label><label class="field"><span>代替仕入先</span><select id="backup_${t}" ${edit?'':'disabled'}><option value="">指定なし</option>${backups}</select></label><label class="field"><span>安全在庫</span><select id="buffer_${t}" ${edit?'':'disabled'}>${[[.25,'最小（0.25か月）'],[.5,'標準（0.5か月）'],[1,'安定重視（1か月）'],[1.5,'備蓄（1.5か月）'],[2,'戦略備蓄（2か月）']].map(([v,n])=>`<option value="${v}" ${safetyMonthsV034(contract)===v?'selected':''}>${n}</option>`).join('')}</select></label></div><label class="supply-ai-lock"><input type="checkbox" id="autoOrder_${t}" ${contract.autoOrder!==false?'checked':''} ${edit?'':'disabled'}> 毎月の自動補充を実行</label><div class="supply-v24-foot">${seller&&!group.has(seller.id)?'国内の独立企業：最短1か月、検収時に決済':primary?.country===f.country?'国内調達':'海外調達：輸送期間と追加運賃あり'} ${activeRisk?'・供給能力が制限されています':''}</div><label class="supply-ai-lock"><input id="aiSupply_${t}" type="checkbox" ${contract.autoManage!==false?'checked':''} ${edit?'':'disabled'}> 主仕入先の変更をAIに許可</label>${termControls}</section>`;}
+ return `<section class="supply-v24-card" data-supply-type="${t}"><header><div><span class="ai-overline">${esc(t.toUpperCase())}</span><h3>${esc(SUPPLY_LABELS[t])}</h3></div>${activeRisk?tag('供給障害中','warn'):tag(inbound?'輸送中あり':'契約中',inbound?'':'good')}</header><div class="supply-mini-metrics"><div><small>在庫</small><strong>${nfmt(stored)}</strong></div><div><small>輸送中</small><strong>${nfmt(inbound)}</strong></div><div><small>概算単価</small><strong>${aiMoney(unit)}</strong></div></div><div class="supply-v24-fields"><label class="field"><span>主仕入先</span><select id="supplier_${t}" ${edit?'':'disabled'}>${opts}</select></label><label class="field"><span>代替仕入先</span><select id="backup_${t}" ${edit?'':'disabled'}><option value="">指定なし</option>${backups}</select></label><label class="field"><span>代替先へ割り当てる通常発注</span><select id="backupShare_${t}" ${edit?'':'disabled'}>${backupShareOptions}</select></label><label class="field"><span>安全在庫</span><select id="buffer_${t}" ${edit?'':'disabled'}>${[[.25,'最小（0.25か月）'],[.5,'標準（0.5か月）'],[1,'安定重視（1か月）'],[1.5,'備蓄（1.5か月）'],[2,'戦略備蓄（2か月）']].map(([v,n])=>`<option value="${v}" ${safetyMonthsV034(contract)===v?'selected':''}>${n}</option>`).join('')}</select></label></div><label class="supply-ai-lock"><input type="checkbox" id="autoOrder_${t}" ${contract.autoOrder!==false?'checked':''} ${edit?'':'disabled'}> 毎月の自動補充を実行</label><div class="supply-v24-foot">${seller&&!group.has(seller.id)?'国内の独立企業：最短1か月、検収時に決済':primary?.country===f.country?'国内調達':'海外調達：輸送期間と追加運賃あり'} ${activeRisk?'・供給能力が制限されています':''}</div><label class="supply-ai-lock"><input id="aiSupply_${t}" type="checkbox" ${contract.autoManage!==false?'checked':''} ${edit?'':'disabled'}> 主仕入先の変更をAIに許可</label>${termControls}</section>`;}
 
 /* STEP 3: show a supply outlook without treating unsent orders as receipts. */
 function supplyForecastPanelV034(f){
@@ -8358,16 +8435,20 @@ function procurementComparisonV037(s,f,group){
   if(!quantity)continue;
   const internal=group.has(seller.id);
   const price=internal?Math.round(stock.v/stock.q):corporateSupplyUnitV037(s,node,seller,stock);
-  byType.get(node.type).push({name:seller.name,price,quantity,internal});
+  const externalPrice=internal&&seller.industry==='resource'?localFromBase(resourceSalePriceV037(s,seller,node.type),seller.country):
+   internal?corporateSupplyUnitV037(s,node,seller,stock):price;
+  byType.get(node.type).push({name:seller.name,price,quantity,internal,externalMargin:externalPrice-price});
  }
  const cell=quote=>quote?`${fnum(f,quote.price)}／${nfmt(quote.quantity)}単位<br><small>${esc(quote.name)}</small>`:'供給在庫なし';
  const marketUnit=t=>localFromBase(supplierPriceBase(s,{country:f.country,type:t,npc:true}),f.country);
  const rows=SUPPLY_TYPES.map(t=>{
   const offers=byType.get(t).sort((a,b)=>a.price-b.price||b.quantity-a.quantity);
   const market=npcMarketV033(s,f.country,t);
+  const internal=offers.find(x=>x.internal);
   return `<tr><th scope="row">${SUPPLY_LABELS[t]}</th>
    <td>${fnum(f,marketUnit(t))}／${nfmt(market.stock-marketEmergencyReserveV036(market))}単位</td>
-   <td>${cell(offers.find(x=>!x.internal))}</td><td>${cell(offers.find(x=>x.internal))}</td></tr>`;
+   <td>${cell(offers.find(x=>!x.internal))}</td><td>${cell(internal)}</td>
+   <td>${internal?fnum(f,internal.externalMargin)+'／単位':'—'}</td></tr>`;
  }).join('');
  const canProduce=f.factoryOps?.mode!=='detailed'&&supportPartFactories(f).length;
  const ownPartCost=canProduce?['steel','rubber'].reduce((cost,t)=>{
@@ -8375,14 +8456,14 @@ function procurementComparisonV037(s,f,group){
   return cost+(stock.q?Math.round(stock.v/stock.q):marketUnit(t));
  },commonPartsProcessingCost(s,f,1)):null;
  return `<section class="panel span12"><h2>内製と仕入れの比較</h2>
-  <p class="hint">概算単価と現時点の未予約在庫。グループ内の単価は簿価。独立企業の見積には売手の加工原価を反映します。</p>
+  <p class="hint">概算単価と現時点の未予約在庫。グループ内供給は簿価で決済します。外販の機会費用は、同じ在庫を外へ販売した場合の見積単価と簿価の差です。</p>
   ${ownPartCost===null?'':`<p>共通部品の内製見積 ${fnum(f,ownPartCost)}／個（鋼材・ゴム・加工労務費）</p>`}
-  <div class="scroll"><table><thead><tr><th>資材</th><th>国内市場</th><th>国内の独立企業</th><th>グループ内供給</th></tr></thead>
+  <div class="scroll"><table><thead><tr><th>資材</th><th>国内市場</th><th>国内の独立企業</th><th>グループ内供給</th><th>外販の機会費用</th></tr></thead>
   <tbody>${rows}</tbody></table></div></section>`;
 }
 supplyContractsPage=function(){const html=supplyContractsLegacyV023(),start=html.indexOf('<section class="panel span8"><h2>原材料・部品ごとの購入契約</h2>'),end=html.indexOf('<section class="panel span4">',start);if(start<0||end<0)return html;const f=current(),edit=canEdit(f);
  const group=controlSet(S);
- const panel=groupSupplySources(f,group)+procurementComparisonV037(S,f,group)+supplyForecastPanelV034(f)+supplyBalancePanelV039(f)+resourceOrderPanelV026(f)+`<details class="factory-accordion span12 supply-v026-contracts"><summary>原材料・部品の購入契約を編集（7資材）</summary><section class="panel span12 supply-v24"><div class="ai-heading"><div><span class="ai-overline">PURCHASING / CONTRACTS</span><h2>原材料・部品の購入契約</h2></div>${tag('7資材を個別管理')}</div><p class="hint">契約変更は保存後、次回の月次調達から適用します。<b>保存するだけでは在庫は増えません。</b> 発注が成立すると輸送中に入り、到着時に在庫へ計上します。既に発注済みの荷物には影響しません。</p><div class="supply-v24-grid">${SUPPLY_TYPES.map(t=>supplierCardV024(f,t,edit,group)).join('')}</div><div class="supply-v24-save"><div><b id="supplyV24SaveState">保存済みの仕入方針を表示中</b><small>主仕入先と代替先は別の供給元を指定してください。国内グループ企業または地域NPC市場を選べます。手動で主仕入先を変更するとAIの再変更を禁止します。必要量・現金・供給能力も発注量を左右します。</small></div><button class="btn primary" data-action="saveSupply" ${edit?'':'disabled'}>7資材の契約を保存</button></div></section></details>`;return html.slice(0,start)+panel+html.slice(end);};
+ const panel=groupSupplySources(f,group)+procurementComparisonV037(S,f,group)+supplyForecastPanelV034(f)+supplyBalancePanelV039(f)+resourceOrderPanelV026(f)+`<details class="factory-accordion span12 supply-v026-contracts"><summary>原材料・部品の購入契約を編集（7資材）</summary><section class="panel span12 supply-v24"><div class="ai-heading"><div><span class="ai-overline">PURCHASING / CONTRACTS</span><h2>原材料・部品の購入契約</h2></div>${tag('7資材を個別管理')}</div><p class="hint">契約変更は保存後、次回の月次調達から適用します。<b>保存するだけでは在庫は増えません。</b> 発注が成立すると輸送中に入り、到着時に在庫へ計上します。既に発注済みの荷物には影響しません。</p><div class="supply-v24-grid">${SUPPLY_TYPES.map(t=>supplierCardV024(f,t,edit,group)).join('')}</div><div class="supply-v24-save"><div><b id="supplyV24SaveState">保存済みの仕入方針を表示中</b><small>主仕入先と代替先は別の供給元を指定してください。国内企業と地域市場を選べます。長期契約の後に残った通常発注を代替先に配分できます。必要量・現金・供給能力も発注量を左右します。</small></div><button class="btn primary" data-action="saveSupply" ${edit?'':'disabled'}>7資材の契約を保存</button></div></section></details>`;return html.slice(0,start)+panel+html.slice(end);};
 function saveSupply(){let backup=null;try{
  const f=current();if(!canEdit(f))throw Error('契約変更権限がありません');
  ensureNetwork(f);ensureSupplyNetwork(S);
@@ -8397,32 +8478,41 @@ function saveSupply(){let backup=null;try{
   if(backupId&&(!S.supplyNetwork.nodes.some(x=>x.id===backupId&&x.type===t&&
       (x.npc||corporateSupplierV037(S,f,x)))||backupId===id))
    throw Error(SUPPLY_LABELS[t]+'の代替仕入先を確認してください');
+  const backupShare=Number(inputValue('backupShare_'+t));
+  if(!BACKUP_SHARES_V040.includes(backupShare))throw Error(SUPPLY_LABELS[t]+'の代替調達配分が不正です');
   const safetyMonths=Number(inputValue('buffer_'+t));
   if(!SAFETY_LEVELS_V034.includes(safetyMonths))throw Error('安全在庫月数が不正：'+SUPPLY_LABELS[t]);
   const autoOrder=!!document.getElementById('autoOrder_'+t)?.checked;
   const enabled=!!document.getElementById('ltEnable_'+t)?.checked;
   const months=Number(inputValue('ltMonths_'+t)),quantity=Number(inputValue('ltQty_'+t));
-  if(!V036_CONTRACT_MONTHS.includes(months)||!Number.isSafeInteger(quantity)||quantity<0||quantity>10000)
+  const priceMode=inputValue('ltPricing_'+t),renew=!!document.getElementById('ltRenew_'+t)?.checked;
+  if(!V036_CONTRACT_MONTHS.includes(months)||!Number.isSafeInteger(quantity)||quantity<0||quantity>10000||
+     !['market','fixed'].includes(priceMode))
    throw Error('契約数量／契約期間が不正：'+SUPPLY_LABELS[t]);
-  if(enabled&&!main.npc)
-   throw Error('長期契約はNPC市場から選択してください：'+SUPPLY_LABELS[t]);
   const previous=f.supply.contracts[t];
   const old=contractV036(f,t);
-  const same=old&&old.enabled===enabled&&(!enabled||
-   (old.supplierId===id&&old.quantity===quantity&&old.months===months));
-  const changed=!!old?.enabled&&!same;
-  if(changed&&contractActiveV036(f,t,S)){
+  const oldActive=old?.enabled&&old.start<=month&&(old.renew||month<old.end);
+  const same=old&&old.enabled===enabled&&(!enabled||oldActive&&
+   old.supplierId===id&&old.quantity===quantity&&old.months===months&&(old.priceMode??'market')===priceMode);
+  if(enabled&&!main.npc&&!same){
+   const capacity=availableContractCapacityV040(S,f,main,t);
+   if(quantity<1||quantity>capacity)throw Error(SUPPLY_LABELS[t]+'の月間契約数量は1〜'+nfmt(capacity)+'単位の範囲です');
+  }
+  if(oldActive&&!same){
    const source=S.supplyNetwork.nodes.find(n=>n.id===old.supplierId);
+   const seller=corporateContractSupplierV040(S,old.supplierId,t);
    const count=old.quantity||Math.ceil(factoryResourceTargetV026(f,t,S).demand*.65);
-   const price=source?supplierPriceBase(S,source):0;
+   const price=old.priceMode==='fixed'?old.unitBase:source?contractUnitBaseV040(S,source):0;
    const fee=localFromBase(Math.round(count*price*.08),f.country);
-   if(fee)penalties.push({t,fee});
+   if(fee&&(!seller||source&&!groupSupplyV037(S,f,seller)))penalties.push({t,fee,seller});
   }
   const nextTerm=same?structuredClone(old||{enabled:false}):
-   {enabled,supplierId:id,quantity,months,start:month,end:month+months,renew:true,creditBase:0};
+   {enabled,supplierId:id,quantity,months,start:month,end:month+months,renew,creditBase:0,
+    priceMode:enabled?priceMode:'market',unitBase:enabled&&priceMode==='fixed'?contractUnitBaseV040(S,main):null};
+  nextTerm.renew=renew;
   if(nextTerm.enabled&&nextTerm.supplierId!==id)
    throw Error('長期契約の主仕入先と契約先が一致しません');
-  draft[t]={...previous,supplierId:id,backupId,buffer:safetyMonths<1?1:safetyMonths,
+  draft[t]={...previous,supplierId:id,backupId,backupShareV040:backupId?backupShare:0,buffer:safetyMonths<1?1:safetyMonths,
    safetyMonths,autoOrder,autoManage:enabled?false:!!document.getElementById('aiSupply_'+t)?.checked,
    corporateSourcesV037:[id,backupId].filter(sourceId=>S.supplyNetwork.nodes.some(n=>n.id===sourceId&&n.firmId&&!all.has(n.firmId))),
    longTermV036:nextTerm};
@@ -8430,9 +8520,15 @@ function saveSupply(){let backup=null;try{
  const cost=penalties.reduce((n,x)=>n+x.fee,0);
  if(cost>acc(f,'cash'))throw Error('契約変更の違約金を支払う現金が不足しています');
  backup=structuredClone(S);
- for(const row of penalties)post(f,{otherExpense:row.fee},{cash:row.fee},
-  '長期原材料供給契約の早期変更・解約：'+SUPPLY_LABELS[row.t],'operating',S);
- for(const t of SUPPLY_TYPES)f.supply.contracts[t]=draft[t];
+ for(const {t,fee,seller} of penalties){
+  post(f,{otherExpense:fee},{cash:fee},'長期原材料供給契約の早期変更・解約：'+SUPPLY_LABELS[t],'operating',S);
+  if(seller)post(seller,{cash:fee},{otherRevenue:fee},'長期原材料供給契約の解約違約金：'+SUPPLY_LABELS[t],'operating',S);
+ }
+ for(const t of SUPPLY_TYPES){
+  const term=draft[t].longTermV036;
+  if(term.enabled&&term.supplierId.startsWith('CORP:'))term.contractIdV040??=S.seq++;
+  f.supply.contracts[t]=draft[t];
+ }
  const errors=check(S);
  if(errors.length)throw Error('契約更新後の検算失敗：'+errors.slice(0,3).join(' / '));
  render();toast('7資材の購入契約を保存しました'+(cost?'。違約金：'+fnum(f,cost):''));
