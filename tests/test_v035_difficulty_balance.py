@@ -57,13 +57,16 @@ with sync_playwright() as p:
 
         # New companies founded after game start must buy only real NPC stock.
         late=page.evaluate("""()=> {
-            const before=Object.fromEntries(SUPPLY_TYPES.map(t=>[t,npcMarketV033(S,'JP',t).stock]));
-            const firm=initFirm(S,{name:'市場調達・新設法人',country:'JP',
+            // A synthetic new firm changes the consolidation population, so
+            // isolate its entry on a clone of the committed scenario.
+            const scenario=structuredClone(S);
+            const before=Object.fromEntries(SUPPLY_TYPES.map(t=>[t,npcMarketV033(scenario,'JP',t).stock]));
+            const firm=initFirm(scenario,{name:'市場調達・新設法人',country:'JP',
                 industry:'manufacturing',size:.4,seedBase:800000,strategy:'balanced'});
-            const after=Object.fromEntries(SUPPLY_TYPES.map(t=>[t,npcMarketV033(S,'JP',t).stock]));
+            const after=Object.fromEntries(SUPPLY_TYPES.map(t=>[t,npcMarketV033(scenario,'JP',t).stock]));
             const consumed=Object.fromEntries(SUPPLY_TYPES.map(t=>[t,before[t]-after[t]]));
             const received=Object.fromEntries(SUPPLY_TYPES.map(t=>[t,firm.startupMaterialsV035.quantities[t]?.units||0]));
-            return {consumed,received,errors:check(S),source:firm.startupMaterialsV035.source};
+            return {consumed,received,errors:check(scenario),source:firm.startupMaterialsV035.source};
         }""")
         assert late["consumed"]==late["received"] and not late["errors"],late
         assert late["source"]=="地域NPC市場からの開業仕入",late
