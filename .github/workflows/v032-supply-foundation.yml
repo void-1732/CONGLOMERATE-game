@@ -1,0 +1,43 @@
+name: v0.32 Supply Foundation Verification
+on:
+  push:
+    branches:
+      - dev/v032-supply-foundation
+  pull_request:
+    branches:
+      - main
+jobs:
+  foundation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Chromium
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Test v0.32 supply foundation
+        run: python tests/test_v032_supply_foundation.py
+      - name: Test v0.33 finite NPC supply and fair allocation
+        run: python tests/test_v033_npc_supply.py
+      - name: Test resource subsidiary and old save compatibility
+        run: python tests/test_v030_research_supply.py
+      - name: Test 6-month sales and exports
+        run: |
+          python tests/test_v031_demand_allocation.py
+          python tests/test_v031_exports.py
+      - name: Test production and accounting
+        run: |
+          python tests/test_v029_bom.py
+          python tests/test_v029_trade.py
+      - name: Diagnose 1900, 1960 and 2010 supply balance
+        run: python tests/test_v033_supply_balance_probe.py
+      - name: Long-term multi-firm and factory regression (120 months)
+        run: python tests/test_v029_ai_investment.py
+      - name: Test save migrations
+        run: python tests/test_v0271_smoke.py
