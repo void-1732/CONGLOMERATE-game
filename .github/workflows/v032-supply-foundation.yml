@@ -35,6 +35,8 @@ jobs:
         run: |
           python tests/test_v029_bom.py
           python tests/test_v029_trade.py
+      - name: Diagnose 1900, 1960 and 2010 supply balance
+        run: python tests/test_v033_supply_balance_probe.py
       - name: Long-term multi-firm and factory regression (120 months)
         run: python tests/test_v029_ai_investment.py
       - name: Test save migrations
