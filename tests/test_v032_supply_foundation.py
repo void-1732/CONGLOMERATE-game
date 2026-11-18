@@ -46,7 +46,7 @@ def run():
             const pending=buyer.supply.inbound.find(x=>x.id===order.id);
             const finalQty=RAW_TYPES_V032.reduce((n,t)=>n+rawBinV032(seller,t).q,0);
             const result={migrated,produced,capacity,received,priorSeller,
-                pending:pending?.qty||0,oldGeneric:seller.goods.RESOURCE,
+                pending:pending?.qty||0,oldGeneric:seller.goods.RESOURCE??null,
                 change:totalBefore-finalQty,bookErrors:check(S)};
             S._step1TestResult=result;
             return result;
