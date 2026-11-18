@@ -1529,7 +1529,44 @@ function recordExportDelivery(s,f,shipment,events){const unitPrice=shipment.unit
  if(ar)f.receivables.push({amount:ar,due:ym(s.year,s.month)+1,note:'輸出売上'});
  f._salesNow+=gross;f._unitsNow+=shipment.qty;recordVehicleProfit(f,shipment.key,shipment.country,shipment.qty,gross,shipment.bookCost,s);registerMarketSale(f,shipment.country,shipment.key,shipment.qty,gross,s,shipment.segment);recordQualitySold(f,shipment.key,shipment.country,shipment.qty,s);
  f.distribution.history.push({month:ym(s.year,s.month),country:shipment.country,qty:shipment.qty,gross,transport:shipment.transportBase,dealerFirmId:shipment.dealerFirmId||null});if(f.distribution.history.length>120)f.distribution.history.shift();}
-function deliverExports(s,events){for(const f of s.firms){ensureNetwork(f,s);const due=f.distribution.outbound.filter(x=>x.due<=ym(s.year,s.month));f.distribution.outbound=f.distribution.outbound.filter(x=>x.due>ym(s.year,s.month));for(const shipment of due)recordExportDelivery(s,f,shipment,events)}}
+/* v0.31: inbound vehicle shipments compete for actual demand in the arrival
+   month. Unserved stock remains goodsTransit (with BOM sources) for a later
+   delivery attempt rather than creating revenue beyond customer demand. */
+function deliverExports(s,events){
+ const month=ym(s.year,s.month);
+ s.marketDeliveryV031={month,markets:{}};
+ for(const f of s.firms){
+  ensureNetwork(f,s);
+  const pending=[];
+  for(const shipment of f.distribution.outbound){
+   if(shipment.due>month){pending.push(shipment);continue;}
+   const code=shipment.country,usage=s.marketDeliveryV031.markets[code]??={units:0,segments:{}};
+   const demand=marketDemandSnapshotV031(s,code).demand;
+   const qty=Math.min(shipment.qty,Math.max(0,demand-usage.units));
+   if(qty<=0){pending.push({...shipment,due:month+1});continue;}
+   if(qty===shipment.qty){
+    recordExportDelivery(s,f,shipment,events);
+   }else{
+    let partCost,partSources,remainingSources;
+    if(shipment.bomSources?.length){
+     const lots=shipment.bomSources.map(x=>({...x}));
+     partSources=takeBomLots(lots,qty,'id');
+     remainingSources=lots.filter(x=>x.quantity>0);
+     partCost=bomUseCost(partSources);
+     if(partCost>shipment.bookCost)throw Error('輸送中BOM原価が不正です');
+    }else partCost=Math.round(shipment.bookCost*qty/shipment.qty);
+    recordExportDelivery(s,f,{...shipment,qty,bookCost:partCost,...(partSources?{bomSources:partSources}:{})},events);
+    pending.push({...shipment,qty:shipment.qty-qty,bookCost:shipment.bookCost-partCost,
+     ...(partSources?{bomSources:remainingSources}:{}),due:month+1});
+   }
+   usage.units+=qty;
+   if(shipment.segment&&MARKET_SEGMENTS[shipment.segment])usage.segments[shipment.segment]=(usage.segments[shipment.segment]||0)+qty;
+   else usage.segments._unassigned=(usage.segments._unassigned||0)+qty;
+  }
+  f.distribution.outbound=pending;
+ }
+}
+
 function exportShipment(s,f,key,qty,unitPrice,code,events,segment=null){ensureNetwork(f,s);const {cost,batches}=takeFinishedGoods(f,key,qty);
  post(f,{goodsTransit:cost},{goods:cost},'海外輸送中の完成品へ振替 '+qty+'台','operating',s);
  const channel=exportChannel(f,code,s),mult=channel.channel==='direct'?1.25:channel.channel==='subsidiary'?.84:channel.channel==='distributor'?.94:1.06;
@@ -1917,7 +1954,7 @@ function reorganizationPanel(f,edit){ensureV11Firm(f);
  ${S.reorgHistory?.length?`<div class="scroll"><table><thead><tr><th>年月</th><th>取引</th><th>移管元</th><th>移管先</th><th>内容</th></tr></thead><tbody>${S.reorgHistory.slice(-7).reverse().map(r=>`<tr><td>${Math.floor(r.month/12)}年${r.month%12+1}月</td><td>${r.kind==='business-transfer'?'事業移管':'事業統合'}</td><td>${esc(company(r.source)?.name||r.source)}</td><td>${esc(company(r.target)?.name||r.target)}</td><td>${esc(r.plantName||'全事業')}（簿価処理）</td></tr>`).join('')}</tbody></table></div>`:''}</section>`;
 }
 
-function check(s=S){let errs=[];if(!s||s.schema!==VERSION)return ['保存版の互換性がありません'];if(!Array.isArray(s.firms)||!s.firms.length)return ['法人情報がありません'];const ids=new Set();for(const f of s.firms){if(ids.has(f.id))errs.push('法人ID重複 '+f.id);ids.add(f.id);const fin=financials(f);if(Math.abs(fin.bsDiff)>1)errs.push(f.name+'：貸借不一致 '+fin.bsDiff);const glSum=Object.values(f.ledger).reduce((a,b)=>a+b,0);if(glSum!==0)errs.push(f.name+'：借貸不一致');if(!Number.isSafeInteger(glSum))errs.push(f.name+'：数値異常');const stk=Object.values(f.stock||{}).reduce((a,b)=>a+(b.v||0),0);if(Math.abs(stk-acc(f,'materials'))>2)errs.push(f.name+'：材料原価台帳不一致');const goods=Object.values(f.goods||{}).reduce((a,b)=>a+(b.v||0),0);if(Math.abs(goods-acc(f,'goods'))>2)errs.push(f.name+'：製品原価台帳不一致');if(f.distribution){const transit=f.distribution.outbound.reduce((sum,x)=>sum+x.bookCost,0);if(Math.abs(transit-acc(f,'goodsTransit'))>2)errs.push(f.name+'：輸送中製品原価不一致');if(f.distribution.outbound.some(x=>x.qty<1||x.bookCost<0))errs.push(f.name+'：輸送中製品数量異常');}if(f.supply?.inbound?.some(x=>x.qty<1||x.totalBase<0))errs.push(f.name+'：輸送中材料数量異常');for(const [k,it] of Object.entries(f.stock||{}))if(it.q<0||it.v<0)errs.push(f.name+'：負材料 '+k);for(const [k,it] of Object.entries(f.goods||{}))if(it.q<0||it.v<0)errs.push(f.name+'：負製品 '+k);if(!Number.isFinite(f.plant.condition)||f.plant.condition<0||f.plant.condition>100)errs.push(f.name+'：設備状態不正');if(f.plants){const ids=new Set();for(const p of f.plants){if(ids.has(p.id)||!FACTORY_KINDS[p.kind]||!Number.isSafeInteger(p.capacity)||p.capacity<1||p.condition<0||p.condition>100)errs.push(f.name+'：工場情報不正 '+p.id);ids.add(p.id)}if(f.plant.capacity!==activeFactories(f).reduce((a,p)=>a+p.capacity,0))errs.push(f.name+'：工場能力台帳不一致');if(f.plants.some(p=>!findSite(p.siteId)))errs.push(f.name+'：工場立地が不正')}if(f.research&&!RND_DOMAINS[f.research.topic])errs.push(f.name+'：研究テーマ不正');let sum=0;for(const o of f.owners){sum+=o.econ;if(o.econ<0||o.vote<0||o.vote>1)errs.push(f.name+'：持分比率不正');if(o.id!== 'PUBLIC'&&!company(o.id,s))errs.push(f.name+'：株主参照不正');}if(Math.abs(sum-1)>0.000001)errs.push(f.name+'：持分合計不正');if(f.shareBlocks){const pool=f.owners.find(o=>o.id==='PUBLIC')?.econ||0;const out=f.shareBlocks.reduce((a,x)=>a+x.holding,0);if(Math.abs(pool-out)>0.000002||f.shareBlocks.some(x=>x.holding<-.000001))errs.push(f.name+'：外部株主台帳不一致');}if(f.sharesOutstanding!==undefined&&(!Number.isSafeInteger(f.sharesOutstanding)||f.sharesOutstanding<1))errs.push(f.name+'：発行済株式数不正');if(!Number.isSafeInteger(f.treasuryShares||0)||(f.treasuryShares||0)<0||(f.treasuryShares||0)>=f.sharesOutstanding)errs.push(f.name+'：自己株式数不正');if(!Number.isSafeInteger(f.treasuryCostLocal||0)||(f.treasuryCostLocal||0)<0||Math.abs((f.treasuryCostLocal||0)-acc(f,'treasuryStock'))>1)errs.push(f.name+'：自己株式の取得原価台帳不一致');const votes=f.owners.reduce((a,o)=>a+(o.vote||0),0);if(Math.abs(votes-1)>.000002)errs.push(f.name+'：議決権合計不正');}for(const f of s.firms){ensureV11Firm(f);const qty=Object.values(f.interplant.siteComponents).reduce((a,b)=>a+b,0);if(qty>(f.stock.components?.q||0)||qty<0)errs.push(f.name+'：工場専用部品台帳不一致');const cash=f.interplant.shipments.reduce((a,t)=>a+t.bookCost,0)+(f.factoryOps?.shipments||[]).reduce((a,t)=>a+t.bookCost,0);if(Math.abs(cash-acc(f,'materialsTransit'))>2)errs.push(f.name+'：工場輸送中在庫の簿価不一致');if(f.interplant.shipments.some(t=>!Number.isSafeInteger(t.qty)||t.qty<1||!f.plants.some(p=>p.id===t.to)))errs.push(f.name+'：工場間輸送が不正');validateFactoryV21(f,errs,s);}errs.push(...validatePartEconomyV27(s));return errs}
+function check(s=S){let errs=[];if(!s||s.schema!==VERSION)return ['保存版の互換性がありません'];if(!Array.isArray(s.firms)||!s.firms.length)return ['法人情報がありません'];const ids=new Set();for(const f of s.firms){if(ids.has(f.id))errs.push('法人ID重複 '+f.id);ids.add(f.id);const fin=financials(f);if(Math.abs(fin.bsDiff)>1)errs.push(f.name+'：貸借不一致 '+fin.bsDiff);const glSum=Object.values(f.ledger).reduce((a,b)=>a+b,0);if(glSum!==0)errs.push(f.name+'：借貸不一致');if(!Number.isSafeInteger(glSum))errs.push(f.name+'：数値異常');const stk=Object.values(f.stock||{}).reduce((a,b)=>a+(b.v||0),0);if(Math.abs(stk-acc(f,'materials'))>2)errs.push(f.name+'：材料原価台帳不一致');const goods=Object.values(f.goods||{}).reduce((a,b)=>a+(b.v||0),0);if(Math.abs(goods-acc(f,'goods'))>2)errs.push(f.name+'：製品原価台帳不一致');if(f.distribution){const transit=f.distribution.outbound.reduce((sum,x)=>sum+x.bookCost,0);if(Math.abs(transit-acc(f,'goodsTransit'))>2)errs.push(f.name+'：輸送中製品原価不一致');if(f.distribution.outbound.some(x=>x.qty<1||x.bookCost<0))errs.push(f.name+'：輸送中製品数量異常');}if(f.supply?.inbound?.some(x=>x.qty<1||x.totalBase<0))errs.push(f.name+'：輸送中材料数量異常');for(const [k,it] of Object.entries(f.stock||{}))if(it.q<0||it.v<0)errs.push(f.name+'：負材料 '+k);for(const [k,it] of Object.entries(f.goods||{}))if(it.q<0||it.v<0)errs.push(f.name+'：負製品 '+k);if(!Number.isFinite(f.plant.condition)||f.plant.condition<0||f.plant.condition>100)errs.push(f.name+'：設備状態不正');if(f.plants){const ids=new Set();for(const p of f.plants){if(ids.has(p.id)||!FACTORY_KINDS[p.kind]||!Number.isSafeInteger(p.capacity)||p.capacity<1||p.condition<0||p.condition>100)errs.push(f.name+'：工場情報不正 '+p.id);ids.add(p.id)}if(f.plant.capacity!==activeFactories(f).reduce((a,p)=>a+p.capacity,0))errs.push(f.name+'：工場能力台帳不一致');if(f.plants.some(p=>!findSite(p.siteId)))errs.push(f.name+'：工場立地が不正')}if(f.research&&!RND_DOMAINS[f.research.topic])errs.push(f.name+'：研究テーマ不正');let sum=0;for(const o of f.owners){sum+=o.econ;if(o.econ<0||o.vote<0||o.vote>1)errs.push(f.name+'：持分比率不正');if(o.id!== 'PUBLIC'&&!company(o.id,s))errs.push(f.name+'：株主参照不正');}if(Math.abs(sum-1)>0.000001)errs.push(f.name+'：持分合計不正');if(f.shareBlocks){const pool=f.owners.find(o=>o.id==='PUBLIC')?.econ||0;const out=f.shareBlocks.reduce((a,x)=>a+x.holding,0);if(Math.abs(pool-out)>0.000002||f.shareBlocks.some(x=>x.holding<-.000001))errs.push(f.name+'：外部株主台帳不一致');}if(f.sharesOutstanding!==undefined&&(!Number.isSafeInteger(f.sharesOutstanding)||f.sharesOutstanding<1))errs.push(f.name+'：発行済株式数不正');if(!Number.isSafeInteger(f.treasuryShares||0)||(f.treasuryShares||0)<0||(f.treasuryShares||0)>=f.sharesOutstanding)errs.push(f.name+'：自己株式数不正');if(!Number.isSafeInteger(f.treasuryCostLocal||0)||(f.treasuryCostLocal||0)<0||Math.abs((f.treasuryCostLocal||0)-acc(f,'treasuryStock'))>1)errs.push(f.name+'：自己株式の取得原価台帳不一致');const votes=f.owners.reduce((a,o)=>a+(o.vote||0),0);if(Math.abs(votes-1)>.000002)errs.push(f.name+'：議決権合計不正');}for(const f of s.firms){ensureV11Firm(f);const qty=Object.values(f.interplant.siteComponents).reduce((a,b)=>a+b,0);if(qty>(f.stock.components?.q||0)||qty<0)errs.push(f.name+'：工場専用部品台帳不一致');const cash=f.interplant.shipments.reduce((a,t)=>a+t.bookCost,0)+(f.factoryOps?.shipments||[]).reduce((a,t)=>a+t.bookCost,0);if(Math.abs(cash-acc(f,'materialsTransit'))>2)errs.push(f.name+'：工場輸送中在庫の簿価不一致');if(f.interplant.shipments.some(t=>!Number.isSafeInteger(t.qty)||t.qty<1||!f.plants.some(p=>p.id===t.to)))errs.push(f.name+'：工場間輸送が不正');validateFactoryV21(f,errs,s);}errs.push(...validatePartEconomyV27(s));errs.push(...validateMarketV031(s));return errs}
 function isPastOrDue(entry,s=S){return entry.due<=ym(s.year,s.month)}
 function payUpTo(f,debitAcc,amount,desc,kind='operating',s=S){amount=Math.max(0,Math.round(amount));const paid=Math.min(amount,Math.max(0,acc(f,'cash')));const rest=amount-paid;const credit={};if(paid)credit.cash=paid;if(rest)credit[debitAcc==='wip'?'wagesDue':'payable']=rest;post(f,{[debitAcc]:amount},credit,desc,kind,s);return {paid,rest}}
 function spendExpense(f,acct,amount,desc,kind='operating',s=S){amount=Math.round(Math.max(0,amount));if(!amount)return;const paid=Math.min(amount,Math.max(0,acc(f,'cash')));const cr={};if(paid)cr.cash=paid;if(amount-paid)cr.payable=amount-paid;post(f,{[acct]:amount},cr,desc,kind,s);if(amount-paid){f.payables.push({amount:amount-paid,due:ym(s.year,s.month)+1,account:'payable',note:desc});f.distress.stage=Math.max(f.distress.stage,1)}}
@@ -2081,6 +2118,20 @@ function distributeSegmentV031(s,code,segment,count,contenders,events){
  }
  return {demand:count,initial,reassigned,unmet:unfilled,byModel,lostByModel};
 }
+function validateMarketV031(s){
+ const errors=[];
+ for(const [code,rec] of Object.entries(s.marketAllocationV031||{})){
+  if(!s.world?.[code]||!Number.isSafeInteger(rec.demand)||rec.demand<0) {errors.push('市場需要の記録異常 '+code);continue;}
+  if(![rec.delivered,rec.initial,rec.reassigned,rec.unmet].every(x=>Number.isSafeInteger(x)&&x>=0)) {errors.push('市場配分の数量異常 '+code);continue;}
+  if(rec.delivered+rec.initial+rec.reassigned+rec.unmet!==rec.demand)errors.push('市場需要と販売配分の不一致 '+code);
+  const vehicleSales=s.firms.reduce((total,f)=>{
+   const market=f.marketThisMonth?.[code]?.models||{};
+   return total+Object.entries(market).reduce((n,[id,x])=>n+(f.models?.some(m=>m.id===id)?x.units||0:0),0);
+  },0);
+  if(rec.month===ym(s.year,s.month)&&vehicleSales>rec.demand)errors.push('市場需要を超える車両販売 '+code);
+ }
+ return errors;
+}
 function sellMonthly(s,events){
  s.marketAllocationV031??={};
  for(const [code,w] of Object.entries(s.world)){
@@ -2095,13 +2146,26 @@ function sellMonthly(s,events){
    }
   }
   const market=marketDemandSnapshotV031(s,code);
-  const results={},totals={initial:0,reassigned:0,unmet:0};
+  const arrived=s.marketDeliveryV031?.month===market.month?s.marketDeliveryV031.markets[code]:null;
+  const delivered=arrived?.units||0;
+  const quotas={...market.segments};
+  // Count delivered imports first. Legacy exports with no segment are removed
+  // from the remaining overall demand in a deterministic segment order.
+  for(const [segment,q] of Object.entries(arrived?.segments||{})){
+   if(!Object.hasOwn(quotas,segment))continue;
+   quotas[segment]=Math.max(0,quotas[segment]-q);
+  }
+  let excess=Object.values(quotas).reduce((sum,q)=>sum+q,0)-Math.max(0,market.demand-delivered);
   const keys=Object.keys(MARKET_SEGMENTS),offset=ym(s.year,s.month)%keys.length;
-  for(const seg of [...keys.slice(offset),...keys.slice(0,offset)]){
-   const res=distributeSegmentV031(s,code,seg,market.segments[seg],contenders,events);
+  const order=[...keys.slice(offset),...keys.slice(0,offset)];
+  for(const seg of order){if(excess<=0)break;const cut=Math.min(excess,quotas[seg]);quotas[seg]-=cut;excess-=cut;}
+  if(excess>0)throw Error('輸入到着分の市場需要配分が不正です');
+  const results={},totals={initial:0,reassigned:0,unmet:0};
+  for(const seg of order){
+   const res=distributeSegmentV031(s,code,seg,quotas[seg],contenders,events);
    results[seg]=res;for(const k of ['initial','reassigned','unmet'])totals[k]+=res[k];
   }
-  s.marketAllocationV031[code]={month:market.month,demand:market.demand,segments:results,...totals};
+  s.marketAllocationV031[code]={month:market.month,demand:market.demand,delivered,segments:results,...totals};
  }
 }
 
@@ -2253,7 +2317,7 @@ async function runMonth(){
    for(const f of trial.firms)recordDelegationPerformance(trial,f);
    const totals={};for(const f of trial.firms){const t=totals[f.country]??={sales:0,prod:0,employed:0};t.sales+=f.monthly.units||0;t.prod+=f._produced||0;t.employed+=f.staff.production+f.staff.research+f.staff.sales+engineers(f);}
    updateWorld(trial,totals);evolveMaterialMarkets(trial);
-   for(const f of trial.firms){f.marketHistory??=[];f.marketHistory.push({month:ym(trial.year,trial.month),markets:structuredClone(f.marketThisMonth),demand:Object.fromEntries(Object.entries(trial.world).map(([code,w])=>[code,w.demand]))});if(f.marketHistory.length>60)f.marketHistory.shift();}
+   for(const f of trial.firms){f.marketHistory??=[];f.marketHistory.push({month:ym(trial.year,trial.month),markets:structuredClone(f.marketThisMonth),demand:Object.fromEntries(Object.entries(trial.world).map(([code,w])=>[code,trial.marketAllocationV031?.[code]?.demand??w.demand]))});if(f.marketHistory.length>60)f.marketHistory.shift();}
   });
   step('CLOSE',()=>{
    trial.monthCommitted=ym(trial.year,trial.month);const originalDate=dateKey(trial);const ff=company(trial.playerId,trial);const ffin=financials(ff);
