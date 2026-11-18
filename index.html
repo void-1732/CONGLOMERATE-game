@@ -1049,17 +1049,30 @@ function closeAssemblySites(sites,f){
 function planFactoryOutput(f,capacity,s=S,shared=null){
  if(f.factoryOps?.mode==='detailed')return planFactoryOutputDetailed(f,capacity,s,shared);
  const remaining=shared??factorySiteAllocationV0271(f,capacity,s);
-  const detailed=f.factoryOps?.mode==='detailed',moduleUsed=Object.fromEntries(V21_MODULE_TYPES.map(t=>[t,0]));const byModel={},modelWeights={};let steel=f.stock.steel.q,rubber=f.stock.rubber.q,components=f.stock.components?.q||0,unassigned=interplantUnassigned(f),steelUsed=0,rubberUsed=0,componentsUsed=0,produced=0;const extrasAvailable=Object.fromEntries(EXTRA_RESOURCES.map(t=>[t,f.stock[t]?.q||0])),extraUsed=Object.fromEntries(EXTRA_RESOURCES.map(t=>[t,0]));
+ const materialPlan=assemblyMaterialPlanV038(f);
+  const moduleUsed=Object.fromEntries(V21_MODULE_TYPES.map(t=>[t,0]));const byModel={},modelWeights={};let steel=f.stock.steel.q,rubber=f.stock.rubber.q,unassigned=interplantUnassigned(f),steelUsed=0,rubberUsed=0,componentsUsed=0,produced=0;const extrasAvailable=Object.fromEntries(EXTRA_RESOURCES.map(t=>[t,f.stock[t]?.q||0])),extraUsed=Object.fromEntries(EXTRA_RESOURCES.map(t=>[t,0]));
  for(const m of f.models.filter(x=>x.status==='active'&&x.componentMode!=='detailed')){
   const spec=designAnalysis(m.design||DESIGN_DEFAULT,f.tech,f.research?.levels||{},techBenefits(f)),plan=Math.max(0,Math.floor(f.plans[m.id]||0));
-  const reqAll=materialRequirement(m.design,f);let canBuild=Math.min(plan,Math.floor(steel/reqAll.steel),Math.floor(rubber/reqAll.rubber),(detailed?Infinity:Math.floor((f.stock.components?.q||0)/reqAll.components)),...EXTRA_RESOURCES.map(t=>reqAll[t]>0?Math.floor(extrasAvailable[t]/reqAll[t]):Infinity));
+  const reqAll=materialRequirement(m.design,f);let canBuild=Math.min(plan,Math.floor(steel/reqAll.steel),Math.floor(rubber/reqAll.rubber),Math.floor((f.stock.components?.q||0)/reqAll.components),...EXTRA_RESOURCES.map(t=>reqAll[t]>0?Math.floor(extrasAvailable[t]/reqAll[t]):Infinity));
   const available=remaining.filter(x=>x.p.focus==='all'||x.p.focus===m.id).sort((x,y)=>(x.p.focus===m.id?-1:0)-(y.p.focus===m.id?-1:0));
   let built=0;
-  for(const {site,quota} of factoryModelQuotasV0271(available,canBuild,spec.complexity)){const req=reqAll.components;const dedicated=f.interplant.siteComponents[site.p.id]||0;const inv=moduleAtV21(f,site.p.id),moduleCap=detailed?Math.min(...V21_MODULE_TYPES.map(t=>inv[t]||0)):Infinity;const qty=Math.min(canBuild-built,quota,Math.floor(site.left/spec.complexity),detailed?moduleCap:Math.floor((dedicated+unassigned)/req));if(qty<=0)continue;if(detailed){for(const t of V21_MODULE_TYPES){inv[t]-=qty;moduleUsed[t]+=qty;}}else{const parts=qty*req,useDedicated=Math.min(dedicated,parts);f.interplant.siteComponents[site.p.id]=(f.interplant.siteComponents[site.p.id]||0)-useDedicated;unassigned-=parts-useDedicated;}site.left-=qty*spec.complexity;site.done+=qty;built+=qty;if(built>=canBuild)break;}
-  byModel[m.id]=built;modelWeights[m.id]=built*(reqAll.steel+reqAll.rubber*.75);steel-=built*reqAll.steel;rubber-=built*reqAll.rubber;components-=built*reqAll.components;steelUsed+=built*reqAll.steel;rubberUsed+=built*reqAll.rubber;componentsUsed+=detailed?0:built*reqAll.components;for(const t of EXTRA_RESOURCES){const q=built*reqAll[t];extrasAvailable[t]-=q;extraUsed[t]+=q;}produced+=built;
+  for(const {site,quota} of factoryModelQuotasV0271(available,canBuild,spec.complexity)){
+   const req=reqAll.components,dedicated=f.interplant.siteComponents[site.p.id]||0;
+   const localLimit=assemblyRawCapacityV038(materialPlan,f,site.p,reqAll);
+   const qty=Math.min(canBuild-built,quota,Math.floor(site.left/spec.complexity),
+    Math.floor((dedicated+unassigned)/req),localLimit);
+   if(qty<=0)continue;
+   const parts=qty*req,useDedicated=Math.min(dedicated,parts);
+   f.interplant.siteComponents[site.p.id]=dedicated-useDedicated;
+   unassigned-=parts-useDedicated;
+   reserveAssemblyRawV038(materialPlan,f,site.p,reqAll,qty);
+   site.left-=qty*spec.complexity;site.done+=qty;built+=qty;
+   if(built>=canBuild)break;
+  }
+  byModel[m.id]=built;modelWeights[m.id]=built*(reqAll.steel+reqAll.rubber*.75);steel-=built*reqAll.steel;rubber-=built*reqAll.rubber;steelUsed+=built*reqAll.steel;rubberUsed+=built*reqAll.rubber;componentsUsed+=built*reqAll.components;for(const t of EXTRA_RESOURCES){const q=built*reqAll[t];extrasAvailable[t]-=q;extraUsed[t]+=q;}produced+=built;
  }
  if(!shared)closeAssemblySites(remaining);
- return {produced,steelUsed,rubberUsed,componentsUsed,extraUsed,byModel,modelWeights,moduleUsed};
+ return {produced,steelUsed,rubberUsed,componentsUsed,extraUsed,byModel,modelWeights,moduleUsed,materialPlan};
 }
 
 /* v0.22.1: An integrated car factory is a vertically-integrated plant. In detailed
@@ -1070,6 +1083,7 @@ function planFactoryOutput(f,capacity,s=S,shared=null){
    imaginary interplant shipments and preserving the materials ledger. */
 function planFactoryOutputDetailed(f,capacity,s=S,shared=null){
  const remaining=shared??factorySiteAllocationV0271(f,capacity,s);
+ const materialPlan=assemblyMaterialPlanV038(f);
  const moduleUsed=Object.fromEntries(V21_MODULE_TYPES.map(t=>[t,0])),extraUsed=Object.fromEntries(EXTRA_RESOURCES.map(t=>[t,0]));
  const extrasAvailable=Object.fromEntries(EXTRA_RESOURCES.map(t=>[t,f.stock[t]?.q||0]));
  let steel=f.stock.steel.q,rubber=f.stock.rubber.q,steelUsed=0,rubberUsed=0,produced=0,internalLaborBase=0,internallyAssembled=0;
@@ -1081,7 +1095,12 @@ function planFactoryOutputDetailed(f,capacity,s=S,shared=null){
   let built=0,internalForModel=0;
   for(const {site,quota} of factoryModelQuotasV0271(choices,plan,spec.complexity)){
    if(built>=plan)break;
-   let qty=Math.min(plan-built,quota,Math.floor(site.left/spec.complexity),Math.floor((steel+1e-8)/req.steel),Math.floor((rubber+1e-8)/req.rubber),...EXTRA_RESOURCES.map(t=>req[t]>0?Math.floor(extrasAvailable[t]/req[t]):Infinity));
+   const localSteel=Math.min(steel,assemblyAvailableRawV038(materialPlan,f,site.p,'steel'));
+   const localRubber=Math.min(rubber,assemblyAvailableRawV038(materialPlan,f,site.p,'rubber'));
+   let qty=Math.min(plan-built,quota,Math.floor(site.left/spec.complexity),
+    Math.floor((localSteel+1e-8)/req.steel),Math.floor((localRubber+1e-8)/req.rubber),
+    assemblyRawCapacityV038(materialPlan,f,site.p,req),
+    ...EXTRA_RESOURCES.map(t=>req[t]>0?Math.floor(extrasAvailable[t]/req[t]):Infinity));
    if(qty<=0)continue;
    const inv=moduleAtV21(f,site.p.id),fullKits=Math.min(...V21_MODULE_TYPES.map(t=>Math.floor(inv[t]||0)));
    let internal=0;
@@ -1090,7 +1109,7 @@ function planFactoryOutputDetailed(f,capacity,s=S,shared=null){
     // together; a car may also consume a delivered three-module kit.
     let low=0,high=qty;
     while(low<high){const mid=Math.floor((low+high+1)/2),needed=Math.max(0,mid-fullKits);
-     if(mid*req.steel+needed*5<=steel+1e-8&&mid*req.rubber+needed*3<=rubber+1e-8)low=mid;else high=mid-1;
+     if(mid*req.steel+needed*5<=localSteel+1e-8&&mid*req.rubber+needed*3<=localRubber+1e-8)low=mid;else high=mid-1;
     }
     qty=low;internal=Math.max(0,qty-fullKits);
    }else qty=Math.min(qty,fullKits);
@@ -1098,6 +1117,7 @@ function planFactoryOutputDetailed(f,capacity,s=S,shared=null){
    const fromStock=qty-internal;
    for(const t of V21_MODULE_TYPES){inv[t]-=fromStock;moduleUsed[t]+=fromStock;}
    const usedSteel=qty*req.steel+internal*5,usedRubber=qty*req.rubber+internal*3;
+   reserveAssemblyRawV038(materialPlan,f,site.p,req,qty,internal);
    steel=Math.max(0,steel-usedSteel);rubber=Math.max(0,rubber-usedRubber);
    steelUsed+=usedSteel;rubberUsed+=usedRubber;
    for(const t of EXTRA_RESOURCES){const use=qty*req[t];extrasAvailable[t]-=use;extraUsed[t]+=use;}
@@ -1109,7 +1129,7 @@ function planFactoryOutputDetailed(f,capacity,s=S,shared=null){
   produced+=built;
  }
  if(!shared)closeAssemblySites(remaining);
- return {produced,steelUsed,rubberUsed,componentsUsed:0,extraUsed,byModel,modelWeights,moduleUsed,internalLaborBase,internallyAssembled};
+ return {produced,steelUsed,rubberUsed,componentsUsed:0,extraUsed,byModel,modelWeights,moduleUsed,internalLaborBase,internallyAssembled,materialPlan};
 }
 
 /* GAMEPLAY v0.10 — approved N4=B, G8=B, X1=B and more opt-in automation.
@@ -2521,9 +2541,9 @@ function commonPartsProcessingCost(s,f,quantity){
 }
 function produceSupportParts(s,events){for(const f of s.firms){if(f.reorgStatus==='integrated'||f.lifecycle?.phase==='withdrawn')continue;ensureV11Firm(f);
  for(const p of supportPartFactories(f)){if(f.factoryOps?.mode==='detailed')continue;let planned=f.interplant.partPlans[p.id]||0;
-  const assigned=factoryLaborPlanV026(f).byId[p.id]?.assigned||0,potential=Math.floor(assigned*2);const possible=Math.min(planned,Math.max(0,Math.floor(p.capacity*(p.condition/100)*.35)-bomPlantLoad(f,p)),Math.max(0,potential-bomPlantLoad(f,p)),f.stock.steel.q,f.stock.rubber.q);p.lastAssignedStaff=assigned;
+  const assigned=factoryLaborPlanV026(f).byId[p.id]?.assigned||0,potential=Math.floor(assigned*2);const possible=Math.min(planned,Math.max(0,Math.floor(p.capacity*(p.condition/100)*.35)-bomPlantLoad(f,p)),Math.max(0,potential-bomPlantLoad(f,p)),factoryMaterialAvailableV038(f,p,'steel'),factoryMaterialAvailableV038(f,p,'rubber'));p.lastAssignedStaff=assigned;
   if(possible<=0){p.lastProduced=0;p.lastUtilization=0;continue;}
-  const raw=consume(f,'steel',possible)+consume(f,'rubber',possible),wages=commonPartsProcessingCost(s,f,possible);
+  const raw=consumeFactoryMaterialV038(f,p,'steel',possible)+consumeFactoryMaterialV038(f,p,'rubber',possible),wages=commonPartsProcessingCost(s,f,possible);
   const paid=Math.min(wages,Math.max(0,acc(f,'cash'))),due=wages-paid;
   post(f,{materials:raw+wages},{materials:raw,...(paid?{cash:paid}:{}),...(due?{wagesDue:due}:{})},'部品工場の材料加工・製造人件費','operating',s);
   f.stock.components.q+=possible;f.stock.components.v+=raw+wages;
@@ -2713,8 +2733,8 @@ function laborAndPlant(s,events,industry=null){for(const f of s.firms){if(indust
  const baseWagesProd=Math.max(0,Math.round(f.staff.production*salary*sitePayrollFactor(f,s)));
  const wagesResearch=Math.max(0,Math.round(f.staff.research*salary)),wagesSales=Math.max(0,Math.round(f.staff.sales*salary));
  const wagesEngineering=engineers(f)*salary;
- let produced=0,steelUsed=0,rubberUsed=0,componentsUsed=0,extraUsed={},byModel={},modelWeights={},moduleUsed={},internalLaborBase=0,internallyAssembled=0,bomBatches={},resourcePlan=null;
- if(['auto','manufacturing'].includes(f.industry))({produced,steelUsed,rubberUsed,componentsUsed,extraUsed,byModel,modelWeights,moduleUsed={},internalLaborBase=0,internallyAssembled=0,bomBatches={}}=combinedFactoryOutput(f,prodPossible,s));
+ let produced=0,steelUsed=0,rubberUsed=0,componentsUsed=0,extraUsed={},byModel={},modelWeights={},moduleUsed={},internalLaborBase=0,internallyAssembled=0,bomBatches={},resourcePlan=null,materialPlan=null;
+ if(['auto','manufacturing'].includes(f.industry))({produced,steelUsed,rubberUsed,componentsUsed,extraUsed,byModel,modelWeights,moduleUsed={},internalLaborBase=0,internallyAssembled=0,bomBatches={},materialPlan}=combinedFactoryOutput(f,prodPossible,s));
  if(internallyAssembled&&controller(s,f.id))events.push(f.name+'：総合完成車工場で'+internallyAssembled+'台分のエンジン・車体・電子部品を内製し、当月の車両組立に投入');
  if(f.industry==='resource'){
   const available=Math.max(0,acc(f,'cash')-baseWagesProd-wagesResearch-wagesSales-wagesEngineering);
@@ -2735,7 +2755,9 @@ function laborAndPlant(s,events,industry=null){for(const f of s.firms){if(indust
    if(due)f.payables.push({amount:due,due:ym(s.year,s.month)+1,note:'完成車品質検査',account:'payable'});
    totalCost+=qc;}
  }
- if(['auto','manufacturing'].includes(f.industry)){const matCost=consume(f,'steel',steelUsed)+consume(f,'rubber',rubberUsed)+consume(f,'components',componentsUsed)+V21_MODULE_TYPES.reduce((sum,type)=>sum+consume(f,type,(moduleUsed||{})[type]||0),0)+EXTRA_RESOURCES.reduce((sum,t)=>sum+consume(f,t,extraUsed[t]||0),0);if(matCost)post(f,{wip:matCost},{materials:matCost},'当月製造・材料払出','operating',s);totalCost+=matCost;
+ if(['auto','manufacturing'].includes(f.industry)){const use={steel:steelUsed,rubber:rubberUsed,components:componentsUsed,...extraUsed,...moduleUsed};
+  const localCost=materialPlan.uses.reduce((sum,x)=>sum+takeLocatedRawStockV038(f,x.id,x.type,x.quantity),0);
+  const matCost=Object.entries(use).reduce((sum,[type,q])=>sum+(materialPlan.types.includes(type)?0:consume(f,type,q)),localCost);if(matCost)post(f,{wip:matCost},{materials:matCost},'当月製造・材料払出','operating',s);totalCost+=matCost;
   const routeCharge=localFromBase(siteLogisticsExpenseBase(f),f.country);if(routeCharge){const paid=Math.min(routeCharge,Math.max(0,acc(f,'cash'))),outstanding=routeCharge-paid;post(f,{wip:routeCharge},{...(paid?{cash:paid}:{}),...(outstanding?{payable:outstanding}:{})},'工場立地・資材搬送費','operating',s);if(outstanding)f.payables.push({amount:outstanding,due:ym(s.year,s.month)+1,note:'工場物流費',account:'payable'});totalCost+=routeCharge;}
    const active=f.models.filter(m=>m.status==='active'),totalWeight=Object.values(modelWeights).reduce((a,b)=>a+b,0);
   let allocated=0;const filled=active.filter(m=>(byModel[m.id]||0)>0);for(let i=0;i<filled.length;i++){const m=filled[i],q=byModel[m.id];const val=i===filled.length-1?totalCost-allocated:Math.round(totalCost*modelWeights[m.id]/Math.max(1,totalWeight));allocated+=val;
@@ -4715,7 +4737,7 @@ function produceBomParts(s){
    const laborFactor=(f.hr?.strikeActive?.4:1)*(f.distress.stage>=3?.5:1);
    const capacity=Math.floor(info.possible*laborFactor);
    const limit=Math.min(Math.floor(Math.max(0,acc(f,'cash'))/unitCost),
-    ...Object.entries(recipe).map(([type,n])=>Math.floor(((f.stock[type]?.q??0)+1e-8)/n)));
+    ...Object.entries(recipe).map(([type,n])=>Math.floor((factoryMaterialAvailableV038(f,p,type)+1e-8)/n)));
    const quantity=bomLineQuantity(s,f,plan,spec);
    const attempted=Math.min(quantity,capacity,limit);
    stat.reason=!quantity?'AIが在庫と需要を照合して生産を保留':
@@ -4728,7 +4750,7 @@ function produceBomParts(s){
    let materials=0;
    for(const [type,n] of Object.entries(recipe)){
     const units=Math.min(f.stock[type].q,Math.round(n*attempted*1000)/1000);
-    materials+=consume(f,type,units);
+    materials+=consumeFactoryMaterialV038(f,p,type,units);
     f.stock[type].q=Math.round(f.stock[type].q*1000)/1000;
    }
    const processing=unitCost*attempted,actual=materials+processing;
@@ -7122,8 +7144,8 @@ function activateSupportV026(){try{
 
 function produceModulesV21(s,events){for(const f of s.firms){ensureFactoryV21(f);if(f.factoryOps.mode!=='detailed'||f.lifecycle?.phase==='withdrawn'||f.reorgStatus==='integrated')continue;
  for(const p of supportPartFactories(f)){const typ=v21ModuleType(p),spec=V21_MODULE_INFO[typ];if(!typ)continue;
-  const planned=Math.max(0,Math.floor(f.factoryOps.plans[p.id]||0));const staff=factoryLaborPlanV026(f).byId[p.id]?.assigned||0;let q=Math.min(planned,Math.max(0,Math.floor(p.capacity*p.condition/100*.35*(1+.07*(p.equipmentTier-1)))-bomPlantLoad(f,p)),Math.max(0,Math.floor(staff*2)-bomPlantLoad(f,p)),Math.floor(f.stock.steel.q/spec.steel),Math.floor(f.stock.rubber.q/spec.rubber));p.lastAssignedStaff=staff;if(q<=0){p.lastProduced=0;p.lastUtilization=0;continue;}
-  const raw=consume(f,'steel',q*spec.steel)+consume(f,'rubber',q*spec.rubber);
+  const planned=Math.max(0,Math.floor(f.factoryOps.plans[p.id]||0));const staff=factoryLaborPlanV026(f).byId[p.id]?.assigned||0;let q=Math.min(planned,Math.max(0,Math.floor(p.capacity*p.condition/100*.35*(1+.07*(p.equipmentTier-1)))-bomPlantLoad(f,p)),Math.max(0,Math.floor(staff*2)-bomPlantLoad(f,p)),Math.floor(factoryMaterialAvailableV038(f,p,'steel')/spec.steel),Math.floor(factoryMaterialAvailableV038(f,p,'rubber')/spec.rubber));p.lastAssignedStaff=staff;if(q<=0){p.lastProduced=0;p.lastUtilization=0;continue;}
+  const raw=consumeFactoryMaterialV038(f,p,'steel',q*spec.steel)+consumeFactoryMaterialV038(f,p,'rubber',q*spec.rubber);
   const wage=localFromBase(q*(typ==='moduleElectronics'?110:typ==='moduleEngine'?125:95)*eraCostFactor(s.year),f.country);
   const paid=Math.min(wage,Math.max(0,acc(f,'cash'))),due=wage-paid;
   post(f,{materials:raw+wage},{materials:raw,...(paid?{cash:paid}:{}),...(due?{wagesDue:due}:{})},'専門部品製造：'+spec.name,'operating',s);
@@ -7276,6 +7298,10 @@ function ensureWarehouseV038(f){
  const logistics=f.inventoryLogisticsV038;
  logistics.rawAtPlant??={};
  logistics.rawShipments??=[];
+ logistics.localizedRawTypes??=[...new Set([
+  ...Object.values(logistics.rawAtPlant).flatMap(bins=>Object.keys(bins)),
+  ...logistics.rawShipments.map(shipment=>shipment.type)
+ ])];
  return logistics;
 }
 function pendingRawReceiptsV038(f,type){
@@ -7296,6 +7322,55 @@ function centralRawStockV038(f,type){
 }
 function plantRawStockV038(f,id,type){
  return ensureWarehouseV038(f).rawAtPlant[id]?.[type]??{q:0,v:0};
+}
+function warehouseServesFactoryV038(f,p){
+ return p.siteId===ensureWarehouseV038(f).warehouseSiteId;
+}
+function factoryMaterialAvailableV038(f,p,type){
+ if(!ensureWarehouseV038(f).localizedRawTypes.includes(type))return f.stock[type]?.q??0;
+ return plantRawStockV038(f,p.id,type).q+(warehouseServesFactoryV038(f,p)?centralRawStockV038(f,type).q:0);
+}
+function consumeFactoryMaterialV038(f,p,type,quantity){
+ if(!quantity||!ensureWarehouseV038(f).localizedRawTypes.includes(type))return consume(f,type,quantity);
+ if(quantity>factoryMaterialAvailableV038(f,p,type)+1e-8)throw Error('工場の検収済み原材料が不足しています');
+ const local=Math.min(quantity,plantRawStockV038(f,p.id,type).q),fromWarehouse=quantity-local;
+ const cost=local?takeLocatedRawStockV038(f,p.id,type,local):0;
+ return cost+(fromWarehouse>1e-8?takeLocatedRawStockV038(f,'warehouse',type,fromWarehouse):0);
+}
+function assemblyMaterialPlanV038(f){
+ const types=ensureWarehouseV038(f).localizedRawTypes;
+ return {types,available:new Map(),uses:[]};
+}
+function assemblyStockV038(plan,f,locationId,type){
+ if(!plan.available.has(locationId))plan.available.set(locationId,new Map());
+ const stock=plan.available.get(locationId);
+ if(!stock.has(type))stock.set(type,locationId==='warehouse'?centralRawStockV038(f,type).q:plantRawStockV038(f,locationId,type).q);
+ return stock;
+}
+function assemblyAvailableRawV038(plan,f,p,type){
+ if(!plan.types.includes(type))return Infinity;
+ const local=assemblyStockV038(plan,f,p.id,type).get(type);
+ const central=warehouseServesFactoryV038(f,p)?assemblyStockV038(plan,f,'warehouse',type).get(type):0;
+ return local+central;
+}
+function assemblyRawCapacityV038(plan,f,p,recipe){
+ let limit=Infinity;
+ for(const t of plan.types){
+  if(recipe[t]>0)limit=Math.min(limit,Math.floor((assemblyAvailableRawV038(plan,f,p,t)+1e-8)/recipe[t]));
+ }
+ return limit;
+}
+function reserveAssemblyRawV038(plan,f,p,recipe,quantity,internal=0){
+ for(const type of plan.types){
+  let required=quantity*(recipe[type]||0)+internal*(type==='steel'?5:type==='rubber'?3:0);
+  if(!required)continue;
+  const sources=warehouseServesFactoryV038(f,p)?[p.id,'warehouse']:[p.id];
+  for(const id of sources){
+   const stock=assemblyStockV038(plan,f,id,type),amount=Math.min(stock.get(type),required);
+   if(amount>0){plan.uses.push({id,type,quantity:amount});stock.set(type,stock.get(type)-amount);required-=amount;}
+  }
+  if(required>1e-8)throw Error('工場の原材料引当が在庫を超過しました');
+ }
 }
 function takeLocatedRawStockV038(f,id,type,quantity){
  const total=f.stock[type];
@@ -7343,7 +7418,9 @@ function dispatchRawShipmentV038(s,f,from,to,type,quantity){
   due:ym(s.year,s.month)+freight.lead};
  post(f,{materialsTransit:bookCost},{materials:bookCost},'資材の国内発送 '+shipment.id,'operating',s);
  post(f,{otherExpense:cost},{cash:cost},'資材の国内輸送費 '+shipment.id,'operating',s);
- ensureWarehouseV038(f).rawShipments.push(shipment);
+ const logistics=ensureWarehouseV038(f);
+ logistics.rawShipments.push(shipment);
+ if(!logistics.localizedRawTypes.includes(type))logistics.localizedRawTypes.push(type);
  return shipment;
 }
 function deliverRawShipmentsV038(s,events){
@@ -7380,6 +7457,8 @@ function validateRawLogisticsV038(f,errors){
   errors.push(f.name+'：国内在庫・輸送台帳の形式不正');
   return 0;
  }
+ if(!Array.isArray(logistics.localizedRawTypes)||new Set(logistics.localizedRawTypes).size!==logistics.localizedRawTypes.length||
+    logistics.localizedRawTypes.some(type=>!RAW_TYPES_V032.includes(type)))errors.push(f.name+'：工場別管理の資材が不正');
  const assigned=new Map();
  for(const [id,bins] of Object.entries(logistics.rawAtPlant)){
   if(!plants.has(id)||!bins||typeof bins!=='object'){errors.push(f.name+'：工場別の資材在庫の拠点不正');continue;}

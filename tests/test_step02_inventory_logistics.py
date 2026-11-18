@@ -100,6 +100,14 @@ if __name__ == "__main__":
         assert opening["materials"] - dispatched["materials"] == shipment["bookCost"] > 0, dispatched
         assert dispatched["transit"] - opening["transit"] == shipment["bookCost"], dispatched
         assert dispatched["forecast"] == 5 and not dispatched["errors"], dispatched
+        assert page.evaluate("""id => {
+            const f = structuredClone(current()), plant = f.plants.find(p => p.id === id);
+            f.plants[0].paused = true;
+            plant.kind = 'integrated';
+            syncPlant(f);
+            return factoryMaterialAvailableV038(f,plant,'steel') === 0 &&
+                planFactoryOutput(f,25,S).produced === 0 && f.stock.steel.q > 0;
+        }""", migrated["second"])
         completed = page.evaluate("""id => {
             S = parsePayload(savePayload(S));
             nextMonthDate(S);
@@ -120,6 +128,21 @@ if __name__ == "__main__":
             "total": opening["steel"], "materials": opening["materials"],
             "remainingTransit": opening["transit"], "receipts": 1, "errors": [],
         }, completed
+        used = page.evaluate("""id => {
+            const f = current(), onSite = f.plants.find(p=>p.id===id);
+            f.plants[0].paused = true;
+            onSite.kind = 'integrated';
+            syncPlant(f);
+            const before = centralRawStockV038(f,'steel').q;
+            const required = materialRequirement(f.models[0].design,f).steel;
+            laborAndPlant(S,[],'auto');
+            return {produced:f._produced, remaining:plantRawStockV038(f,id,'steel').q,
+                warehouseUnchanged:centralRawStockV038(f,'steel').q === before,
+                required, errors:check(S)};
+        }""", migrated["second"])
+        assert used["produced"] > 0 and used["warehouseUnchanged"], used
+        assert abs(used["remaining"] - (5 - used["produced"] * used["required"])) <= 1e-8, used
+        assert not used["errors"], used
         assert not errors, errors
         browser.close()
     print("PASS STEP 2: warehouse migration, per-plant inventory, domestic shipment and offline UI")
