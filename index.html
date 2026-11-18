@@ -1748,6 +1748,28 @@ function procureNetwork(s,events){
    }
   }
  }
+
+ // Without a long-term contract, explicit foreign NPC primary sources also
+ // remain usable. Shipping is accounted for by dispatch() with a 2-month ETA.
+ // Reserve emergency inventory in the seller country before dispatch.
+ const foreign=new Map();
+ for(const x of candidates){
+  if(x.term||!x.needed)continue;
+  const selected=nodes.get(x.f.supply.contracts[x.type]?.supplierId);
+  if(!selected?.npc||selected.country===x.f.country||selected.type!==x.type)continue;
+  if(!foreign.has(selected.id))foreign.set(selected.id,[]);
+  foreign.get(selected.id).push(x);
+ }
+ for(const [id,group] of [...foreign].sort((a,b)=>a[0].localeCompare(b[0]))){
+  const node=nodes.get(id),market=npcMarketV033(s,node.country,node.type);
+  if(!market)continue;
+  const room=Math.max(0,market.stock-marketEmergencyReserveV036(market));
+  market.lastRequested+=group.reduce((n,x)=>n+x.needed,0);
+  const shares=fairAllocationV033(group.map(x=>({id:x.id,need:x.needed})),room);
+  for(const x of group.sort((a,b)=>a.id.localeCompare(b.id))){
+   const qty=shares[x.id]||0;if(qty)dispatch(x,node,qty,'market');
+  }
+ }
  // NPC pool is physical and bounded: allocate all residual orders simultaneously.
  for(const country of Object.keys(s.world)){
   for(const type of SUPPLY_TYPES){
@@ -7180,7 +7202,7 @@ function saveSupply(){let backup=null;try{
   if(nextTerm.enabled&&nextTerm.supplierId!==id)
    throw Error('長期契約の主仕入先と契約先が一致しません');
   draft[t]={...previous,supplierId:id,backupId,buffer:safetyMonths<1?1:safetyMonths,
-   safetyMonths,autoOrder,autoManage:!!document.getElementById('aiSupply_'+t)?.checked,
+   safetyMonths,autoOrder,autoManage:enabled?false:!!document.getElementById('aiSupply_'+t)?.checked,
    longTermV036:nextTerm};
  }
  const cost=penalties.reduce((n,x)=>n+x.fee,0);
