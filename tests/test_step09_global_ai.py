@@ -284,6 +284,8 @@ if __name__ == '__main__':
         logistics_policy_and_save(page)
         logistics_physical_transfer(page)
         group_network_allocation(page)
+        # document.write alone retains the previous JS realm (and its render stub).
+        page.goto('about:blank')
         page.set_content(HTML.read_text(encoding='utf-8'), wait_until='domcontentloaded')
         world_maturation(page)
         assert not errors, errors
