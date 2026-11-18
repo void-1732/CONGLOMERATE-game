@@ -224,6 +224,91 @@ def test_resource_investment(page):
     }""")
 
 
+def test_external_supply(page):
+    fixture = page.evaluate("""() => {
+        S = newGame({era:1900, country:'JP', difficulty:'normal',
+            history:'historical', name:'独立企業との仕入テスト'});
+        VIEW_FIRM = S.playerId;
+        const buyer = current(), type = 'steel';
+        const seller = initFirm(S, {name:'独立資源会社', country:'JP',
+            industry:'resource', seedBase:3000000});
+        post(seller, {goods:50000}, {cash:50000}, '売手の検証用現物在庫', 'operating', S);
+        ensureSupplyNetwork(S);
+        rawBinV032(seller,type).q = 10;
+        rawBinV032(seller,type).v = 50000;
+        post(buyer, {otherExpense:buyer.stock[type].v}, {materials:buyer.stock[type].v}, '試験用の開始在庫を消費', 'operating', S);
+        buyer.stock[type] = {q:0, v:0};
+        const fallback = npcMarketV033(S,'JP',type);
+        fallback.dispatchedTotal += fallback.stock;
+        fallback.stock = 0;
+        PAGE = 'supply';
+        render();
+        return {seller:seller.id, node:'CORP:' + seller.id + ':' + type};
+    }""")
+    assert page.get_by_role("heading", name="内製と仕入れの比較").is_visible()
+    page.locator(".supply-v026-contracts > summary").click()
+    page.locator("#supplier_steel").select_option(fixture["node"])
+    page.locator("#ltEnable_steel").uncheck()
+    page.locator('.supply-v24 [data-action="saveSupply"]').click()
+    shipment = page.evaluate("""fixture => {
+        const buyer = current(), seller = company(fixture.seller, S);
+        if (!buyer.supply.contracts.steel.corporateSourcesV037.includes(fixture.node)) {
+            throw Error('画面から独立企業を選択できなかった');
+        }
+        procureNetwork(S, []);
+        const staged = buyer.supply.inbound.find(x => x.corporateTradeV037);
+        procureNetwork(S, []);
+        return {id:staged.id, qty:staged.qty, invoice:staged.corporateTradeV037.invoice,
+            cost:staged.corporateTradeV037.bookCost, transit:acc(seller,'goodsTransit'),
+            sellerQty:rawBinV032(seller,'steel').q, buyerQty:buyer.stock.steel.q,
+            duplicates:buyer.supply.inbound.filter(x => x.corporateTradeV037).length,
+            errors:check(S)};
+    }""", fixture)
+    assert shipment["qty"] == 10 and shipment["sellerQty"] == shipment["buyerQty"] == 0, shipment
+    assert shipment["cost"] == shipment["transit"] == 50000 and shipment["invoice"] > 50000, shipment
+    assert shipment["duplicates"] == 1 and not shipment["errors"], shipment
+    settled = page.evaluate("""({fixture,shipment}) => {
+        S = parsePayload(savePayload(S));
+        const buyer = current(), seller = company(fixture.seller,S);
+        const cash = acc(buyer,'cash');
+        post(buyer,{otherExpense:cash},{cash},'決済資金の不足を検証','operating',S);
+        nextMonthDate(S);
+        deliverMaterials(S,buyer,[]);
+        const deferred = buyer.supply.inbound.find(x => x.id === shipment.id);
+        if (!deferred || buyer.stock.steel.q || acc(seller,'goodsTransit') !== shipment.cost) {
+            throw Error('資金不足時に出荷在庫を保存できなかった');
+        }
+        post(buyer,{cash},{capital:cash},'決済資金の投入','financing',S);
+        const sellerCash = acc(seller,'cash');
+        nextMonthDate(S);
+        deliverMaterials(S,buyer,[]);
+        return {received:buyer.stock.steel.q, inventory:buyer.stock.steel.v,
+            paid:cash-acc(buyer,'cash'), receivedMoney:acc(seller,'cash')-sellerCash,
+            revenue:-acc(seller,'sales'), cogs:acc(seller,'cogs'), transit:acc(seller,'goodsTransit'),
+            outstanding:buyer.supply.inbound.some(x => x.id === shipment.id), errors:check(S)};
+    }""", {"fixture": fixture, "shipment": shipment})
+    assert settled == {
+        "received": 10, "inventory": shipment["invoice"], "paid": shipment["invoice"],
+        "receivedMoney": shipment["invoice"], "revenue": shipment["invoice"],
+        "cogs": 50000, "transit": 0, "outstanding": False, "errors": [],
+    }, settled
+
+    returned = page.evaluate("""fixture => {
+        const buyer = current(), seller = company(fixture.seller,S), type = 'steel';
+        post(seller,{goods:1400},{cash:1400},'売手の返品検証用現物在庫','operating',S);
+        const bin = rawBinV032(seller,type);
+        bin.q = 2; bin.v = 1400;
+        const node = S.supplyNetwork.nodes.find(n => n.id === fixture.node);
+        const shipment = dispatchCorporateSupplyV037(S,buyer,seller,node,2,0);
+        buyer.supply.inbound.push(shipment);
+        buyer.lifecycle.phase = 'withdrawn';
+        nextMonthDate(S);
+        deliverMaterials(S,buyer,[]);
+        return {q:bin.q,v:bin.v,transit:acc(seller,'goodsTransit'),buyerQty:buyer.stock.steel.q,errors:check(S)};
+    }""", fixture)
+    assert returned == {"q": 2, "v": 1400, "transit": 0, "buyerQty": 10, "errors": []}, returned
+
+
 if __name__ == "__main__":
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(
@@ -241,6 +326,7 @@ if __name__ == "__main__":
         test_zero_book_delivery(page)
         test_resource_production(page)
         test_resource_investment(page)
+        test_external_supply(page)
         assert not errors, errors
         browser.close()
     print("PASS STEP 1: physical delivery, resource production, accounting, saves and offline UI")

@@ -30,6 +30,12 @@ jobs:
       - name: STEP 1 Resource transactions and inventory
         if: ${{ hashFiles('tests/test_step01_resource_trade.py') != '' }}
         run: python tests/test_step01_resource_trade.py
+      - name: STEP 1 Long-running resource ledgers and previous saves
+        if: ${{ hashFiles('tests/test_step01_resource_endurance.py') != '' }}
+        run: |
+          python tests/test_step01_resource_endurance.py
+          python tests/test_v029_ai_investment.py
+          python tests/test_v0271_smoke.py
       - name: v0.35 Startup supply
         run: python tests/test_v035_startup_supply.py
       - name: v0.34 Forecast and order point regression
