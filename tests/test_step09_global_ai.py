@@ -211,6 +211,65 @@ def group_network_allocation(page):
     assert page.get_by_role('heading', name='グループ供給網・需給バランス').is_visible()
 
 
+
+def world_maturation(page):
+    baseline = page.evaluate("""()=>{
+        S=newGame({era:1900,country:'JP',difficulty:'normal',history:'historical',name:'世界市場成熟検証'});
+        const legacy=structuredClone(S),evolving=structuredClone(S);
+        legacy.year=1950;evolving.year=1950;
+        evolving.worldEvolutionV046={enabled:true,anchorYear:1900};
+        const legacyFactor=worldDevelopmentV046(legacy,'JP').factor;
+        const changed=worldDevelopmentV046(evolving,'JP');
+        updateWorld(legacy,{});updateWorld(evolving,{});
+        const w=legacy.world.JP,base=COUNTRIES.JP;
+        const oldFormula=Math.max(10,Math.round(base.demand*(w.pop/base.pop)**1.1*
+            (w.wealth/base.wealth)**.66*(1+w.cycle)*1.1));
+        const saved=parsePayload(savePayload(evolving));
+        const bad=structuredClone(saved);bad.worldEvolutionV046.anchorYear=1700;
+        return {legacyFactor,changed,oldFormula,legacyDemand:w.demand,
+            newDemand:evolving.world.JP.demand,restored:saved.worldEvolutionV046,
+            invalid:validateWorldEvolutionV046(bad),errors:check(saved)};
+    }""")
+    assert baseline['legacyFactor'] == 1, baseline
+    assert baseline['changed']['factor'] > 1, baseline
+    assert baseline['legacyDemand'] == baseline['oldFormula'], baseline
+    assert baseline['newDemand'] > baseline['legacyDemand'], baseline
+    assert baseline['restored'] == {'enabled': True, 'anchorYear': 1900}, baseline
+    assert baseline['invalid'] and not baseline['errors'], baseline
+
+    page.evaluate("""()=>{
+        S=newGame({era:1900,country:'JP',difficulty:'normal',history:'historical',name:'成熟モデルUI'});
+        VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';PAGE='marketRegion';render();
+    }""")
+    assert page.get_by_role('heading', name='年代別市場発展・自動車普及モデル').is_visible()
+    page.locator('#worldEvolutionModeV046').select_option('evolving')
+    page.get_by_role('button', name='世界市場の発展方針を保存').click()
+    check = page.evaluate("""()=>({
+        source:S.worldEvolutionV046,
+        restored:parsePayload(savePayload(S)).worldEvolutionV046,
+        errors:check(S)
+    })""")
+    assert check['source'] == check['restored'], check
+    assert check['source']['enabled'] and not check['errors'], check
+
+    endurance = page.evaluate("""async()=>{
+        saveAuto=async()=>true;render=()=>{};
+        const start=ym(S.year,S.month);
+        for(let i=0;i<12;i++){
+            const before=S.monthCommitted;
+            await runMonth();
+            if(S.monthCommitted!==before+1)return {failed:i,reason:LAST_MONTH_DIAGNOSTIC?.message};
+            const errors=check(S),financial=consolidate(S);
+            if(errors.length||financial.errors.length||!financial.cf.reconciled)
+                return {failed:i,errors,financialErrors:financial.errors};
+        }
+        return {months:ym(S.year,S.month)-start,settings:parsePayload(savePayload(S)).worldEvolutionV046,
+            errors:check(S)};
+    }""")
+    assert endurance.get('months') == 12, endurance
+    assert endurance['settings']['enabled'] and not endurance['errors'], endurance
+
+
 if __name__ == '__main__':
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(
@@ -225,6 +284,8 @@ if __name__ == '__main__':
         logistics_policy_and_save(page)
         logistics_physical_transfer(page)
         group_network_allocation(page)
+        page.set_content(HTML.read_text(encoding='utf-8'), wait_until='domcontentloaded')
+        world_maturation(page)
         assert not errors, errors
         browser.close()
-    print('PASS STEP 9: multi-source group allocation, procurement and logistics, physical inventory, save and 24-month accounting')
+    print('PASS STEP 9: global stock network, regional logistics, simulated market maturation, save and 24-month accounting')
