@@ -5439,7 +5439,7 @@ function consolidate(s,rootId=s.playerId){
    remains visible and preserved. No historical FX or unapproved PPA inputs invented. */
 const consolidateBookV03=consolidate;
 function balanceFxRate(s,f){return Number(s.world?.[f.country]?.fx??COUNTRIES[f.country].fx);}
-function foundingRootJournal(s,rootId,f,j,period){return f.id===rootId&&period===ym(s.startYear,1)&&['創業資本','事業設備・施設の取得','創業時の実材料仕入','開業時の仕入商品','採取権取得'].includes(j.text)}
+function foundingRootJournal(s,rootId,f,j,period){return f.id===rootId&&period===ym(s.startYear,1)&&(['創業資本','事業設備・施設の取得','創業時の実材料仕入','開業時の仕入商品','採取権取得'].includes(j.text)||j.text?.startsWith('創業時のBOM必要材料を仕入（'))}
 function cashOfJournal(j){return j.dr.filter(a=>a[0]==='cash').reduce((x,a)=>x+a[1],0)-j.cr.filter(a=>a[0]==='cash').reduce((x,a)=>x+a[1],0);}
 function closingFxBridge(s,memberFirms,g){
  const cashByFirm={},items=[];let closingCash=0,localFxDelta=0;
