@@ -143,6 +143,41 @@ if __name__ == "__main__":
         assert used["produced"] > 0 and used["warehouseUnchanged"], used
         assert abs(used["remaining"] - (5 - used["produced"] * used["required"])) <= 1e-8, used
         assert not used["errors"], used
+        remote = page.evaluate("""() => {
+            S = newGame({era:1900, country:'JP', difficulty:'easy',
+                history:'historical', name:'国内自動補充の試験'});
+            VIEW_FIRM = S.playerId;
+            const f = current();
+            const plant = beginFactoryConstruction(S,f,'small','integrated','生産拠点','JP-OSA');
+            plant.construction = null;
+            f.plants[0].paused = true;
+            syncPlant(f);
+            PAGE = 'factory';
+            render();
+            return plant.id;
+        }""")
+        page.get_by_text("中央倉庫の保管在庫", exact=True).click()
+        page.locator("#rawWarehouseAuto").check()
+        page.get_by_role("button", name="倉庫設定を保存").click()
+        automatic = page.evaluate("""async id => {
+            let peakShipments=0, advanced=0;
+            for (let i=0;i<6;i++) {
+                const month=S.monthCommitted;
+                await runMonth();
+                if (S.monthCommitted !== month+1) return {diagnostic:LAST_MONTH_DIAGNOSTIC?.message};
+                advanced++;
+                peakShipments = Math.max(peakShipments,current().inventoryLogisticsV038.rawShipments.length);
+            }
+            const f=current(),storage=f.journals.filter(j=>j.text==='原材料の月次保管費').length;
+            const receipts=f.journals.filter(j=>j.text.startsWith('資材の国内検収')).length;
+            const auto=f.inventoryLogisticsV038.autoRefill;
+            const runs=f.history.some(x=>x.produced>0);
+            return {advanced,peakShipments,storage,receipts,auto,runs,errors:check(S),
+                targetExists:f.plants.some(p=>p.id===id)};
+        }""", remote)
+        assert automatic["advanced"] == automatic["storage"] == 6 and automatic["auto"], automatic
+        assert automatic["peakShipments"] >= 2 and automatic["receipts"] > 0, automatic
+        assert automatic["runs"] and automatic["targetExists"] and not automatic["errors"], automatic
         assert not errors, errors
         browser.close()
     print("PASS STEP 2: warehouse migration, per-plant inventory, domestic shipment and offline UI")
