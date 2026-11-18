@@ -6384,17 +6384,54 @@ function supplyLeadV034(f,type,s=S){
  const risk=Math.max(0,Math.floor(s.supplyRisk?.active?.[source?.id]?.delay||0));
  return Math.min(5,travel+risk);
 }
+function futurePlantCapacityV034(f,offset){
+ let capacity=Math.max(0,f.plant?.capacity||0);
+ for(const plant of f.plants||[]){
+  if(plant.paused)continue;
+  if(!['integrated','assembly'].includes(plant.kind))continue;
+  if(plant.construction&&Number(plant.construction.monthsLeft||99)<=offset)capacity+=plant.capacity||0;
+  if(plant.renovation&&Number(plant.renovation.monthsLeft||99)<=offset)
+   capacity+=(plant.capacity||0)+(plant.renovation.kind==='extend'?(plant.renovation.delta||0):0);
+ }
+ return capacity;
+}
 function supplyExpectedDemandV034(f,type,s,offset=0,current=null){
- // Forecast only already approved model, BOM and component-line plans.
- // Planned factory completion or undeclared launch volume is warned about.
- const base=current??factoryResourceTargetV026(f,type,s).demand;
- return Math.max(0,Math.ceil(base));
+ // Approved active vehicle/BOM/parts plans are the baseline. An already
+ // ordered model launch has an explicit month and the game-defined new-model
+ // plan quantity, so those incremental requirements can be projected.
+ let demand=current??factoryResourceTargetV026(f,type,s).demand;
+ if(offset<=0)return Math.max(0,Math.ceil(demand));
+ for(const project of f.projects||[]){
+  if(project.status!=='developing'||Math.max(1,Math.ceil(project.left||1))>offset)continue;
+  const design=project.design||DESIGN_DEFAULT;
+  const part=materialRequirement(design,f)[type]||0;
+  const futureCapacity=futurePlantCapacityV034(f,offset);
+  if(project.kind==='grade'){
+   const parent=f.models?.find(m=>m.id===project.gradeParent);
+   if(!parent)continue;
+   const count=Math.max(1,Math.floor((f.plans?.[parent.id]||futureCapacity*.45)*.28));
+   demand+=count*part;
+  }else if(project.fromModel){
+   const previous=f.models?.find(m=>m.id===project.fromModel);
+   if(!previous)continue;
+   const oldCount=Math.max(0,f.plans?.[previous.id]||0);
+   const count=Math.max(1,Math.floor(f.plans?.[previous.id]||futureCapacity*.35));
+   demand+=count*part-oldCount*(materialRequirement(previous.design||DESIGN_DEFAULT,f)[type]||0);
+  }else{
+   demand+=Math.floor(futureCapacity*.3)*part;
+  }
+ }
+ return Math.max(0,Math.ceil(demand));
 }
 function resourceOrderPointV034(f,type,s,demand){
  const months=safetyMonthsV034(f.supply?.contracts?.[type]),lead=supplyLeadV034(f,type,s);
  let coverage=0;
  for(let i=0;i<=lead;i++)coverage+=supplyExpectedDemandV034(f,type,s,i,demand);
- const safetyStock=Math.ceil(demand*months);
+ // Safety stock is sized from the next few committed demand months, so an
+ // upcoming model launch can trigger advance procurement before production.
+ let safetyDemand=demand;
+ for(let i=1;i<=Math.min(5,lead+2);i++)safetyDemand=Math.max(safetyDemand,supplyExpectedDemandV034(f,type,s,i,demand));
+ const safetyStock=Math.ceil(safetyDemand*months);
  return {leadMonths:lead,safetyMonths:months,safetyStock,coverage,target:coverage+safetyStock};
 }
 function resourcePurchaseNeedV034(f,type,s,point=null){
@@ -6413,8 +6450,11 @@ function supplyFutureEventsV034(f,s=S){
   if(remaining<=6)notices.push({month:ym(s.year,s.month)+remaining,
    description:plant.name+'：'+(plant.renovation?.kind==='extend'?'工場拡張':'工場工事')+'完成予定'});
  }
- for(const m of f.models||[])if(['development','prelaunch'].includes(m.status))
-  notices.push({month:null,description:m.name+'：量産開始月と必要資材を確認'});
+ for(const project of f.projects||[])if(project.status==='developing'){
+  const left=Math.max(1,Math.ceil(project.left||1));
+  if(left<=6)notices.push({month:ym(s.year,s.month)+left,
+   description:project.name+'：開発完了・量産計画の開始予定'});
+ }
  return notices.slice(0,12);
 }
 function resourceForecastV034(f,type,s=S,horizon=6){
