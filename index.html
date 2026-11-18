@@ -458,16 +458,68 @@ function exchangeForeignV042(s,f,currency,quantity,operation){
  }
  return amount;
 }
+const FX_FORWARD_MONTHS_V042=[1,3,6];
+function signForeignForwardV042(s,f,currency,quantity,operation,months){
+ const market=currencyMarketV042(currency),month=ym(s.year,s.month);
+ if(!market||!s.world[market]||currency===COUNTRIES[f.country].currency||!Number.isSafeInteger(quantity)||quantity<1||
+    !['buy','sell'].includes(operation)||!FX_FORWARD_MONTHS_V042.includes(months))throw Error('通貨・金額・期間を確認してください');
+ const spot=currencyRatioV042(s,f,currency),rate=spot*(1+(s.world[f.country].rate-s.world[market].rate)*months/12);
+ const amount=Math.round(quantity*rate),due=month+months;
+ const open=(f.foreignFinanceV042?.forwards??[]).filter(order=>order.settledMonth===undefined);
+ if(!Number.isSafeInteger(amount)||amount<1)throw Error('機能通貨に換算できる金額を指定してください');
+ if(operation==='buy'){
+  const committed=open.filter(order=>order.operation==='buy').reduce((sum,order)=>sum+order.amount,0);
+  if(committed+amount>acc(f,'cash'))throw Error('外貨の買い予約に必要な機能通貨が不足しています');
+ }else{
+  const wallet=f.foreignFinanceV042?.wallets?.[currency]?.quantity??0;
+  const receivable=f.foreignFinanceV042?.retainReceipts?f.receivables.filter(x=>x.currency===currency&&x.due<due)
+   .reduce((sum,x)=>sum+x.foreignMinor,0):0;
+  const committed=open.filter(order=>order.operation==='sell'&&order.currency===currency).reduce((sum,order)=>sum+order.quantity,0);
+  if(committed+quantity>wallet+receivable)throw Error('売り予約に必要な保有外貨・期日前の外貨入金が不足しています');
+ }
+ const order={id:'FXF-'+s.seq++,currency,quantity,operation,start:month,due,amount};
+ (foreignAccountsV042(f).forwards??=[]).push(order);
+ return order;
+}
+function settleForeignForwardsV042(s,f,events){
+ const finance=f.foreignFinanceV042,month=ym(s.year,s.month);
+ if(!finance?.forwards?.length)return;
+ for(const order of finance.forwards){
+  if(order.settledMonth!==undefined||order.due>month)continue;
+  const {currency,quantity,amount,operation}=order,buy=operation==='buy';
+  const available=buy?acc(f,'cash'):finance.wallets[currency]?.quantity??0;
+  if(available<(buy?amount:quantity)){
+   events.push(f.name+'：'+currency+'の為替予約は決済資金待ち');
+   continue;
+  }
+  const market=Math.round(currencyRatioV042(s,f,currency)*quantity);
+  if(buy){
+   post(f,{foreignCash:amount},{cash:amount},'為替予約の買い決済 '+order.id,'fxCash',s);
+   addForeignWalletV042(f,currency,quantity,amount);
+  }else{
+   const book=takeForeignWalletV042(f,currency,quantity);
+   journalizeRepayment(f,'foreignCash',book,amount,'fxCash','為替予約の売り決済 '+order.id,s);
+  }
+  order.settledMonth=month;
+  order.benefitLocal=buy?market-amount:amount-market;
+ }
+ const completed=finance.forwards.filter(order=>order.settledMonth!==undefined).slice(-60);
+ const pending=finance.forwards.filter(order=>order.settledMonth===undefined);
+ finance.forwards=[...completed,...pending];
+}
+function markForeignHoldingV042(s,f,currency,holding,timing='期末'){
+ const value=Math.round(holding.quantity*currencyRatioV042(s,f,currency)),delta=value-holding.bookValue;
+ if(delta>0)post(f,{foreignCash:delta},{otherRevenue:delta},'外貨現金の'+timing+'評価益 '+currency,'fxCash',s);
+ if(delta<0)post(f,{fxLoss:-delta},{foreignCash:-delta},'外貨現金の'+timing+'評価損 '+currency,'fxCash',s);
+ holding.bookValue=value;
+ return delta;
+}
 function markForeignWalletsV042(s){
  const date=`${s.year}/${s.month}`;
  for(const f of s.firms){
   let change=0;
   for(const [currency,holding] of Object.entries(f.foreignFinanceV042?.wallets??{})){
-   const value=Math.round(holding.quantity*currencyRatioV042(s,f,currency)),delta=value-holding.bookValue;
-   if(delta>0)post(f,{foreignCash:delta},{otherRevenue:delta},'外貨現金の期末評価益 '+currency,'fxCash',s);
-   if(delta<0)post(f,{fxLoss:-delta},{foreignCash:-delta},'外貨現金の期末評価損 '+currency,'fxCash',s);
-   change+=delta;
-   holding.bookValue=value;
+   change+=markForeignHoldingV042(s,f,currency,holding);
   }
   if(change){
    f.monthly.profit+=change;
@@ -493,6 +545,19 @@ function validateForeignWalletsV042(s){
   if(!Number.isSafeInteger(book)||book!==acc(f,'foreignCash'))errors.push(f.name+'：通貨別現金と帳簿残高が不一致');
   if(f.foreignFinanceV042?.retainReceipts!==undefined&&typeof f.foreignFinanceV042.retainReceipts!=='boolean')
    errors.push(f.name+'：外貨受取方針の形式が不正');
+  const orders=f.foreignFinanceV042?.forwards;
+  if(orders!==undefined&&!Array.isArray(orders))errors.push(f.name+'：為替予約の台帳形式が不正');
+  const ids=new Set();
+  for(const order of Array.isArray(orders)?orders:[]){
+   const market=currencyMarketV042(order?.currency);
+   if(typeof order?.id!=='string'||ids.has(order.id)||!market||!s.world[market]||order.currency===COUNTRIES[f.country].currency||
+      !['buy','sell'].includes(order.operation)||!Number.isSafeInteger(order.quantity)||order.quantity<1||
+      !Number.isSafeInteger(order.amount)||order.amount<1||!Number.isSafeInteger(order.start)||!FX_FORWARD_MONTHS_V042.includes(order.due-order.start)||
+      order.settledMonth!==undefined&&(!Number.isSafeInteger(order.settledMonth)||order.settledMonth<order.due||!Number.isSafeInteger(order.benefitLocal))){
+    errors.push(f.name+'：為替予約の記録が不正');continue;
+   }
+   ids.add(order.id);
+  }
   for(const [account,items,ledger] of [['payable',f.payables,-acc(f,'payable')],['ar',f.receivables,acc(f,'ar')]]){
    let scheduled=0;
    for(const item of items??[]){
@@ -549,6 +614,39 @@ function exchangeForeignUIV042(){
   const errors=check(trial);
   if(errors.length)throw Error(errors[0]);
   S=trial;render();toast(moneyLocal(quantity,currency)+'を'+fnum(f,amount)+'で両替しました');
+ }catch(error){toast(error.message);}
+}
+function foreignForwardsPanelV042(s,f,edit){
+ const own=COUNTRIES[f.country].currency,month=ym(s.year,s.month);
+ const rows=(f.foreignFinanceV042?.forwards??[]).slice().reverse().map(order=>{
+  const state=order.settledMonth!==undefined?'決済済み':order.due<month?'決済待ち':'予約中';
+  return `<tr><td>${esc(order.id)}</td><td>${order.operation==='buy'?'買い':'売り'}</td>
+   <td>${moneyLocal(order.quantity,order.currency)}</td><td>${fnum(f,order.amount)}</td>
+   <td>${partContractDate(order.due)}</td><td>${state}</td>
+   <td>${order.benefitLocal===undefined?'—':fnum(f,order.benefitLocal)}</td></tr>`;
+ }).join('');
+ const currencies=Object.entries(COUNTRIES).filter(([code,entry])=>s.world[code]&&entry.currency!==own)
+  .map(([,entry])=>`<option>${esc(entry.currency)}</option>`).join('');
+ const controls=edit?`<div class="formgrid">
+  <label class="field">対象通貨<select id="fxForwardCurrency">${currencies}</select></label>
+  <label class="field">予約方向<select id="fxForwardOperation"><option value="buy">外貨を買う</option><option value="sell">外貨を売る</option></select></label>
+  <label class="field">外貨の金額<input id="fxForwardAmount" type="number" min="0.01" step="0.01" value="100"></label>
+  <label class="field">決済までの期間<select id="fxForwardMonths">${FX_FORWARD_MONTHS_V042.map(n=>`<option value="${n}">${n}か月</option>`).join('')}</select></label>
+  <button class="btn" data-action="signForeignForwardV042">為替予約を締結</button></div>`:'';
+ return `<section class="panel span12"><h2>為替予約</h2>
+  <p class="hint">締結時の相場と金利差で決済額を固定します。期日に必要な通貨残高を確保してください。</p>${controls}
+  <div class="scroll"><table><thead><tr><th>予約</th><th>方向</th><th>外貨額</th><th>固定決済額</th><th>期日</th><th>状態</th>
+  <th>期日の相場との差額</th></tr></thead><tbody>${rows||'<tr><td colspan="7">為替予約はありません</td></tr>'}</tbody></table></div></section>`;
+}
+function signForeignForwardUIV042(){
+ try{
+  const f=current();if(!canEdit(f))throw Error('為替予約を締結する権限がありません');
+  const trial=structuredClone(S),firm=company(f.id,trial);
+  const order=signForeignForwardV042(trial,firm,inputValue('fxForwardCurrency'),cents(Number(inputValue('fxForwardAmount'))),
+   inputValue('fxForwardOperation'),Number(inputValue('fxForwardMonths')));
+  const errors=check(trial);
+  if(errors.length)throw Error(errors[0]);
+  S=trial;render();toast('決済額 '+fnum(f,order.amount)+'で為替予約を締結しました');
  }catch(error){toast(error.message);}
 }
 function post(f,dr,cr,desc,kind='operating',s=S){const d=Object.entries(dr).map(([a,n])=>[a,Math.round(n)]).filter(x=>x[1]), c=Object.entries(cr).map(([a,n])=>[a,Math.round(n)]).filter(x=>x[1]); const ds=d.reduce((a,b)=>a+b[1],0),cs=c.reduce((a,b)=>a+b[1],0); if(ds!==cs||ds<0||!Number.isSafeInteger(ds))throw Error('仕訳不一致: '+desc+' '+ds+'/'+cs);if(!ds)return;for(const [a,n] of d){if(!ACCTYPE[a])throw Error('勘定科目 '+a);f.ledger[a]=(f.ledger[a]||0)+n}for(const [a,n] of c){if(!ACCTYPE[a])throw Error('勘定科目 '+a);f.ledger[a]=(f.ledger[a]||0)-n} f.journals.push({id:s.seq++,when:ym(s.year,s.month),text:desc,kind,amount:ds,dr:d,cr:c,fxAtPost:s?.world?.[f.country]?.fx??COUNTRIES[f.country].fx});if(f.journals.length>10000)f.journals.splice(0,f.journals.length-10000)}
@@ -2171,7 +2269,12 @@ function dispatchCorporateSupplyV037(s,buyer,seller,node,number,lead,fixedUnitBa
   Math.max(1,localFromBase(fixedUnitBase,seller.country));
  const costUnit=stock.q&&groupSupplyV037(s,buyer,seller)?Math.round(stock.v/stock.q):unit;
  const estimated=Math.max(1,corporateSettlementLocalV041(s,seller,buyer,costUnit)+feesPerUnit);
- const qty=Math.max(0,Math.floor(Math.min(number,unreserved,acc(buyer,'cash')/estimated)));
+ const funds=Math.max(0,acc(buyer,'cash'));
+ const currency=COUNTRIES[seller.country].currency;
+ const foreign=buyer.foreignFinanceV042?.wallets?.[currency]?.quantity??0;
+ const equivalent=corporateSettlementLocalV041(s,seller,buyer,foreign);
+ const affordable=feesPerUnit?Math.min(funds/feesPerUnit,(funds+equivalent)/estimated):(funds+equivalent)/estimated;
+ const qty=Math.max(0,Math.floor(Math.min(number,unreserved,affordable)));
  if(!qty)return null;
  const bookCost=qty===stock.q?stock.v:Math.round(stock.v*qty/stock.q),invoice=qty*unit;
  const month=ym(s.year,s.month),id='SHIP'+s.seq++;
@@ -2199,15 +2302,26 @@ function receiveCorporateSupplyV037(s,buyer,shipment,events){
  const claim=linked?Math.min(cents(term.creditBase/rate),Math.floor(trade.invoice*.10)):0;
  const sellerAmount=group?trade.bookCost:trade.invoice-claim;
  const purchase=corporateSettlementLocalV041(s,seller,buyer,sellerAmount);
+ const currency=COUNTRIES[seller.country].currency,holding=movement?buyer.foreignFinanceV042?.wallets?.[currency]:null;
+ const foreignTaken=Math.min(sellerAmount,holding?.quantity??0);
+ const cash=corporateSettlementLocalV041(s,seller,buyer,sellerAmount-foreignTaken);
  const fees=movement?localFromBase(movement.freightBase+movement.dutyBase+movement.rerouteBase,buyer.country):0;
  const amount=purchase+fees;
- if(acc(buyer,'cash')<amount){
+ if(acc(buyer,'cash')<cash+fees){
   shipment.due=month+1;buyer.supply.inbound.push(shipment);
   events.push(buyer.name+'：決済資金不足で'+SUPPLY_LABELS[type]+'の検収を延期');
   return;
  }
- const fromJournal=purchase?s.seq:null;
- post(buyer,{materials:purchase},{cash:purchase},'法人間資材の検収・決済 '+shipment.id,'operating',s);
+ let bank=0;
+ if(foreignTaken){
+  markForeignHoldingV042(s,buyer,currency,holding,'決済前');
+  bank=takeForeignWalletV042(buyer,currency,foreignTaken);
+ }
+ const fromJournal=cash+bank?s.seq:null;
+ const dr={materials:purchase},cr={cash,foreignCash:bank},difference=purchase-(cash+bank);
+ if(difference>0)cr.otherRevenue=difference;
+ if(difference<0)dr.fxLoss=-difference;
+ post(buyer,dr,cr,'法人間資材の検収・決済 '+shipment.id,'operating',s);
  if(fees)post(buyer,{materials:fees},{cash:fees},'法人間資材の国際物流・通関 '+shipment.id,'operating',s);
  const toJournal=sellerAmount?s.seq:null;
  if(group){
@@ -3523,7 +3637,7 @@ function recordSupplyBalanceV039(s,f){
 function financeMonthly(s,events){
  // Stage 1: settle intercompany and external liabilities before period-wide financial reporting.
  for(const f of s.firms){
-  settleScheduled(f,s);payWages(f,s);
+  settleForeignForwardsV042(s,f,events);settleScheduled(f,s);payWages(f,s);
   for(const loan of f.loans){
    const interest=Math.round(loan.outstanding*loan.rate/12);
    if(interest){post(f,{interestExpense:interest},{interestDue:interest},'当月借入利息発生','operating',s);const loanInterestJournal=f.journals.at(-1)?.id;loan.interestOutstanding=(loan.interestOutstanding||0)+interest;
@@ -6539,7 +6653,7 @@ const consolidateBookV03=consolidate;
 function balanceFxRate(s,f){return Number(s.world?.[f.country]?.fx??COUNTRIES[f.country].fx);}
 function foundingRootJournal(s,rootId,f,j,period){return f.id===rootId&&period===ym(s.startYear,1)&&['創業資本','事業設備・施設の取得','創業時の実材料仕入','開業時の仕入商品','採取権取得'].includes(j.text)}
 function cashOfJournal(j){
- const cash=lines=>lines.reduce((sum,[account,value])=>sum+(['cash','foreignCash'].includes(account)?value:0),0);
+ const cash=lines=>lines.reduce((sum,[account,value])=>sum+(account==='cash'||account==='foreignCash'?value:0),0);
  return cash(j.dr)-cash(j.cr);
 }
 function closingFxBridge(s,memberFirms,g){
@@ -6884,7 +6998,7 @@ function finTable(f){const x=financials(f);return `<div class="scroll"><table><t
 function financePage(){const f=current(),edit=canEdit(f),x=financials(f),w=S.world[f.country];const recent=f.journals.slice(-28).reverse();return titlePage('財務・資金','法人別の取引別複式記録、単体財務、現金・借入を管理します。',tag('発生主義／資金決済を分離'))+(!edit?noaccess():'')+`<div class="grid">${card('単体総資産',fnum(f,x.assets),'評価額の合計','span3')}${card('現金残高',fnum(f,x.cash),'現地通貨','span3')}${card('借入残高',fnum(f,x.debt),'現地通貨','span3')}${card('累計損益',`<span class="${x.profit>=0?'positive':'negative'}">${fnum(f,x.profit)}</span>`,'創業以来の累計','span3')}
  <section class="panel span6"><h2>法人別財務三表の基礎</h2>${finTable(f)}<div class="note" style="margin-top:12px">BS照合差額：${fnum(f,x.bsDiff)}（最小通貨単位）。取引別の借貸一致と在庫原価も自動検算します。連結用の調整は「連結財務三表」画面で確認できます。取得時公正価値など未確定部分は仮計算です。</div></section>
  <section class="panel span6"><h2>借入・資金繰り</h2>${rowstat('現金',fnum(f,x.cash))}${rowstat('借入残高',fnum(f,x.debt))}${rowstat('未払金',fnum(f,-acc(f,'payable')))}${rowstat('未払給与',fnum(f,-acc(f,'wagesDue')))}${rowstat('法人税未払',fnum(f,-acc(f,'taxDue')))}${rowstat('市場金利（仮）',(w.rate*100).toFixed(2)+'%')}${rowstat('新規借入金利（仮）',((w.rate+.03)*100).toFixed(2)+'%')}<div class="formgrid" style="margin-top:17px"><div class="field"><label for="borrowBase">借入金額（円相当）</label><input type="number" id="borrowBase" min="50000" max="50000000" value="100000" ${edit?'':'disabled'}></div><button class="btn primary" data-action="borrow" ${edit?'':'disabled'}>銀行借入（36か月）</button></div><div class="sep"></div><h3>既存借入</h3>${f.loans.length?f.loans.map(l=>`<div class="itemstat"><span>残元本 ${fnum(f,l.outstanding)}</span><span class="muted">年率${(l.rate*100).toFixed(1)}%</span></div>`).join(''):'<div class="muted small">借入契約なし</div>'}<div class="footnote">借入・利息は実取引として仕訳に反映します。債権者別の再建交渉と詳細な税務処理は未実装です。</div></section>
- ${foreignCashPanelV042(S,f,edit)}
+ ${foreignCashPanelV042(S,f,edit)}${foreignForwardsPanelV042(S,f,edit)}
  <section class="panel span12"><h2>最新の取引別複式仕訳</h2><div class="scroll"><table><thead><tr><th>年月</th><th>取引内容</th><th>借方</th><th>貸方</th><th class="num">金額</th></tr></thead><tbody>${recent.map(j=>`<tr><td>${Math.floor(j.when/12)}年${j.when%12+1}月</td><td>${esc(j.text)}</td><td>${esc(j.dr.map(([k,v])=>k).join(' / '))}</td><td>${esc(j.cr.map(([k,v])=>k).join(' / '))}</td><td class="num">${fnum(f,j.amount)}</td></tr>`).join('')}</tbody></table></div></section></div>`}
 
 /* v0.19: renames operate on stable IDs. Foreign/uncontrolled firms remain read-only. */
@@ -6949,7 +7063,7 @@ function render(){if(!S){document.getElementById('content').innerHTML='';documen
 function monthModal(){const issues=checkMonthPreview(),f=current();return `<div class="modalwrap"><div class="modal" role="dialog" aria-modal="true"><div class="eyebrow">MONTH-END / PRE-FLIGHT</div><h1>${dateKey()}の月末処理</h1><p class="muted">処理前チェックは確定状態を変更しません。実行後は当月を固定順序で計算し、資源・会計の整合性を検証して結果を確定します。</p><div class="grid">${card('対象',esc(dateKey()),'月次一括処理','span4')}${card('支配下法人',controlled().length+'社','計算は全世界の企業を含む','span4')}${card('現金残高',fnum(f,financials(f).cash),'現在選択中の法人','span4')}</div><h2 style="margin-top:20px">事前確認・警告</h2>${issues.length?issues.map(v=>`<div class="notice">${tag('注意','warn')}　${esc(v)}</div>`).join(''):`<div class="note">現時点の計画に重大な資源警告は見つかりませんでした。価格変化や供給不足など、実際の月末処理で決定される結果もあります。</div>`}<div class="note warnbox" style="margin-top:15px">数値計算は試作係数に基づきます。正式SPEC-095以降の計算方式は未確定です。処理失敗時は計算前の状態を保護します。</div><div class="footer"><button class="btn" data-action="cancelMonth">計画に戻る</button><button class="btn primary" data-action="runMonth">この月を確定する</button></div></div></div>`}
 function wizardHTML(){const stepLabels=['開始年代','創業国','モードと難易度','創業条件確認'];return `<div class="modalwrap"><div class="modal" role="dialog" aria-modal="true"><div class="eyebrow">NEW GAME / STEP ${wizard+1} OF 4</div><h1>新しい企業経営を始める</h1><p class="muted small">自動車メーカーを創業する試作版です。人口は史実推計の基準値、その他の経済係数は仮設定です。</p><div class="steps">${stepLabels.map((x,i)=>`<span class="${i<=wizard?'on':''}" title="${x}"></span>`).join('')}</div>${wizard===0?`<h2>1. 開始年代</h2><div class="choices">${[1900,1920,1950,1980,2020].map(y=>`<label class="choice"><input type="radio" name="era" value="${y}" ${setup.era===y?'checked':''}><b>${y}年</b><span class="small muted">${y===1900?'工業化初期・自動車市場の草創期':y===1920?'自動車普及期':y===1950?'戦後産業復興期':y===1980?'世界市場拡大期':'現代のグローバル市場'}</span></label>`).join('')}</div>`:wizard===1?`<h2>2. 創業国</h2><div class="choices">${Object.keys(NAMES).map(c=>`<label class="choice"><input type="radio" name="country" value="${c}" ${setup.country===c?'checked':''}><b>${NAMES[c]}</b><span class="small muted">試作通貨：${COUNTRIES[c].currency} / 人口基準値 ${nfmt(anchorPopulation(c,setup.era))}百万人</span></label>`).join('')}</div>`:wizard===2?`<h2>3. 歴史モードと難易度</h2><div class="formgrid"><div class="field"><label>歴史モード</label><select id="wizardHistory"><option value="historical" ${setup.history==='historical'?'selected':''}>史実モード</option><option value="alternate" ${setup.history==='alternate'?'selected':''}>仮想歴史モード</option></select></div><div class="field"><label>難易度</label><select id="wizardDifficulty"><option value="easy" ${setup.difficulty==='easy'?'selected':''}>易しい（資本1.6倍）</option><option value="normal" ${setup.difficulty==='normal'?'selected':''}>標準</option><option value="hard" ${setup.difficulty==='hard'?'selected':''}>難しい（資本0.7倍）</option></select></div><div class="field"><label>会社名</label><input id="wizardName" maxlength="38" value="${esc(setup.name)}"></div></div><div class="note" style="margin-top:20px">史実モードは主要な歴史イベントを扱い、景気循環は固定日付では発生しません。現段階ではイベントや歴史的国境・通貨の厳密再現は未完成です。</div>`:`<h2>4. 創業条件の確認</h2><div class="statrow">${[['会社名',esc(setup.name)],['開始年月',setup.era+'年1月'],['創業国',NAMES[setup.country]],['歴史モード',setup.history==='historical'?'史実':'仮想'],['難易度',setup.difficulty==='easy'?'易しい':setup.difficulty==='hard'?'難しい':'標準'],['初期資本（円相当）',nfmt((setup.era<1930?2400000:setup.era<1960?4200000:setup.era<1990?7000000:12000000)*(setup.difficulty==='easy'?1.6:setup.difficulty==='hard'?.7:1))]].map(([k,v])=>`<div><div class="label">${k}</div><strong>${v}</strong></div>`).join('')}</div><div class="note warnbox" style="margin-top:20px">人口は史実推計の概数を基準値に採用（${nfmt(anchorPopulation(setup.country,setup.era))}百万人）。現在の国境に対応した人口推計であり、当時の国境・通貨を再現するものではありません。為替・価格・需要は試作値です。</div>`}<div class="footer"><button class="btn" data-action="wizardBack" ${wizard===0?'disabled':''}>戻る</button><button class="btn primary" data-action="wizardNext">${wizard===3?'この条件で創業する':'次へ進む ▸'}</button></div></div></div>`}
 async function wizardNext(){if(S)return;if(wizard===0)setup.era=Number(document.querySelector('input[name="era"]:checked')?.value||1900);if(wizard===1)setup.country=document.querySelector('input[name="country"]:checked')?.value||'JP';if(wizard===2){setup.history=inputValue('wizardHistory')||'historical';setup.difficulty=inputValue('wizardDifficulty')||'normal';setup.name=(inputValue('wizardName')||'').trim().slice(0,38)||'新規自動車メーカー'}if(wizard<3){wizard++;render();return}try{S=newGame(setup);LAST_MONTH_DIAGNOSTIC=null;MONTH_DIAGNOSTIC_OPEN=false;VIEW_FIRM=S.playerId;VIEW_COUNTRY=setup.country;PAGE='dashboard';render();const saved=await saveAuto();render();toast(saved?'創業しました。IndexedDBに自動保存しました。':'創業しましたが、自動保存に失敗しました。JSONバックアップを保存してください。')}catch(e){S=null;toast('創業設定エラー：'+e.message);console.error(e)}}
-function actions(action,elem){if(MONTH_RUNNING){toast('月次処理中です。保存・計算の確定を進めています。');return;}if(action==='wizardNext')return wizardNext();if(action==='wizardBack'){wizard=Math.max(0,wizard-1);return render()}if(!S)return;switch(action){case 'previewMonth':monthlyPreview=true;return render();case 'cancelMonth':monthlyPreview=false;return render();case 'runMonth':return runMonth();case 'monthDiagnosticShow':case 'monthDiagnosticDismiss':case 'monthDiagnosticCopy':case 'monthDiagnosticDownload':case 'monthDiagnosticJump':return monthlyDiagAction(action);case 'staffToHrV023':PEOPLE_VIEW='hr';PAGE='people';render();return;case 'goProductionV023':PRODUCT_VIEW='production';PAGE='product';render();return;case 'setPlan':return setPlan();case 'createGrade':return createGrade();case 'saveQualityPolicy':return saveQualityPolicy();case 'recallModel':return recallModel(elem.dataset.modelId);case 'changeBudget':return changeBudget();case 'researchFocusSave':return researchFocusSave();case 'roadmapAdd':return roadmapAdd(elem.dataset.techId);case 'roadmapRemove':return roadmapRemove(elem.dataset.techId);case 'roadmapToggle':return roadmapToggle();case 'hireStaff':return hireStaff();case 'partOrderPlace':case 'partOrderDispatch':case 'partOrderCancel':return partTradeAction(action,elem.dataset.id);case 'bomAssemblySave':case 'bomLineSave':case 'bomShipment':return bomFactoryAction(action,elem.dataset.id);case 'lineReview':case 'linePropose':case 'lineApprove':case 'lineCancel':return lineUIAction(action,elem);case 'partLicensePropose':case 'partLicenseApprove':case 'partLicenseEnd':case 'partDevelopmentPropose':case 'partDevelopmentApprove':case 'partDevelopmentEnd':return partContractsAction(action,elem.dataset.id);case 'partFamily':case 'partRevise':case 'partSubmit':case 'partBomCreate':case 'partBomOpen':case 'partBomSave':case 'partBomApprove':return partDesignAction(action,elem.dataset.id);case 'partRepair':return partRepairAction(elem.dataset.id,Number(elem.dataset.index));case 'engineeringTraining':case 'engineeringPropose':case 'engineeringApprove':case 'engineeringAllocate':case 'engineeringPause':case 'engineeringCancel':return engineeringAction(action,elem.dataset.id);case 'hrSave':return saveHRPolicy();case 'hrNegotiate':return negotiateLabor();case 'maintain':return maintain();case 'expand':return expand();case 'develop':return develop();case 'renewModel':return startModelRevision();case 'maFilter':return maFilter();case 'maSelect':return maSelect(elem.dataset.id);case 'maQuote':return maPreview();case 'maBuy':return maBuy();case 'maIntegrate':return maStartIntegration();case 'issueShares':return issueSharesUI();case 'buyBackSharesV0271':return buyBackSharesUI();case 'cancelTreasurySharesV0271':return cancelTreasurySharesUI();case 'negPreview':return negotiationPreview();case 'buyStake':return buyNegotiatedStake();case 'saveDelegate':return saveDelegationPolicy();case 'designPreview':return designPreview();case 'openSupplyContracts':return openSupplyContracts();case 'saveSupply':return saveSupply();case 'saveDistribution':return saveDistribution();case 'establishSalesCorp':return establishSalesCorporation();case 'factoryBuild':return factoryBuild();case 'dispatchRawShipmentV038':return dispatchRawShipmentUIV038();case 'updateRawWarehouseV038':return updateRawWarehouseV038();case 'openWarehouseDepotV038':return openWarehouseDepotV038();case 'openOverseasDepotV041':return openWarehouseDepotV038(true);case 'resourceDevelopmentV037':return resourceDevelopmentUIV037();case 'factoryManageV21':return manageFactoryV21(elem.dataset.plantId);case 'factoryModeV21':return saveFactoryModeV21();case 'moduleShipV21':return shipModuleV21();case 'v21RouteSave':return saveRoutesV21();case 'partsPlan':try{return partPlanning()}catch(e){toast(e.message);return}case 'shipParts':return shipInterplant();case 'reorgTransfer':return transferBusinessUI();case 'reorgIntegrate':return integrateBusinessUI();case 'plantSettings':return plantSettings();case 'maintainPlant':return maintainPlant();case 'researchChoose':return researchChoose();case 'startTech':return startTech(elem.dataset.techId);case 'cancelTech':return cancelTech(elem.dataset.techId);case 'borrow':return borrow();case 'exchangeForeignV042':return exchangeForeignUIV042();case 'saveForeignReceiptsV042':return saveForeignReceiptsV042();case 'spendAd':return spendAd();case 'createSub':return createSub();case 'renameCompany':return renameCompany();case 'renamePlant':return renamePlant(elem.dataset.plantId);case 'factoryRouteSaveOne':return saveFactoryRouteOne(elem.dataset.plantId);case 'factoryManageSelected':return manageFactoryV21(elem.dataset.plantId,document.getElementById('factoryOneAction')?.value);case 'acquire':return acquire(elem.dataset.id);case 'groupLoan':return groupLoan();case 'groupSale':return groupSale();case 'diagnoseStorage':return diagnoseStorage();case 'saveManual':return saveManual(Number(elem.dataset.slot));case 'loadManual':{const i=Number(elem.dataset.slot);if(confirm('現在の未保存変更を破棄し、手動保存'+(i+1)+'を読み込みますか？'))return restore(SAVE_INDEX.manual[i]?.serialized);return}case 'loadAutoSlot':{const i=Number(elem.dataset.slot);if(confirm('自動保存世代'+(i+1)+'を読み込みますか？'))return restore(SAVE_INDEX.auto[i]?.serialized);return}case 'export':try{fileDownload(`conglomerate_${S.year}_${S.month}.json`,savePayload(S));toast('JSONバックアップを書き出しました')}catch(e){toast('書き出しに失敗：'+e.message)}return;case 'import':document.getElementById('importFile').click();return;case 'newGame':if(confirm('現在のセッションを終了し、新しいゲームを開始しますか？ 保存済みデータは削除しません。')){S=null;wizard=0;monthlyPreview=false;PAGE='dashboard';render()}return;}}
+function actions(action,elem){if(MONTH_RUNNING){toast('月次処理中です。保存・計算の確定を進めています。');return;}if(action==='wizardNext')return wizardNext();if(action==='wizardBack'){wizard=Math.max(0,wizard-1);return render()}if(!S)return;switch(action){case 'previewMonth':monthlyPreview=true;return render();case 'cancelMonth':monthlyPreview=false;return render();case 'runMonth':return runMonth();case 'monthDiagnosticShow':case 'monthDiagnosticDismiss':case 'monthDiagnosticCopy':case 'monthDiagnosticDownload':case 'monthDiagnosticJump':return monthlyDiagAction(action);case 'staffToHrV023':PEOPLE_VIEW='hr';PAGE='people';render();return;case 'goProductionV023':PRODUCT_VIEW='production';PAGE='product';render();return;case 'setPlan':return setPlan();case 'createGrade':return createGrade();case 'saveQualityPolicy':return saveQualityPolicy();case 'recallModel':return recallModel(elem.dataset.modelId);case 'changeBudget':return changeBudget();case 'researchFocusSave':return researchFocusSave();case 'roadmapAdd':return roadmapAdd(elem.dataset.techId);case 'roadmapRemove':return roadmapRemove(elem.dataset.techId);case 'roadmapToggle':return roadmapToggle();case 'hireStaff':return hireStaff();case 'partOrderPlace':case 'partOrderDispatch':case 'partOrderCancel':return partTradeAction(action,elem.dataset.id);case 'bomAssemblySave':case 'bomLineSave':case 'bomShipment':return bomFactoryAction(action,elem.dataset.id);case 'lineReview':case 'linePropose':case 'lineApprove':case 'lineCancel':return lineUIAction(action,elem);case 'partLicensePropose':case 'partLicenseApprove':case 'partLicenseEnd':case 'partDevelopmentPropose':case 'partDevelopmentApprove':case 'partDevelopmentEnd':return partContractsAction(action,elem.dataset.id);case 'partFamily':case 'partRevise':case 'partSubmit':case 'partBomCreate':case 'partBomOpen':case 'partBomSave':case 'partBomApprove':return partDesignAction(action,elem.dataset.id);case 'partRepair':return partRepairAction(elem.dataset.id,Number(elem.dataset.index));case 'engineeringTraining':case 'engineeringPropose':case 'engineeringApprove':case 'engineeringAllocate':case 'engineeringPause':case 'engineeringCancel':return engineeringAction(action,elem.dataset.id);case 'hrSave':return saveHRPolicy();case 'hrNegotiate':return negotiateLabor();case 'maintain':return maintain();case 'expand':return expand();case 'develop':return develop();case 'renewModel':return startModelRevision();case 'maFilter':return maFilter();case 'maSelect':return maSelect(elem.dataset.id);case 'maQuote':return maPreview();case 'maBuy':return maBuy();case 'maIntegrate':return maStartIntegration();case 'issueShares':return issueSharesUI();case 'buyBackSharesV0271':return buyBackSharesUI();case 'cancelTreasurySharesV0271':return cancelTreasurySharesUI();case 'negPreview':return negotiationPreview();case 'buyStake':return buyNegotiatedStake();case 'saveDelegate':return saveDelegationPolicy();case 'designPreview':return designPreview();case 'openSupplyContracts':return openSupplyContracts();case 'saveSupply':return saveSupply();case 'saveDistribution':return saveDistribution();case 'establishSalesCorp':return establishSalesCorporation();case 'factoryBuild':return factoryBuild();case 'dispatchRawShipmentV038':return dispatchRawShipmentUIV038();case 'updateRawWarehouseV038':return updateRawWarehouseV038();case 'openWarehouseDepotV038':return openWarehouseDepotV038();case 'openOverseasDepotV041':return openWarehouseDepotV038(true);case 'resourceDevelopmentV037':return resourceDevelopmentUIV037();case 'factoryManageV21':return manageFactoryV21(elem.dataset.plantId);case 'factoryModeV21':return saveFactoryModeV21();case 'moduleShipV21':return shipModuleV21();case 'v21RouteSave':return saveRoutesV21();case 'partsPlan':try{return partPlanning()}catch(e){toast(e.message);return}case 'shipParts':return shipInterplant();case 'reorgTransfer':return transferBusinessUI();case 'reorgIntegrate':return integrateBusinessUI();case 'plantSettings':return plantSettings();case 'maintainPlant':return maintainPlant();case 'researchChoose':return researchChoose();case 'startTech':return startTech(elem.dataset.techId);case 'cancelTech':return cancelTech(elem.dataset.techId);case 'borrow':return borrow();case 'exchangeForeignV042':return exchangeForeignUIV042();case 'saveForeignReceiptsV042':return saveForeignReceiptsV042();case 'signForeignForwardV042':return signForeignForwardUIV042();case 'spendAd':return spendAd();case 'createSub':return createSub();case 'renameCompany':return renameCompany();case 'renamePlant':return renamePlant(elem.dataset.plantId);case 'factoryRouteSaveOne':return saveFactoryRouteOne(elem.dataset.plantId);case 'factoryManageSelected':return manageFactoryV21(elem.dataset.plantId,document.getElementById('factoryOneAction')?.value);case 'acquire':return acquire(elem.dataset.id);case 'groupLoan':return groupLoan();case 'groupSale':return groupSale();case 'diagnoseStorage':return diagnoseStorage();case 'saveManual':return saveManual(Number(elem.dataset.slot));case 'loadManual':{const i=Number(elem.dataset.slot);if(confirm('現在の未保存変更を破棄し、手動保存'+(i+1)+'を読み込みますか？'))return restore(SAVE_INDEX.manual[i]?.serialized);return}case 'loadAutoSlot':{const i=Number(elem.dataset.slot);if(confirm('自動保存世代'+(i+1)+'を読み込みますか？'))return restore(SAVE_INDEX.auto[i]?.serialized);return}case 'export':try{fileDownload(`conglomerate_${S.year}_${S.month}.json`,savePayload(S));toast('JSONバックアップを書き出しました')}catch(e){toast('書き出しに失敗：'+e.message)}return;case 'import':document.getElementById('importFile').click();return;case 'newGame':if(confirm('現在のセッションを終了し、新しいゲームを開始しますか？ 保存済みデータは削除しません。')){S=null;wizard=0;monthlyPreview=false;PAGE='dashboard';render()}return;}}
 document.addEventListener('click',e=>{const product=e.target.closest('[data-product-view]');if(product&&S){PRODUCT_VIEW=product.dataset.productView;render();window.scrollTo({top:0,behavior:'instant'});return;}const people=e.target.closest('[data-people-view]');if(people&&S){PEOPLE_VIEW=people.dataset.peopleView;render();window.scrollTo({top:0,behavior:'instant'});return;}const group=e.target.closest('[data-tech-family]');if(group&&S){TECH_FAMILY=group.dataset.techFamily;TECH_DOMAIN=TECH_FAMILIES[TECH_FAMILY].domains[0];TECH_SELECTED=TECH_DOMAIN+'-1';return redrawResearchPanel({centerSelected:false})}const field=e.target.closest('[data-tech-domain]');if(field&&S){TECH_DOMAIN=field.dataset.techDomain;techScrollDomain(TECH_DOMAIN);document.querySelectorAll('[data-tech-domain]').forEach(x=>x.classList.toggle('active',x.dataset.techDomain===TECH_DOMAIN));return}const tech=e.target.closest('[data-tech-select]');if(tech&&S){chooseTech(tech.dataset.techSelect);return}const section=e.target.closest('[data-section]');if(section&&S){PAGE=SECTIONS[section.dataset.section].pages[0][0];monthlyPreview=false;render();window.scrollTo({top:0,behavior:'instant'});return}const nav=e.target.closest('[data-page]');if(nav&&S){PAGE=nav.dataset.page;monthlyPreview=false;render();window.scrollTo({top:0,behavior:'instant'});return}const el=e.target.closest('[data-action]');if(el&&!el.disabled)actions(el.dataset.action,el)});
 document.addEventListener('change',e=>{if(e.target.matches('[data-design-field]')||e.target.id==='modelPrice')designPreview();if(['factorySite','factoryScale','factoryKind'].includes(e.target.id))factorySitePreview()});document.addEventListener('input',e=>{if(e.target.id==='modelPrice')designPreview()});document.getElementById('companySelect').addEventListener('change',e=>{VIEW_FIRM=e.target.value;render()});document.getElementById('regionSelect').addEventListener('change',e=>{VIEW_COUNTRY=e.target.value;render()});document.getElementById('importFile').addEventListener('change',async e=>{const file=e.target.files[0];if(!file)return;try{const raw=await file.text();if(confirm('読み込み中のゲーム状態をJSONバックアップで置き換えますか？'))restore(raw)}catch(err){toast('ファイルを読み込めません：'+err.message)}e.target.value=''});
 
