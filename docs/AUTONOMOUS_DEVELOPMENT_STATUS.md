@@ -7,7 +7,7 @@
 | 新STEP | 状態 |
 | --- | --- |
 | 1 資源業・製造業・企業間取引 | 実装・回帰・品質検証完了。開発PR #7で管理。 |
-| 2 工場別在庫・国内物流 | 作業中。中央倉庫と既存の工場別在庫の照合・表示が完了。 |
+| 2 工場別在庫・国内物流 | 作業中。倉庫・工場在庫と国内の原材料移送を実装。 |
 | 3 供給網のゲームバランス調整 | 未着手 |
 | 4 長期契約・調達先分散 | 未着手 |
 | 5 国際物流・通関・関税 | 未着手 |
@@ -25,7 +25,7 @@
 
 ## 新STEP 1 作業単位1 — 現物検収
 
-- 開発ブランチ `dev/autonomous-step-01-resource-trade`。旧STEP 5の上に積む。変更コミット `5a78056f246f3b33b801466aa607614b2240fc0a`。[PR #7](https://github.com/void-1732/CONGLOMERATE-game/pull/7) はSTEP 1の開発中ドラフト。単位1を含む `073269b` の [PR CI](https://github.com/void-1732/CONGLOMERATE-game/actions/runs/44312097297) と [push CI](https://github.com/void-1732/CONGLOMERATE-game/actions/runs/44312034494) は成功した。
+- 開発ブランチ `dev/autonomous-step-01-resource-trade`。旧STEP 5の上に積む。変更コミット `5a78056f246f3b33b801466aa607614b2240fc0a`。[PR #7](https://github.com/void-1732/CONGLOMERATE-game/pull/7) はレビュー可能。単位1を含む `073269b` の [PR CI](https://github.com/void-1732/CONGLOMERATE-game/actions/runs/44312097297) と [push CI](https://github.com/void-1732/CONGLOMERATE-game/actions/runs/44312034494) は成功した。STEP 1ブランチの最終HEAD `e49b89a` の [PR CI](https://github.com/void-1732/CONGLOMERATE-game/actions/runs/44317172632) も成功した。
 - `index.html` で、売手の撤退・統合・支配関係の変化などで引き受けられなくなった旧グループ内予約を解除する。買手の在庫・債務は増えない。数量として入荷済みの市場品は現地通貨価値がゼロに丸められても検収する。グループ内の部分検収では残数だけを予約に残す。
 - `tests/test_step01_resource_trade.py` で部分検収の数量と双方向現金・在庫、撤退後の予約解除、簿価ゼロの現物検収、セーブの再読込をChromiumで検証し、成功。JavaScript構文と `git diff --check`、既存v0.36〜v0.32、BOM、部品売買、需要配分、輸出、800研究ID、旧保存と60か月会計回帰も成功した。CIのワークフローに新テストを追加した。
 
@@ -57,12 +57,17 @@
 
 ## 新STEP 2 作業単位1 — 中央倉庫と工場別の在庫照合
 
-- 開発ブランチ `dev/autonomous-step-02-inventory-logistics`。STEP 1の開発ブランチを土台とする。変更コミット `f86730d760ae3a9caa6039e0d43f67fbc307f96b`。
+- 開発ブランチ `dev/autonomous-step-02-inventory-logistics`。STEP 1の開発ブランチを土台とする。変更コミット `f86730d760ae3a9caa6039e0d43f67fbc307f96b`。[PR #8](https://github.com/void-1732/CONGLOMERATE-game/pull/8) は開発中ドラフト。
 - `index.html` で、旧セーブの所在が未割当の原材料・共通部品・完成品を中央倉庫に対応付ける。既存の工場別共通部品・専門部品・BOM部品・出荷予約・BOM完成車の所在と簿価を再利用する。工場画面の在庫表示に同じ法人の在庫を二重計上しない。移行処理では既存の数量・簿価・仕訳を変更しない。
 - `tests/test_step02_inventory_logistics.py` で旧セーブ移行、再読込、倉庫・工場の数量と帳簿総額およびオフラインの390px表示を検証し、成功。 `tests/test_v029_trade.py` で出荷予約中のBOM部品と組立後の完成車の所在・簿価を追加検証し、成功。v0.26の工場操作と24か月、v0.27.1の60か月、v0.36の契約、新STEP 1の回帰も成功した。CIを追加した。
+
+## 新STEP 2 作業単位2 — 国内拠点間の原材料移送
+
+- 変更コミット `702961874bf12a3340d0fa0839e1202d7ccc7fa8`。`index.html` で中央倉庫・国内工場間の発送と期日検収を実装。発送元の数量と簿価を減らし、輸送中在庫と外部運賃を記帳する。検収時は届け先の在庫へ同じ数量と簿価を振り替える。国内移送を到着月まで調達見通しに含める。
+- `tests/test_step02_inventory_logistics.py` で画面からの発送、過剰な発送の拒否、輸送中の保存・再読込、2か月後の検収と重複検収の防止、双方の保管在庫と運賃・簿価を検証し、成功。新STEP 1、旧v0.34・v0.36、BOM売買のローカル回帰も成功した。
 
 ## 次回の再開手順
 
 1. `dev/autonomous-step-02-inventory-logistics` の最新HEAD、PR、CIを確認する。
-2. 中央倉庫と工場間の原材料移送を追加する。既存の国内物流見積、`materialsTransit`、月次の発送・検収の仕組みを再利用し、数量、簿価、費用を検算する。
-3. 倉庫の保管能力と保管費、工場別需要予測・自動補充、工場別在庫による生産制約を月次処理と画面に接続し、STEP 2の長期・多拠点回帰を完了する。
+2. 工場別の生産で当該拠点に到着した原材料を引き当てる。旧保存の共有在庫からの切替時に、全ての数量と簿価を保持する。
+3. 倉庫の保管能力と保管費、工場別需要予測・自動補充を月次処理と画面に接続し、STEP 2の長期・多拠点回帰を完了する。
