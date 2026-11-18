@@ -7060,11 +7060,19 @@ function openSupplyContracts(){
  contracts.scrollIntoView({block:'start'});
  contracts.querySelector('summary')?.focus({preventScroll:true});
 }
-function supplierCardV024(f,t,edit,group){const contract=f.supply.contracts[t],nodes=S.supplyNetwork.nodes.filter(x=>x.type===t&&((x.npc&&x.country===f.country)||(x.firmId&&x.firmId!==f.id&&x.country===f.country&&group.has(x.firmId))))
+function supplierCardV024(f,t,edit,group){const contract=f.supply.contracts[t],nodes=S.supplyNetwork.nodes.filter(x=>x.type===t&&((x.npc)||(x.firmId&&x.firmId!==f.id&&x.country===f.country&&group.has(x.firmId))))
  .sort((a,b)=>Number(group.has(b.firmId))-Number(group.has(a.firmId)));const primary=S.supplyNetwork.nodes.find(x=>x.id===contract.supplierId),stored=f.stock[t]?.q||0,inbound=f.supply.inbound.filter(x=>x.type===t).reduce((n,x)=>n+x.qty,0);const activeRisk=primary&&S.supplyRisk?.active?.[primary.id];
+ const term=contractV036(f,t),termOn=!!term?.enabled;
+ const expiry=term?.end!=null?(Math.floor(term.end/12)+'年'+(term.end%12+1)+'月'):'未設定';
+ const termControls='<div class="supply-v24-fields" style="margin-top:10px">'+
+  '<label class="supply-ai-lock"><input type="checkbox" id="ltEnable_'+t+'" '+(termOn?'checked':'')+' '+(!edit?'disabled':'')+'> 長期契約（NPC市場のみ）</label>'+
+  '<label class="field"><span>契約月数</span><select id="ltMonths_'+t+'" '+(!edit?'disabled':'')+'>'+
+  V036_CONTRACT_MONTHS.map(n=>'<option value="'+n+'" '+((term?.months||12)===n?'selected':'')+'>'+n+'か月</option>').join('')+'</select></label>'+
+  '<label class="field"><span>月間契約数量（0＝当月需要の65%）</span><input id="ltQty_'+t+'" type="number" min="0" max="10000" value="'+(term?.quantity||0)+'" '+(!edit?'disabled':'')+'></label>'+
+  '</div><p class="hint">長期優先供給65%・通常市場25%・緊急枠10%を目安に運用。仕入先は国内外NPC市場から選択できます。契約先による未達は次回の契約請求額から最大10%を控除。早期解約・数量変更には1か月契約額の8%の違約金。次回更新 '+expiry+'</p>';
  const label=x=>esc(x.label)+(group.has(x.firmId)?' ［グループ］':'');
  const opts=nodes.map(x=>`<option value="${esc(x.id)}" ${contract.supplierId===x.id?'selected':''}>${label(x)} / ${esc(NAMES[x.country]||x.country)} · 能力${nfmt(x.capacity)}</option>`).join('');const backups=nodes.map(x=>`<option value="${esc(x.id)}" ${x.id===contract.backupId?'selected':''} ${x.id===contract.supplierId?'disabled':''}>${label(x)} / ${esc(NAMES[x.country]||x.country)}</option>`).join('');const unit=primary?supplierPriceBase(S,primary):0;
- return `<section class="supply-v24-card" data-supply-type="${t}"><header><div><span class="ai-overline">${esc(t.toUpperCase())}</span><h3>${esc(SUPPLY_LABELS[t])}</h3></div>${activeRisk?tag('供給障害中','warn'):tag(inbound?'輸送中あり':'契約中',inbound?'':'good')}</header><div class="supply-mini-metrics"><div><small>在庫</small><strong>${nfmt(stored)}</strong></div><div><small>輸送中</small><strong>${nfmt(inbound)}</strong></div><div><small>概算単価</small><strong>${aiMoney(unit)}</strong></div></div><div class="supply-v24-fields"><label class="field"><span>主仕入先</span><select id="supplier_${t}" ${edit?'':'disabled'}>${opts}</select></label><label class="field"><span>代替仕入先</span><select id="backup_${t}" ${edit?'':'disabled'}><option value="">指定なし</option>${backups}</select></label><label class="field"><span>安全在庫</span><select id="buffer_${t}" ${edit?'':'disabled'}>${[[.25,'最小（0.25か月）'],[.5,'標準（0.5か月）'],[1,'安定重視（1か月）'],[1.5,'備蓄（1.5か月）'],[2,'戦略備蓄（2か月）']].map(([v,n])=>`<option value="${v}" ${safetyMonthsV034(contract)===v?'selected':''}>${n}</option>`).join('')}</select></label></div><label class="supply-ai-lock"><input type="checkbox" id="autoOrder_${t}" ${contract.autoOrder!==false?'checked':''} ${edit?'':'disabled'}> 毎月の自動補充を実行</label><div class="supply-v24-foot">${primary?.country===f.country?'国内調達': '海外調達：輸送期間と追加運賃あり'} ${activeRisk?'・供給能力が制限されています':''}</div><label class="supply-ai-lock"><input id="aiSupply_${t}" type="checkbox" ${contract.autoManage!==false?'checked':''} ${edit?'':'disabled'}> 主仕入先の変更をAIに許可</label></section>`;}
+ return `<section class="supply-v24-card" data-supply-type="${t}"><header><div><span class="ai-overline">${esc(t.toUpperCase())}</span><h3>${esc(SUPPLY_LABELS[t])}</h3></div>${activeRisk?tag('供給障害中','warn'):tag(inbound?'輸送中あり':'契約中',inbound?'':'good')}</header><div class="supply-mini-metrics"><div><small>在庫</small><strong>${nfmt(stored)}</strong></div><div><small>輸送中</small><strong>${nfmt(inbound)}</strong></div><div><small>概算単価</small><strong>${aiMoney(unit)}</strong></div></div><div class="supply-v24-fields"><label class="field"><span>主仕入先</span><select id="supplier_${t}" ${edit?'':'disabled'}>${opts}</select></label><label class="field"><span>代替仕入先</span><select id="backup_${t}" ${edit?'':'disabled'}><option value="">指定なし</option>${backups}</select></label><label class="field"><span>安全在庫</span><select id="buffer_${t}" ${edit?'':'disabled'}>${[[.25,'最小（0.25か月）'],[.5,'標準（0.5か月）'],[1,'安定重視（1か月）'],[1.5,'備蓄（1.5か月）'],[2,'戦略備蓄（2か月）']].map(([v,n])=>`<option value="${v}" ${safetyMonthsV034(contract)===v?'selected':''}>${n}</option>`).join('')}</select></label></div><label class="supply-ai-lock"><input type="checkbox" id="autoOrder_${t}" ${contract.autoOrder!==false?'checked':''} ${edit?'':'disabled'}> 毎月の自動補充を実行</label><div class="supply-v24-foot">${primary?.country===f.country?'国内調達': '海外調達：輸送期間と追加運賃あり'} ${activeRisk?'・供給能力が制限されています':''}</div><label class="supply-ai-lock"><input id="aiSupply_${t}" type="checkbox" ${contract.autoManage!==false?'checked':''} ${edit?'':'disabled'}> 主仕入先の変更をAIに許可</label>${termControls}</section>`;}
 
 /* STEP 3: show a supply outlook without treating unsent orders as receipts. */
 function supplyForecastPanelV034(f){
@@ -7132,8 +7140,60 @@ function buySpotV026(){let snap=null;try{
 supplyContractsPage=function(){const html=supplyContractsLegacyV023(),start=html.indexOf('<section class="panel span8"><h2>原材料・部品ごとの購入契約</h2>'),end=html.indexOf('<section class="panel span4">',start);if(start<0||end<0)return html;const f=current(),edit=canEdit(f);
  const group=controlSet(S);
  const panel=groupSupplySources(f,group)+supplyForecastPanelV034(f)+resourceOrderPanelV026(f)+`<details class="factory-accordion span12 supply-v026-contracts"><summary>原材料・部品の購入契約を編集（7資材）</summary><section class="panel span12 supply-v24"><div class="ai-heading"><div><span class="ai-overline">PURCHASING / CONTRACTS</span><h2>原材料・部品の購入契約</h2></div>${tag('7資材を個別管理')}</div><p class="hint">契約変更は保存後、次回の月次調達から適用します。<b>保存するだけでは在庫は増えません。</b> 発注が成立すると輸送中に入り、到着時に在庫へ計上します。既に発注済みの荷物には影響しません。</p><div class="supply-v24-grid">${SUPPLY_TYPES.map(t=>supplierCardV024(f,t,edit,group)).join('')}</div><div class="supply-v24-save"><div><b id="supplyV24SaveState">保存済みの仕入方針を表示中</b><small>主仕入先と代替先は別の供給元を指定してください。国内グループ企業または地域NPC市場を選べます。手動で主仕入先を変更するとAIの再変更を禁止します。必要量・現金・供給能力も発注量を左右します。</small></div><button class="btn primary" data-action="saveSupply" ${edit?'':'disabled'}>7資材の契約を保存</button></div></section></details>`;return html.slice(0,start)+panel+html.slice(end);};
-function saveSupply(){try{const f=current();if(!canEdit(f))throw Error('契約変更権限がありません');ensureNetwork(f);ensureSupplyNetwork(S);const draft={};for(const t of SUPPLY_TYPES){const id=inputValue('supplier_'+t),main=S.supplyNetwork.nodes.find(x=>x.id===id&&x.type===t&&((x.npc&&x.country===f.country)||(x.firmId&&x.firmId!==f.id&&x.country===f.country&&controlSet(S).has(x.firmId))));if(!main)throw Error(SUPPLY_LABELS[t]+'の主仕入先を選択してください');const backup=inputValue('backup_'+t);if(backup&&(!S.supplyNetwork.nodes.some(x=>x.id===backup&&x.type===t&&((x.npc&&x.country===f.country)||(x.firmId&&x.firmId!==f.id&&x.country===f.country&&controlSet(S).has(x.firmId))))||backup===id))throw Error(SUPPLY_LABELS[t]+'の代替仕入先は別の企業を選んでください');const safetyMonths=Number(inputValue('buffer_'+t));if(!SAFETY_LEVELS_V034.includes(safetyMonths))throw Error(SUPPLY_LABELS[t]+'の安全在庫月数が不正です');const buffer=safetyMonths<1?1:safetyMonths;draft[t]={supplierId:id,backupId:backup||'',buffer,safetyMonths,autoOrder:!!document.getElementById('autoOrder_'+t)?.checked,autoManage:!!document.getElementById('aiSupply_'+t)?.checked};}
- for(const t of SUPPLY_TYPES)f.supply.contracts[t]=draft[t];render();toast('7資材の契約を保存しました。次回月次処理から適用されます。');}catch(e){toast(e.message)}}
+function saveSupply(){let backup=null;try{
+ const f=current();if(!canEdit(f))throw Error('契約変更権限がありません');
+ ensureNetwork(f);ensureSupplyNetwork(S);
+ const month=ym(S.year,S.month),draft={},penalties=[];
+ const all=controlSet(S);
+ for(const t of SUPPLY_TYPES){
+  const id=inputValue('supplier_'+t);
+  const main=S.supplyNetwork.nodes.find(x=>x.id===id&&x.type===t&&
+   (x.npc||(x.firmId&&x.firmId!==f.id&&x.country===f.country&&all.has(x.firmId))));
+  if(!main)throw Error(SUPPLY_LABELS[t]+'の主仕入先を選択してください');
+  const backupId=inputValue('backup_'+t)||'';
+  if(backupId&&(!S.supplyNetwork.nodes.some(x=>x.id===backupId&&x.type===t&&
+      (x.npc||(x.firmId&&x.firmId!==f.id&&x.country===f.country&&all.has(x.firmId))))||backupId===id))
+   throw Error(SUPPLY_LABELS[t]+'の代替仕入先を確認してください');
+  const safetyMonths=Number(inputValue('buffer_'+t));
+  if(!SAFETY_LEVELS_V034.includes(safetyMonths))throw Error('安全在庫月数が不正：'+SUPPLY_LABELS[t]);
+  const autoOrder=!!document.getElementById('autoOrder_'+t)?.checked;
+  const enabled=!!document.getElementById('ltEnable_'+t)?.checked;
+  const months=Number(inputValue('ltMonths_'+t)),quantity=Number(inputValue('ltQty_'+t));
+  if(!V036_CONTRACT_MONTHS.includes(months)||!Number.isSafeInteger(quantity)||quantity<0||quantity>10000)
+   throw Error('契約数量／契約期間が不正：'+SUPPLY_LABELS[t]);
+  if(enabled&&(!main.npc||!autoOrder))
+   throw Error('長期契約はNPC市場との自動発注が必要です：'+SUPPLY_LABELS[t]);
+  const previous=f.supply.contracts[t];
+  const old=contractV036(f,t);
+  const same=old&&old.enabled===enabled&&(!enabled||
+   (old.supplierId===id&&old.quantity===quantity&&old.months===months));
+  const changed=!!old?.enabled&&!same;
+  if(changed&&contractActiveV036(f,t,S)){
+   const source=S.supplyNetwork.nodes.find(n=>n.id===old.supplierId);
+   const count=old.quantity||Math.ceil(factoryResourceTargetV026(f,t,S).demand*.65);
+   const price=source?supplierPriceBase(S,source):0;
+   const fee=localFromBase(Math.round(count*price*.08),f.country);
+   if(fee)penalties.push({t,fee});
+  }
+  const nextTerm=same?structuredClone(old||{enabled:false}):
+   {enabled,supplierId:id,quantity,months,start:month,end:month+months,renew:true,creditBase:0};
+  if(nextTerm.enabled&&nextTerm.supplierId!==id)
+   throw Error('長期契約の主仕入先と契約先が一致しません');
+  draft[t]={...previous,supplierId:id,backupId,buffer:safetyMonths<1?1:safetyMonths,
+   safetyMonths,autoOrder,autoManage:!!document.getElementById('aiSupply_'+t)?.checked,
+   longTermV036:nextTerm};
+ }
+ const cost=penalties.reduce((n,x)=>n+x.fee,0);
+ if(cost>acc(f,'cash'))throw Error('契約変更の違約金を支払う現金が不足しています');
+ backup=structuredClone(S);
+ for(const row of penalties)post(f,{otherExpense:row.fee},{cash:row.fee},
+  '長期原材料供給契約の早期変更・解約：'+SUPPLY_LABELS[row.t],'operating',S);
+ for(const t of SUPPLY_TYPES)f.supply.contracts[t]=draft[t];
+ const errors=check(S);
+ if(errors.length)throw Error('契約更新後の検算失敗：'+errors.slice(0,3).join(' / '));
+ render();toast('7資材の購入契約を保存しました'+(cost?'。違約金：'+fnum(f,cost):''));
+ }catch(e){if(backup)S=backup;render();toast(e.message)}}
+
 document.addEventListener('change',e=>{const t=e.target?.id?.match(/^supplier_(\w+)$/)?.[1];if(t){const allow=document.getElementById('aiSupply_'+t);if(allow)allow.checked=false;const back=document.getElementById('backup_'+t);if(back){for(const opt of back.options)opt.disabled=!!opt.value&&opt.value===e.target.value;if(back.value===e.target.value)back.value='';}}if(e.target.closest('.supply-v24')){const t=document.getElementById('supplyV24SaveState');if(t)t.textContent='未保存の変更があります';}});
 
 /* Ver.0.25: state belongs to the current UI session, never to saved game state. */
