@@ -34,5 +34,7 @@ jobs:
         run: |
           python tests/test_v029_bom.py
           python tests/test_v029_trade.py
+      - name: v0.29 Long-term factory and AI regression (120 months)
+        run: python tests/test_v029_ai_investment.py
       - name: v0.27 Save migration
         run: python tests/test_v0271_smoke.py
