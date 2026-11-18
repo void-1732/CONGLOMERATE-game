@@ -59,7 +59,7 @@
 
 ## 検証と限界
 
-- STEP 4のテスト `tests/test_v035_difficulty_balance.py` では3難易度・複数年代で新規資材の数量と仕訳、実NPC在庫を消費する新規法人、供給障害による実生産の低下、各シナリオの24か月連続処理、v0.34セーブの棚卸・現金を変えない読み込みを確認します。GitHub Actions `.github/workflows/v035-difficulty-balance.yml` はSTEP 3、2、1とBOM、研究、販路、120か月経営テストも実行します。
+- STEP 4のテスト `tests/test_v035_difficulty_balance.py` では3難易度・複数年代で新規資材の数量と仕訳、実NPC在庫を消費する新規法人、供給障害による実生産の低下、各シナリオの36か月連続処理、v0.34セーブの棚卸・現金を変えない読み込みを確認します。GitHub Actions `.github/workflows/v035-difficulty-balance.yml` はSTEP 3、2、1とBOM、研究、販路、120か月経営テストも実行します。
 - EASYで資材の購入量を増やしても無償の素材が生成されるわけではなく、開業資材を買掛払いにした場合は後月の返済義務が発生します。120か月の試験は会計・制約の安全性検査であり、すべての時代・プレイ方針で黒字を保証するものではありません。
 
 
