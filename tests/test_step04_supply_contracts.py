@@ -94,5 +94,104 @@ if __name__ == "__main__":
         assert settled["invoice"] == settled["expected"] == settled["boughtFrom"] == settled["soldBy"], settled
         assert settled["buyerDebit"] == settled["sellerCredit"] >= settled["invoice"], settled
         assert settled["expired"] and not settled["errors"] and not errors, settled
+
+        claims = page.evaluate("""scenario => {
+            const s=parsePayload(savePayload(S)),buyer=company(scenario.first,s),seller=company(scenario.seller,s);
+            const type='steel',terms=contractV036(buyer,type),events=[];
+            const discardBuyerStock=()=>{
+                const stock=buyer.stock[type];
+                post(buyer,{otherExpense:stock.v},{materials:stock.v},'契約未達試験用の消費','operating',s);
+                buyer.stock[type]={q:0,v:0};
+            };
+            nextMonthDate(s);
+            deliverMaterials(s,buyer,events);
+            discardBuyerStock();
+            s.supplyRisk.active[scenario.node]={capacityFactor:0,delay:0};
+            procureNetwork(s,events);
+            const due=buyer.supply.lastAttempt[type].longTermShortfall,credit=terms.creditBase;
+            delete s.supplyRisk.active[scenario.node];
+            nextMonthDate(s);
+            discardBuyerStock();
+            const bin=rawBinV032(seller,type),value=terms.quantity*40000;
+            post(seller,{goods:value},{cash:value},'後続月の入荷','operating',s);
+            bin.q+=terms.quantity;
+            bin.v+=value;
+            procureNetwork(s,events);
+            const shipment=buyer.supply.inbound.find(x=>x.contractIdV040===terms.contractIdV040);
+            const revised=structuredClone(s),newBuyer=company(buyer.id,revised),newTerm=contractV036(newBuyer,type);
+            newTerm.contractIdV040=revised.seq++;
+            while(ym(revised.year,revised.month)<shipment.due)nextMonthDate(revised);
+            deliverMaterials(revised,newBuyer,[]);
+            const revisedInvoice=newBuyer.journals.find(j=>j.text.endsWith(shipment.id)&&j.dr[0][0]==='materials').amount;
+            while(ym(s.year,s.month)<shipment.due)nextMonthDate(s);
+            deliverMaterials(s,buyer,events);
+            const buyerInvoice=buyer.journals.find(j=>j.text==='法人間資材の検収・決済 '+shipment.id).amount;
+            const sellerInvoice=seller.journals.find(j=>j.text==='法人間資材の売上 '+shipment.id).amount;
+            const claim=Math.min(localFromBase(credit,buyer.country),Math.floor(shipment.corporateTradeV037.invoice*.10));
+            return {credit,due,expectedCredit:Math.round(due*terms.unitBase*.05),remaining:terms.creditBase,
+                gross:shipment.corporateTradeV037.invoice,claim,buyerInvoice,sellerInvoice,revisedInvoice,
+                revisedClaim:newTerm.creditBase,errors:check(s)};
+        }""", scenario)
+        assert claims["due"] == scenario["quota"] and claims["credit"] == claims["expectedCredit"] > 0, claims
+        assert claims["buyerInvoice"] == claims["sellerInvoice"] == claims["gross"] - claims["claim"], claims
+        assert claims["remaining"] < claims["credit"] == claims["revisedClaim"], claims
+        assert claims["revisedInvoice"] == claims["gross"] and not claims["errors"], claims
+
+        page.evaluate("id=>{VIEW_FIRM=id;render()}", scenario["first"])
+        cancellation_journal_start = page.evaluate("S.seq")
+        open_contracts()
+        page.locator("#ltEnable_steel").uncheck()
+        page.locator('.supply-v24 [data-action="saveSupply"]').click()
+        cancelled = page.evaluate("""([scenario,journalStart]) => {
+            const buyer=current(),seller=company(scenario.seller,S);
+            const paid=buyer.journals.filter(j=>j.id>=journalStart&&j.text==='長期原材料供給契約の早期変更・解約：鋼材');
+            const received=seller.journals.filter(j=>j.id>=journalStart&&j.text==='長期原材料供給契約の解約違約金：鋼材');
+            return {paid,received,enabled:contractV036(buyer,'steel').enabled,errors:check(S)};
+        }""", [scenario, cancellation_journal_start])
+        assert not cancelled["enabled"] and not cancelled["errors"], cancelled
+        assert len(cancelled["paid"]) == len(cancelled["received"]) == 1, cancelled
+        assert cancelled["paid"][0]["amount"] == cancelled["received"][0]["amount"] > 0, cancelled
+
+        backup = page.evaluate("npcIdV033('DE','steel')")
+        open_contracts()
+        page.locator("#backup_steel").select_option(backup)
+        page.locator("#backupShare_steel").select_option("50")
+        page.locator('.supply-v24 [data-action="saveSupply"]').click()
+        allocation = page.evaluate("""([scenario,backup]) => {
+            const f=current(),seller=company(scenario.seller,S),type='steel';
+            nextMonthDate(S);
+            deliverMaterials(S,f,[]);
+            const stock=f.stock[type];
+            post(f,{otherExpense:stock.v},{materials:stock.v},'代替調達試験の消費','operating',S);
+            f.stock[type]={q:0,v:0};
+            for(const t of SUPPLY_TYPES)f.supply.contracts[t].autoOrder=t===type;
+            const bin=rawBinV032(seller,type),value=200*40000;
+            post(seller,{goods:value},{cash:value},'複数調達の供給在庫','operating',S);
+            bin.q+=200;
+            bin.v+=value;
+            procureNetwork(S,[]);
+            const attempt=f.supply.lastAttempt[type];
+            const alternate=f.supply.inbound.find(x=>x.supplierId===backup);
+            const primary=f.supply.inbound.find(x=>x.supplierId===scenario.node);
+            const stored=parsePayload(savePayload(S));
+            seller.distress.stage=2;
+            S.supplyRisk.active[scenario.node]={capacityFactor:0,delay:2};
+            const assessment=supplierAssessmentV040(S,S.supplyNetwork.nodes.find(n=>n.id===scenario.node),type);
+            PAGE='supply';
+            render();
+            return {attempt,backupQuantity:alternate.qty,primaryQuantity:primary.qty,
+                share:company(f.id,stored).supply.contracts[type].backupShareV040,assessment,errors:check(stored)};
+        }""", [scenario, backup])
+        attempt = allocation["attempt"]
+        assert attempt["requested"] > 1 and attempt["ordered"] == attempt["requested"], allocation
+        assert allocation["backupQuantity"] == attempt["backupOrdered"] == attempt["requested"] // 2, allocation
+        assert allocation["primaryQuantity"] == attempt["requested"] - allocation["backupQuantity"], allocation
+        assert allocation["share"] == 50 and not allocation["errors"], allocation
+        assert allocation["assessment"]["financeRisk"] and allocation["assessment"]["operatingRisk"], allocation
+        open_contracts()
+        assert page.get_by_text("財務リスク 高 ／操業リスク 高").count() == 1
+        assert page.get_by_role("columnheader", name="外販の機会費用").count() == 1
+        assert not errors, errors
+
         browser.close()
-    print("PASS STEP 4: corporate capacity limits, fixed prices, expiry, settlements and saves")
+    print("PASS STEP 4: reservations, pricing, claims, cancellation, split orders, risk, settlements and saves")
