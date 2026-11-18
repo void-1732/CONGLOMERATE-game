@@ -90,6 +90,69 @@ def test_zero_book_delivery(page):
     assert result == {"quantity": 1, "value": 0, "payableCount": 0, "errors": []}, result
 
 
+def test_resource_production(page):
+    result = page.evaluate("""() => {
+        S = newGame({era:1900, country:'JP', difficulty:'normal',
+            history:'historical', name:'資源生産テスト'});
+        const seller = initFirm(S, {name:'銅・鉄の試験鉱山', country:'JP',
+            industry:'resource', seedBase:3000000});
+        ensureRawV032(seller);
+        seller.reserveUnits = 30;
+        seller.rawOpsV032.weights = Object.fromEntries(RAW_TYPES_V032.map(
+            t => [t, t === 'steel' ? 1 : t === 'copper' ? 3 : 0]));
+        seller.plants[0].condition = 100;
+        seller.staff.production = 120;
+        ensureV09Firm(seller, S);
+        seller.hr.skill = 90;
+        const id = seller.id;
+        const legacy = savePayload(S);
+        S = parsePayload(legacy);
+        const mine = company(id, S);
+        const openingRights = acc(mine, 'resourceRights');
+        const oldGoods = JSON.stringify(mine.goods);
+        const initial = resourceDepositsV037(mine);
+        const migrated = {steel:initial.steel.remaining, copper:initial.copper.remaining,
+            total:mine.reserveUnits, untouchedGoods:JSON.stringify(mine.goods) === oldGoods};
+        laborAndPlant(S, [], 'resource');
+        const month = mine.rawOpsV032.lastProduction;
+        const bins = RAW_TYPES_V032.map(t => rawBinV032(mine, t));
+        const production = {byType:month.byType, feed:month.feed,
+            capacity:Object.values(month.capacityByType).reduce((a, b) => a+b, 0),
+            stock:bins.reduce((a, b) => a+b.q, 0),
+            binsCost:bins.reduce((a, b) => a+b.v, 0),
+            zeroQtyCost:bins.filter(x => !x.q).reduce((a, b) => a+b.v, 0),
+            goods:acc(mine, 'goods'), wip:acc(mine, 'wip'), rights:acc(mine, 'resourceRights'),
+            depreciation:-acc(mine, 'accdep'), openingRights};
+        const saved = parsePayload(savePayload(S));
+        const restored = company(id, saved);
+        nextMonthDate(saved);
+        laborAndPlant(saved, [], 'resource');
+        const empty = {output:restored._produced, reserve:restored.reserveUnits,
+            stock:RAW_TYPES_V032.reduce((n,t) => n+rawBinV032(restored,t).q,0),
+            wip:acc(restored, 'wip'), errors:check(saved)};
+        VIEW_FIRM = id;
+        PAGE = 'factory';
+        render();
+        return {migrated, production, empty};
+    }""")
+    assert result["migrated"] == {
+        "steel": 7, "copper": 23, "total": 30, "untouchedGoods": True
+    }, result
+    production = result["production"]
+    assert production["capacity"] == 45, result
+    assert production["byType"] == {
+        "steel": 7, "rubber": 0, "aluminum": 0, "copper": 23, "glass": 0, "chemicals": 0
+    }, result
+    assert production["feed"]["steel"] == 14 and production["feed"]["copper"] == 46, result
+    assert production["stock"] == 30, result
+    assert production["goods"] == production["binsCost"] and production["zeroQtyCost"] == 0, result
+    assert production["rights"] == production["wip"] == 0, result
+    assert production["goods"] > production["openingRights"] + production["depreciation"], result
+    assert result["empty"] == {"output": 0, "reserve": 0, "stock": 30, "wip": 0, "errors": []}, result
+    assert page.get_by_role("heading", name="資源の採取・加工").is_visible()
+    assert page.get_by_text("銅鉱石の採掘・選鉱・製錬").is_visible()
+
+
 if __name__ == "__main__":
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(
@@ -98,11 +161,13 @@ if __name__ == "__main__":
             args=["--no-sandbox"],
         )
         page = browser.new_page()
+        page.context.set_offline(True)
         errors = []
         page.on("pageerror", lambda error: errors.append(str(error)))
         page.set_content(HTML.read_text(encoding="utf-8"), wait_until="domcontentloaded")
         test_reserved_deliveries(page)
         test_zero_book_delivery(page)
+        test_resource_production(page)
         assert not errors, errors
         browser.close()
-    print("PASS STEP 1: corporate reservations, matched books, zero-cost physical receipt")
+    print("PASS STEP 1: physical delivery, resource production, accounting, saves and offline UI")
