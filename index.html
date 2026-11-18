@@ -6804,7 +6804,10 @@ function resourceOrderPanelV026(f){
   return `<tr><td><b>${esc(SUPPLY_LABELS[t])}</b></td><td>${nfmt(a.demand)}</td><td>${nfmt(a.target)}</td><td>${nfmt(a.stock)}</td><td>${nfmt(a.transit)}</td><td>${nfmt(flow.received||0)}</td><td>${nfmt(flow.consumed||0)}</td><td>${nfmt(last.ordered||0)}</td><td>${nfmt(last.shortage||0)}</td><td>${tag(label,a.need>0?'warn':'good')}</td></tr>`;
  }).join('');
  const urgent=SUPPLY_TYPES.filter(t=>t!=='components').map(t=>`<option value="${t}">${esc(SUPPLY_LABELS[t])}</option>`).join('');
- return `<section class="panel span12 resource-v026-dashboard"><div class="row between"><div><h2>入荷・消費・不足の見える化</h2><p class="hint">「最大」は在庫目標の倍率であり、即時購入ではありません。部品工場の月間生産計画も目標に含めます。</p></div>${tag(shortage?shortage+'資材で供給制限':'仕入・入荷確認','good')}</div>
+ const npc=ensureNpcV033(S).markets[f.country]||{};
+ const npcRows=SUPPLY_TYPES.map(t=>{const m=npc[t];return `<tr><td>${esc(SUPPLY_LABELS[t])}</td><td>${nfmt(m?.capacity||0)}</td><td>${nfmt(m?.stock||0)}</td><td>${nfmt(m?.lastProduced||0)}</td><td>${nfmt(m?.lastRequested||0)}</td><td>${nfmt(m?.lastShipped||0)}</td><td>${nfmt(Math.round((m?.priceIndex||1)*100))}%</td></tr>`}).join('');
+ const marketView=`<section class="panel span12"><h2>地域NPC原材料市場（有限供給）</h2><p class="hint">企業ごとの発注順ではなく月初の同時注文を公平配分。市場への注文時に実在庫を減らし、月次で供給増強・価格変動を計算します。通常調達は主契約先の不足分を自動補充します。</p><div class="resource-v026-table"><table><thead><tr><th>原材料</th><th>月産能力</th><th>残存在庫</th><th>当月生産</th><th>当月注文</th><th>出荷</th><th>価格指数</th></tr></thead><tbody>${npcRows}</tbody></table></div></section>`;
+ return marketView+`<section class="panel span12 resource-v026-dashboard"><div class="row between"><div><h2>入荷・消費・不足の見える化</h2><p class="hint">「最大」は在庫目標の倍率であり、即時購入ではありません。部品工場の月間生産計画も目標に含めます。</p></div>${tag(shortage?shortage+'資材で供給制限':'仕入・入荷確認','good')}</div>
  <div class="resource-v026-table"><table><thead><tr><th>材料</th><th>月間需要</th><th>目標在庫</th><th>現在庫</th><th>輸送中</th><th>前月入荷</th><th>前月使用</th><th>前月発注</th><th>発注不足</th><th>状態</th></tr></thead><tbody>${rows}</tbody></table></div>
  <div class="resource-v026-actions"><div><strong>契約調達で足りない場合</strong><p class="hint">取引先の能力・供給障害・海外配送によって購入できない場合があります。緊急購入は市場上限内・割増単価で即時在庫に計上します。</p></div><label class="field"><span>資材</span><select id="spotResourceV026">${urgent}</select></label><label class="field"><span>数量（最大30単位）</span><input id="spotQtyV026" type="number" min="1" max="30" value="10"></label><button type="button" class="btn primary" data-action="buySpotV026" ${canEdit(f)?'':'disabled'}>緊急調達（即時）</button></div>
  <div class="hint">緊急調達は同じ資材につき1か月1回・現金支払いです。入荷と消費が同じ月に発生すると月末在庫は0になるため、前月入荷／前月使用を併せて確認してください。</div></section>`;
@@ -6816,11 +6819,13 @@ function buySpotV026(){let snap=null;try{
  if(!Number.isSafeInteger(q)||q<1||q>30)throw Error('数量は1〜30単位で指定してください');
  const month=ym(S.year,S.month);f.supply.spotHistory??=[];
  if(f.supply.spotHistory.some(x=>x.month===month&&x.type===t))throw Error('この資材の当月緊急購入は実施済みです。翌月までお待ちください');
- const available=Math.max(1,Math.floor((S.world[f.country]?.steelSupply||100)/8));if(q>Math.min(30,available))throw Error('市場の当月スポット供給上限を超えています');
- const node={type:t,country:f.country},unit=Math.ceil(supplierPriceBase(S,node)*1.45),cost=localFromBase(unit*q,f.country);
+ const market=npcMarketV033(S,f.country,t),available=Math.min(30,market?.stock||0,Math.max(0,Math.floor((market?.capacity||0)*.1)));
+ if(q>available)throw Error('有限NPC緊急市場の供給在庫または割当上限を超えています（現在'+available+'単位）');
+ const node={type:t,country:f.country,npc:true},unit=Math.ceil(supplierPriceBase(S,node)*(S.config?.difficulty==='easy'?1.2:S.config?.difficulty==='hard'?1.5:1.35)),cost=localFromBase(unit*q,f.country);
  if(cost>acc(f,'cash'))throw Error('緊急調達の現金が不足しています。必要 '+nfmt(cost)+'円相当');
  if(!confirm(SUPPLY_LABELS[t]+' '+q+'単位を、割増価格 '+nfmt(cost)+'円相当で即時購入しますか？'))return;
- snap=structuredClone(S);post(f,{materials:cost},{cash:cost},'緊急スポット調達：'+SUPPLY_LABELS[t],'operating',S);
+ snap=structuredClone(S);market.stock-=q;market.dispatchedTotal+=q;market.lastShipped+=q;market.lastRequested+=q;
+ post(f,{materials:cost},{cash:cost},'緊急スポット調達：'+SUPPLY_LABELS[t],'operating',S);
  f.stock[t].q+=q;f.stock[t].v+=cost;f.supply.spotHistory.push({month,type:t,qty:q,amount:cost});
  const bad=check(S);if(bad.length)throw Error('検算失敗：'+bad.slice(0,3).join(' / '));
  render();toast(SUPPLY_LABELS[t]+'を'+q+'単位購入しました。現金・材料在庫へ反映済みです');
