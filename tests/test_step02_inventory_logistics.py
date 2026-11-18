@@ -76,6 +76,50 @@ if __name__ == "__main__":
         page.get_by_text("この工場の保管在庫", exact=True).click()
         assert page.get_by_role("rowheader", name="エンジンユニット", exact=True).is_visible()
         assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 2")
+        opening = page.evaluate("""() => ({
+            cash:acc(current(),'cash'), materials:acc(current(),'materials'),
+            steel:current().stock.steel.q, transit:acc(current(),'materialsTransit')
+        })""")
+        page.locator("#rawShipmentTo").select_option(migrated["second"])
+        page.locator("#rawShipmentQuantity").fill("99999")
+        page.get_by_role("button", name="資材を発送").click()
+        assert page.evaluate("current().inventoryLogisticsV038.rawShipments.length") == 0
+        page.locator("#rawShipmentQuantity").fill("5")
+        page.get_by_role("button", name="資材を発送").click()
+        dispatched = page.evaluate("""() => {
+            const f = current(), shipment = f.inventoryLogisticsV038.rawShipments[0];
+            const point = {leadMonths:2,target:100};
+            return {shipment, steel:f.stock.steel.q, cash:acc(f,'cash'),
+                materials:acc(f,'materials'), transit:acc(f,'materialsTransit'),
+                forecast:resourcePurchaseNeedV034(f, 'steel', S, point).dueByLead,
+                errors:check(S)};
+        }""")
+        shipment = dispatched["shipment"]
+        assert shipment["quantity"] == 5 and dispatched["steel"] == opening["steel"] - 5, dispatched
+        assert opening["cash"] - dispatched["cash"] == shipment["freight"] > 0, dispatched
+        assert opening["materials"] - dispatched["materials"] == shipment["bookCost"] > 0, dispatched
+        assert dispatched["transit"] - opening["transit"] == shipment["bookCost"], dispatched
+        assert dispatched["forecast"] == 5 and not dispatched["errors"], dispatched
+        completed = page.evaluate("""id => {
+            S = parsePayload(savePayload(S));
+            nextMonthDate(S);
+            deliverRawShipmentsV038(S,[]);
+            const waiting = current().inventoryLogisticsV038.rawShipments.length;
+            nextMonthDate(S);
+            deliverRawShipmentsV038(S,[]);
+            deliverRawShipmentsV038(S,[]);
+            const f = current(), stock = plantRawStockV038(f,id,'steel');
+            return {waiting, outstanding:f.inventoryLogisticsV038.rawShipments.length,
+                onSite:stock.q, value:stock.v, total:f.stock.steel.q,
+                materials:acc(f,'materials'), remainingTransit:acc(f,'materialsTransit'),
+                receipts:f.journals.filter(j => j.text.startsWith('資材の国内検収')).length,
+                errors:check(S)};
+        }""", migrated["second"])
+        assert completed == {
+            "waiting": 1, "outstanding": 0, "onSite": 5, "value": shipment["bookCost"],
+            "total": opening["steel"], "materials": opening["materials"],
+            "remainingTransit": opening["transit"], "receipts": 1, "errors": [],
+        }, completed
         assert not errors, errors
         browser.close()
-    print("PASS STEP 2: warehouse migration, per-plant parts, inventory value and offline UI")
+    print("PASS STEP 2: warehouse migration, per-plant inventory, domestic shipment and offline UI")
