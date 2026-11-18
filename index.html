@@ -6473,6 +6473,26 @@ function resourceForecastV034(f,type,s=S,horizon=6){
   purchase:resourcePurchaseNeedV034(f,type,s,p),firstShortage:rows.find(x=>x.shortage>0)?.month??null,
   futureEvents:supplyFutureEventsV034(f,s)};
 }
+function supplyShortageDiagnosisV034(f,type,forecast,s=S){
+ const contract=f.supply?.contracts?.[type]||{},month=ym(s.year,s.month);
+ if(forecast.firstShortage===null)return {cause:'今後6か月に欠品見込みなし',action:'現在の発注・在庫方針を維持'};
+ if(contract.autoOrder===false)return {cause:'この資材の自動補充が停止中',
+  action:'購入契約で自動補充を再開するか、市場から必要量を購入'};
+ const source=s.supplyNetwork?.nodes?.find(n=>n.id===contract.supplierId);
+ const risk=s.supplyRisk?.active?.[source?.id];
+ if(risk)return {cause:'契約仕入先の供給障害または納期延長',
+  action:'入荷予定月を確認し、代替仕入先・地域市場を活用'};
+ const late=(f.supply?.inbound||[]).filter(x=>x.type===type&&x.due>forecast.firstShortage)
+  .reduce((n,x)=>n+x.qty,0);
+ if(late>0)return {cause:'確定済みの入荷予定が材料消費より遅い（後着'+nfmt(late)+'単位）',
+  action:'主仕入先と輸送期間を見直し、早く届く地域市場から追加調達'};
+ const market=npcMarketV033(s,f.country,type);
+ if(forecast.purchase.requested>0&&market&&market.stock<forecast.purchase.requested)
+  return {cause:'地域市場に必要発注量ほどの販売可能在庫がない',
+   action:'供給枠の回復を確認し、グループ内資源会社の設備・生産配分を検討'};
+ return {cause:'将来の新規補充をまだ確定入荷として計上していない',
+  action:'今月の必要発注を確認し、次月以降も自動補充が成立するか再確認'};
+}
 function validateInventoryPolicyV034(s){
  const errors=[];
  for(const f of s.firms||[])for(const type of SUPPLY_TYPES){
@@ -6931,8 +6951,8 @@ function supplyForecastPanelV034(f){
  const alerts=details.filter(x=>x.firstShortage!==null).map(x=>{
   const when=titleDate(x.firstShortage),r=x.rows.find(y=>y.month===x.firstShortage);
   const automatic=f.supply?.contracts?.[x.type]?.autoOrder!==false;
-  const explanation=automatic?'翌月以降の注文が成立すれば回避可能。主仕入先の在庫・輸送遅延を確認してください。':'自動発注が停止しています。契約を開いて再開するか手動調達してください。';
-  return '<div class="vitem"><b>'+esc(SUPPLY_LABELS[x.type])+'：'+when+'に'+nfmt(Math.ceil(r.shortage))+'単位の在庫不足予測</b><p class="hint">'+explanation+'</p></div>';
+  const diagnosis=supplyShortageDiagnosisV034(f,x.type,x,S);
+  return '<div class="vitem"><b>'+esc(SUPPLY_LABELS[x.type])+'：'+when+'に'+nfmt(Math.ceil(r.shortage))+'単位の在庫不足予測</b><p class="hint">原因候補：'+esc(diagnosis.cause)+'。推奨：'+esc(diagnosis.action)+'。</p></div>';
  }).slice(0,7).join('');
  const notices=events.length?'<div class="vlist">'+events.map(x=>'<div class="vitem">'+(x.month===null?'予定月未設定':titleDate(x.month))+'：'+esc(x.description)+'</div>').join('')+'</div>':'';
  return '<section class="panel span12"><h2>資材在庫の6か月先予測・自動発注</h2>'+
