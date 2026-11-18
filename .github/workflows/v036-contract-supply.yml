@@ -5,11 +5,13 @@ on:
       - dev/v036-contract-supply
       - dev/autonomous-step-01-resource-trade
       - dev/autonomous-step-02-inventory-logistics
+      - dev/autonomous-step-03-supply-balance
   pull_request:
     branches:
       - dev/v035-startup-supply-balance
       - dev/v036-contract-supply
       - dev/autonomous-step-01-resource-trade
+      - dev/autonomous-step-02-inventory-logistics
       - main
 
 jobs:
@@ -35,6 +37,9 @@ jobs:
       - name: STEP 2 Factory and warehouse inventories
         if: ${{ hashFiles('tests/test_step02_inventory_logistics.py') != '' }}
         run: python tests/test_step02_inventory_logistics.py
+      - name: STEP 3 Supply balance and manufacturing diagnostics
+        if: ${{ hashFiles('tests/test_step03_supply_balance.py') != '' }}
+        run: python tests/test_step03_supply_balance.py
       - name: STEP 2 Long-running localized inventory and logistics
         if: ${{ hashFiles('tests/test_step02_inventory_endurance.py') != '' }}
         run: python tests/test_step02_inventory_endurance.py

@@ -2745,6 +2745,7 @@ function laborAndPlant(s,events,industry=null){for(const f of s.firms){if(indust
  if(f.industry==='resource')prodPossible=resourceCapacityV037(f);
  else if(['auto','manufacturing'].includes(f.industry)){prodPossible=capInfo.possible;if(f.distress.stage>=3)prodPossible=Math.floor(prodPossible*.5);prodPossible=Math.floor(prodPossible*clamp(1+((f.hr?.skill??50)-50)*.004,.78,1.18)*(f.hr?.strikeActive?.4:1));}
  const intended=['auto','manufacturing'].includes(f.industry)?Object.values(f.plans).reduce((a,b)=>a+b,0):f.industry==='resource'?prodPossible:0;
+ f._plannedProductionV039=f.models.filter(m=>m.status==='active').reduce((n,m)=>n+Math.max(0,Math.floor(f.plans[m.id]||0)),0);
  const baseWagesProd=Math.max(0,Math.round(f.staff.production*salary*sitePayrollFactor(f,s)));
  const wagesResearch=Math.max(0,Math.round(f.staff.research*salary)),wagesSales=Math.max(0,Math.round(f.staff.sales*salary));
  const wagesEngineering=engineers(f)*salary;
@@ -2945,6 +2946,20 @@ function journalizeRepayment(parent,account,bookAmount,cashReceived,kind,desc,s)
  if(cashReceived<bookAmount)dr.fxLoss=bookAmount-cashReceived;
  post(parent,dr,cr,desc,kind,s);
 }
+function recordSupplyBalanceV039(s,f){
+ if(!['auto','manufacturing'].includes(f.industry)||f.lifecycle?.phase==='withdrawn'||f.reorgStatus==='integrated')return;
+ const month=ym(s.year,s.month),planned=f._plannedProductionV039||0,produced=f._produced||0;
+ const capacityBound=Math.min(planned,f._factoryCapacity||0);
+ const capacityGap=Math.max(0,planned-Math.max(produced,capacityBound));
+ const operatingGap=Math.max(0,capacityBound-produced);
+ const unfilled=Object.values(f.supply.lastAttempt??[]).reduce((sum,x)=>sum+(x.month===month?x.shortage:0),0);
+ const inventory=acc(f,'materials')+acc(f,'materialsTransit')+acc(f,'componentStock')+acc(f,'componentTransit');
+ const sales=f.monthly.sales,cogs=f.monthly.cogs;
+ const history=f.supply.balanceHistoryV039??=[];
+ history.push({month,planned,produced,capacityGap,operatingGap,unfilled,inventory,
+  grossMargin:sales>0?(sales-cogs)/sales:null});
+ if(history.length>12)history.shift();
+}
 function financeMonthly(s,events){
  // Stage 1: settle intercompany and external liabilities before period-wide financial reporting.
  for(const f of s.firms){
@@ -2985,7 +3000,9 @@ function financeMonthly(s,events){
   else {f.distress.months=0;f.distress.stage=0;}
   const corporate=f.supply?.corporateSalesV037;
   if(corporate?.month===ym(s.year,s.month)){f._salesNow+=corporate.revenue;f._unitsNow+=corporate.quantity;}
-  const now=financials(f);f.monthly={sales:f._salesNow,cogs:0,profit:now.profit-prevProfit,units:f._unitsNow,spent:0};
+  const now=financials(f),cogs=acc(f,'cogs')-(f._cogsStartV039??0);
+  f.monthly={sales:f._salesNow,cogs,profit:now.profit-prevProfit,units:f._unitsNow,spent:0};
+  recordSupplyBalanceV039(s,f);
   f.history.push({date:`${s.year}/${s.month}`,cash:now.cash,equity:now.equity,sales:f._salesNow,profit:f.monthly.profit,produced:f._produced||0});
   if(f.history.length>1800)f.history.shift();
  }
@@ -3065,7 +3082,7 @@ async function runMonth(){
   step('WORLD',()=>{maybeWar(trial);ensureV11(trial);ensureV20(trial);refreshPartContracts(trial)});
   step('SUPPLY_RISK',()=>advanceSupplierRisks(trial,events));
   step('FACTORY_JOBS',()=>{advanceFactoryJobsV21(trial,events);advanceComponentLines(trial,events);advanceResourceDevelopmentsV037(trial,events)});
-  step('AI_PREPARE',()=>{for(const f of trial.firms){ensureFirmGameplay(f);f.marketThisMonth={};f._profitStart=financials(f).profit;rivalMonthlyStrategy(trial,f,events);planAI(f,trial);autoOperations(trial,f)}});
+  step('AI_PREPARE',()=>{for(const f of trial.firms){ensureFirmGameplay(f);f.marketThisMonth={};f._profitStart=financials(f).profit;f._cogsStartV039=acc(f,'cogs');rivalMonthlyStrategy(trial,f,events);planAI(f,trial);autoOperations(trial,f)}});
   step('PEOPLE',()=>processHumanResources(trial,events));
   step('RESOURCE_PRODUCTION',()=>laborAndPlant(trial,events,'resource'));
   step('NPC_PRODUCTION',()=>produceNpcV033(trial,events));
@@ -8225,6 +8242,18 @@ function buySpotV026(){let snap=null;try{
  render();toast(SUPPLY_LABELS[t]+'を'+q+'単位購入しました。現金・材料在庫へ反映済みです');
  }catch(e){if(snap)S=snap;render();toast(e.message)}}
 
+function supplyBalancePanelV039(f){
+ const history=f.supply.balanceHistoryV039??[];
+ if(!history.length)return '';
+ const rows=history.slice().reverse().map(x=>`<tr><th scope="row">${partContractDate(x.month)}</th>
+  <td>${nfmt(x.planned)}／${nfmt(x.produced)}</td>
+  <td>${nfmt(x.capacityGap)}</td><td>${nfmt(x.operatingGap)}</td><td>${nfmt(x.unfilled)}</td>
+  <td>${fnum(f,x.inventory)}</td><td>${x.grossMargin===null?'—':nfmt(x.grossMargin*100)+'%'}</td></tr>`).join('');
+ return `<details class="factory-accordion span12"><summary>生産未達と資材在庫の実績</summary>
+  <div class="factory-accordion-body"><div class="scroll"><table><thead><tr><th>確定月</th>
+  <th>計画／生産</th><th>設備・人員上限による未達</th><th>能力上限内の未達</th><th>資材発注未達</th>
+  <th>資材・部品在庫簿価</th><th>売上総利益率</th></tr></thead><tbody>${rows}</tbody></table></div></div></details>`;
+}
 function procurementComparisonV037(s,f,group){
  if(!['auto','manufacturing'].includes(f.industry))return '';
  const byType=new Map(SUPPLY_TYPES.map(t=>[t,[]]));
@@ -8262,7 +8291,7 @@ function procurementComparisonV037(s,f,group){
 }
 supplyContractsPage=function(){const html=supplyContractsLegacyV023(),start=html.indexOf('<section class="panel span8"><h2>原材料・部品ごとの購入契約</h2>'),end=html.indexOf('<section class="panel span4">',start);if(start<0||end<0)return html;const f=current(),edit=canEdit(f);
  const group=controlSet(S);
- const panel=groupSupplySources(f,group)+procurementComparisonV037(S,f,group)+supplyForecastPanelV034(f)+resourceOrderPanelV026(f)+`<details class="factory-accordion span12 supply-v026-contracts"><summary>原材料・部品の購入契約を編集（7資材）</summary><section class="panel span12 supply-v24"><div class="ai-heading"><div><span class="ai-overline">PURCHASING / CONTRACTS</span><h2>原材料・部品の購入契約</h2></div>${tag('7資材を個別管理')}</div><p class="hint">契約変更は保存後、次回の月次調達から適用します。<b>保存するだけでは在庫は増えません。</b> 発注が成立すると輸送中に入り、到着時に在庫へ計上します。既に発注済みの荷物には影響しません。</p><div class="supply-v24-grid">${SUPPLY_TYPES.map(t=>supplierCardV024(f,t,edit,group)).join('')}</div><div class="supply-v24-save"><div><b id="supplyV24SaveState">保存済みの仕入方針を表示中</b><small>主仕入先と代替先は別の供給元を指定してください。国内グループ企業または地域NPC市場を選べます。手動で主仕入先を変更するとAIの再変更を禁止します。必要量・現金・供給能力も発注量を左右します。</small></div><button class="btn primary" data-action="saveSupply" ${edit?'':'disabled'}>7資材の契約を保存</button></div></section></details>`;return html.slice(0,start)+panel+html.slice(end);};
+ const panel=groupSupplySources(f,group)+procurementComparisonV037(S,f,group)+supplyForecastPanelV034(f)+supplyBalancePanelV039(f)+resourceOrderPanelV026(f)+`<details class="factory-accordion span12 supply-v026-contracts"><summary>原材料・部品の購入契約を編集（7資材）</summary><section class="panel span12 supply-v24"><div class="ai-heading"><div><span class="ai-overline">PURCHASING / CONTRACTS</span><h2>原材料・部品の購入契約</h2></div>${tag('7資材を個別管理')}</div><p class="hint">契約変更は保存後、次回の月次調達から適用します。<b>保存するだけでは在庫は増えません。</b> 発注が成立すると輸送中に入り、到着時に在庫へ計上します。既に発注済みの荷物には影響しません。</p><div class="supply-v24-grid">${SUPPLY_TYPES.map(t=>supplierCardV024(f,t,edit,group)).join('')}</div><div class="supply-v24-save"><div><b id="supplyV24SaveState">保存済みの仕入方針を表示中</b><small>主仕入先と代替先は別の供給元を指定してください。国内グループ企業または地域NPC市場を選べます。手動で主仕入先を変更するとAIの再変更を禁止します。必要量・現金・供給能力も発注量を左右します。</small></div><button class="btn primary" data-action="saveSupply" ${edit?'':'disabled'}>7資材の契約を保存</button></div></section></details>`;return html.slice(0,start)+panel+html.slice(end);};
 function saveSupply(){let backup=null;try{
  const f=current();if(!canEdit(f))throw Error('契約変更権限がありません');
  ensureNetwork(f);ensureSupplyNetwork(S);
