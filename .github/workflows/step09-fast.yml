@@ -7,6 +7,7 @@ on:
     paths:
       - index.html
       - tests/test_step09_global_ai.py
+      - tests/test_step09_market_readiness.py
       - .github/workflows/step09-fast.yml
   pull_request:
     branches:
@@ -14,6 +15,7 @@ on:
     paths:
       - index.html
       - tests/test_step09_global_ai.py
+      - tests/test_step09_market_readiness.py
       - .github/workflows/step09-fast.yml
 
 concurrency:
@@ -37,3 +39,5 @@ jobs:
           python -m playwright install --with-deps chromium
       - name: STEP 9 supply, logistics, group sourcing and market maturation
         run: python tests/test_step09_global_ai.py
+      - name: STEP 9 market expansion compatibility and baseline audit
+        run: python tests/test_step09_market_readiness.py
