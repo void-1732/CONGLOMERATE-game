@@ -154,3 +154,18 @@ jobs:
           python -m playwright install --with-deps chromium
       - name: STEP 7 Local production, market lifecycle and consolidated cash flow
         run: python tests/test_step07_market_endurance.py
+
+  economic-risk-endurance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Playwright Chromium
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: STEP 8 Economic shocks, sourcing, and recovery after trade disruption
+        run: python tests/test_step08_risk_endurance.py
