@@ -113,6 +113,10 @@ def test_resource_production(page):
         const initial = resourceDepositsV037(mine);
         const migrated = {steel:initial.steel.remaining, copper:initial.copper.remaining,
             total:mine.reserveUnits, untouchedGoods:JSON.stringify(mine.goods) === oldGoods};
+        const zeroCashOutput = planResourceProductionV037(S, mine, 45, 0).quantity;
+        const fullStock = structuredClone(mine);
+        for (const type of RAW_TYPES_V032) rawBinV032(fullStock, type).q = 10000;
+        const excessStockOutput = planResourceProductionV037(S, fullStock, 45, acc(mine, 'cash')).quantity;
         laborAndPlant(S, [], 'resource');
         const month = mine.rawOpsV032.lastProduction;
         const bins = RAW_TYPES_V032.map(t => rawBinV032(mine, t));
@@ -133,7 +137,7 @@ def test_resource_production(page):
         VIEW_FIRM = id;
         PAGE = 'factory';
         render();
-        return {migrated, production, empty};
+        return {migrated, production, empty, zeroCashOutput, excessStockOutput};
     }""")
     assert result["migrated"] == {
         "steel": 7, "copper": 23, "total": 30, "untouchedGoods": True
@@ -148,9 +152,76 @@ def test_resource_production(page):
     assert production["goods"] == production["binsCost"] and production["zeroQtyCost"] == 0, result
     assert production["rights"] == production["wip"] == 0, result
     assert production["goods"] > production["openingRights"] + production["depreciation"], result
+    assert result["zeroCashOutput"] == result["excessStockOutput"] == 0, result
     assert result["empty"] == {"output": 0, "reserve": 0, "stock": 30, "wip": 0, "errors": []}, result
     assert page.get_by_role("heading", name="資源の採取・加工").is_visible()
     assert page.get_by_text("銅鉱石の採掘・選鉱・製錬").is_visible()
+
+
+def test_resource_investment(page):
+    page.evaluate("""async () => {
+        saveAuto = async () => true;
+        S = newGame({era:1900, country:'JP', difficulty:'easy',
+            history:'historical', name:'資源投資のテスト'});
+        VIEW_FIRM = S.playerId;
+        await runMonth();
+        PAGE = 'group';
+        render();
+        document.getElementById('subName').value = '開発試験鉱山';
+        document.getElementById('subCountry').value = 'JP';
+        document.getElementById('subIndustry').value = 'resource';
+        document.getElementById('subCapital').value = '1600000';
+        createSub();
+        if (current().industry !== 'resource') throw Error('資源子会社の設立に失敗');
+        PAGE = 'factory';
+        render();
+    }""")
+    opening = page.evaluate("""() => ({
+        cash:acc(current(), 'cash'), rights:acc(current(), 'resourceRights'),
+        reserves:current().reserveUnits, capacity:current().plant.capacity
+    })""")
+    page.locator("#resourceDevelopmentType").select_option("copper")
+    page.locator("#resourceDevelopmentUnits").fill("500")
+    page.get_by_role("button", name="資源開発に着工").click()
+    started = page.evaluate("""() => {
+        const f = current(), job = f.rawOpsV032.developments[0];
+        return {cash:acc(f, 'cash'), rights:acc(f, 'resourceRights'), reserves:f.reserveUnits, job};
+    }""")
+    assert started["job"]["units"] == 500 and started["reserves"] == opening["reserves"], started
+    assert opening["cash"] - started["cash"] == started["rights"] - opening["rights"] == started["job"]["cost"]
+
+    page.get_by_text("新工場を建設する", exact=True).click()
+    page.locator("#factoryName").fill("第二加工設備")
+    page.locator('[data-action="factoryBuild"]:visible').click()
+    under_construction = page.evaluate("""() => ({
+        live:current().plant.capacity,
+        pending:current().plants.find(p => p.name === '第二加工設備').construction.monthsLeft
+    })""")
+    assert under_construction == {"live": opening["capacity"], "pending": 2}, under_construction
+
+    for i in range(5):
+        result = page.evaluate("""async () => {
+            const previous = S.monthCommitted;
+            await runMonth();
+            const f = current(), deposit = f.rawOpsV032.deposits.copper;
+            return {committed:S.monthCommitted === previous + 1,
+                errors:check(S), consolidation:consolidate(S).errors,
+                diagnostic:LAST_MONTH_DIAGNOSTIC?.message,
+                development:deposit.developed || 0,
+                capacity:f.plant.capacity,
+                rights:acc(f,'resourceRights')};
+        }""")
+        assert result["committed"] and not result["errors"] and not result["consolidation"], (i, result)
+        if i < 4:
+            assert result["development"] == 0 and result["rights"] >= started["job"]["cost"], (i, result)
+        assert result["capacity"] == opening["capacity"] + (0 if i == 0 else 25), (i, result)
+    assert result["development"] == 500, result
+    assert page.evaluate("""() => {
+        const clone = parsePayload(savePayload(S)), f = company(current().id, clone);
+        return f.rawOpsV032.developments.length === 0 &&
+            f.rawOpsV032.deposits.copper.developed === 500 &&
+            f.journals.filter(j => j.text === '資源開発の着工：銅').length === 1;
+    }""")
 
 
 if __name__ == "__main__":
@@ -164,10 +235,12 @@ if __name__ == "__main__":
         page.context.set_offline(True)
         errors = []
         page.on("pageerror", lambda error: errors.append(str(error)))
+        page.on("dialog", lambda dialog: dialog.accept())
         page.set_content(HTML.read_text(encoding="utf-8"), wait_until="domcontentloaded")
         test_reserved_deliveries(page)
         test_zero_book_delivery(page)
         test_resource_production(page)
+        test_resource_investment(page)
         assert not errors, errors
         browser.close()
     print("PASS STEP 1: physical delivery, resource production, accounting, saves and offline UI")
