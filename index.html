@@ -1571,16 +1571,23 @@ function supplyContractsPage(){const f=current();ensureNetwork(f);ensureSupplyNe
  </div>`}
 function saveSupply(){try{const f=current();if(!canEdit(f))throw Error('権限がありません');ensureNetwork(f);ensureSupplyNetwork(S);for(const t of SUPPLY_TYPES){const id=inputValue('supplier_'+t),node=S.supplyNetwork.nodes.find(x=>x.id===id&&x.type===t&&x.firmId&&x.firmId!==f.id);if(!node)throw Error('仕入先が不正です');const back=inputValue('backup_'+t);if(back&&!S.supplyNetwork.nodes.some(x=>x.id===back&&x.type===t&&x.firmId!==f.id&&back!==id))throw Error('代替仕入先が不正です');f.supply.contracts[t]={supplierId:id,backupId:back||'',buffer:Number(inputValue('buffer_'+t))||1}}render();toast('資材の仕入先・安全在庫方針を更新しました。')}catch(e){toast(e.message)}}
 function deliverMaterials(s,f,events){const month=ym(s.year,s.month),arrivals=f.supply.inbound.filter(x=>x.due<=month);f.supply.inbound=f.supply.inbound.filter(x=>x.due>month);for(const shipment of arrivals){const node=s.supplyNetwork.nodes.find(n=>n.id===shipment.supplierId),seller=node?.firmId?company(node.firmId,s):null;
- if(seller&&seller.id!==f.id&&seller.country===f.country&&controller(s,f.id)&&controller(s,seller.id)){
+ if(node?.firmId||shipment.supplierId?.startsWith('CORP:')){
+   // Corporate orders reserve seller-owned goods until receipt. If the source
+   // is no longer eligible, releasing that reservation must not book a receipt.
+   if(!seller||seller.id===f.id||seller.country!==f.country||node.type!==shipment.type||
+      !controller(s,f.id)||!controller(s,seller.id)||seller.reorgStatus==='integrated'||seller.lifecycle?.phase==='withdrawn'){
+    events.push('グループ内供給の予約解除：'+f.name+' '+SUPPLY_LABELS[shipment.type]+' '+shipment.qty+'単位');
+    continue;
+   }
    ensureRawV032(seller);const src=shipment.type==='components'?seller.stock.components:rawBinV032(seller,shipment.type);
    const available=shipment.type==='components'?Math.min(src?.q||0,interplantUnassigned(seller)):src?.q||0;
     const perUnit=src?.q?src.v/src.q:0,affordable=perUnit?Math.floor(acc(f,'cash')/perUnit):available;
     const received=Math.max(0,Math.min(shipment.qty,available,affordable));
     if(!received){shipment.due=month+1;f.supply.inbound.push(shipment);events.push('グループ内供給遅延：'+seller.name+' '+SUPPLY_LABELS[shipment.type]);continue;}
-    const backorder=shipment.qty-received;
-    if(backorder){shipment.due=month+1;shipment.qty=backorder;shipment.totalBase*=backorder/(received+backorder);f.supply.inbound.push(shipment);events.push('グループ内一部納品：'+seller.name+' '+SUPPLY_LABELS[shipment.type]+' '+received+'／'+(backorder+received));}
    const amount=received===src.q?src.v:Math.round(src.v*received/src.q);
    if(acc(f,'cash')<amount){shipment.due=month+1;f.supply.inbound.push(shipment);events.push('内部調達支払資金不足：'+f.name);continue;}
+   const backorder=shipment.qty-received;
+   if(backorder){shipment.due=month+1;shipment.qty=backorder;shipment.totalBase*=backorder/(received+backorder);f.supply.inbound.push(shipment);events.push('グループ内一部納品：'+seller.name+' '+SUPPLY_LABELS[shipment.type]+' '+received+'／'+(backorder+received));}
    src.q-=received;src.v-=amount;
    post(seller,{cash:amount},{[shipment.type==='components'?'materials':'goods']:amount},'グループ内資材の簿価移管：'+SUPPLY_LABELS[shipment.type],'operating',s);
    post(f,{materials:amount},{cash:amount},'子会社・グループ会社からの簿価調達：'+SUPPLY_LABELS[shipment.type],'operating',s);
@@ -1593,8 +1600,15 @@ function deliverMaterials(s,f,events){const month=ym(s.year,s.month),arrivals=f.
   Math.min(term.creditBase||0,Math.floor(shipment.totalBase*.10)):0;
  if(credit)term.creditBase-=credit;
  const chargedBase=shipment.totalBase-credit;
- const total=localFromBase(chargedBase,f.country);if(!total)continue;
- post(f,{materials:total},{payable:total},'調達品受領：'+SUPPLY_LABELS[shipment.type]+' '+shipment.qty,'operating',s);const stock=f.stock[shipment.type]??={q:0,v:0};stock.q+=shipment.qty;stock.v+=total;f.payables.push({amount:total,due:month+1,note:'国際調達／部品仕入',account:'payable'});f.supply.history.push({month,type:shipment.type,origin:shipment.origin,qty:shipment.qty,totalBase:chargedBase,creditBase:credit});if(f.supply.history.length>96)f.supply.history.shift();}}
+ const total=localFromBase(chargedBase,f.country);
+ if(total){
+  post(f,{materials:total},{payable:total},'調達品受領：'+SUPPLY_LABELS[shipment.type]+' '+shipment.qty,'operating',s);
+  f.payables.push({amount:total,due:month+1,note:'国際調達／部品仕入',account:'payable'});
+ }
+ const stock=f.stock[shipment.type]??={q:0,v:0};stock.q+=shipment.qty;stock.v+=total;
+ f.supply.history.push({month,type:shipment.type,origin:shipment.origin,qty:shipment.qty,totalBase:chargedBase,creditBase:credit});
+ if(f.supply.history.length>96)f.supply.history.shift();
+}}
 
 /* v0.36 STEP 5: monthly call-off contracts with physical allocation, not fictitious stock.
    Historical saves remain opt-in. A contract reserves priority on the supplier's
