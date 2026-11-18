@@ -41,7 +41,9 @@ jobs:
         run: python tests/test_v036_contract_supply.py
       - name: STEP 7 Foreign plants and regional market entry
         if: ${{ hashFiles('tests/test_step07_market_entry.py') != '' }}
-        run: python tests/test_step07_market_entry.py
+        run: |
+          python tests/test_step07_market_entry.py
+          python tests/test_v025_market.py
       - name: STEP 6 Currency balances and accounting
         if: ${{ hashFiles('tests/test_step06_foreign_finance.py') != '' }}
         run: python tests/test_step06_foreign_finance.py
@@ -132,3 +134,18 @@ jobs:
           python -m playwright install --with-deps chromium
       - name: STEP 6 Foreign settlements, treasury, forwards and consolidated cash flow
         run: python tests/test_step06_finance_endurance.py
+
+  market-entry-endurance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Playwright Chromium
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: STEP 7 Local production, market lifecycle and consolidated cash flow
+        run: python tests/test_step07_market_endurance.py

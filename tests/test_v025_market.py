@@ -36,7 +36,8 @@ with sync_playwright() as p:
     assert page.locator('#mkOwnLedger').count()==1
     page.locator('[data-section="vehicles"]').click()
     assert page.locator('[data-product-view]').count()==3
-    assert page.locator('.mk-v25-projects').count()==1
+    page.locator('[data-product-view="design"]').click()
+    assert page.locator('[data-product-pane="design"] summary').filter(has_text='開発進捗・発売予定').is_visible()
     assert page.locator('[data-product-view="projects"]').count()==0
     page.evaluate('saveAuto=async()=>true')
     for i in range(12):
