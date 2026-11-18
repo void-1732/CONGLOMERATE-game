@@ -18,7 +18,7 @@ def run():
             S=newGame({era:1900,country:'JP',difficulty:'normal',history:'historical',name:'STEP1 供給検証'});
             const buyer=company(S.playerId,S);
             const seller=initFirm(S,{name:'資源専用検証会社',country:'JP',industry:'resource',size:1,seedBase:2500000});
-            seller.owners=[{id:buyer.id,econ:1,vote:1}];
+            seller.owners=[{id:buyer.id,econ:1,vote:1}];seller.shareBlocks=[];
             seller.reserveUnits=4000;
             // Preserve quantity and accounting value on old generic RESOURCE -> six physical bins migration.
             post(seller,{goods:1200},{cash:1200},'旧資源棚卸','operating',S);
@@ -57,6 +57,11 @@ def run():
         assert info["pending"]==3 and info["change"]==info["received"],info
         assert info["oldGeneric"] is None and not info["bookErrors"],info
         page.evaluate("""() => {delete S._step1TestResult;}""")
+        # Synthetic ownership was used only to isolate the group delivery routine.
+        # Exercise normal month closing on a game with fully registered ownership.
+        page.evaluate("""() => {
+            S=newGame({era:1900,country:'JP',difficulty:'normal',history:'historical',name:'STEP1 月次検証'});
+        }""")
         # Month closing uses resource-first production without double-producing a resource firm.
         for _ in range(6):
             outcome=page.evaluate("""async()=> {
