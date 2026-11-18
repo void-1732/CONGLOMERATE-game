@@ -53,6 +53,46 @@ def run():
             assert run_result["stock"]==run_result["physical"]==0,run_result
             assert not run_result["errors"],run_result
 
+        # A sustained market shortfall must raise the price and place a
+        # physical, delayed investment project rather than mint supply.
+        shortage=page.evaluate("""() => {
+          const s=newGame({era:1900,country:'JP',difficulty:'normal',history:'historical',name:'資源需給テスト'});
+          const m=npcMarketV033(s,'JP','steel');
+          m.capacity=5;m.stock=0;m.lastDemand=200;
+          const initial=m.priceIndex;
+          for(let month=1;month<=3;month++){
+            s.month=month;m.lastRequested=150;m.lastShipped=1;
+            settleNpcMarketV033(s);
+          }
+          const planned=m.construction[0],price=m.priceIndex,before=m.capacity;
+          if(!planned)throw Error('継続的な供給不足でも設備投資計画が生まれない');
+          s.month=planned.due%12+1;s.year=Math.floor(planned.due/12);
+          produceNpcV033(s,[]);
+          return {initial,price,before,after:m.capacity,due:planned.due,errors:validateNpcV033(s)};
+        }""")
+        assert shortage["price"]>shortage["initial"],shortage
+        assert shortage["after"]>shortage["before"] and not shortage["errors"],shortage
+
+        # Spot purchases are real shipments from the same finite regional
+        # inventory and must not create units out of nothing.
+        spot=page.evaluate("""() => {
+          S=newGame({era:1900,country:'JP',difficulty:'normal',history:'historical',name:'緊急調達'});
+          produceNpcV033(S,[]);
+          VIEW_FIRM=S.playerId;PAGE='supply';render();
+          const f=company(S.playerId,S),m=npcMarketV033(S,f.country,'steel');
+          const original={market:m.stock,dispatched:m.dispatchedTotal,buyer:f.stock.steel.q,book:acc(f,'materials')};
+          document.getElementById('spotResourceV026').value='steel';
+          document.getElementById('spotQtyV026').value='3';
+          window.confirm=()=>true;
+          buySpotV026();
+          return {before:original,market:m.stock,dispatched:m.dispatchedTotal,
+            buyer:f.stock.steel.q,book:acc(f,'materials'),errors:check(S)};
+        }""")
+        assert spot["market"]==spot["before"]["market"]-3,spot
+        assert spot["dispatched"]==spot["before"]["dispatched"]+3,spot
+        assert spot["buyer"]==spot["before"]["buyer"]+3,spot
+        assert spot["book"]>spot["before"]["book"] and not spot["errors"],spot
+
         page.evaluate("""() => {
           saveAuto=async()=>true;
           S=newGame({era:1900,country:'JP',difficulty:'normal',history:'historical',name:'NPC長期検証'});
