@@ -1398,6 +1398,13 @@ function ensureRawV032(f){
  for(const t of RAW_TYPES_V032)f.goods[rawKeyV032(t)]??={q:0,v:0};
  f.rawOpsV032??={weights:Object.fromEntries(RAW_TYPES_V032.map(t=>[t,1])),lastProduction:{}};
 }
+function rawCommittedV032(s,id,type){
+ let used=0;
+ for(const f of s.firms)for(const shipment of f.supply?.inbound||[]){
+  if(shipment.supplierId===id&&shipment.type===type)used+=shipment.qty;
+ }
+ return used;
+}
 function rawSplitV032(f,quantity){
  ensureRawV032(f);
  const entries=RAW_TYPES_V032.map(t=>({t,w:Math.max(0,Number(f.rawOpsV032.weights?.[t]??1))}));
@@ -1488,7 +1495,8 @@ function procureNetwork(s,events){
   const factor=risk[node.id]?.capacityFactor??1;
   const vendor=node.firmId?company(node.firmId,s):null;
    const actual=vendor?(node.type==='components'?Math.min(vendor.stock?.components?.q||0,interplantUnassigned(vendor)):rawBinV032(vendor,node.type).q):node.capacity;
-   return [node.id,Math.max(0,Math.floor(Math.min(node.capacity,actual)*(s.world[node.country].war?.73:1)*factor))];
+   const reserved=rawCommittedV032(s,node.id,node.type);
+   return [node.id,Math.max(0,Math.floor(Math.min(node.capacity,Math.max(0,actual-reserved))*(s.world[node.country].war?.73:1)*factor))];
  }));
  for(const f of s.firms.filter(x=>['auto','manufacturing'].includes(x.industry)&&x.lifecycle?.phase!=='withdrawn'&&x.reorgStatus!=='integrated')){
   const plans=f.models.filter(m=>m.status==='active').map(m=>({q:Math.max(0,Math.ceil(f.plans[m.id]||0)),req:materialRequirement(m.design,f)}));
@@ -2184,7 +2192,7 @@ function sellMonthly(s,events){
    if(f.industry==='trade'||f.industry==='resource'){
     const keys=f.industry==='trade'?Object.keys(f.goods).filter(k=>k==='TRADE'||k.startsWith('IT')):RAW_TYPES_V032.map(rawKeyV032);
     let left=Math.round(w.demand*.25);
-    for(const key of keys){const qty=f.goods[key]?.q||0;if(qty&&left>0){const q=Math.min(qty,left),price=f.goods[key].externalPriceBase||(f.industry==='trade'?1550:1800);sellGoods(s,f,key,q,price,code,events);left-=q;}}
+    for(const key of keys){const qty=f.industry==='resource'?Math.max(0,(f.goods[key]?.q||0)-rawCommittedV032(s,'CORP:'+f.id+':'+key.slice(4),key.slice(4))):(f.goods[key]?.q||0);if(qty&&left>0){const q=Math.min(qty,left),price=f.goods[key].externalPriceBase||(f.industry==='trade'?1550:1800);sellGoods(s,f,key,q,price,code,events);left-=q;}}
    }
   }
   const market=marketDemandSnapshotV031(s,code);
