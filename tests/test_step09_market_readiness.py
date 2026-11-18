@@ -63,8 +63,9 @@ def audit_market_foundations(page):
 
             const seller = s.firms.find(f => f.id === s.playerId);
             const legacy = structuredClone(s);
+            const legacyRoot = legacy.firms.find(f => f.id === legacy.playerId);
             delete legacy.worldEvolutionV046;
-            delete seller.globalSupplyPolicyV045;
+            delete legacyRoot.globalSupplyPolicyV045;
             const recovered = parsePayload(savePayload(legacy));
             const restoredFirm = recovered.firms.find(f => f.id === recovered.playerId);
             const oldCountries = Object.keys(recovered.world);
