@@ -23,6 +23,8 @@ jobs:
           python -m playwright install --with-deps chromium
       - name: Test v0.32 supply foundation
         run: python tests/test_v032_supply_foundation.py
+      - name: Test v0.33 finite NPC supply and fair allocation
+        run: python tests/test_v033_npc_supply.py
       - name: Test resource subsidiary and old save compatibility
         run: python tests/test_v030_research_supply.py
       - name: Test 6-month sales and exports
