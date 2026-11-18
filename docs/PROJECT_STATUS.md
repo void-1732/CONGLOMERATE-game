@@ -47,7 +47,7 @@
 - 製品・材料原価の総勘定元帳と現金・買掛金を一致させる。新規法人を途中で設立した時は、NPC市場の実在庫を上限として購入し、物量保存を保つ。
 - NPC供給容量の初期目標は EASY 125%／NORMAL 118%／HARD 115%。供給障害の発生率と継続期間に難易度補正を設定し、NPC市場でも設備実生産が減少する。
 - 緊急調達の割増価格は EASY +20%／NORMAL +35%／HARD +50%。旧セーブに対して初期購入をやり直したり、棚卸資産を上乗せしたりしない。
-- テストは `tests/test_v035_difficulty_balance.py` と `.github/workflows/v035-difficulty-balance.yml`。3難易度と別年代、新規法人・NPC実在庫移動、旧セーブ、24か月運転、旧機能・120か月回帰を含む。
+- テストは `tests/test_v035_difficulty_balance.py` と `.github/workflows/v035-difficulty-balance.yml`。3難易度と別年代、新規法人・NPC実在庫移動、旧セーブ、36か月運転、旧機能・120か月回帰を含む。
 - STEP 5に残す機能：長期契約の予約枠・期間・違約金、調達AIの契約別最適化と国際仕入会計。
 
 ## v0.34-dev.1 — 供給網STEP 3（実装・検証中）
