@@ -47,19 +47,29 @@ with sync_playwright() as pw:
         f.factoryOps.plans[p.id]=0;
         f.interplant.partPlans[p.id]=0;
         const key=partKey(spec);
-        p.componentLines=[{lineId:'LIN-BOM-1',specKey:key,capacity:10,equipmentTier:1,condition:100}];
+        const job=proposeLineJob(S,f,p,'ADD_LINE','',key,10);
+        approveLineJob(S,f,job);
+        syncPlant(f);
+        return {id:p.id,lineId:job.lineId};
+    }""")
+    # Complete commissioning through real monthly factory investment processing.
+    for _ in range(4):
+        page.evaluate("async()=>await runMonth()")
+        assert not page.evaluate("check(S)"), page.evaluate("check(S)")
+    fixture = page.evaluate("""id => {
+        const f=current(),p=f.plants.find(x=>x.id===id);
+        if(!p.componentLines.length)throw Error('BOM line did not complete commissioning');
         f.partOperations.productionPlans=[{
-            plantId:p.id,lineId:'LIN-BOM-1',quantity:10,
+            plantId:p.id,lineId:p.componentLines[0].lineId,quantity:10,
             destinationId:null,managedByLineAI:false
         }];
-        syncPlant(f);
         const work=factoryLaborPlanV026(f),record=work.byId[p.id];
         const line=lineOutputPlan(S,f,p)[0];
         if(line.issue)throw Error('BOM line not eligible: '+line.issue);
         return {id:p.id,required:record.required,assigned:record.assigned,
             lineRequired:line.required,lineAssigned:line.assigned,possible:line.possible,
             total:work.records.reduce((sum,r)=>sum+r.assigned,0)};
-    }""")
+    }""", fixture["id"])
     assert fixture["required"] == 5, fixture
     assert fixture["assigned"] >= 5, fixture
     assert fixture["lineRequired"] == 5 and fixture["lineAssigned"] == 5, fixture
@@ -71,14 +81,14 @@ with sync_playwright() as pw:
         const f=current(),p=f.plants.find(x=>x.id===id),spec=partRecord(S,p.componentLines[0].specKey);
         const recipe=bomPartRecipe(spec,partTechnologyProfile(f,spec.family));
         const logistics=ensureWarehouseV038(f);
-        logistics.localizedRawTypes=[...new Set([...logistics.localizedRawTypes,...SUPPLY_TYPES])];
+        logistics.localizedRawTypes=[...new Set([...logistics.localizedRawTypes,...RAW_TYPES_V032])];
         logistics.rawAtPlant[p.id]??={};
-        for(const type of SUPPLY_TYPES){
-            post(f,{materials:2000},{cash:2000},'BOM 人員テスト用の在庫','operating',S);
+        for(const type of RAW_TYPES_V032){
+            post(f,{materials:1000},{cash:1000},'BOM 人員テスト用の在庫','operating',S);
             const stock=f.stock[type]??={q:0,v:0};
-            stock.q+=200;stock.v+=2000;
+            stock.q+=100;stock.v+=1000;
             const bin=logistics.rawAtPlant[p.id][type]??={q:0,v:0};
-            bin.q+=200;bin.v+=2000;
+            bin.q+=100;bin.v+=1000;
         }
         const demand=rawFactoryDemandV038(S,f).find(x=>x.p.id===id).monthly;
         for(const [type,amount] of Object.entries(recipe))
@@ -110,6 +120,10 @@ with sync_playwright() as pw:
         const fixed=factoryLaborPlanV026(f).byId[id];
         const blocked=lineOutputPlan(S,f,p);
         delete f.factoryOps.staffAssignments[id];
+        // The second line is a temporary demand calculation fixture only.
+        // Production/save validation must use the real commissioned line ledger.
+        p.componentLines.pop();
+        f.partOperations.productionPlans.pop();
         const restored=factoryLaborPlanV026(f).byId[id];
         return {before,fixed:fixed.assigned,blocked:blocked.map(x=>x.possible),
             restored:restored.assigned,corporate:factoryLaborPlanV026(f).records.reduce((n,x)=>n+x.assigned,0)};
