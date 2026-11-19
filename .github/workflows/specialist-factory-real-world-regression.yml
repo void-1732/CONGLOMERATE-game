@@ -23,6 +23,8 @@ jobs:
           python -m playwright install --with-deps chromium
       - name: Test real build, hire, old saves, all three module stock ledgers
         run: python tests/test_real_specialist_factory_v034dev2.py
+      - name: Test specialist accordion after actual UI operation and monthly close
+        run: python tests/test_specialist_bulk_ui_v034dev2.py
       - name: Recheck prior factory regressions
         run: |
           python tests/test_fix_four_operational_issues.py
