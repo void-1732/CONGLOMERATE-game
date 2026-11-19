@@ -108,7 +108,7 @@ with sync_playwright() as pw:
         ...structuredClone(f.plants[0]),id:'OLD-ENGINE',kind:'engine',name:'既設エンジン工場',
         capacity:60,condition:100,paused:false,construction:null,renovation:null
       };f.plants.push(p);ensureFactoryV21(f);
-      f.factoryOps.mode='legacy';f.factoryOps.idleRecoveryV0262=1;
+      f.factoryOps.mode='legacy';delete f.factoryOps.idleRecoveryV0262;
       f.factoryOps.plans[p.id]=0;f.interplant.partPlans[p.id]=0;
       f.factoryOps.staffAssignments[p.id]=0;
       f.interplant.siteComponents[p.id]=8;
