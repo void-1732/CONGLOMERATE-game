@@ -6424,7 +6424,7 @@ function transitionSpecialistModeV036(f,mode){
  ensureFactoryV21(f);ensureV11Firm(f);
  const z=f.factoryOps,prior=z.mode;
  if(mode!=='legacy'&&mode!=='detailed')throw Error('製造方式が不正です');
- if(prior!==mode&&mode==='detailed'){
+ if(mode==='detailed'){
   for(const p of f.plants||[]){
    const type=v21ModuleType(p);if(!type)continue;
    const plan=Math.floor(Math.max(0,Number(f.interplant.partPlans[p.id])||0));
@@ -6457,12 +6457,13 @@ function recoverSpecialistFactoriesV036(s){
   const supports=(f.plants||[]).filter(p=>v21ModuleType(p));
   // Existing actively played saves already passed the old one-time recovery.
   // Respect a user-selected legacy mode, and preserve unrecovered old saves.
-  if(controller(s,f.id)&&supports.length&&z.idleRecoveryV0262===1&&!z.modeExplicit&&
+  if(controller(s,f.id)&&supports.length&&z.idleRecoveryV0262===1&&z.mode==='detailed'&&
       f.lifecycle?.phase!=='withdrawn'&&f.reorgStatus!=='integrated'){
+   // An existing user-selected legacy mode is NEVER changed implicitly.
    transitionSpecialistModeV036(f,'detailed');
    for(const p of supports){
     const old=Math.floor(Math.max(0,Number(f.interplant.partPlans?.[p.id])||0));
-    if(!(z.plans[p.id]>0))z.plans[p.id]=old||defaultSpecialistPlanV036(p);
+    if(!(z.plans[p.id]>0)&&!z.planExplicit?.[p.id])z.plans[p.id]=old||defaultSpecialistPlanV036(p);
     if(z.staffAssignments[p.id]===0&&f.staff?.production>0)delete z.staffAssignments[p.id];
     count++;
    }
