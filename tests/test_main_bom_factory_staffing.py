@@ -109,14 +109,38 @@ with sync_playwright() as playwright:
     page.evaluate("async()=>await runMonth()")
     produced = page.evaluate("""id=>{
         const f=current(),plan=f.partOperations.productionPlans.find(x=>x.plantId===id);
-        return {month:S.monthCommitted,last:plan.last,
+        const factory=f.plants.find(x=>x.id===id);
+        return {month:S.monthCommitted,last:plan.last,units:factory.lastProduced,
+            utilization:factory.lastUtilization,
             lots:f.partOperations.inventoryLots.filter(l=>l.plantId===id)
                .reduce((n,l)=>n+l.quantity,0),
             errors:check(S),group:consolidate(S).errors,cf:consolidate(S).cf.reconciled};
     }""", fixture["id"])
     assert produced["month"] == previous + 1, produced
     assert produced["last"]["good"] > 0 and produced["lots"] > 0, produced
+    assert produced["units"] >= produced["last"]["good"] and produced["utilization"] > 0, produced
     assert not produced["errors"] and not produced["group"] and produced["cf"], produced
+
+    # The legacy specialist stage runs *after* BOM manufacturing too. It must
+    # not erase the factory's real BOM output and utilization from the UI.
+    page.evaluate("""id=>{
+        const f=current();
+        f.factoryOps.mode='legacy';
+        f.interplant.partPlans[id]=0;
+    }""", fixture["id"])
+    previous = page.evaluate("S.monthCommitted")
+    page.evaluate("async()=>await runMonth()")
+    legacy = page.evaluate("""id=>{
+        const f=current(),p=f.plants.find(x=>x.id===id);
+        const part=f.partOperations.productionPlans.find(x=>x.plantId===id);
+        return {month:S.monthCommitted,good:part.last.good,produced:p.lastProduced,
+            utilization:p.lastUtilization,errors:check(S),
+            cf:consolidate(S).cf.reconciled};
+    }""", fixture["id"])
+    assert legacy["month"] == previous + 1 and legacy["good"] > 0, legacy
+    assert legacy["produced"] >= legacy["good"] and legacy["utilization"] > 0, legacy
+    assert not legacy["errors"] and legacy["cf"], legacy
+    page.evaluate("current().factoryOps.mode='detailed'")
 
     # Simultaneous BOM lines must share real labor, not unassigned site capacity.
     # The second line is an isolated, transient workforce test fixture, not

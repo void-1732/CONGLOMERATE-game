@@ -5,6 +5,7 @@ on:
       - fix/main-bom-factory-staffing-20261119
       - fix/main-support-factory-zero-plan-20261119
       - fix/main-support-auto-recovery-20261119
+      - fix/main-bom-output-visibility-20261119
   pull_request:
     branches:
       - main

@@ -2009,14 +2009,14 @@ function deliverInterplant(s,events){const now=ym(s.year,s.month);
 }
 function produceSupportParts(s,events){for(const f of s.firms){if(f.reorgStatus==='integrated'||f.lifecycle?.phase==='withdrawn')continue;ensureV11Firm(f);
  for(const p of supportPartFactories(f)){if(f.factoryOps?.mode==='detailed')continue;let planned=f.interplant.partPlans[p.id]||0;
-  const assigned=factoryLaborPlanV026(f).byId[p.id]?.assigned||0,potential=Math.floor(assigned*2);const possible=Math.min(planned,Math.max(0,Math.floor(p.capacity*(p.condition/100)*.35)-bomPlantLoad(f,p)),Math.max(0,potential-bomPlantLoad(f,p)),f.stock.steel.q,f.stock.rubber.q);p.lastAssignedStaff=assigned;
-  if(possible<=0){p.lastProduced=0;p.lastUtilization=0;continue;}
+  const assigned=factoryLaborPlanV026(f).byId[p.id]?.assigned||0,potential=Math.floor(assigned*2),bomOutput=bomMonthlyFactoryOutputV0263(s,f,p);const possible=Math.min(planned,Math.max(0,Math.floor(p.capacity*(p.condition/100)*.35)-bomPlantLoad(f,p)),Math.max(0,potential-bomPlantLoad(f,p)),f.stock.steel.q,f.stock.rubber.q);p.lastAssignedStaff=assigned;
+  if(possible<=0){p.lastProduced=bomOutput.good;p.lastUtilization=bomOutput.attempted/Math.max(1,p.capacity);continue;}
   const raw=consume(f,'steel',possible)+consume(f,'rubber',possible),wages=localFromBase(possible*85*eraCostFactor(s.year),f.country);
   const paid=Math.min(wages,Math.max(0,acc(f,'cash'))),due=wages-paid;
   post(f,{materials:raw+wages},{materials:raw,...(paid?{cash:paid}:{}),...(due?{wagesDue:due}:{})},'部品工場の材料加工・製造人件費','operating',s);
   f.stock.components.q+=possible;f.stock.components.v+=raw+wages;
   f.interplant.siteComponents[p.id]=(f.interplant.siteComponents[p.id]||0)+possible;
-  p.lastProduced=possible;p.lastUtilization=possible/Math.max(1,p.capacity);
+  p.lastProduced=possible+bomOutput.good;p.lastUtilization=(possible+bomOutput.attempted)/Math.max(1,p.capacity);
   p.condition=clamp(p.condition-.1-1.2*Math.min(1,p.lastUtilization),20,100);
   events.push(f.name+'：部品工場「'+p.name+'」で'+possible+'個を製造');
  }
@@ -4115,6 +4115,18 @@ const BOM_RECIPES={
 };
 const bomPartLoads=new WeakMap();
 function bomPlantLoad(f,p){return bomPartLoads.get(f)?.[p.id]??0;}
+/* The BOM stage runs before the legacy/specialist part stage. Its output must
+   remain visible after those stages, even with a zero legacy module plan. */
+function bomMonthlyFactoryOutputV0263(s,f,p){
+ const month=ym(s.year,s.month);
+ return (f.partOperations?.productionPlans??[]).reduce((result,plan)=>{
+  if(plan.plantId!==p.id||plan.last?.month!==month)return result;
+  result.attempted+=Math.max(0,plan.last.attempted||0);
+  result.good+=Math.max(0,plan.last.good||0);
+  return result;
+ },{attempted:0,good:0});
+}
+const FACTORY_HOTFIX_BUILD_V0263='2026-11-19-F3';
 function bomPartRecipe(spec,tech){
  return Object.fromEntries(Object.entries(BOM_RECIPES[spec.family]).map(([type,q])=>
   [type,Math.round(q*(1-tech.material/100)*1000)/1000]));
@@ -6665,13 +6677,13 @@ async function startSupportProductionV026(id){try{
  }catch(e){toast(e.message);console.error(e)}}
 function produceModulesV21(s,events){for(const f of s.firms){ensureFactoryV21(f);if(f.factoryOps.mode!=='detailed'||f.lifecycle?.phase==='withdrawn'||f.reorgStatus==='integrated')continue;
  for(const p of supportPartFactories(f)){const typ=v21ModuleType(p),spec=V21_MODULE_INFO[typ];if(!typ)continue;
-  const planned=Math.max(0,Math.floor(f.factoryOps.plans[p.id]||0));const staff=factoryLaborPlanV026(f).byId[p.id]?.assigned||0;let q=Math.min(planned,Math.max(0,Math.floor(p.capacity*p.condition/100*.35*(1+.07*(p.equipmentTier-1)))-bomPlantLoad(f,p)),Math.max(0,Math.floor(staff*2)-bomPlantLoad(f,p)),Math.floor(f.stock.steel.q/spec.steel),Math.floor(f.stock.rubber.q/spec.rubber));p.lastAssignedStaff=staff;if(q<=0){p.lastProduced=0;p.lastUtilization=0;continue;}
+  const planned=Math.max(0,Math.floor(f.factoryOps.plans[p.id]||0));const staff=factoryLaborPlanV026(f).byId[p.id]?.assigned||0;let q=Math.min(planned,Math.max(0,Math.floor(p.capacity*p.condition/100*.35*(1+.07*(p.equipmentTier-1)))-bomPlantLoad(f,p)),Math.max(0,Math.floor(staff*2)-bomPlantLoad(f,p)),Math.floor(f.stock.steel.q/spec.steel),Math.floor(f.stock.rubber.q/spec.rubber));p.lastAssignedStaff=staff;const bomOutput=bomMonthlyFactoryOutputV0263(s,f,p);if(q<=0){p.lastProduced=bomOutput.good;p.lastUtilization=bomOutput.attempted/Math.max(1,p.capacity);continue;}
   const raw=consume(f,'steel',q*spec.steel)+consume(f,'rubber',q*spec.rubber);
   const wage=localFromBase(q*(typ==='moduleElectronics'?110:typ==='moduleEngine'?125:95)*eraCostFactor(s.year),f.country);
   const paid=Math.min(wage,Math.max(0,acc(f,'cash'))),due=wage-paid;
   post(f,{materials:raw+wage},{materials:raw,...(paid?{cash:paid}:{}),...(due?{wagesDue:due}:{})},'専門部品製造：'+spec.name,'operating',s);
   f.stock[typ].q+=q;f.stock[typ].v+=raw+wage;moduleAtV21(f,p.id)[typ]+=q;
-  p.lastProduced=q;p.lastUtilization=q/Math.max(1,p.capacity);p.condition=clamp(p.condition-.1-1.2*p.lastUtilization,20,100);
+  p.lastProduced=q+bomOutput.good;p.lastUtilization=(q+bomOutput.attempted)/Math.max(1,p.capacity);p.condition=clamp(p.condition-.1-1.2*p.lastUtilization,20,100);
   events.push(f.name+'：'+p.name+'で'+spec.name+' '+q+'個を製造');
  }
 }}
@@ -6821,7 +6833,7 @@ function factoryOpsInsightPanelV023(f,p){const o=factoryInsightV023(f,p),last=p.
 function factoryDetailMarkup(f,p,edit){if(!p)return `<div class="hint">工場がありません。下の「新工場建設」から工場を追加してください。</div>`;
  ensureFactoryV21(f);const site=ensurePlantLocation(f,p),type=v21ModuleType(p),z=f.factoryOps,route=z.routes[p.id]||{enabled:false,to:'',target:8,limit:12},other=f.plants.filter(x=>['integrated','assembly'].includes(x.kind)),inventory=moduleAtV21(f,p.id),working=factoryStatus(p);
  const fare=other.find(x=>x.id===route.to);const freight=fare?v21Freight(site,ensurePlantLocation(f,fare),1):null;
- return `<div class="factory-detail-head"><div><h3>${esc(p.name)}</h3><div class="hint">${esc(FACTORY_KINDS[p.kind]?.name||p.kind)} ・ ${esc(NAMES[site.country]||site.country)} / ${esc(site.name)} ・ ${esc(p.id)}</div></div>${tag(factoryStatusLabel(p),working==='active'?'good':'warn')}</div>
+ return `<div class="factory-detail-head"><div><h3>${esc(p.name)}</h3><div class="hint">${esc(FACTORY_KINDS[p.kind]?.name||p.kind)} ・ ${esc(NAMES[site.country]||site.country)} / ${esc(site.name)} ・ ${esc(p.id)} ・ 修正ビルド ${FACTORY_HOTFIX_BUILD_V0263}</div></div>${tag(factoryStatusLabel(p),working==='active'?'good':'warn')}</div>
  <div class="factory-details-grid"><div><small>名目設備能力</small><strong>${nfmt(p.capacity)}単位/月</strong></div><div><small>設備状態</small><strong>${nfmt(p.condition)}%</strong></div><div><small>前月の実績</small><strong>${nfmt(p.lastProduced||0)}${type?'個':'台'}</strong></div><div><small>前月稼働率</small><strong>${nfmt((p.lastUtilization||0)*100)}%</strong></div><div><small>設備世代</small><strong>第${p.equipmentTier||1}世代</strong></div><div><small>工場種別</small><strong>${type?'部品供給':'完成車組立'}</strong></div></div>
  ${factoryOpsInsightPanelV023(f,p)}
  ${type&&edit&&working==='active'?`<div class="factory-action-row"><button class="btn primary" data-action="startSupportProductionV026" data-plant-id="${esc(p.id)}">この部品工場の生産計画・自動人員配置を設定</button><span class="hint">今の製造方式を維持し、この工場だけ設定します。既存の0人固定配置は解除します。原材料と従業員は増えません。</span></div>`:''}
