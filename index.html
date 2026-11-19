@@ -5059,7 +5059,7 @@ function partTradePanel(f,edit){
 }
 
 function savePayload(s){const json=JSON.stringify(s);return JSON.stringify({format:'CONGLOMERATE',version:VERSION,checksum:hash(json),payload:json,savedAt:new Date().toISOString()})}
-function parsePayload(raw){if(typeof raw!=='string')throw Error('保存データが存在しません');const obj=JSON.parse(raw);if(obj.format!=='CONGLOMERATE'||obj.version!==VERSION)throw Error('対応しない保存形式です');if(hash(obj.payload)!==obj.checksum)throw Error('チェックサム不一致');const s=JSON.parse(obj.payload);ensureV11(s);ensureMAState(s);ensureV20(s);ensureSupplyNetwork(s);for(const f of s.firms||[]){ensureFirmGameplay(f);ensureNetwork(f,s);}ensureV27(s);const errs=check(s);if(errs.length)throw Error(errs.slice(0,3).join(' / '));return s}
+function parsePayload(raw){if(typeof raw!=='string')throw Error('保存データが存在しません');const obj=JSON.parse(raw);if(obj.format!=='CONGLOMERATE'||obj.version!==VERSION)throw Error('対応しない保存形式です');if(hash(obj.payload)!==obj.checksum)throw Error('チェックサム不一致');const s=JSON.parse(obj.payload);ensureV11(s);ensureMAState(s);ensureV20(s);ensureSupplyNetwork(s);for(const f of s.firms||[]){ensureFirmGameplay(f);ensureNetwork(f,s);}ensureV27(s);recoverIdleSupportSaveV0262(s);const errs=check(s);if(errs.length)throw Error(errs.slice(0,3).join(' / '));return s}
 function openDatabase(){return new Promise((resolve,reject)=>{if(!('indexedDB' in window))return reject(Error('IndexedDBに非対応の環境です'));const req=indexedDB.open(DB_NAME,DB_VERSION);req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains('snapshots'))db.createObjectStore('snapshots',{keyPath:'key'});if(!db.objectStoreNames.contains('meta'))db.createObjectStore('meta',{keyPath:'key'})};req.onsuccess=()=>{req.result.onversionchange=()=>req.result.close();resolve(req.result)};req.onerror=()=>reject(req.error||Error('保存領域の初期化失敗'));req.onblocked=()=>reject(Error('他のタブがデータベースを使用中です'))})}
 function idbRead(store,key){return new Promise((resolve,reject)=>{const tx=IDB.transaction(store,'readonly');const r=tx.objectStore(store).get(key);r.onsuccess=()=>resolve(r.result??null);r.onerror=()=>reject(r.error||Error('保存領域の読み出し失敗'))})}
 function idbWrite(store,record){return new Promise((resolve,reject)=>{const tx=IDB.transaction(store,'readwrite');tx.oncomplete=()=>resolve();tx.onabort=()=>reject(tx.error||Error('保存領域の書込み中断'));tx.onerror=()=>reject(tx.error||Error('保存領域の書込み失敗'));tx.objectStore(store).put(record)})}
@@ -6311,6 +6311,37 @@ function ensureFactoryV21(f){
   if(FACTORY_KINDS[p.kind]?.rate===0){z.plans[p.id]??=0;z.routes[p.id]??={enabled:false,to:'',target:8,limit:12};}
  }
 }
+/* Repair a pre-fix save once, before the factory UI or month engine reads it.
+   A legacy support factory can have 172 production workers at company level
+   but zero actual assignments because no production plan was initialized.
+   Do not change intentionally closed/under-construction factories, plans that
+   were configured, existing ledgers, or company headcount. */
+function recoverIdleSupportSaveV0262(s){
+ let restored=0;
+ for(const f of s.firms||[]){
+  ensureFactoryV21(f);
+  if(f.factoryOps.idleRecoveryV0262===1)continue;
+  if(controller(s,f.id)&&f.staff?.production>0&&
+     f.reorgStatus!=='integrated'&&f.lifecycle?.phase!=='withdrawn'){
+   for(const p of f.plants||[]){
+    if(!v21ModuleType(p)||factoryStatus(p)!=='active')continue;
+    const legacy=Number(f.interplant?.partPlans?.[p.id]||0);
+    const detailed=Number(f.factoryOps.plans?.[p.id]||0);
+    const bom=(f.partOperations?.productionPlans||[]).some(x=>x.plantId===p.id&&Number(x.quantity)>0);
+    if(legacy>0||detailed>0||bom)continue;
+    const planned=Math.max(1,Math.floor(p.capacity*p.condition/100*.35));
+    if(f.factoryOps.mode==='detailed')f.factoryOps.plans[p.id]=planned;
+    else f.interplant.partPlans[p.id]=planned;
+    // Old zero-worker override can lock a now configured factory forever.
+    if(f.factoryOps.staffAssignments[p.id]===0)delete f.factoryOps.staffAssignments[p.id];
+    restored++;
+   }
+  }
+  // Once recovered, a player's later decision to set plan 0 is respected.
+  f.factoryOps.idleRecoveryV0262=1;
+ }
+ return restored;
+}
 function moduleAtV21(f,siteId){ensureFactoryV21(f);const site=f.factoryOps.siteModules[siteId]??={};for(const typ of V21_MODULE_TYPES)site[typ]??=0;return site;}
 function v21ModuleType(p){return p?.kind==='engine'?'moduleEngine':p?.kind==='body'?'moduleBody':p?.kind==='components'?'moduleElectronics':null;}
 function v21Freight(a,b,qty,s=S){const tier=a.country!==b.country?'international':a.id===b.id?'local':'domestic';const baseUnit=tier==='local'?12:tier==='domestic'?48:180;const lead=tier==='local'?1:tier==='domestic'?2:3;return {tier,lead,base:Math.max(1,Math.round(qty*baseUnit*Math.max(.5,a.freight||1)*Math.max(.5,b.freight||1)*eraCostFactor(s.year)))};}
@@ -6559,7 +6590,7 @@ function factoryStockSummaryV026(f,type){
   attempt=f.supply?.lastAttempt?.[type],flow=f.supply?.monthFlow?.[type];
  return {...target,stock,transit,need:Math.max(0,target.target-stock-transit),attempt,flow};
 }
-function saveFactoryStaffV026(id){try{
+async function saveFactoryStaffV026(id){try{
  const f=current();if(!canEdit(f))throw Error('配属設定の権限がありません');ensureFactoryV21(f);
  const p=f.plants.find(x=>x.id===id);if(!p)throw Error('工場が存在しません');
  const mode=document.getElementById('factoryStaffModeV026')?.value;
@@ -6571,7 +6602,7 @@ function saveFactoryStaffV026(id){try{
  }else throw Error('配属方法を選択してください');
  const used=Object.values(assignments).reduce((n,x)=>n+(Number(x)||0),0);
  if(used>f.staff.production)throw Error('個別固定配置の合計 '+used+'人が製造部門の在籍 '+f.staff.production+'人を超えています。人事採用または配置削減が必要です');
- f.factoryOps.staffAssignments=assignments;renderFactorySelected();toast(p.name+'の人員配置方針を保存しました。翌月の部品・完成車生産から反映します');
+ f.factoryOps.staffAssignments=assignments;renderFactorySelected();const persisted=await saveAuto();toast(persisted?p.name+'の人員配置を保存しました。翌月の生産に反映します':p.name+'の人員配置は画面に反映しました。自動保存失敗のためJSONバックアップを確認してください');
  }catch(e){toast(e.message)}}
 function setupFactoryDetailsV026(){
  const root=document.getElementById('factorySelectedDetail');if(!root||root.querySelector('.factory-v026-tabs'))return;
@@ -6611,7 +6642,7 @@ function activateSupportV026(){try{
 
 /* Explicit recovery for older saves with an idle specialist factory.
    Never create workers, materials, or extra features; keep the current mode. */
-function startSupportProductionV026(id){try{
+async function startSupportProductionV026(id){try{
  const f=current();if(!canEdit(f))throw Error('設定権限がありません');
  ensureFactoryV21(f);
  const p=f.plants.find(x=>x.id===id);
@@ -6628,7 +6659,8 @@ function startSupportProductionV026(id){try{
  delete f.factoryOps.staffAssignments[p.id];
  const people=staffOfPlantV023(f,p);
  renderFactorySelected();
- toast(people.assigned>0?p.name+'の生産計画と自動人員配置を設定しました。原材料を確認して月末処理を実行してください':
+ const persisted=await saveAuto();
+ toast(!persisted?'自動保存に失敗しました。JSONバックアップを確認してください':people.assigned>0?p.name+'の生産計画と自動人員配置を設定しました。原材料を確認して月末処理を実行してください':
   p.name+'の生産計画を設定しました。製造従業員が不足しています。人事から採用してください');
  }catch(e){toast(e.message);console.error(e)}}
 function produceModulesV21(s,events){for(const f of s.firms){ensureFactoryV21(f);if(f.factoryOps.mode!=='detailed'||f.lifecycle?.phase==='withdrawn'||f.reorgStatus==='integrated')continue;
@@ -6754,7 +6786,7 @@ function factoryInsightV023(f,p){
  const staff=staffOfPlantV023(f,p);
  if(['integrated','assembly'].includes(p.kind)&&factoryCapacity(f).labor<.99)warn('会社全体の製造人員不足','製造人員による生産能力補正 '+nfmt(factoryCapacity(f).labor*100)+'%','人事で製造人員を採用',true);
  if(type){
-  const qty=z.plans?.[p.id]||0,spec=V21_MODULE_INFO[type];
+  const qty=(detail?z.plans?.[p.id]:f.interplant?.partPlans?.[p.id])||0,spec=V21_MODULE_INFO[type];
   const bomQty=(f.partOperations?.productionPlans??[]).filter(plan=>plan.plantId===p.id).reduce((n,plan)=>n+Math.max(0,plan.quantity||0),0);
    if(qty===0&&!bomQty)warn('部品生産計画が0','従来部品・BOM部品の生産計画がありません','BOMまたは月間製造量を設定',true);
   if(((detail&&qty>0)||bomQty>0)&&staff.assigned<staff.recommended)warn('部品工場の製造人員が不足','配属 '+staff.assigned+'人／推奨 '+staff.recommended+'人','この工場の人員配属を確認',staff.assigned===0);
