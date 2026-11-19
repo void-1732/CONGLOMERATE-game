@@ -132,13 +132,14 @@ def direct_vehicle_export(page, code, currency):
         const transit=acc(f,'goodsTransit'),qty=sent.qty;
         const available=internationalRouteRoomV041(s,internationalRoutesV041(s,'JP',code)[0],'vehicle');
         const saved=parsePayload(savePayload(s)),seller=company(f.id,saved);
+        const savedShipment=seller.distribution.outbound.find(x=>x.id===sent.id);
         while(ym(saved.year,saved.month)<sent.due)nextMonthDate(saved);
         seller._salesNow=0;seller._unitsNow=0;seller.marketThisMonth={};
         saved.world[code].demand=Math.max(saved.world[code].demand,200);
         deliverExports(saved,[]);
         const income=seller.receivables.find(x=>x.currency===currency);
         const wallet=seller.foreignFinanceV042?.wallets?.[currency];
-        const customs=sent.internationalV041;
+        const customs=savedShipment.internationalV041;
         const exportRevenue=seller.journals.filter(x=>x.text.startsWith('輸出品到着・顧客引渡し：'+NAMES[code]));
         const shipmentLeft=seller.distribution.outbound.filter(x=>x.country===code);
         const after=consolidate(saved);
