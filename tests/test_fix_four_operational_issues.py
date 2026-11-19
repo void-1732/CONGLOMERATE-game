@@ -178,6 +178,16 @@ with sync_playwright() as pw:
     assert founded["id"] and founded["mode"]=="subsidiary",founded
     assert founded["dealerId"]==founded["id"] and founded["industry"]=="sales",founded
     assert founded["share"]==1 and not founded["check"] and not founded["group"],founded
+    # Backward compatibility: old saves with an already-established agent lacked
+    # the dealerId link. The migration must make those agents operational too.
+    page.evaluate("delete current().distribution.contracts.US.dealerId")
+    old_save=page.evaluate("savePayload(S)")
+    assert page.evaluate("raw=>restore(raw)",old_save)
+    linked=page.evaluate("""()=>{
+        const f=current();
+        return {agency:f.distribution.salesCorporations.US, dealer:f.distribution.contracts.US.dealerId};
+    }""")
+    assert linked["agency"]==linked["dealer"],linked
     supply(page)
     receipts=[]
     for _ in range(8):
