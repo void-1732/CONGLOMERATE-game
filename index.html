@@ -2883,8 +2883,21 @@ function deliverMaterials(s,f,events){const month=ym(s.year,s.month),arrivals=f.
  const total=localFromBase(chargedBase,f.country);
  if(total){
   post(f,{materials:total},{payable:total},'調達品受領：'+SUPPLY_LABELS[shipment.type]+' '+shipment.qty,'operating',s);
-  const denomination=customs?foreignDenominationV042(s,f,shipment.origin,total):{};
-  f.payables.push({amount:total,due:month+1,note:'国際調達／部品仕入',account:'payable',...denomination});
+  // For emerging-market imports, customs duty and rerouting are payable in
+  // the importer's local currency; only the physical supplier invoice is FX.
+  // Keep the full landed cost in materials, with no extra phantom cash entry.
+  if(customs&&isEmergingMarketV047(shipment.origin)){
+   const supplierBill=localFromBase(shipment.totalBase-credit,f.country);
+   const localCharges=total-supplierBill;
+   if(supplierBill)f.payables.push({amount:supplierBill,due:month+1,
+     note:'国際調達／海外仕入',account:'payable',
+     ...foreignDenominationV042(s,f,shipment.origin,supplierBill)});
+   if(localCharges)f.payables.push({amount:localCharges,due:month+1,
+     note:'国際調達／輸入関税・迂回輸送費',account:'payable'});
+  }else{
+   const denomination=customs?foreignDenominationV042(s,f,shipment.origin,total):{};
+   f.payables.push({amount:total,due:month+1,note:'国際調達／部品仕入',account:'payable',...denomination});
+  }
  }
  const stock=f.stock[shipment.type]??={q:0,v:0};stock.q+=shipment.qty;stock.v+=total;
  f.supply.history.push({month,type:shipment.type,origin:shipment.origin,qty:shipment.qty,totalBase:chargedBase,creditBase:credit,
