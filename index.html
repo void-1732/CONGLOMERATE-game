@@ -5187,7 +5187,7 @@ function readSafetySnapshotV037(){
 let OPERATION_SAVE_TIMER_V037=null;
 function requestOperationSaveV037(){
  if(!S||MONTH_RUNNING)return;
- try{if(check(S).length)return;writeSafetySnapshotV037()}catch(e){console.warn('操作直後の保存準備失敗',e);return}
+ try{if(check(S).length)return;try{localStorage.setItem(RECOVERY_SELECTION_KEY_V038,saveIdentityV038(S))}catch(_){}writeSafetySnapshotV037()}catch(e){console.warn('操作直後の保存準備失敗',e);return}
  if(OPERATION_SAVE_TIMER_V037!==null)clearTimeout(OPERATION_SAVE_TIMER_V037);
  OPERATION_SAVE_TIMER_V037=setTimeout(async()=>{
   OPERATION_SAVE_TIMER_V037=null;
@@ -5225,7 +5225,7 @@ async function saveAuto(){if(!IDB){const ok=!!S&&writeSafetySnapshotV037();if(S)
   if(saveIdentityV038(S)!==saveIdentityV038(snapshot))throw Error('保存中に別のゲームへ切り替わったため保存を確定しませんでした');
   await idbWrite('meta',{key:'active',slot,checksum:hash(raw),previousSlot:meta?.slot??null,previousChecksum:meta?.checksum??null,updatedAt:new Date().toISOString()});
   S.autosaveState='保存成功';saveWarning='';await refreshSaveIndex();
-  if(S)writeSafetySnapshotV037(savePayload(S));
+  if(S){try{localStorage.setItem(RECOVERY_SELECTION_KEY_V038,saveIdentityV038(S))}catch(_){}writeSafetySnapshotV037(savePayload(S));}
   return true;
  }catch(e){S.autosaveState='保存失敗';saveWarning=String(e?.message||e);try{await refreshSaveIndex()}catch(_){}if(S&&writeSafetySnapshotV037()){S.autosaveState='保存成功';saveWarning='IndexedDBへの保存失敗。再読込用の簡易バックアップに保存しました。JSONバックアップも出力してください。';return true}return false}finally{SAVE_BUSY=false}}
 async function saveManual(num){if(!IDB){toast('IndexedDBを使えません。JSONでバックアップしてください。');return}if(SAVE_BUSY){toast('保存中です。重複書込みを回避しました。');return}SAVE_BUSY=true;
