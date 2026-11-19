@@ -6846,9 +6846,11 @@ function saveRoutesV21(){
    const to=inputValue('v21Dest_'+p.id);if(to&&!f.plants.some(x=>x.id===to&&['integrated','assembly'].includes(x.kind)))throw Error('納入先が不正');
    if(z.mode==='detailed')z.plans[p.id]=plan;
    else f.interplant.partPlans[p.id]=plan;
+   // Release an obsolete fixed-zero staffing override for a newly positive production plan.
+   if(plan>0&&z.staffAssignments[p.id]===0&&f.staff?.production>0)delete z.staffAssignments[p.id];
    z.routes[p.id]={enabled:!!document.getElementById('v21Auto_'+p.id)?.checked,to,target,limit};
   }
-  render();toast('現在の製造方式に対応する部品計画と配送ルートを保存しました。');
+  render();toast('製造計画と配送設定を保存しました。生産予定がある工場の古い固定0人設定は自動配属に戻しました。');
  }catch(e){toast(e.message);}
 }
 function factoryV21Panel(f,edit){ensureFactoryV21(f);const z=f.factoryOps,supports=(f.plants||[]).filter(p=>v21ModuleType(p)),assembly=(f.plants||[]).filter(p=>['integrated','assembly'].includes(p.kind));
@@ -7012,6 +7014,7 @@ function saveFactoryRouteOne(id){
   const quantity=get('factoryOnePlan');
   if(f.factoryOps.mode==='detailed')f.factoryOps.plans[id]=quantity;
   else f.interplant.partPlans[id]=quantity;
+  if(quantity>0&&f.factoryOps.staffAssignments[id]===0&&f.staff?.production>0)delete f.factoryOps.staffAssignments[id];
   f.factoryOps.planExplicit??={};f.factoryOps.planExplicit[id]=true;
   f.factoryOps.routes[id]={to,target:get('factoryOneTarget'),limit:get('factoryOneLimit'),enabled:!!document.getElementById('factoryOneAuto')?.checked};
   for(const [key,value] of [['v21Plan_',quantity],['v21Dest_',to],['v21Target_',f.factoryOps.routes[id].target],['v21Limit_',f.factoryOps.routes[id].limit]]){
