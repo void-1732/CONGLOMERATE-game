@@ -5216,7 +5216,7 @@ async function importLegacyOnce(){// Migration only if the new database has no e
  for(let i=0;i<3;i++){const raw=storageGet(MANKEY+i);if(!raw)continue;try{await idbWrite('snapshots',slotRecord('manual:'+i,raw));copied++}catch(e){console.warn('旧手動保存の移行をスキップ',i,e)}}
  if(copied){const p=storageGet(POINTER);let active=p==='0'||p==='1'?Number(p):0;if(!await idbRead('snapshots','auto:'+active))active=1-active;if(await idbRead('snapshots','auto:'+active)){const old=1-active,oldRecord=await idbRead('snapshots','auto:'+old),activeRecord=await idbRead('snapshots','auto:'+active);await idbWrite('meta',{key:'active',slot:active,checksum:hash(activeRecord.serialized),previousSlot:oldRecord?old:null,previousChecksum:oldRecord?hash(oldRecord.serialized):null});}SAVE_INDEX.legacyImported=true;saveWarning='v0.1の保存データをIndexedDBへコピーしました。旧データは削除していません。';}
 }
-async function saveAuto(){if(!IDB){const ok=!!S&&writeSafetySnapshotV037();if(S)S.autosaveState=ok?'保存成功':'保存失敗';saveWarning=ok?'IndexedDBが利用できないため、同一ブラウザの簡易バックアップを利用しています。JSON保存も推奨します。':'IndexedDBと簡易バックアップを利用できません。JSONで保存してください。';return ok}if(SAVE_BUSY){saveWarning='保存処理が重複しています';return false}SAVE_BUSY=true;
+async function saveAuto(){if(!IDB){const ok=!!S&&writeSafetySnapshotV037();if(ok)try{localStorage.setItem(RECOVERY_SELECTION_KEY_V038,saveIdentityV038(S))}catch(_){}if(S)S.autosaveState=ok?'保存成功':'保存失敗';saveWarning=ok?'IndexedDBが利用できないため、同一ブラウザの簡易バックアップを利用しています。JSON保存も推奨します。':'IndexedDBと簡易バックアップを利用できません。JSONで保存してください。';return ok}if(SAVE_BUSY){saveWarning='保存処理が重複しています';return false}SAVE_BUSY=true;
  try{const meta=await idbRead('meta','active');const slot=[0,1,2].find(i=>i!==meta?.slot&&i!==meta?.previousSlot);if(slot===undefined)throw Error('保存用の予備世代がありません');
   const snapshot=structuredClone(S);snapshot.autosaveState='保存成功';const raw=savePayload(snapshot);const rec=slotRecord('auto:'+slot,raw);
   // Phase 1: prepare the inactive generation, commit, then read it back and check its whole state.
@@ -5227,7 +5227,7 @@ async function saveAuto(){if(!IDB){const ok=!!S&&writeSafetySnapshotV037();if(S)
   S.autosaveState='保存成功';saveWarning='';await refreshSaveIndex();
   if(S){try{localStorage.setItem(RECOVERY_SELECTION_KEY_V038,saveIdentityV038(S))}catch(_){}writeSafetySnapshotV037(savePayload(S));}
   return true;
- }catch(e){S.autosaveState='保存失敗';saveWarning=String(e?.message||e);try{await refreshSaveIndex()}catch(_){}if(S&&writeSafetySnapshotV037()){S.autosaveState='保存成功';saveWarning='IndexedDBへの保存失敗。再読込用の簡易バックアップに保存しました。JSONバックアップも出力してください。';return true}return false}finally{SAVE_BUSY=false}}
+ }catch(e){S.autosaveState='保存失敗';saveWarning=String(e?.message||e);try{await refreshSaveIndex()}catch(_){}if(S&&writeSafetySnapshotV037()){try{localStorage.setItem(RECOVERY_SELECTION_KEY_V038,saveIdentityV038(S))}catch(_){}S.autosaveState='保存成功';saveWarning='IndexedDBへの保存失敗。再読込用の簡易バックアップに保存しました。JSONバックアップも出力してください。';return true}return false}finally{SAVE_BUSY=false}}
 async function saveManual(num){if(!IDB){toast('IndexedDBを使えません。JSONでバックアップしてください。');return}if(SAVE_BUSY){toast('保存中です。重複書込みを回避しました。');return}SAVE_BUSY=true;
  try{const raw=savePayload(S),rec=slotRecord('manual:'+num,raw);await idbWrite('snapshots',rec);const verified=await idbRead('snapshots','manual:'+num);if(!verified||verified.serialized!==raw)throw Error('手動保存の検証に失敗');parsePayload(verified.serialized);await refreshSaveIndex();toast('手動保存 '+(num+1)+' をIndexedDBに記録しました');render()}
  catch(e){toast('手動保存失敗：'+e.message)}finally{SAVE_BUSY=false}}
