@@ -4,12 +4,14 @@ on:
     branches:
       - fix/main-bom-factory-staffing-20261119
       - fix/main-support-factory-zero-plan-20261119
+      - fix/main-support-auto-recovery-20261119
   pull_request:
     branches:
       - main
     paths:
       - index.html
       - tests/test_main_bom_factory_staffing.py
+      - tests/test_main_support_factory_auto_restore.py
       - .github/workflows/main-bom-factory-hotfix.yml
 
 concurrency:
@@ -33,6 +35,8 @@ jobs:
           python -m playwright install --with-deps chromium
       - name: Reproduce and verify the BOM-only factory zero-worker bug
         run: python tests/test_main_bom_factory_staffing.py
+      - name: Reproduce and recover old 172-worker / 120-capacity / zero-plan support factory
+        run: python tests/test_main_support_factory_auto_restore.py
       - name: Confirm existing factory staffing and 24-month supply/accounting
         run: python tests/test_v026_factory_supply.py
       - name: Confirm existing BOM manufacture, shipments and save data
