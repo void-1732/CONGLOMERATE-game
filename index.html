@@ -367,7 +367,7 @@ function startupTopV038(){try{history.scrollRestoration='manual';window.scrollTo
 function saveIdentityV038(s){
  if(s?.gameIdV038)return String(s.gameIdV038);
  const f=(s?.firms||[]).find(x=>x.id===s?.playerId);
- return 'legacy:'+hash(JSON.stringify([s?.startYear,s?.playerId,f?.name,f?.country,s?.config?.difficulty,s?.config?.history]));
+ return 'legacy:'+hash(JSON.stringify([s?.startYear,s?.playerId,s?.config?.name??f?.name,s?.config?.country??f?.country,s?.config?.difficulty,s?.config?.history]));
 }
 function saveCandidateV038(raw,source,rank=0){
  const s=parsePayload(raw),obj=JSON.parse(raw);
