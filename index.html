@@ -377,8 +377,8 @@ function recoveryChoiceV038(index){
  const c=RECOVERY_CHOICES_V038[index];if(!c)return;
  S=c.s;VIEW_FIRM=S.playerId;VIEW_COUNTRY=company(S.playerId,S).country;
  PAGE='dashboard';RECOVERY_CHOICES_V038=[];RECOVERY_BLOCKED_V038=false;
- writeSafetySnapshotV037(savePayload(S));render();startupTopV038();
- toast('指定したゲームを復元しました。状態を確認してください。');
+ render();startupTopV038();
+ toast('指定したゲームを復元しました。状態を確認してください。元の保存世代は変更していません。');
 }
 function recoveryWarningMarkupV038(){
  const choices=RECOVERY_CHOICES_V038.map((x,i)=>{
