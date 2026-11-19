@@ -71,12 +71,13 @@ def import_materials(page, code, currency):
         const firstValue=acc(f,'materials'),historyStart=f.supply.history.length;
         deliverMaterials(backup,f,[]);
         const invoice=f.payables.find(p=>p.currency===currency);
+        const customsPayable=f.payables.find(p=>p.note==='国際調達／輸入関税・迂回輸送費');
         const stock=f.stock[type];
         const debit=acc(f,'materials')-firstValue;
         const importReceipt=f.supply.history.slice(historyStart).find(r=>
             r.origin===code&&r.routeId===route&&r.qty===reserved.qty);
         const importJournal=f.journals.find(j=>j.text.startsWith('調達品受領：鋼材')&&
-            j.amount===invoice?.amount);
+            j.amount===debit);
         const customs=inTransit.internationalV041;
         const beforeSettle=invoice?structuredClone(invoice):null;
         // Cover the actual foreign invoice in its specified currency.
@@ -92,7 +93,8 @@ def import_materials(page, code, currency):
         return {code,currency,route,shipment:reserved,
             before,physical,sent,qty:reserved.qty,
             importBook:debit,stock,openingInventory:opening.v,
-            invoice:beforeSettle,customs,importReceipt,importJournal:importJournal?.amount,
+            invoice:beforeSettle,customsPayable:customsPayable?structuredClone(customsPayable):null,
+            customs,importReceipt,importJournal:importJournal?.amount,
             purchased,payments:settled.length,remaining:openInvoice?.amount??0,
             errors:check(backup),financialErrors:financial.errors,
             keys:Object.keys(backup.world),wallet:f.foreignFinanceV042?.wallets?.[currency]};
@@ -106,8 +108,11 @@ def import_materials(page, code, currency):
     assert outcome["customs"]["dutyBase"] > 0, outcome
     assert outcome["importReceipt"]["qty"] == outcome["qty"], outcome
     assert outcome["importReceipt"]["routeId"] == outcome["route"], outcome
-    assert outcome["importBook"] >= outcome["importJournal"] == outcome["invoice"]["amount"], outcome
-    assert outcome["stock"]["q"] >= outcome["qty"] and outcome["stock"]["v"] >= outcome["invoice"]["amount"], outcome
+    assert outcome["importBook"] == outcome["importJournal"], outcome
+    assert outcome["customsPayable"]["amount"] > 0, outcome
+    assert outcome["invoice"]["amount"] + outcome["customsPayable"]["amount"] == outcome["importBook"], outcome
+    assert outcome["customsPayable"].get("currency") is None, outcome
+    assert outcome["stock"]["q"] >= outcome["qty"] and outcome["stock"]["v"] >= outcome["importBook"], outcome
     assert outcome["invoice"]["currency"] == currency and outcome["invoice"]["foreignMinor"] > 0, outcome
     assert outcome["purchased"] > 0 and outcome["payments"] > 0, outcome
     assert outcome["remaining"] == 0, outcome
