@@ -85,6 +85,7 @@ with sync_playwright() as pw:
     }""")
     assert actual_previous==expected_previous,(expected_previous,actual_previous)
     assert page.evaluate('check(S)')==[]
+    earlier_manual=page.evaluate('savePayload(S)')
     # Twelve real month commits with accounting reconciliation, then hard reload.
     for i in range(12):
         prev=page.evaluate('S.monthCommitted')
@@ -112,6 +113,15 @@ with sync_playwright() as pw:
       inventory:structuredClone(current().stock)
     })""")
     assert pre_reload==post_reload,(pre_reload,post_reload)
+    # An intentional manual restore to an older period must not be undone by
+    # a newer IDB generation during an immediate page refresh.
+    assert page.evaluate('raw=>restore(raw)',earlier_manual)
+    expected_rollback=page.evaluate("()=>({year:S.year,month:S.month,id:S.playerId})")
+    assert (expected_rollback['year'],expected_rollback['month'])!=(pre_reload['year'],pre_reload['month'])
+    page.reload();page.wait_for_function('STORAGE_READY')
+    actual_rollback=page.evaluate("()=>({year:S.year,month:S.month,id:S.playerId})")
+    assert actual_rollback==expected_rollback,(expected_rollback,actual_rollback)
+    assert page.evaluate('check(S)')==[]
     assert not errors,errors
     browser.close()
 server.shutdown()
