@@ -96,6 +96,8 @@ with sync_playwright() as pw:
       }
       ensureFactoryV21(f);ensureV11Firm(f);
       if(f.factoryOps.mode!=='detailed')throw Error('explicit built specialist mode not detailed');
+      // Simulate a player who has kept AI shipping decisions proposal-only.
+      ensureAiCenter(f).modes.shipping='proposal';
       f.factoryOps.staffAssignments[f.plants.find(x=>x.name==='米大成工場').id]=58;
       for(const site of f.plants.filter(x=>v21ModuleType(x)))
         f.factoryOps.plans[site.id]=14;
