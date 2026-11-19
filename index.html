@@ -4011,7 +4011,8 @@ function activateEmergingMarketsV047(s){
  // Unclosed initial months can have unreconciled cash flow in both states.
  // Activation must never worsen it or alter any existing financial statement.
  if(errors.length||accounts.errors.length||accounts.cf.reconciled!==baseline.cf.reconciled||
-    accounts.bs.diff!==baseline.bs.diff)
+    accounts.bs.assets!==baseline.bs.assets||accounts.bs.cash!==baseline.bs.cash||
+    accounts.bs.liabEquityDiff!==baseline.bs.liabEquityDiff)
   throw Error('新市場の導入検算に失敗しました：'+[...errors,...accounts.errors].slice(0,3).join('／'));
  return trial;
 }
