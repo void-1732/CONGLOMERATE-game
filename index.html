@@ -377,6 +377,32 @@ const EMERGING_MARKET_PROFILES_V047=Object.freeze({
  BR:{opening:{export:1920,dealer:1955,subsidiary:1965,joint:1965,factory:1970,acquisition:1975,rival:1950}}
 });
 const isEmergingMarketV047=code=>EMERGING_MARKETS_V047.includes(code);
+/* STEP 9 / 05-A: market visibility, trade and investment rights are separate.
+   Opening dates are invented simulation rules, not historical restrictions. */
+function marketPhaseV047(s,code){
+ const visible=!!s?.world?.[code],profile=EMERGING_MARKET_PROFILES_V047[code];
+ if(!profile)return {visible,trade:visible,dealer:visible,subsidiary:visible,
+  joint:visible,factory:visible,acquisition:visible,rival:visible,earliestYear:null};
+ const enabled=visible&&s.marketExpansionV047?.enabled===true,opening=profile.opening;
+ return {visible:enabled,trade:enabled&&s.year>=opening.export,
+  dealer:enabled&&s.year>=opening.dealer,subsidiary:enabled&&s.year>=opening.subsidiary,
+  joint:enabled&&s.year>=opening.joint,factory:enabled&&s.year>=opening.factory,
+  acquisition:enabled&&s.year>=opening.acquisition,rival:enabled&&s.year>=opening.rival,
+  earliestYear:opening};
+}
+function marketEntryPermissionV047(s,f,code,mode){
+ if(!f||!s?.world?.[code])return false;
+ if(isEmergingMarketV047(code)){
+  const phase=marketPhaseV047(s,code);
+  if(mode==='rival')return phase.rival;
+  const allowed=mode==='direct'?phase.trade:phase[mode];
+  if(!allowed)return false;
+  return f.country===code?mode!=='direct':
+   internationalTradeAllowedV041(s,f.country,code,'vehicle');
+ }
+ if(mode==='rival')return true;
+ return code===f.country||internationalTradeAllowedV041(s,f.country,code,'vehicle');
+}
 const POPULATION_ANCHORS={
  JP:{1900:43.8,1920:56.0,1950:83.6,1980:117.1,2020:126.6},
  US:{1900:76.3,1920:106.5,1950:157.8,1980:229.5,2020:339.1},
@@ -2453,18 +2479,12 @@ function internationalRoutesV041(s,origin,destination){
    still require step 05 entry permission and remain disabled. */
 function emergingTradeOpenV048(s,origin,destination,cargo){
  if(!['vehicle','parts','bulk'].includes(cargo)||!s.world?.[origin]||!s.world?.[destination]||origin===destination)return false;
- for(const code of [origin,destination]){
-  if(isEmergingMarketV047(code)){
-   if(!s.marketExpansionV047?.enabled||
-      s.year<EMERGING_MARKET_PROFILES_V047[code].opening.export)return false;
-  }
- }
+ for(const code of [origin,destination])
+  if(isEmergingMarketV047(code)&&!marketPhaseV047(s,code).trade)return false;
  return true;
 }
 function directExportPilotV048(s,f,market){
- return isEmergingMarketV047(market)&&s.world?.[market]&&f.country!==market&&
-   emergingTradeOpenV048(s,f.country,market,'vehicle')&&
-   internationalTradeAllowedV041(s,f.country,market,'vehicle');
+ return isEmergingMarketV047(market)&&marketEntryPermissionV047(s,f,market,'direct');
 }
 function internationalTradeAllowedV041(s,origin,destination,cargo){
  if((isEmergingMarketV047(origin)||isEmergingMarketV047(destination))&&
@@ -2504,7 +2524,7 @@ function changeForeignMarketV043(s,f,market,action,mode,agentId){
  }
  if(action!=='enter'||!['direct','dealer','subsidiary','factory'].includes(mode))throw Error('利用する進出方式を選択してください');
  if(isEmergingMarketV047(market)){
-  if(mode!=='direct'||!directExportPilotV048(s,f,market))
+  if(mode!=='direct'||!marketEntryPermissionV047(s,f,market,mode))
    throw Error('この市場では、指定年代以降の直接輸出のみ認められています');
  }else if(!marketInvestmentAllowedV043(s,f,market))
   throw Error('対象市場は現在、新規の進出を制限しています');
@@ -4302,8 +4322,19 @@ function adjustedRegionalDemandV044(s,code){
  const w=s.world[code];
  return Math.max(0,Math.round(w.demand*(1+w.cycle)*(w.war?.6:1)*economicExposureV044(s,code).demand));
 }
+/* STEP 9 / 05-A: emerging vehicle-demand cap derives from actual population,
+   purchasing power and synthetic motorization/transport infrastructure.
+   The original five markets never receive this extra cap. */
+function emergingVehicleDemandCapV049(s,code){
+ if(!isEmergingMarketV047(code)||!s.world?.[code])return null;
+ const w=s.world[code],development=worldDevelopmentV046(s,code);
+ const purchasing=clamp(Math.pow(w.wealth,0.35),0.35,1.45);
+ return Math.max(0,Math.floor(w.pop*1.8*(0.15+0.85*development.motorization)*
+  purchasing*(0.25+0.75*development.infrastructure)));
+}
 function marketDemandSnapshotV031(s,code){
- const demand=adjustedRegionalDemandV044(s,code);
+ const potential=adjustedRegionalDemandV044(s,code),cap=emergingVehicleDemandCapV049(s,code);
+ const demand=cap===null?potential:Math.min(potential,cap);
  return {month:ym(s.year,s.month),demand,segments:segmentedDemandUnits(s,code,demand)};
 }
 function marketVehicleContendersV031(s,code){

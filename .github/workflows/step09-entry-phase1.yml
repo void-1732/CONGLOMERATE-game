@@ -1,0 +1,34 @@
+name: STEP 9 Entry Policy and Vehicle Demand
+on:
+  push:
+    branches:
+      - dev/step09-entry-phase1-20261119
+  pull_request:
+    branches:
+      - dev/autonomous-step-09-global-supply-ai
+    paths:
+      - index.html
+      - tests/test_step09_entry_demand.py
+      - .github/workflows/step09-entry-phase1.yml
+
+jobs:
+  market-entry-phase1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Playwright Chromium
+        run: |
+          pip install --disable-pip-version-check playwright
+          python -m playwright install --with-deps chromium
+      - name: Test STEP 9 phase permissions and emerging demand caps
+        run: python tests/test_step09_entry_demand.py
+      - name: Recheck existing markets and save migration
+        run: python tests/test_step09_market_expansion.py
+      - name: Recheck physical trade, customs and currencies
+        run: python tests/test_step09_trade_settlement.py
