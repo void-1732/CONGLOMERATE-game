@@ -98,6 +98,7 @@ def delayed_customs_and_currency(page):
         while(ym(s.year,s.month)<originalDue)nextMonthDate(s);
         const events=[];
         const pre=f.stock[type].q;
+        const bookBefore=acc(f,'materials');
         deliverMaterials(s,f,events);
         const moved=f.supply.inbound.find(x=>x.id===initial.id);
         if(!moved)return {reason:'shipment unexpectedly delivered despite disrupted route'};
@@ -106,7 +107,7 @@ def delayed_customs_and_currency(page):
         const rerouteCost=moved.internationalV041.rerouteBase;
         while(ym(s.year,s.month)<moved.due)nextMonthDate(s);
         deliverMaterials(s,f,events);
-        const landed=acc(f,'materials');
+        const landed=acc(f,'materials')-bookBefore;
         const foreign=f.payables.find(x=>x.currency==='BRL');
         const local=f.payables.find(x=>x.note==='国際調達／輸入関税・迂回輸送費');
         const journal=f.journals.filter(x=>x.text.startsWith('調達品受領：鋼材')).at(-1);
