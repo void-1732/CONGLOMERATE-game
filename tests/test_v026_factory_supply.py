@@ -32,7 +32,7 @@ with sync_playwright() as pw:
     assert page.evaluate('factoryLaborPlanV026(current()).byId["SMK-engine"].assigned')==5
     assert page.evaluate('factoryResourceTargetV026(current(),"steel").demand')>0
     page.locator('[data-page="supply"]').first.click()
-    assert page.locator('.resource-v026-table tbody tr').count()==7
+    assert page.locator('.resource-v026-dashboard .resource-v026-table tbody tr').count()==7
     page.locator('#spotResourceV026').select_option('steel')
     page.locator('#spotQtyV026').fill('2')
     cash_before=page.evaluate('acc(current(),"cash")')
