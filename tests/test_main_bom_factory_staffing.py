@@ -67,6 +67,16 @@ with sync_playwright() as playwright:
         assert page.evaluate("S.monthCommitted") == previous + 1
         assert not page.evaluate("check(S)"), page.evaluate("check(S)")
 
+    idle = page.evaluate("""id=>{
+        const f=current(),p=f.plants.find(x=>x.id===id);
+        return {labor:factoryLaborPlanV026(f).byId[id],
+            reasons:factoryInsightV023(f,p).reasons.map(x=>x.state),
+            html:factoryDetailMarkup(f,p,true)};
+    }""", fixture["id"])
+    assert idle["labor"]["required"] == 0 and idle["labor"]["assigned"] == 0, idle
+    assert "部品生産計画が0" in idle["reasons"], idle
+    assert "この工場のBOMラインには月間生産計画がありません" in idle["html"], idle
+
     plan = page.evaluate("""id=>{
         const f=current(),p=f.plants.find(x=>x.id===id);
         if(p.componentLines.length!==1)throw Error('BOM line commissioning not complete');
@@ -94,6 +104,29 @@ with sync_playwright() as playwright:
     assert "部品生産計画が0" not in plan["alert"], plan
     assert any(q > 0 for q in plan["source"].values()), plan
 
+    # Existing saves with a fixed-zero assignment block auto staffing even with
+    # adequate corporate headcount. The diagnostic must allow restoring it.
+    blocked = page.evaluate("""id=>{
+        const f=current(),p=f.plants.find(x=>x.id===id);
+        f.factoryOps.staffAssignments[id]=0;
+        const workers=factoryLaborPlanV026(f).byId[id];
+        return {assigned:workers.assigned,
+            reasons:factoryInsightV023(f,p).reasons.map(x=>x.state),
+            html:factoryDetailMarkup(f,p,true)};
+    }""", fixture["id"])
+    assert blocked["assigned"] == 0 and "固定配置0人で生産停止" in blocked["reasons"], blocked
+    assert "固定0人" in blocked["html"], blocked
+    page.evaluate("""id=>{
+        PAGE='factory';FACTORY_UI.selected=id;FACTORY_DETAIL_VIEW_V026='diagnostic';render();
+    }""", fixture["id"])
+    page.locator('[data-factory-auto-restore="MAIN-BOM-120"]').click()
+    restored = page.evaluate("""id=>{
+        const f=current();
+        return {assigned:factoryLaborPlanV026(f).byId[id].assigned,
+            fixed:Object.hasOwn(f.factoryOps.staffAssignments,id)};
+    }""", fixture["id"])
+    assert not restored["fixed"] and restored["assigned"] >= 5, restored
+
     # Supply existing paid materials without generating fictional free inventory.
     page.evaluate("""()=>{
         const f=current();
@@ -108,14 +141,18 @@ with sync_playwright() as playwright:
     previous = page.evaluate("S.monthCommitted")
     page.evaluate("async()=>await runMonth()")
     produced = page.evaluate("""id=>{
-        const f=current(),plan=f.partOperations.productionPlans.find(x=>x.plantId===id);
+        const f=current(),p=f.plants.find(x=>x.id===id);
+        const plan=f.partOperations.productionPlans.find(x=>x.plantId===id);
         return {month:S.monthCommitted,last:plan.last,
+            actual:p.lastProduced,utilization:p.lastUtilization,staff:p.lastAssignedStaff,
             lots:f.partOperations.inventoryLots.filter(l=>l.plantId===id)
                .reduce((n,l)=>n+l.quantity,0),
             errors:check(S),group:consolidate(S).errors,cf:consolidate(S).cf.reconciled};
     }""", fixture["id"])
     assert produced["month"] == previous + 1, produced
     assert produced["last"]["good"] > 0 and produced["lots"] > 0, produced
+    assert produced["actual"] >= produced["last"]["attempted"] > 0, produced
+    assert 0 < produced["utilization"] and produced["staff"] >= 5, produced
     assert not produced["errors"] and not produced["group"] and produced["cf"], produced
 
     # Simultaneous BOM lines must share real labor, not unassigned site capacity.
@@ -155,6 +192,13 @@ with sync_playwright() as playwright:
     }""", fixture["id"])
     assert ui["status"]["required"] == 0, ui["status"]
     assert "生産計画なし" in ui["html"], "Idle factory is incorrectly labelled fully staffed"
+    assert "この工場のBOMラインには月間生産計画がありません" in ui["html"], ui
+    page.evaluate("""id=>{
+        PAGE='factory';FACTORY_UI.selected=id;FACTORY_DETAIL_VIEW_V026='diagnostic';render();
+    }""", fixture["id"])
+    page.locator('[data-factory-bom-plan="MAIN-BOM-120"]').click()
+    assert page.evaluate("FACTORY_DETAIL_VIEW_V026") == "production"
+    assert page.locator("#bomShopPanel").get_attribute("open") is not None
 
     raw = page.evaluate("savePayload(S)")
     assert page.evaluate("data=>restore(data)", raw)
@@ -162,4 +206,4 @@ with sync_playwright() as playwright:
     assert not errors, errors
     browser.close()
 
-print("PASS: main BOM factory workers, line capacity, production lots, material procurement, UI and saves")
+print("PASS: main BOM-only setup guidance, fixed-zero rescue, real utilization, manufacture, accounts and saves")
