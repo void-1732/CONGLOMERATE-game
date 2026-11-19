@@ -9,7 +9,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 HTML=(Path(__file__).resolve().parents[1]/"index.html").read_text(encoding="utf-8")
-BUILD="v0.34-dev.2"
+BUILD="v0.34-dev.3"
 
 def verify(p, label, require_cf=False):
     report=p.evaluate("""()=>{const f=current(), c=consolidate(S);return {
