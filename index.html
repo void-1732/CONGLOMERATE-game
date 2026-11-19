@@ -6609,6 +6609,28 @@ function activateSupportV026(){try{
  render();toast('稼働工場の詳細製造・部品生産計画・自動配送を設定しました。原材料と人員を確認して月末処理を実行してください');
  }catch(e){toast(e.message)}}
 
+/* Explicit recovery for older saves with an idle specialist factory.
+   Never create workers, materials, or extra features; keep the current mode. */
+function startSupportProductionV026(id){try{
+ const f=current();if(!canEdit(f))throw Error('設定権限がありません');
+ ensureFactoryV21(f);
+ const p=f.plants.find(x=>x.id===id);
+ if(!p||!v21ModuleType(p))throw Error('部品工場を選択してください');
+ if(factoryStatus(p)!=='active')throw Error('工事・休止・改修中の工場は稼働開始できません');
+ const amount=Math.max(1,Math.floor(p.capacity*p.condition/100*.35));
+ if(f.factoryOps.mode==='detailed'){
+  if(!(f.factoryOps.plans[p.id]>0))f.factoryOps.plans[p.id]=amount;
+ }else{
+  if(!(f.interplant.partPlans[p.id]>0))f.interplant.partPlans[p.id]=amount;
+ }
+ // A historical fixed zero assignment prevents any automatic staffing even
+ // after a plan is set. This button explicitly opts back into auto staffing.
+ delete f.factoryOps.staffAssignments[p.id];
+ const people=staffOfPlantV023(f,p);
+ renderFactorySelected();
+ toast(people.assigned>0?p.name+'の生産計画と自動人員配置を設定しました。原材料を確認して月末処理を実行してください':
+  p.name+'の生産計画を設定しました。製造従業員が不足しています。人事から採用してください');
+ }catch(e){toast(e.message);console.error(e)}}
 function produceModulesV21(s,events){for(const f of s.firms){ensureFactoryV21(f);if(f.factoryOps.mode!=='detailed'||f.lifecycle?.phase==='withdrawn'||f.reorgStatus==='integrated')continue;
  for(const p of supportPartFactories(f)){const typ=v21ModuleType(p),spec=V21_MODULE_INFO[typ];if(!typ)continue;
   const planned=Math.max(0,Math.floor(f.factoryOps.plans[p.id]||0));const staff=factoryLaborPlanV026(f).byId[p.id]?.assigned||0;let q=Math.min(planned,Math.max(0,Math.floor(p.capacity*p.condition/100*.35*(1+.07*(p.equipmentTier-1)))-bomPlantLoad(f,p)),Math.max(0,Math.floor(staff*2)-bomPlantLoad(f,p)),Math.floor(f.stock.steel.q/spec.steel),Math.floor(f.stock.rubber.q/spec.rubber));p.lastAssignedStaff=staff;if(q<=0){p.lastProduced=0;p.lastUtilization=0;continue;}
@@ -6734,7 +6756,7 @@ function factoryInsightV023(f,p){
  if(type){
   const qty=z.plans?.[p.id]||0,spec=V21_MODULE_INFO[type];
   const bomQty=(f.partOperations?.productionPlans??[]).filter(plan=>plan.plantId===p.id).reduce((n,plan)=>n+Math.max(0,plan.quantity||0),0);
-   if(detail&&qty===0&&!bomQty)warn('部品生産計画が0','従来部品・BOM部品の生産計画がありません','BOMまたは月間製造量を設定',true);
+   if(qty===0&&!bomQty)warn('部品生産計画が0','従来部品・BOM部品の生産計画がありません','BOMまたは月間製造量を設定',true);
   if(((detail&&qty>0)||bomQty>0)&&staff.assigned<staff.recommended)warn('部品工場の製造人員が不足','配属 '+staff.assigned+'人／推奨 '+staff.recommended+'人','この工場の人員配属を確認',staff.assigned===0);
    if(bomQty>0){const blocked=lineOutputPlan(S,f,p).filter(line=>line.planned>0&&line.possible===0);
     if(blocked.length)warn('BOM部品ラインが生産できません',blocked.map(x=>x.issue||'製造人員の余力不足').slice(0,3).join('・'),'部品ラインの設備・生産計画・人員配分を確認',true);
@@ -6770,6 +6792,7 @@ function factoryDetailMarkup(f,p,edit){if(!p)return `<div class="hint">工場が
  return `<div class="factory-detail-head"><div><h3>${esc(p.name)}</h3><div class="hint">${esc(FACTORY_KINDS[p.kind]?.name||p.kind)} ・ ${esc(NAMES[site.country]||site.country)} / ${esc(site.name)} ・ ${esc(p.id)}</div></div>${tag(factoryStatusLabel(p),working==='active'?'good':'warn')}</div>
  <div class="factory-details-grid"><div><small>名目設備能力</small><strong>${nfmt(p.capacity)}単位/月</strong></div><div><small>設備状態</small><strong>${nfmt(p.condition)}%</strong></div><div><small>前月の実績</small><strong>${nfmt(p.lastProduced||0)}${type?'個':'台'}</strong></div><div><small>前月稼働率</small><strong>${nfmt((p.lastUtilization||0)*100)}%</strong></div><div><small>設備世代</small><strong>第${p.equipmentTier||1}世代</strong></div><div><small>工場種別</small><strong>${type?'部品供給':'完成車組立'}</strong></div></div>
  ${factoryOpsInsightPanelV023(f,p)}
+ ${type&&edit&&working==='active'?`<div class="factory-action-row"><button class="btn primary" data-action="startSupportProductionV026" data-plant-id="${esc(p.id)}">この部品工場の生産計画・自動人員配置を設定</button><span class="hint">今の製造方式を維持し、この工場だけ設定します。既存の0人固定配置は解除します。原材料と従業員は増えません。</span></div>`:''}
  ${componentLinesPanel(f,p,edit)}
  ${bomShopPanel(f,p,edit)}
  ${(()=>{const people=staffOfPlantV023(f,p),man=f.factoryOps.staffAssignments?.[p.id];return `<div class="factory-v026-staff"><div class="row between"><h3>工場の人員配置</h3>${tag(!people.recommended?'生産計画なし':people.assigned>=people.recommended?'人員充足':'人員不足',!people.recommended?'warn':people.assigned>=people.recommended?'good':'warn')}</div><p class="hint">製造部門 ${nfmt(f.staff.production)}人を工場間で配分。部品工場の生産上限にも実際に反映します。</p><div class="factory-v026-staff-grid"><div class="staff-v026-kpi"><small>配属人数</small><b>${nfmt(people.assigned)}人</b></div><div class="staff-v026-kpi"><small>必要人数目安</small><b>${nfmt(people.recommended)}人</b></div><label class="field"><span>配置方式</span><select id="factoryStaffModeV026" ${edit?'':'disabled'}><option value="auto" ${man===undefined?'selected':''}>自動配分</option><option value="fixed" ${man!==undefined?'selected':''}>人数を固定</option></select></label><label class="field"><span>固定配置人数</span><input type="number" id="factoryStaffAmountV026" min="0" max="100000" value="${man??people.assigned}" ${edit?'':'disabled'}></label></div><div class="row"><button class="btn primary sm" data-action="saveFactoryStaffV026" data-plant-id="${esc(p.id)}" ${edit?'':'disabled'}>配置を保存</button><button class="btn sm" data-action="staffToHrV023">人事で従業員を採用</button></div><p class="hint">固定配置の合計は会社の製造人数を超えられません。未割当人員は自動配置の工場へ配分します。</p></div>`})()}
@@ -7137,7 +7160,7 @@ render=function(){mkPriorRenderV025();if(PAGE==='distribution')mkUpdateDistribut
 
 
 document.addEventListener('click',e=>{const tab=e.target.closest('[data-factory-view-v026]');if(tab&&PAGE==='factory'){FACTORY_DETAIL_VIEW_V026=tab.dataset.factoryViewV026;showFactoryDetailV026();}});
-document.addEventListener('click',e=>{const b=e.target.closest('[data-action="saveFactoryStaffV026"]');if(b&&PAGE==='factory')saveFactoryStaffV026(b.dataset.plantId);if(e.target.closest('[data-action="activateSupportV026"]')&&PAGE==='factory')activateSupportV026();if(e.target.closest('[data-action="buySpotV026"]')&&PAGE==='supply')buySpotV026();});
+document.addEventListener('click',e=>{const b=e.target.closest('[data-action="saveFactoryStaffV026"]');if(b&&PAGE==='factory')saveFactoryStaffV026(b.dataset.plantId);if(e.target.closest('[data-action="activateSupportV026"]')&&PAGE==='factory')activateSupportV026();const start=e.target.closest('[data-action="startSupportProductionV026"]');if(start&&PAGE==='factory')startSupportProductionV026(start.dataset.plantId);if(e.target.closest('[data-action="buySpotV026"]')&&PAGE==='supply')buySpotV026();});
 
 boot();
 </script>
