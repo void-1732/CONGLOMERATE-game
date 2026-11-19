@@ -100,7 +100,8 @@ with sync_playwright() as pw:
     month(page)
 
     # Existing post-hotfix save with a completed legacy component plant:
-    # auto-recovery reclassifies physical on-site stock without any new money.
+    # old legacy mode stays unchanged until the player explicitly switches
+    # through the named factory management panel.
     page.evaluate("""()=>{
       S=newGame({era:1900,country:'JP',difficulty:'easy',
           history:'historical',name:'既存の共通部品セーブ移行'});
@@ -125,7 +126,19 @@ with sync_playwright() as pw:
     assert not page.evaluate("check(S)")
     save=page.evaluate("savePayload(S)")
     assert page.evaluate("data=>restore(data)",save)
-    after=verify(page,"existing save migration")
+    after=verify(page,"legacy old-save retention")
+    legacy_after=page.evaluate("""()=>{
+      const f=current();
+      return {mode:f.factoryOps.mode,qty:f.stock.components.q,
+        value:f.stock.components.v,plan:f.interplant.partPlans['OLD-ENGINE'],
+        worker:factoryLaborPlanV026(f).byId['OLD-ENGINE'].assigned};
+    }""")
+    assert legacy_after["mode"]=="legacy" and legacy_after["qty"]==8 and legacy_after["value"]==800,legacy_after
+    assert legacy_after["plan"]>0 and legacy_after["worker"]>0,legacy_after
+    page.evaluate("PAGE='factory';render()")
+    page.get_by_text("専門部品の製造方式・輸送中在庫・一括管理",exact=True).click()
+    page.locator("#factoryV21Mode").select_option("detailed")
+    page.locator('[data-action="factoryModeV21"]').click()
     migration=page.evaluate("""()=>{
       const f=current();
       return {legacy:f.stock.components,engine:f.stock.moduleEngine,
