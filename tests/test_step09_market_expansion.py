@@ -61,7 +61,8 @@ def catalog_and_new_game(page):
         assert item["savedKeys"] == item["expandedKeys"], item
         assert item["routeCount"] == 56 and not item["missingRoute"], item
         assert not item["sellerCount"] and item["countryBlocked"], item
-        assert not item["permission"] and not item["trade"], item
+        assert not item["permission"], item
+        assert item["trade"] == (item["year"] >= 1980), item
         assert item["serialization"]["enabled"], item
         assert not item["errors"] and not item["financialErrors"], item
         assert item["reconciled"] == item["legacyReconciled"], item
@@ -164,7 +165,7 @@ def ui_and_months(page):
     })""")
     assert result["keys"] == ["JP","US","UK","DE","FR","CN","IN","BR"],result
     assert result["expansion"] == result["saved"] and not result["errors"],result
-    assert page.get_by_text("観測可能・売買未開放").count() == 3
+    assert page.get_by_text("直接輸出・原材料輸入可能").count() == 3
 
     months=page.evaluate("""async() => {
         saveAuto=async()=>true;render=()=>{};
