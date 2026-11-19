@@ -6977,7 +6977,7 @@ function deliverModulesV21(s,events){const now=ym(s.year,s.month);for(const f of
  f.factoryOps.shipments=remaining;if(f.factoryOps.history.length>100)f.factoryOps.history.splice(0,f.factoryOps.history.length-100);
 }}
 function autoShipModulesV21(s,events){for(const f of s.firms){ensureFactoryV21(f);if(f.factoryOps.mode!=='detailed')continue;
- if(controller(s,f.id)&&!aiModeAllows(f,'shipping')){aiAudit(f,s,'shipping','proposal','工場間の自動配送は提案のみです（既存ルート設定は保持）',0);continue;}
+ /* Saved enabled factory routes are direct player instructions, regardless of AI delegation. */
  for(const p of supportPartFactories(f)){const route=f.factoryOps.routes[p.id];if(!route?.enabled||!route.to)continue;const typ=v21ModuleType(p),to=f.plants.find(x=>x.id===route.to);
   if(!to||to.paused||to.construction||to.renovation)continue;
   const onHand=moduleAtV21(f,to.id)[typ];const incoming=f.factoryOps.shipments.filter(x=>x.to===to.id&&x.typ===typ).reduce((a,x)=>a+x.qty,0);
