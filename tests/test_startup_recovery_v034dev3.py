@@ -67,6 +67,24 @@ with sync_playwright() as pw:
       S=original;writeSafetySnapshotV037(prior);
       RECOVERY_BLOCKED_V038=false;RECOVERY_CHOICES_V038=[];
     }""")
+    # Corrupt only the current IDB generation; previous generation must remain intact.
+    expected_previous=page.evaluate("""async()=>{
+      await saveAuto();
+      const rec=SAVE_INDEX.auto[SAVE_INDEX.previous];
+      if(!rec)throw Error('missing previous generation');
+      const prior=parsePayload(rec.serialized);
+      const active=SAVE_INDEX.auto[SAVE_INDEX.active];
+      await idbWrite('snapshots',{...active,serialized:'corrupted-active'});
+      localStorage.removeItem(EMERGENCY_KEY);
+      return {id:prior.playerId,year:prior.year,month:prior.month,
+        name:company(prior.playerId,prior).name};
+    }""")
+    page.reload();page.wait_for_function('STORAGE_READY')
+    actual_previous=page.evaluate("""()=>{
+      const f=current();return {id:S.playerId,year:S.year,month:S.month,name:f.name};
+    }""")
+    assert actual_previous==expected_previous,(expected_previous,actual_previous)
+    assert page.evaluate('check(S)')==[]
     assert not errors,errors
     browser.close()
 server.shutdown()
