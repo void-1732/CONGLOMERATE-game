@@ -29,6 +29,8 @@ jobs:
         run: python tests/test_real_specialist_factory_v034dev2.py
       - name: Test factory bulk settings, month-end utilization, and in-transit stocks
         run: python tests/test_specialist_bulk_ui_v034dev2.py
+      - name: Test five factory manufacturing and logistics chain (real HTTP Playwright)
+        run: python tests/test_five_factory_chain_v039.py
       - name: Test factory diagnostics, legacy component production and material shortages
         run: python tests/test_factory_diagnostic_constraints_v034dev3.py
       - name: Test zero-plan old factories recover even without an assembler
