@@ -3630,8 +3630,10 @@ function lineOutputPlan(s,f,p){
    p.condition<40?'設備状態不足':lineSpecIssue(s,f,p,spec);
   const tech=spec?partTechnologyProfile(f,spec.family):null;
   const efficiency=Math.min(1,Math.min(p.condition,line.condition)/100*(1+(tech?.throughput??0)/100));
-  // BOM manufacturing is limited to two units per assigned production worker.
-  const possible=issue?0:Math.min(planned,Math.floor(Math.min(line.capacity,assigned*2)*efficiency));
+  // Production capacity is distinct from the monthly target: the manufacturing
+  // step still caps attempted output by the requested BOM quantity.
+  // Preserve research throughput upgrades and the physical 2-unit/worker rate.
+  const possible=issue?0:Math.floor(Math.min(line.capacity,assigned*2)*efficiency);
   return {line,planned,assigned,required,possible,issue,tech};
  });
 }
@@ -6360,7 +6362,11 @@ function bomFactoryLineDemandV026(f,p){
   .filter(plan=>plan.plantId===p.id).map(plan=>[plan.lineId,Math.max(0,Math.floor(Number(plan.quantity)||0))]));
  return (p.componentLines??[]).map(line=>{
   const planned=Math.min(Math.max(0,Math.floor(line.capacity||0)),plans.get(line.lineId)||0);
-  return {line,planned,required:Math.ceil(planned*.5)};
+  // A worn line needs enough workers to meet its plan, up to the line's
+  // physical staffing ceiling. Keep technology upgrades as a separate bonus.
+  const baseEfficiency=Math.max(.01,Math.min(p.condition??100,line.condition??100)/100);
+  const required=planned?Math.min(Math.ceil(line.capacity*.5),Math.ceil(planned/(2*baseEfficiency))):0;
+  return {line,planned,required};
  });
 }
 function factoryLaborPlanV026(f){
