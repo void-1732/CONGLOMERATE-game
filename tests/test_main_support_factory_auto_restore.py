@@ -80,6 +80,32 @@ with sync_playwright() as playwright:
         assert second["plan"] == recovered["plan"], (mode,second,recovered)
         assert second["assigned"] > 0 and second["staff"] == 172, second
 
+        # Exercise the actual factory UI, not only the internal allocation helper.
+        page.evaluate("""()=>{
+            PAGE='factory';FACTORY_UI.selected='P80367';render();
+        }""")
+        page.locator('[data-factory-view-v026="control"]').click()
+        page.locator('#factoryStaffModeV026').select_option("fixed")
+        page.locator('#factoryStaffAmountV026').fill("12")
+        page.locator('[data-action="saveFactoryStaffV026"]').click()
+        page.wait_for_function("""()=>
+            current().factoryOps.staffAssignments['P80367']===12
+        """)
+        clicked = page.evaluate("""()=>{
+            const f=current(),p=f.plants.find(x=>x.id==='P80367');
+            return {assigned:staffOfPlantV023(f,p).assigned,staff:f.staff.production};
+        }""")
+        assert clicked == {"assigned":12,"staff":172}, (mode,clicked)
+        # Reset to automatic allocation via the same UI controls.
+        page.locator('#factoryStaffModeV026').select_option("auto")
+        page.locator('[data-action="saveFactoryStaffV026"]').click()
+        page.wait_for_function("""()=>
+            !Object.hasOwn(current().factoryOps.staffAssignments,'P80367')
+        """)
+        assert page.evaluate("""()=>
+            staffOfPlantV023(current(),current().plants.find(x=>x.id==='P80367')).assigned
+        """) > 0
+
         # Use a fully paid, ledger-balanced raw-material fixture, not free goods.
         page.evaluate("""()=>{
             const f=current();
