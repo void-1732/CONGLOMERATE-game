@@ -1,0 +1,40 @@
+name: Main BOM Factory Production Hotfix
+on:
+  push:
+    branches:
+      - fix/main-bom-factory-staffing-20261119
+  pull_request:
+    branches:
+      - main
+    paths:
+      - index.html
+      - tests/test_main_bom_factory_staffing.py
+      - .github/workflows/main-bom-factory-hotfix.yml
+
+concurrency:
+  group: main-bom-hotfix-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  main-bom-hotfix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Playwright Chromium
+        run: |
+          python -m pip install --disable-pip-version-check playwright
+          python -m playwright install --with-deps chromium
+      - name: Reproduce and verify the BOM-only factory zero-worker bug
+        run: python tests/test_main_bom_factory_staffing.py
+      - name: Confirm existing factory staffing and 24-month supply/accounting
+        run: python tests/test_v026_factory_supply.py
+      - name: Confirm existing BOM manufacture, shipments and save data
+        run: python tests/test_v029_bom.py
+      - name: Confirm prior save compatibility
+        run: python tests/test_v0271_smoke.py
