@@ -9,6 +9,7 @@ on:
       - tests/test_step09_global_ai.py
       - tests/test_step09_market_readiness.py
       - tests/test_step09_market_expansion.py
+      - tests/test_step09_trade_settlement.py
       - .github/workflows/step09-fast.yml
   pull_request:
     branches:
@@ -18,6 +19,7 @@ on:
       - tests/test_step09_global_ai.py
       - tests/test_step09_market_readiness.py
       - tests/test_step09_market_expansion.py
+      - tests/test_step09_trade_settlement.py
       - .github/workflows/step09-fast.yml
 
 concurrency:
@@ -45,3 +47,6 @@ jobs:
         run: python tests/test_step09_market_readiness.py
       - name: STEP 9 opt-in CN IN BR catalog, save migration and month-end accounting
         run: python tests/test_step09_market_expansion.py
+
+      - name: STEP 9 CN IN BR physical trade, customs and currency settlement
+        run: python tests/test_step09_trade_settlement.py
