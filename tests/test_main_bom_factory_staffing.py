@@ -181,11 +181,11 @@ with sync_playwright() as playwright:
         const f=current(),p=f.plants.find(x=>x.id===id);
         return {mode:f.factoryOps.mode,plan:f.factoryOps.plans[id],
             assigned:staffOfPlantV023(f,p).assigned,
-            fixed:f.factoryOps.staffAssignments[id]};
+            fixed:Object.hasOwn(f.factoryOps.staffAssignments,id)};
     }""", fixture["id"])
     assert recovered["mode"] == "detailed", recovered
     assert recovered["plan"] > 0 and recovered["assigned"] > 0, recovered
-    assert recovered["fixed"] is None, recovered
+    assert not recovered["fixed"], recovered
     previous = page.evaluate("S.monthCommitted")
     page.evaluate("async()=>await runMonth()")
     actual = page.evaluate("""id=>{
