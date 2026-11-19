@@ -2447,16 +2447,36 @@ function internationalRoutesV041(s,origin,destination){
  }
  return [sea,alternate];
 }
+/* STEP 9 / step 04: a bounded export-and-raw-import corridor.
+   Direct exports and real inventory-backed materials may cross after the
+   synthetic regional trade-opening year. Incorporation and manufacturing
+   still require step 05 entry permission and remain disabled. */
+function emergingTradeOpenV048(s,origin,destination,cargo){
+ if(!['vehicle','parts','bulk'].includes(cargo)||!s.world?.[origin]||!s.world?.[destination]||origin===destination)return false;
+ for(const code of [origin,destination]){
+  if(isEmergingMarketV047(code)){
+   if(!s.marketExpansionV047?.enabled||
+      s.year<EMERGING_MARKET_PROFILES_V047[code].opening.export)return false;
+  }
+ }
+ return true;
+}
+function directExportPilotV048(s,f,market){
+ return isEmergingMarketV047(market)&&s.world?.[market]&&f.country!==market&&
+   emergingTradeOpenV048(s,f.country,market,'vehicle')&&
+   internationalTradeAllowedV041(s,f.country,market,'vehicle');
+}
 function internationalTradeAllowedV041(s,origin,destination,cargo){
- // New-market commerce, customs and settlement are implemented in steps 04-05.
- // Routes may be inspected today, but cannot create shipments or new balances.
- if(isEmergingMarketV047(origin)||isEmergingMarketV047(destination))return false;
+ if((isEmergingMarketV047(origin)||isEmergingMarketV047(destination))&&
+   !emergingTradeOpenV048(s,origin,destination,cargo))return false;
  const month=ym(s.year,s.month),restrictions=s.logisticsV041?.restrictions??{};
  if((restrictions[origin+'/'+destination]?.end??-1)>month||tradeShockV044(s,'sanctions',origin,destination))return false;
  // The historical war flags support limited wartime export licensing for vehicles.
  return !(cargo==='vehicle'&&s.world[origin]?.war&&s.world[destination]?.war);
 }
 function marketInvestmentAllowedV043(s,f,country){
+ // Direct vehicle export is not a license to create a legal entity or plant.
+ if(isEmergingMarketV047(country))return false;
  return !!s.world[country]&&(country===f.country||internationalTradeAllowedV041(s,f.country,country,'vehicle'));
 }
 const ENTRY_LABELS_V043={direct:'直接輸出',dealer:'現地代理店',subsidiary:'現地販売子会社',
@@ -2483,7 +2503,11 @@ function changeForeignMarketV043(s,f,market,action,mode,agentId){
   return 0;
  }
  if(action!=='enter'||!['direct','dealer','subsidiary','factory'].includes(mode))throw Error('利用する進出方式を選択してください');
- if(!marketInvestmentAllowedV043(s,f,market))throw Error('対象市場は現在、新規の進出を制限しています');
+ if(isEmergingMarketV047(market)){
+  if(mode!=='direct'||!directExportPilotV048(s,f,market))
+   throw Error('この市場では、指定年代以降の直接輸出のみ認められています');
+ }else if(!marketInvestmentAllowedV043(s,f,market))
+  throw Error('対象市場は現在、新規の進出を制限しています');
  let partner=null;
  if(mode==='dealer'){
   partner=company(agentId,s);
@@ -3273,6 +3297,11 @@ function deliverExports(s,events){
 }
 
 function exportShipment(s,f,key,qty,unitPrice,code,events,segment=null){
+ if(isEmergingMarketV047(code)&&
+    (!directExportPilotV048(s,f,code)||!f.marketPresence.includes(code)||
+     f.foreignMarketsV043?.[code]?.mode!=='direct'||
+     f.foreignMarketsV043?.[code]?.phase==='withdrawn'))
+  throw Error('新興市場への輸出には有効な直接輸出の販路が必要です');
  ensureNetwork(f,s);
  qty=Math.min(qty,finishedAtCountryV043(f,key,f.country));
  const channel=exportChannel(f,code,s),mult=exportChannelMultiplierV041(channel);
@@ -3371,7 +3400,7 @@ function foreignEntryPanelV043(s,f,edit){
   <p class="hint">${active?(state?.phase==='reduced'?'販売枠を縮小中':'販売中'):'販売停止'} ／ 月間需要 ${nfmt(marketDemandSnapshotV031(s,market).demand)}台
   ／ 現地企業 ${nfmt(local.length)}社 ／ 自社認知度 ${nfmt(f.brand[market]??0)}%<br>
   現地の基準賃金 ${baseMoney(cents(world.wage*eraCostFactor(s.year)))} ／ 試算法人税率 ${nfmt((MARKET_TAX_V043[market]??.15)*100)}%
-  ／ 新規投資 ${marketInvestmentAllowedV043(s,f,market)?'可能':'規制中'}</p>
+  ／ 新規投資 ${marketInvestmentAllowedV043(s,f,market)?'可能':directExportPilotV048(s,f,market)?'直接輸出のみ可能':'規制中'}</p>
   <div class="mk-table-wrap"><table class="mk-table"><thead><tr><th>進出方式</th><th>初期投資の目安</th><th>主な運営費・台</th><th>支配・契約</th></tr></thead>
   <tbody>${rows}</tbody></table></div>${controls}${links}</section>`;
 }
@@ -4022,10 +4051,10 @@ function marketExpansionPanelV047(s){
  const rows=EMERGING_MARKETS_V047.map(code=>{
   const p=COUNTRIES[code],entry=EMERGING_MARKET_PROFILES_V047[code],world=s.world[code];
   return '<tr><th>'+esc(NAMES[code])+'</th><td>'+esc(p.currency)+'</td><td>'+entry.opening.export+'年以降（予定）</td>'+
-   '<td>'+(world?nfmt(world.pop)+'百万人':'—')+'</td><td>'+ (world?'観測可能・売買未開放':'未追加')+'</td></tr>';
+   '<td>'+(world?nfmt(world.pop)+'百万人':'—')+'</td><td>'+ (world?(s.year>=entry.opening.export?'直接輸出・原材料輸入可能':'観測のみ・貿易未開放'):'未追加')+'</td></tr>';
  }).join('');
  return '<section class="mk-panel"><h2>新興国・地域市場（STEP 9）</h2>'+
-  '<p class="mk-sub">中国・インド・ブラジルの追加市場。人口・為替・貿易の条件はゲーム用仮定であり、史実を再現する数値ではありません。追加市場の国際取引、現地進出、競合参入は後続STEPで実装します。</p>'+
+  '<p class="mk-sub">中国・インド・ブラジルの追加市場。人口・為替・貿易の条件はゲーム用仮定であり、史実を再現する数値ではありません。年代別の直接輸出と実在庫による原材料輸入は利用できます。現地企業・工場・競合の参入は次のSTEPで開放します。</p>'+
   '<p class="mk-note">追加状態：'+phase+'。有効化はこのセーブに対して一度だけ適用し、既存5市場と法人・現物在庫・仕訳を変更しません。</p>'+
   '<div class="mk-table-wrap"><table class="mk-table"><thead><tr><th>市場</th><th>通貨</th><th>輸出開始予定</th><th>人口</th><th>状態</th></tr></thead>'+
   '<tbody>'+rows+'</tbody></table></div>'+
@@ -4036,7 +4065,7 @@ function activateMarketExpansionUIV047(){
  try{
   if(!S||!canEdit(current()))throw Error('市場追加の操作権限がありません');
   S=activateEmergingMarketsV047(S);
-  render();toast('新興3市場を追加しました。国際取引と現地投資は次の実装段階から利用できます。');
+  render();toast('新興3市場を追加しました。年代に応じて直接輸出と原材料輸入を利用できます。');
  }catch(e){toast(e.message)}
 }
 
@@ -4263,11 +4292,12 @@ function marketDemandSnapshotV031(s,code){
  return {month:ym(s.year,s.month),demand,segments:segmentedDemandUnits(s,code,demand)};
 }
 function marketVehicleContendersV031(s,code){
- // Observation-only until step 05 implements entry restrictions and competitors.
- if(isEmergingMarketV047(code))return [];
  const contenders=[];
  for(const f of s.firms){
   if(f.lifecycle?.phase==='withdrawn'||f.reorgStatus==='integrated'||!f.marketPresence.includes(code)||!['auto','manufacturing'].includes(f.industry))continue;
+  if(isEmergingMarketV047(code)&&(!directExportPilotV048(s,f,code)||
+      f.foreignMarketsV043?.[code]?.mode!=='direct'||
+      f.foreignMarketsV043?.[code]?.phase==='withdrawn'))continue;
   for(const m of f.models.filter(m=>m.status==='active'||(m.status==='legacy'&&(f.goods[m.id]?.q||0)>0)))contenders.push({f,m});
  }
  return contenders;
