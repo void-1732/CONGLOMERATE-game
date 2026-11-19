@@ -5701,26 +5701,29 @@ function lineEligibility(s,f,p,job){
 }
 function lineOutputPlan(s,f,p){
  const jobs=lineSiteJobs(s,p).filter(lineUnderConstruction);
- const plan=factoryLaborPlanV026(f);
- const available=plan.byId[p.id]?.assigned??0;
- const lines=p.componentLines??[];
- let reservedWorkers=0;
- return lines.map(line=>{
-  // A deterministic share of the existing workforce, constrained by the site limit.
-  const prior=reservedWorkers;
-  reservedWorkers+=available*line.capacity/p.capacity;
-  const assigned=Math.floor(reservedWorkers)-Math.floor(prior);
-  const required=Math.ceil(line.capacity*.5);
+ const staff=factoryLaborPlanV026(f).byId[p.id];
+ const workloads=bomFactoryLineDemandV026(f,p);
+ // The legacy modules/assembly keep their own workforce reservation.
+ // Allocate only remaining workers to planned BOM lines, never to idle capacity.
+ const available=Math.max(0,(staff?.assigned||0)-(staff?.baseRequired||0));
+ const requiredTotal=workloads.reduce((n,x)=>n+x.required,0);
+ const workers=Math.min(available,requiredTotal);
+ const shares=workloads.map((x,index)=>({index,required:x.required,raw:requiredTotal?workers*x.required/requiredTotal:0,assigned:0}));
+ let allocated=0;
+ for(const x of shares){x.assigned=Math.floor(x.raw);allocated+=x.assigned;}
+ for(const x of shares.slice().sort((a,b)=>(b.raw-Math.floor(b.raw))-(a.raw-Math.floor(a.raw))||a.index-b.index).slice(0,workers-allocated))x.assigned++;
+ return workloads.map(({line,planned,required},index)=>{
+  const assigned=shares[index].assigned;
   const job=jobs.find(j=>j.lineId===line.lineId),spec=partRecord(s,line.specKey);
   const issue=job?'工事中':factoryStatus(p)!=='active'?factoryStatusLabel(p):
    p.condition<40?'設備状態不足':lineSpecIssue(s,f,p,spec);
   const tech=spec?partTechnologyProfile(f,spec.family):null;
   const efficiency=Math.min(1,Math.min(p.condition,line.condition)/100*(1+(tech?.throughput??0)/100));
-  const possible=issue?0:Math.floor(line.capacity*Math.min(1,assigned/required)*efficiency);
-  return {line,assigned,required,possible,issue,tech};
+  // The current part-production staffing rate is two units per worker.
+  const possible=issue?0:Math.min(planned,Math.floor(Math.min(line.capacity,assigned*2)*efficiency));
+  return {line,planned,assigned,required,possible,issue,tech};
  });
 }
-
 function lineCostBase(s,f,p,kind,capacity){
  const site=ensurePlantLocation(f,p);
  return Math.round(capacity*LINE_JOBS[kind].unitCost*eraCostFactor(s.year)*(.5+.5*site.land));
@@ -8481,14 +8484,27 @@ function saveFactoryModeV21(){try{const f=current();if(!canEdit(f))throw Error('
    automatically balanced against actual assembly and specialist schedules.
    Explicit per-plant assignments are saved by stable plant ID and cannot exceed
    corporate production headcount. Never invent separate employees. */
+/* BOM output is scheduled independently of the legacy specialist modules.
+   Keep required headcount in the same corporate pool: no new employees or save fields. */
+function bomFactoryLineDemandV026(f,p){
+ const plans=new Map((f.partOperations?.productionPlans??[])
+  .filter(plan=>plan.plantId===p.id).map(plan=>[plan.lineId,Math.max(0,Math.floor(Number(plan.quantity)||0))]));
+ return (p.componentLines??[]).map(line=>{
+  const planned=Math.min(Math.max(0,Math.floor(line.capacity||0)),plans.get(line.lineId)||0);
+  return {line,planned,required:Math.ceil(planned*.5)};
+ });
+}
 function factoryLaborPlanV026(f){
  const active=(f.plants||[]).filter(p=>!p.construction&&!p.renovation&&!p.paused),
        detailed=f.factoryOps?.mode==='detailed',saved=f.factoryOps?.staffAssignments||{},total=Math.max(0,Math.floor(f.staff?.production||0));
  const records=active.map(p=>{
-  const support=!!v21ModuleType(p),plan=Number((detailed?f.factoryOps?.plans?.[p.id]:f.interplant?.partPlans?.[p.id])||0);
-  const required=support?(plan>0?Math.max(1,Math.ceil(Math.min(plan,Math.floor(p.capacity*(p.condition||100)/100*.35))*0.5)):0):Math.ceil(p.capacity*40/54);
+  const support=!!v21ModuleType(p);
+  const plan=Math.max(0,Number((detailed?f.factoryOps?.plans?.[p.id]:f.interplant?.partPlans?.[p.id])||0));
+  const baseRequired=support?(plan>0?Math.max(1,Math.ceil(Math.min(plan,Math.floor(p.capacity*(p.condition||100)/100*.35))*.5)):0):Math.ceil(p.capacity*40/54);
+  const bomRequired=bomFactoryLineDemandV026(f,p).reduce((n,line)=>n+line.required,0);
+  const required=baseRequired+bomRequired;
   const manual=Number.isSafeInteger(saved[p.id])&&saved[p.id]>=0?Math.min(total,saved[p.id]):null;
-  return {plant:p,required,manual,assigned:0};
+  return {plant:p,required,baseRequired,bomRequired,manual,assigned:0};
  });
  let remaining=total;
  for(const r of records)if(r.manual!==null){r.assigned=Math.min(remaining,r.manual);remaining-=r.assigned;}
@@ -8499,7 +8515,6 @@ function factoryLaborPlanV026(f){
  }
  return {total,records,byId:Object.fromEntries(records.map(x=>[x.plant.id,x])),unallocated:Math.max(0,total-records.reduce((n,x)=>n+x.assigned,0))};
 }
-
 /* v0.34 STEP 3: six-month inventory forecast and lead-time-aware reorder point. */
 const SAFETY_LEVELS_V034=[.25,.5,1,1.5,2];
 function safetyMonthsV034(contract){
@@ -8839,7 +8854,7 @@ function staffingV023(f){
  const nominal=assembly.reduce((n,p)=>n+p.capacity,0);
  const assemblyTarget=Math.ceil(nominal*40/54); // EXACT denominator in factoryCapacity labor factor.
  const details=(f.factoryOps?.mode==='detailed');
- const supportTarget=plants.filter(p=>!!v21ModuleType(p)).reduce((n,p)=>n+Math.ceil(Math.min(p.capacity*.35,(details?f.factoryOps.plans?.[p.id]:f.interplant?.partPlans?.[p.id])||0)*.5),0);
+ const supportTarget=factoryLaborPlanV026(f).records.reduce((n,r)=>n+(v21ModuleType(r.plant)?r.baseRequired:0)+r.bomRequired,0);
  const totalTarget=assemblyTarget+supportTarget;
  const researchActive=f.research?.tree?.active?.length||0;
  const researchGoal=Math.max(5,researchActive*8+(f.research?.roadmap?.targets?.length||0)*3);
@@ -8859,8 +8874,12 @@ function factoryInsightV023(f,p){
  if(['integrated','assembly'].includes(p.kind)&&factoryCapacity(f).labor<.99)warn('会社全体の製造人員不足','製造人員による生産能力補正 '+nfmt(factoryCapacity(f).labor*100)+'%','人事で製造人員を採用',true);
  if(type){
   const qty=z.plans?.[p.id]||0,spec=V21_MODULE_INFO[type];
-  if(detail&&qty===0)warn('部品生産計画が0','この工場の計画を入力してください','月間製造量を設定',true);
-  if(detail&&qty>0&&staff.assigned<staff.recommended)warn('部品工場の製造人員が不足','配属 '+staff.assigned+'人／推奨 '+staff.recommended+'人','この工場の人員配属を確認',staff.assigned===0);
+  const bomQty=(f.partOperations?.productionPlans??[]).filter(plan=>plan.plantId===p.id).reduce((n,plan)=>n+Math.max(0,plan.quantity||0),0);
+   if(detail&&qty===0&&!bomQty)warn('部品生産計画が0','従来部品・BOM部品の生産計画がありません','BOMまたは月間製造量を設定',true);
+  if((qty>0&&detail||bomQty>0)&&staff.assigned<staff.recommended)warn('部品工場の製造人員が不足','配属 '+staff.assigned+'人／推奨 '+staff.recommended+'人','この工場の人員配属を確認',staff.assigned===0);
+   if(bomQty>0){const blocked=lineOutputPlan(S,f,p).filter(line=>line.planned>0&&line.possible===0);
+    if(blocked.length)warn('BOM部品ラインが生産できません',blocked.map(x=>x.issue||'製造人員の余力不足').slice(0,3).join('・'),'部品ラインの設備・生産計画・人員配分を確認',true);
+   }
   if(detail&&qty>0){const limit=Math.min(Math.floor((f.stock.steel?.q||0)/spec.steel),Math.floor((f.stock.rubber?.q||0)/spec.rubber));if(limit<qty)warn('原材料が計画数量に不足','鋼材・ゴムから最大'+nfmt(limit)+'個分','サプライヤー・輸入で調達',limit===0);}
  } else {
   if(!planned)warn('対象車種の生産計画が0','担当する車種の計画がありません','製品・開発 → 生産計画を設定',true);
@@ -8875,12 +8894,12 @@ function factoryInsightV023(f,p){
 }
 function statusChipV023(x){return `<span class="staff-chip ${x.kind}">${esc(x.label)}</span>`}
 function staffingSummaryV023(f){const st=staffingV023(f);return `<section class="panel span12" id="staffingOverview"><div class="row between"><h2>部門別・人員需給診断</h2>${tag('推奨値は目安')}</div><div class="staff-departments">${[['production','製造','工場の稼働設備・計画量'],['research','研究','同時研究テーマ・ロードマップ'],['sales','営業・管理','販売地域数・現役車種数']].map(([k,title,why])=>{const z=st[k];return `<div class="staff-dept"><div class="row between"><b>${title}</b>${statusChipV023(z)}</div><div class="staff-numbers"><strong>${nfmt(z.actual)}<small>人</small></strong><span>推奨 ${nfmt(z.required)}人</span></div><div class="capacity-track"><span style="width:${Math.min(100,z.ratio*100)}%"></span></div><small>過不足 ${z.diff>=0?'+':''}${nfmt(z.diff)}人／${why}</small></div>`}).join('')}</div><p class="hint">製造人員は会社全体で管理されています。工場別の人数は自動配分または工場別固定配置で決まります。個人ごとの従業員台帳は未実装です。研究・営業の推奨人数は経営上の目安であり、採用を強制する条件ではありません。</p></section>`}
-function factoryOpsInsightPanelV023(f,p){const o=factoryInsightV023(f,p),last=p.lastUtilization||0,kind=v21ModuleType(p),mode=f.factoryOps.mode;
+function factoryOpsInsightPanelV023(f,p){const o=factoryInsightV023(f,p),last=p.lastUtilization||0,kind=v21ModuleType(p),mode=f.factoryOps.mode,bomQty=(f.partOperations?.productionPlans??[]).filter(x=>x.plantId===p.id).reduce((n,x)=>n+Math.max(0,x.quantity||0),0);
  const bottleneck=o.reasons.filter(x=>x.important)[0]||o.reasons[0];
  const incoming=V21_MODULE_TYPES.map(typ=>{const tx=f.factoryOps.shipments.filter(x=>x.to===p.id&&x.typ===typ).sort((a,b)=>a.due-b.due);const qty=tx.reduce((n,x)=>n+x.qty,0);const routes=f.plants.filter(x=>v21ModuleType(x)===typ&&f.factoryOps.routes?.[x.id]?.to===p.id).map(x=>x.name).slice(0,2);return {typ,qty,due:tx[0]?.due,origin:routes.join('・')};});
  const assem=mode==='detailed'&&['integrated','assembly'].includes(p.kind),assemblyStock=Math.min(...V21_MODULE_TYPES.map(t=>o.inv[t]||0));
  return `<section class="factory-insight" aria-label="工場稼働分析"><div class="insight-top"><div><div class="eyebrow">OPERATION DIAGNOSTIC</div><h3>稼働率・停止原因の分析</h3></div>${tag(bottleneck?'確認が必要':'主要な停止要因なし',bottleneck?'warn':'good')}</div>
- <div class="insight-hero"><div><small>前月稼働率</small><strong>${nfmt(last*100)}%</strong><div class="capacity-track"><span style="width:${Math.min(100,Math.max(0,last*100))}%"></span></div></div><div><small>現在の生産計画</small><strong>${nfmt(kind?(f.factoryOps.plans?.[p.id]||0):o.planned)}${kind?'個':'台'}</strong></div><div><small>従業員（配属人数）</small><strong>${nfmt(o.staff.assigned)}人</strong><div class="tiny muted">参考必要 ${nfmt(o.staff.recommended)}人</div></div></div>
+ <div class="insight-hero"><div><small>前月稼働率</small><strong>${nfmt(last*100)}%</strong><div class="capacity-track"><span style="width:${Math.min(100,Math.max(0,last*100))}%"></span></div></div><div><small>現在の生産計画</small><strong>${nfmt(kind?((mode==='detailed'?f.factoryOps.plans?.[p.id]:f.interplant?.partPlans?.[p.id])||0)+bomQty:o.planned)}${kind?'個':'台'}</strong></div><div><small>従業員（配属人数）</small><strong>${nfmt(o.staff.assigned)}人</strong><div class="tiny muted">参考必要 ${nfmt(o.staff.recommended)}人</div></div></div>
  <div class="insight-reasons">${o.reasons.map((r,i)=>`<div class="reason ${r.important?'critical':''}"><span class="reason-icon">${r.important?'!':'i'}</span><div><b>${esc(r.state)}</b><div class="hint">${esc(r.detail)}</div><div class="tiny">対策：${esc(r.action)}</div></div></div>`).join('')||'<div class="reason clear"><span class="reason-icon">✓</span><div><b>確認できる主要な停止要因はありません</b><p class="hint">工程負荷や当月市場需要などによって実生産数は変動します。</p></div></div>'}</div><p class="hint">原因は現在の計画・在庫を基準とした診断です。「前月の稼働率」とは判定時点が異なるため、過去の全停止理由を断定するものではありません。</p><div class="row"><button class="btn sm" data-action="staffToHrV023">人事・採用へ</button><button class="btn sm" data-action="goProductionV023">生産計画へ</button><button class="btn sm" data-page="supply">原材料調達へ</button></div></section>
  ${kind?`<section class="factory-insight" id="partProductionV023"><h3>${esc(V21_MODULE_INFO[kind].name)} 生産・供給状況</h3><div class="insight-hero"><div><small>前月の生産</small><strong>${nfmt(p.lastProduced||0)}個</strong></div><div><small>工場内の完成部品</small><strong>${nfmt(o.inv[kind]||0)}個</strong></div><div><small>月次計画</small><strong>${nfmt(f.factoryOps.plans?.[p.id]||0)}個</strong></div></div><p class="hint">出荷する場合は配送先・自動補充目標と月間上限を下の設定欄で指定します。</p></section>`:
  `<section class="factory-insight" id="assemblySupplyV023"><div class="row between"><h3>${p.kind==='integrated'?'総合工場の内製・組立状況':'最終組立工場の部品供給状況'}</h3>${tag(mode==='detailed'?'専門部品方式':'従来の共通部品方式')}</div>${assem?`<div class="insight-hero"><div><small>到着済み3部品のセット数</small><strong>${nfmt(assemblyStock)}台分</strong></div><div><small>前月の工場内製</small><strong>${p.kind==='integrated'?nfmt(p.lastInternalModules||0):'—'}台分</strong></div><div><small>前月の組立</small><strong>${nfmt(p.lastProduced||0)}台</strong></div></div><div class="scroll"><table><thead><tr><th>部品</th><th>到着在庫</th><th>前月内製</th><th>輸送中</th><th>最も早い到着</th><th>設定済み供給元</th></tr></thead><tbody>${incoming.map(x=>`<tr><td>${esc(V21_MODULE_INFO[x.typ].name)}</td><td>${nfmt(o.inv[x.typ]||0)}個</td><td>${p.kind==='integrated'?nfmt(p.lastInternalModules||0)+'個':'—'}</td><td>${nfmt(x.qty)}個</td><td>${x.due?Math.floor((x.due-1)/12)+'年'+((x.due-1)%12+1)+'月':'未発送'}</td><td>${esc(x.origin||'未設定')}</td></tr>`).join('')}</tbody></table></div><p class="hint">${p.kind==='integrated'?'総合工場は到着済み部品を優先使用し、不足した3部品を鋼材・ゴムから当月内製します。内製分は到着部品在庫に加算しません。':'最終組立専門工場は3種類の部品各1個が揃うまで生産できません。輸送中の部品は到着月まで使用できません。'}</p>`:'<p class="hint">従来方式では共通部品を使用します。専門部品の到着状況は詳細モードに変更したときだけ組立制約に影響します。</p>'}</section>`}`;
@@ -9197,16 +9216,28 @@ function deliverRawShipmentsV038(s,events){
 function rawFactoryDemandV038(s,f){
  const workforce=factoryLaborPlanV026(f);
  const plants=f.plants.filter(p=>factoryStatus(p)==='active');
- const weights=plants.map(p=>{
+ const types=ensureWarehouseV038(f).localizedRawTypes;
+ const baseWeights=plants.map(p=>{
   const labor=workforce.byId[p.id]?.assigned??0;
   const support=f.factoryOps.mode==='detailed'?f.factoryOps.plans[p.id]:f.interplant.partPlans[p.id];
-  const bomParts=(f.partOperations?.productionPlans??[]).reduce((n,x)=>n+(x.plantId===p.id?x.quantity:0),0);
-  return ['integrated','assembly'].includes(p.kind)?Math.min(p.capacity,labor*2):Math.min((support||0)+bomParts,labor*2);
+  return ['integrated','assembly'].includes(p.kind)?Math.min(p.capacity,labor*2):Math.min(support||0,labor*2);
  });
- const total=weights.reduce((n,w)=>n+w,0),types=ensureWarehouseV038(f).localizedRawTypes;
- const demand=Object.fromEntries(types.map(type=>[type,factoryResourceTargetV026(f,type,s).demand]));
- return plants.map((p,index)=>({p,monthly:Object.fromEntries(types.map(type=>
-  [type,total?Math.ceil(demand[type]*weights[index]/total):0]))}));
+ const totalWeight=baseWeights.reduce((n,w)=>n+w,0);
+ // BOM recipes are location-specific: do not spread their materials across other plants.
+ const bomByPlant=new Map(plants.map(p=>[p.id,Object.fromEntries(types.map(t=>[t,0]))]));
+ for(const plan of f.partOperations?.productionPlans??[]){
+  const p=plants.find(x=>x.id===plan.plantId),line=p?.componentLines?.find(l=>l.lineId===plan.lineId);
+  const spec=line&&partRecord(s,line.specKey);
+  if(!spec)continue;
+  const qty=Math.min(line.capacity,Math.max(0,bomLineQuantity(s,f,plan,spec)));
+  const recipe=bomPartRecipe(spec,partTechnologyProfile(f,spec.family)),bins=bomByPlant.get(p.id);
+  for(const type of types)bins[type]+=qty*(recipe[type]||0);
+ }
+ const globalDemand=Object.fromEntries(types.map(type=>[type,factoryResourceTargetV026(f,type,s).demand]));
+ const baseDemand=Object.fromEntries(types.map(type=>[type,Math.max(0,globalDemand[type]-plants.reduce((n,p)=>n+bomByPlant.get(p.id)[type],0))]));
+ return plants.map((p,index)=>({p,monthly:Object.fromEntries(types.map(type=>[
+  type,Math.ceil(bomByPlant.get(p.id)[type]+(totalWeight?baseDemand[type]*baseWeights[index]/totalWeight:0))
+ ]))}));
 }
 function autoRefillRawFactoriesV038(s,events){
  for(const f of s.firms){
@@ -9569,7 +9600,7 @@ function factoryDetailMarkup(f,p,edit,inventoryView=null){if(!p)return `<div cla
  ${factoryInventoryMetricsV038(S,f,p)}</details>
  ${componentLinesPanel(f,p,edit)}
  ${bomShopPanel(f,p,edit)}
- ${(()=>{const people=staffOfPlantV023(f,p),man=f.factoryOps.staffAssignments?.[p.id];return `<div class="factory-v026-staff"><div class="row between"><h3>工場の人員配置</h3>${tag(people.assigned>=people.recommended?'人員充足':'人員不足',people.assigned>=people.recommended?'good':'warn')}</div><p class="hint">製造部門 ${nfmt(f.staff.production)}人を工場間で配分。部品工場の生産上限にも実際に反映します。</p><div class="factory-v026-staff-grid"><div class="staff-v026-kpi"><small>配属人数</small><b>${nfmt(people.assigned)}人</b></div><div class="staff-v026-kpi"><small>必要人数目安</small><b>${nfmt(people.recommended)}人</b></div><label class="field"><span>配置方式</span><select id="factoryStaffModeV026" ${edit?'':'disabled'}><option value="auto" ${man===undefined?'selected':''}>自動配分</option><option value="fixed" ${man!==undefined?'selected':''}>人数を固定</option></select></label><label class="field"><span>固定配置人数</span><input type="number" id="factoryStaffAmountV026" min="0" max="100000" value="${man??people.assigned}" ${edit?'':'disabled'}></label></div><div class="row"><button class="btn primary sm" data-action="saveFactoryStaffV026" data-plant-id="${esc(p.id)}" ${edit?'':'disabled'}>配置を保存</button><button class="btn sm" data-action="staffToHrV023">人事で従業員を採用</button></div><p class="hint">固定配置の合計は会社の製造人数を超えられません。未割当人員は自動配置の工場へ配分します。</p></div>`})()}
+ ${(()=>{const people=staffOfPlantV023(f,p),man=f.factoryOps.staffAssignments?.[p.id];return `<div class="factory-v026-staff"><div class="row between"><h3>工場の人員配置</h3>${tag(!people.recommended?'生産計画なし':people.assigned>=people.recommended?'人員充足':'人員不足',!people.recommended?'warn':people.assigned>=people.recommended?'good':'warn')}</div><p class="hint">製造部門 ${nfmt(f.staff.production)}人を工場間で配分。部品工場の生産上限にも実際に反映します。</p><div class="factory-v026-staff-grid"><div class="staff-v026-kpi"><small>配属人数</small><b>${nfmt(people.assigned)}人</b></div><div class="staff-v026-kpi"><small>必要人数目安</small><b>${nfmt(people.recommended)}人</b></div><label class="field"><span>配置方式</span><select id="factoryStaffModeV026" ${edit?'':'disabled'}><option value="auto" ${man===undefined?'selected':''}>自動配分</option><option value="fixed" ${man!==undefined?'selected':''}>人数を固定</option></select></label><label class="field"><span>固定配置人数</span><input type="number" id="factoryStaffAmountV026" min="0" max="100000" value="${man??people.assigned}" ${edit?'':'disabled'}></label></div><div class="row"><button class="btn primary sm" data-action="saveFactoryStaffV026" data-plant-id="${esc(p.id)}" ${edit?'':'disabled'}>配置を保存</button><button class="btn sm" data-action="staffToHrV023">人事で従業員を採用</button></div><p class="hint">固定配置の合計は会社の製造人数を超えられません。未割当人員は自動配置の工場へ配分します。</p></div>`})()}
  <div class="formgrid"><div class="field"><label for="renamePlant_${esc(p.id)}">工場名</label><input id="renamePlant_${esc(p.id)}" value="${esc(p.name)}" maxlength="32" ${edit?'':'disabled'}></div><button class="btn" data-action="renamePlant" data-plant-id="${esc(p.id)}" ${edit?'':'disabled'}>名称を変更</button>
  ${!type?`<div class="field"><label for="factoryFocus_${esc(p.id)}">担当車種</label><select id="factoryFocus_${esc(p.id)}" ${edit?'':'disabled'}><option value="all" ${p.focus==='all'?'selected':''}>全車種</option>${f.models.filter(m=>m.status==='active').map(m=>`<option value="${esc(m.id)}" ${p.focus===m.id?'selected':''}>${esc(m.name)}</option>`).join('')}</select></div><button class="btn" data-action="plantSettings" ${edit?'':'disabled'}>車種担当を保存</button>`:''}
  <div class="field"><label for="factoryOneAction">工場の管理操作</label><select id="factoryOneAction" ${edit?'':'disabled'}><option value="upgrade">設備更新（2か月）</option><option value="extend">設備を拡張 +30%（3か月）</option><option value="shrink">工場の縮小 -25%</option><option value="pause">操業を休止</option><option value="resume">操業を再開</option><option value="close">工場を廃止</option></select></div><button class="btn" data-action="factoryManageSelected" data-plant-id="${esc(p.id)}" ${edit?'':'disabled'}>工場操作を実行</button></div>
