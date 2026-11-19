@@ -4007,8 +4007,11 @@ function activateEmergingMarketsV047(s){
  ensureNpcV033(trial);
  for(const f of trial.firms)ensureNetwork(f,trial);
  ensureSupplyNetwork(trial);
- const errors=check(trial),accounts=consolidate(trial);
- if(errors.length||accounts.errors.length||!accounts.cf.reconciled)
+ const errors=check(trial),baseline=consolidate(s),accounts=consolidate(trial);
+ // Unclosed initial months can have unreconciled cash flow in both states.
+ // Activation must never worsen it or alter any existing financial statement.
+ if(errors.length||accounts.errors.length||accounts.cf.reconciled!==baseline.cf.reconciled||
+    accounts.bs.diff!==baseline.bs.diff)
   throw Error('新市場の導入検算に失敗しました：'+[...errors,...accounts.errors].slice(0,3).join('／'));
  return trial;
 }
