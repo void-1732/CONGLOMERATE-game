@@ -117,7 +117,7 @@ with sync_playwright() as playwright:
     assert blocked["assigned"] == 0 and "固定配置0人で生産停止" in blocked["reasons"], blocked
     assert "固定0人" in blocked["html"], blocked
     page.evaluate("""id=>{
-        PAGE='factory';FACTORY_UI.selected=id;FACTORY_DETAIL_VIEW_V026='diagnostic';render();
+        PAGE='factory';FACTORY_DETAIL_VIEW_V026='diagnostic';render();FACTORY_UI.selected=id;renderFactorySelected();
     }""", fixture["id"])
     page.locator('[data-factory-auto-restore="MAIN-BOM-120"]').click()
     restored = page.evaluate("""id=>{
@@ -194,7 +194,7 @@ with sync_playwright() as playwright:
     assert "生産計画なし" in ui["html"], "Idle factory is incorrectly labelled fully staffed"
     assert "この工場のBOMラインには月間生産計画がありません" in ui["html"], ui
     page.evaluate("""id=>{
-        PAGE='factory';FACTORY_UI.selected=id;FACTORY_DETAIL_VIEW_V026='diagnostic';render();
+        PAGE='factory';FACTORY_DETAIL_VIEW_V026='diagnostic';render();FACTORY_UI.selected=id;renderFactorySelected();
     }""", fixture["id"])
     page.locator('[data-factory-bom-plan="MAIN-BOM-120"]').click()
     assert page.evaluate("FACTORY_DETAIL_VIEW_V026") == "production"
