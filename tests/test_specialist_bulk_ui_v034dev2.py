@@ -71,6 +71,8 @@ with sync_playwright() as pw:
     seed(page)
     before=month(page)
     assert all(x["utilization"]==0 for x in before["factory"].values()),before
+    # Month-close navigation sends the user to Monthly Report. Return to Factory.
+    page.evaluate("PAGE='factory';render()")
     open_accordion(page)
     assert page.locator("#factoryV21Mode").input_value()=="legacy"
     page.locator("#factoryV21Mode").select_option("detailed")
