@@ -366,12 +366,53 @@ const SAVE_INDEX={backend:'初期化中',active:null,previous:null,activeChecksu
 // Approximate population anchors (millions); other economic variables remain synthetic.
 // Based on the OWID long-run population series (Gapminder before 1950; UN WPP since 1950).
 // Reference values are rounded and based on modern territorial boundaries, not historical sovereignty.
+/* STEP 9 / step 03: additional markets are deliberately opt-in. The currency,
+   tariff, demographic and opening values are synthetic gameplay assumptions. */
+const LEGACY_MARKETS_V047=Object.freeze(['JP','US','UK','DE','FR']);
+const EMERGING_MARKETS_V047=Object.freeze(['CN','IN','BR']);
+const ALL_MARKETS_V047=Object.freeze([...LEGACY_MARKETS_V047,...EMERGING_MARKETS_V047]);
+const EMERGING_MARKET_PROFILES_V047=Object.freeze({
+ CN:{opening:{export:1980,dealer:1990,subsidiary:2000,joint:1990,factory:2005,acquisition:2005,rival:1980}},
+ IN:{opening:{export:1950,dealer:1980,subsidiary:1995,joint:1995,factory:2000,acquisition:2000,rival:1960}},
+ BR:{opening:{export:1920,dealer:1955,subsidiary:1965,joint:1965,factory:1970,acquisition:1975,rival:1950}}
+});
+const isEmergingMarketV047=code=>EMERGING_MARKETS_V047.includes(code);
+/* STEP 9 / 05-A: market visibility, trade and investment rights are separate.
+   Opening dates are invented simulation rules, not historical restrictions. */
+function marketPhaseV047(s,code){
+ const visible=!!s?.world?.[code],profile=EMERGING_MARKET_PROFILES_V047[code];
+ if(!profile)return {visible,trade:visible,dealer:visible,subsidiary:visible,
+  joint:visible,factory:visible,acquisition:visible,rival:visible,earliestYear:null};
+ const enabled=visible&&s.marketExpansionV047?.enabled===true,opening=profile.opening;
+ return {visible:enabled,trade:enabled&&s.year>=opening.export,
+  dealer:enabled&&s.year>=opening.dealer,subsidiary:enabled&&s.year>=opening.subsidiary,
+  joint:enabled&&s.year>=opening.joint,factory:enabled&&s.year>=opening.factory,
+  acquisition:enabled&&s.year>=opening.acquisition,rival:enabled&&s.year>=opening.rival,
+  earliestYear:opening};
+}
+function marketEntryPermissionV047(s,f,code,mode){
+ if(!f||!s?.world?.[code])return false;
+ if(isEmergingMarketV047(code)){
+  const phase=marketPhaseV047(s,code);
+  if(mode==='rival')return phase.rival;
+  const allowed=mode==='direct'?phase.trade:phase[mode];
+  if(!allowed)return false;
+  return f.country===code?mode!=='direct':
+   internationalTradeAllowedV041(s,f.country,code,'vehicle');
+ }
+ if(mode==='rival')return true;
+ return code===f.country||internationalTradeAllowedV041(s,f.country,code,'vehicle');
+}
 const POPULATION_ANCHORS={
  JP:{1900:43.8,1920:56.0,1950:83.6,1980:117.1,2020:126.6},
  US:{1900:76.3,1920:106.5,1950:157.8,1980:229.5,2020:339.1},
  UK:{1900:41.5,1920:43.7,1950:49.8,1980:56.3,2020:67.3},
  DE:{1900:56.4,1920:61.2,1950:68.4,1980:78.3,2020:83.6},
- FR:{1900:38.5,1920:39.0,1950:41.8,1980:53.9,2020:67.4}
+ FR:{1900:38.5,1920:39.0,1950:41.8,1980:53.9,2020:67.4},
+ // Synthetic inputs for gameplay; do not treat these as verified historical data.
+ CN:{1900:400,1960:650,1990:1140,2020:1410},
+ IN:{1900:270,1960:450,1990:870,2020:1380},
+ BR:{1900:18,1960:70,1990:150,2020:214}
 };
 const POP_SOURCE='https://ourworldindata.org/grapher/population';
 function anchorPopulation(code,year){const anchors=POPULATION_ANCHORS[code];if(!anchors)return null;
@@ -380,24 +421,31 @@ function anchorPopulation(code,year){const anchors=POPULATION_ANCHORS[code];if(!
  if(year>=yrs[yrs.length-1])return anchors[yrs[yrs.length-1]];
  for(let i=1;i<yrs.length;i++){if(year<=yrs[i]){const lo=yrs[i-1],hi=yrs[i];return anchors[lo]+(anchors[hi]-anchors[lo])*(year-lo)/(hi-lo);}}return null;}
 
-const NAMES={JP:'日本',US:'アメリカ',UK:'イギリス',DE:'ドイツ',FR:'フランス'};
+const NAMES={JP:'日本',US:'アメリカ',UK:'イギリス',DE:'ドイツ',FR:'フランス',CN:'中国',IN:'インド',BR:'ブラジル'};
 const COUNTRIES={
  JP:{currency:'JPY',fx:1,pop:44,wealth:1,wage:145,demand:115,steel:420,rubber:280,steelSupply:1100,rubberSupply:1050},
  US:{currency:'USD',fx:150,pop:78,wealth:1.22,wage:155,demand:250,steel:430,rubber:270,steelSupply:1700,rubberSupply:1650},
  UK:{currency:'GBP',fx:190,pop:42,wealth:1.12,wage:150,demand:135,steel:440,rubber:290,steelSupply:950,rubberSupply:930},
  DE:{currency:'DEM',fx:160,pop:55,wealth:1.10,wage:148,demand:145,steel:410,rubber:280,steelSupply:1000,rubberSupply:970},
- FR:{currency:'FRF',fx:155,pop:41,wealth:1.02,wage:147,demand:115,steel:425,rubber:290,steelSupply:900,rubberSupply:900}
+ FR:{currency:'FRF',fx:155,pop:41,wealth:1.02,wage:147,demand:115,steel:425,rubber:290,steelSupply:900,rubberSupply:900},
+ // Currency rates and industry coefficients are invented simulation units.
+ CN:{currency:'CNY',fx:20,pop:400,wealth:.46,wage:94,demand:85,steel:405,rubber:315,steelSupply:1080,rubberSupply:880},
+ IN:{currency:'INR',fx:1.8,pop:270,wealth:.38,wage:82,demand:65,steel:415,rubber:330,steelSupply:910,rubberSupply:760},
+ BR:{currency:'BRL',fx:30,pop:18,wealth:.63,wage:112,demand:48,steel:438,rubber:320,steelSupply:860,rubberSupply:820}
 };
 const TRADE_GEOGRAPHY_V041={
  JP:{region:'pacific',ports:['JP-TOK','JP-OSA'],tariffs:[.05,.08,.14]},
  US:{region:'atlantic-pacific',ports:['US-LAX','US-CHI'],tariffs:[.04,.07,.14]},
  UK:{region:'europe',ports:['UK-LIV','UK-LON'],tariffs:[.04,.06,.12]},
  DE:{region:'europe',ports:['DE-HAM','DE-BER'],tariffs:[.03,.06,.13],customsUnion:true},
- FR:{region:'europe',ports:['FR-MAR','FR-PAR'],tariffs:[.04,.07,.15],customsUnion:true}
+ FR:{region:'europe',ports:['FR-MAR','FR-PAR'],tariffs:[.04,.07,.15],customsUnion:true},
+ CN:{region:'east-asia',ports:['CN-SHA','CN-GZH'],tariffs:[.12,.18,.27]},
+ IN:{region:'south-asia',ports:['IN-MUM','IN-CHN'],tariffs:[.13,.20,.29]},
+ BR:{region:'south-america',ports:['BR-SAN','BR-RIO'],tariffs:[.11,.19,.26]}
 };
 const CARGO_V041={bulk:{load:1,freight:.08,duty:0},parts:{load:2,freight:.065,duty:1},vehicle:{load:6,freight:.045,duty:2}};
 const ROUTE_NAMES_V041={sea:'海上輸送',alternateSea:'代替海路',rail:'鉄道'};
-const MARKET_TAX_V043={JP:.15,US:.18,UK:.17,DE:.19,FR:.20};
+const MARKET_TAX_V043={JP:.15,US:.18,UK:.17,DE:.19,FR:.20,CN:.20,IN:.22,BR:.24};
 const ECONOMIC_SHOCKS_V044={
  financial:{label:'金融危機',months:8,demand:.72,supply:.9,resource:.94,cycle:-.025,inflation:-.014,interest:.026,fx:-.007},
  energy:{label:'資源価格ショック',months:8,demand:.88,supply:.72,resource:1.3,cycle:-.014,inflation:.028,interest:.012,fx:-.004},
@@ -1396,7 +1444,10 @@ const INDUSTRIAL_SITES={
  US:[['US-DET','デトロイト',.86,.98,1.17,1.09,1.22],['US-CHI','シカゴ',1.04,1.09,1.22,1.20,1.06],['US-LAX','ロサンゼルス',1.42,1.20,1.15,1.08,.79]],
  UK:[['UK-MID','ミッドランズ',.87,.96,1.14,1.15,1.18],['UK-LON','ロンドン',1.51,1.26,1.22,1.16,.90],['UK-LIV','リバプール',.97,.96,1.02,1.02,.82]],
  DE:[['DE-RUH','ルール工業地域',.98,1.03,1.24,1.18,1.01],['DE-BER','ベルリン',1.20,1.10,1.13,1.12,1.12],['DE-HAM','ハンブルク',1.16,1.09,1.20,1.10,.80]],
- FR:[['FR-PAR','パリ圏',1.43,1.22,1.19,1.16,1.13],['FR-LYO','リヨン工業地域',.96,1.01,1.18,1.15,1.08],['FR-MAR','マルセイユ',.97,.99,1.02,1.05,.77]]
+ FR:[['FR-PAR','パリ圏',1.43,1.22,1.19,1.16,1.13],['FR-LYO','リヨン工業地域',.96,1.01,1.18,1.15,1.08],['FR-MAR','マルセイユ',.97,.99,1.02,1.05,.77]],
+ CN:[['CN-SHA','上海',1.14,.94,1.17,1.23,.92],['CN-GZH','広州',.96,.84,1.07,1.22,.86],['CN-BJS','北京',1.27,1.02,1.09,1.13,1.11]],
+ IN:[['IN-MUM','ムンバイ',1.07,.91,1.00,1.21,.95],['IN-CHN','チェンナイ',.86,.78,.94,1.20,.84],['IN-DEL','デリー',1.18,.96,.98,1.14,1.11]],
+ BR:[['BR-SAN','サントス',1.05,.96,1.04,1.11,.86],['BR-RIO','リオデジャネイロ',1.16,1.02,.99,1.04,.97],['BR-SAO','サンパウロ',1.26,1.09,1.18,1.17,1.09]]
 };
 const SITE_CATALOG=Object.entries(INDUSTRIAL_SITES).flatMap(([country,rows])=>rows.map(([id,name,land,wage,infra,labor,freight])=>({id,country,name,land,wage,infra,labor,freight})));
 const findSite=id=>SITE_CATALOG.find(x=>x.id===id);
@@ -1670,6 +1721,7 @@ function negotiationPanel(f,edit){return `<section class="panel span5"><h2>M&A�
 function delegationPanel(f,edit){ensureGameplayV07(f);const d=f.delegate,rows=(d.reports||[]).slice(0,6);return `<section class="panel span12"><h2>経営委任・予算・目標</h2><p class="hint">現在選択中の法人「${esc(f.name)}」の月次の生産・研究予算を自動計画できます。買収・借入・増設・雇用は承認なしに委任AIが実行しません。</p><div class="setting-split"><label><input type="checkbox" id="delegateProductionAuto" ${d.productionAuto!==false?'checked':''} ${edit?'':'disabled'}> 生産量を自動計画</label><label><input type="checkbox" id="delegateResearchAuto" ${d.researchAuto!==false?'checked':''} ${edit?'':'disabled'}> 研究予算を自動設定</label></div><p class="hint">どちらか一方だけ自動化できます。どちらもOFFの場合は手動計画が優先されます。</p><div class="formgrid"><div class="field"><label>操作方式</label><select id="delegateMode" ${edit?'':'disabled'}><option value="manual" ${d.mode==='manual'?'selected':''}>手動経営</option><option value="delegated" ${d.mode==='delegated'?'selected':''}>予算限定の経営委任</option></select></div><div class="field"><label>優先方針</label><select id="delegatePriority" ${edit?'':'disabled'}>${[['balanced','均衡'],['growth','成長・生産'],['profit','利益・手元資金'],['quality','品質'],['tech','研究開発']].map(([v,n])=>`<option value="${v}" ${d.priority===v?'selected':''}>${n}</option>`).join('')}</select></div><div class="field"><label>月次販売目標（台・件、0は自動）</label><input id="delegateTarget" type="number" min="0" max="100000" value="${d.salesTarget}" ${edit?'':'disabled'}></div><div class="field"><label>最低現金目標（円相当）</label><input id="delegateReserve" type="number" min="0" max="100000000" value="${d.minCashBase}" ${edit?'':'disabled'}></div><div class="field"><label>月次研究費の上限（円相当）</label><input id="delegateRndCap" type="number" min="0" max="50000000" value="${d.researchMaxBase}" ${edit?'':'disabled'}></div><button class="btn primary" data-action="saveDelegate" ${edit?'':'disabled'}>委任方針を保存</button></div><h3>委任AIの実績報告</h3>${rows.length?`<div class="scroll"><table><thead><tr><th>確定月</th><th class="num">販売目標</th><th class="num">実績</th><th class="num">当月利益（円相当）</th><th class="num">期末現金（円相当）</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${Math.floor(r.month/12)}年${r.month%12+1}月</td><td class="num">${r.target||'自動'}</td><td class="num">${nfmt(r.units)}</td><td class="num">${baseMoney(r.profitBase)}</td><td class="num">${baseMoney(r.cashBase)}</td></tr>`).join('')}</tbody></table></div>`:'<div class="hint">委任後に月末処理を実行すると、目標と実績を記録します。</div>'}${automationSettingsPanel(f)}</section>`;}
 
 function initFirm(s,{name,country,industry='auto',player=false,strategy='growth',seedBase=1900000,size=1,publicOwnership=true,capitalLegs=null}){
+ if(isEmergingMarketV047(country))throw Error('新興市場での法人創業は現地参入機能の実装後に開放します');
  const id='F'+s.seq++,fx=COUNTRIES[country].fx, f={id,name,country,industry,player,strategy,owners:publicOwnership?[{id:'PUBLIC',econ:1,vote:1}]:[],ledger:{},journals:[],payables:[],receivables:[],loans:[],stock:{steel:{q:0,v:0},rubber:{q:0,v:0}},goods:{},models:[],projects:[],rnd:{progress:0,target:'engine',budgetBase:12000},tech:1,plant:{capacity:Math.max(5,Math.round(45*size)),condition:92,assetCost:localFromBase(420000*size*eraCostFactor(s.year),country),construction:null},staff:{production:Math.max(7,Math.round(38*size)),research:Math.max(2,Math.round(5*size)),sales:Math.max(3,Math.round(10*size))},staffTarget:{},brand:{},dealers:{},adBudgets:{},plans:{},researchRights:['basic-engine'],distress:{stage:0,months:0},reserveUnits:4000,resourceStock:0,marketPresence:[country],monthly:{sales:0,cogs:0,profit:0,units:0,spent:0},history:[],auto:!player,contractPriority:'standard'};
  s.firms.push(f);
  for(const leg of capitalLegs??[{amount:localFromBase(seedBase,country),text:'創業資本'}]){
@@ -1681,8 +1733,8 @@ function initFirm(s,{name,country,industry='auto',player=false,strategy='growth'
  }else if(industry==='trade'){f.goods.TRADE={q:60,v:localFromBase(60*900*eraCostFactor(s.year),country)};post(f,{goods:f.goods.TRADE.v},{cash:f.goods.TRADE.v},'開業時の仕入商品','operating',s)}else if(industry==='resource'){const rights=localFromBase(80000*eraCostFactor(s.year),country);post(f,{resourceRights:rights},{cash:rights},'採取権取得','investing',s)}
  ensureFirmGameplay(f);if(s.partEconomy)ensureV27Firm(f);return f;
 }
-function blankWorld(year){const scale=year<1930?1:year<1960?1.55:year<1990?2.4:3.1;const result={};
- for(const [code,p] of Object.entries(COUNTRIES)){
+function blankWorld(year,codes=LEGACY_MARKETS_V047){const scale=year<1930?1:year<1960?1.55:year<1990?2.4:3.1;const result={};
+ for(const code of codes){const p=COUNTRIES[code];if(!p)throw Error('市場定義がありません：'+code);
   const pop=anchorPopulation(code,year)??p.pop*scale;
   const syntheticDemand=Math.round(p.demand*scale*scale*Math.pow(pop/(p.pop*scale),.45));
   result[code]={...p,code,fx:p.fx,pop,referencePopulation:pop,referencePopulationYear:year,wealth:p.wealth*(year<1960?1:1.3),demand:syntheticDemand,cycle:0,inflation:.02,rate:.04,confidence:.8,steelPrice:p.steel,rubberPrice:p.rubber,unemployment:.06,industrial:1,war:false};
@@ -2123,6 +2175,198 @@ function ensureNetwork(f,s=S){
   f.distribution.contracts[code]??={channel:code===f.country?'direct':'dealer',capacity:code===f.country?500:45,freightPct:code===f.country?0:.05,contractMonths:0};
  }
 }
+
+/* STEP 9, unit 1: opt-in global purchasing policy. No automatic new factories,
+   debt, contracts, or virtual stocks. Legacy saves default to manual selection. */
+const SUPPLY_POLICY_MODES_V045={
+ manual:'従来の契約・手動設定',cost:'低コスト重視',stable:'安定供給重視',
+ domestic:'国内優先',group:'企業グループ優先'
+};
+/* Unit 2: physical warehouse transfers remain opt-in, not a new source of stock. */
+const SUPPLY_LOGISTICS_MODES_V045={
+ manual:'従来の自動補充順序',economy:'運賃・物流費優先',
+ fast:'短納期優先',resilient:'安定稼働・安全在庫優先'
+};
+function logisticsPolicyModeV045(s,f){
+ if(!controller(s,f.id))return 'manual';
+ const policy=s.firms.find(x=>x.id===s.playerId)?.globalSupplyPolicyV045?.logistics;
+ const regional=policy?.regions?.[f.country],mode=regional&&regional!=='inherit'?regional:policy?.mode;
+ return Object.hasOwn(SUPPLY_LOGISTICS_MODES_V045,mode)?mode:'manual';
+}
+function logisticsOriginScoreV045(s,f,site,origin,type,mode){
+ const quote=v21Freight(origin.site,site,1,s),same=site.id===origin.site.id;
+ if(mode==='manual')return same?-1:0;
+ const stock=origin.stock?origin.stock[type]?.q??0:centralRawStockV038(f,type).q;
+ if(mode==='economy')return quote.base+quote.lead*6;
+ if(mode==='fast')return quote.lead*10000+quote.base;
+ return quote.lead*650+quote.base-Math.min(200,Math.max(0,stock))*2;
+}
+function supplyPolicyModeV045(s,f){
+ if(!controller(s,f.id))return 'manual';
+ const policy=s.firms.find(item=>item.id===s.playerId)?.globalSupplyPolicyV045;
+ const regional=policy?.regions?.[f.country];
+ const mode=regional&&regional!=='inherit'?regional:(policy?.mode||'manual');
+ return Object.hasOwn(SUPPLY_POLICY_MODES_V045,mode)?mode:'manual';
+}
+function validateSupplyPolicyV045(s){
+ const errors=[],policy=s.firms?.find(f=>f.id===s.playerId)?.globalSupplyPolicyV045;
+ if(policy===undefined)return errors;
+ if(!policy||typeof policy!=='object'||Array.isArray(policy)||
+    !Object.hasOwn(SUPPLY_POLICY_MODES_V045,policy.mode)||
+    !policy.regions||typeof policy.regions!=='object'||Array.isArray(policy.regions))
+  return ['国際供給網AIの方針設定が不正です'];
+ for(const [country,mode] of Object.entries(policy.regions)){
+  if(!s.world[country]||!Object.hasOwn(SUPPLY_POLICY_MODES_V045,mode))
+   errors.push('国別調達方針が不正 '+country);
+ }
+ if(policy.logistics!==undefined){
+  const setting=policy.logistics;
+  if(!setting||typeof setting!=='object'||Array.isArray(setting)||
+     !Object.hasOwn(SUPPLY_LOGISTICS_MODES_V045,setting.mode)||
+     !setting.regions||typeof setting.regions!=='object'||Array.isArray(setting.regions)){
+   errors.push('国際物流AIの方針設定が不正です');
+  }else for(const [country,mode] of Object.entries(setting.regions)){
+   if(!s.world[country]||!Object.hasOwn(SUPPLY_LOGISTICS_MODES_V045,mode))
+    errors.push('国別物流方針が不正 '+country);
+  }
+ }
+ return errors;
+}
+/* Physical suppliers are indexed once per month; all stock figures stay live. */
+function policyCandidatePoolV045(s,nodes){
+ const byType=new Map(SUPPLY_TYPES.map(type=>[type,[]]));
+ for(const node of nodes.values())if(byType.has(node.type))byType.get(node.type).push(node);
+ return {byType,controlled:controlSet(s),firms:new Map(s.firms.map(f=>[f.id,f]))};
+}
+function policySupplierV045(s,x,nodes,remaining,pool=null){
+ const mode=supplyPolicyModeV045(s,x.f);
+ if(mode==='manual'||x.needed<=0)return null;
+ const cargo=x.type==='components'?'parts':'bulk',options=[];
+ const sources=pool?.byType?.get(x.type)??nodes.values();
+ for(const node of sources){
+  if(node.type!==x.type||node.firmId===x.f.id)continue;
+  const seller=node.firmId?(pool?.firms?.get(node.firmId)??corporateSupplierV037(s,x.f,node)):null;
+  // No silent contracts with unaffiliated suppliers, and no invented stock.
+  if(!node.npc&&(!seller||seller.reorgStatus==='integrated'||
+     seller.lifecycle?.phase==='withdrawn'||!(pool?.controlled?
+     pool.controlled.has(x.f.id)&&pool.controlled.has(seller.id):
+     groupSupplyV037(s,x.f,seller))))continue;
+  const market=node.npc?npcMarketV033(s,node.country,x.type):null;
+  const available=node.npc?Math.max(0,(market?.stock||0)-marketEmergencyReserveV036(market)):
+    (remaining.get(node.id)||0);
+  if(!available)continue;
+  const abroad=node.country!==x.f.country,price=supplierPriceBase(s,node);
+  const quote=abroad?internationalQuoteV041(s,node.country,x.f.country,cargo,price):null;
+  if(abroad&&(!quote||quote.room<1))continue;
+  const lead=quote?.route?.months||0;
+  const expense=price+(quote?.freightUnitBase||0)+(abroad?price*tariffRateV041(s,node.country,x.f.country,cargo):0);
+  const disruption=s.supplyRisk?.active?.[node.id];
+  const reliability=1+(disruption?Math.max(0,1-(disruption.capacityFactor??1)):0);
+  const coverage=Math.min(1,available/Math.max(1,x.needed));
+  const shock=economicExposureV044(s,node.country);
+  let score=expense;
+  if(mode==='stable')score*=1+(1-coverage)*.65+(reliability-1)*1.5+
+    Math.max(0,1-shock.supply)*.8+lead*.07;
+  if(mode==='domestic')score*=abroad?1.6:.7;
+  if(mode==='group')score*=seller&&(pool?.controlled?pool.controlled.has(seller.id):groupSupplyV037(s,x.f,seller))?.45:abroad?1.6:1.1;
+  if(mode==='cost')score*=1+(reliability-1)*.10;
+  options.push({id:node.id,score});
+ }
+ options.sort((a,b)=>a.score-b.score||a.id.localeCompare(b.id));
+ return options[0]?.id||null;
+}
+function groupSupplyOverviewV045(s){
+ const groupIds=controlSet(s);
+ const members=s.firms.filter(f=>groupIds.has(f.id)&&f.reorgStatus!=='integrated'&&f.lifecycle?.phase!=='withdrawn');
+ const memberById=new Map(members.map(f=>[f.id,f]));
+ const buyers=members.filter(f=>['auto','manufacturing'].includes(f.industry));
+ return SUPPLY_TYPES.map(type=>{
+  let required=0,stock=0,transit=0,free=0,supplierCount=0;
+  for(const f of buyers){
+   const target=factoryResourceTargetV026(f,type,s);
+   const need=resourcePurchaseNeedV034(f,type,s,target);
+   if(f.supply?.contracts?.[type]?.autoOrder!==false)required+=need.requested;
+   stock+=need.stock;
+   transit+=(f.supply?.inbound||[]).filter(x=>x.type===type).reduce((n,x)=>n+x.qty,0);
+  }
+  for(const n of s.supplyNetwork?.nodes||[]){
+   if(n.type!==type||!n.firmId||!memberById.has(n.firmId))continue;
+   const seller=memberById.get(n.firmId);
+   const physical=type==='components'?Math.min(seller.stock?.components?.q||0,interplantUnassigned(seller)):
+     rawBinV032(seller,type).q;
+   const risk=s.supplyRisk?.active?.[n.id]?.capacityFactor??1;
+   const available=Math.max(0,Math.floor(Math.max(0,physical-rawCommittedV032(s,n.id,type))*risk*(s.world[n.country].war?.73:1)));
+   if(available>0){free+=available;supplierCount++}
+  }
+  return {type,required,stock,transit,free,supplierCount,externalNeed:Math.max(0,required-free)};
+ });
+}
+function groupSupplyOverviewPanelV045(s){
+ const items=groupSupplyOverviewV045(s);
+ return '<section class="panel span12"><h2>グループ供給網・需給バランス</h2>'+
+  '<p class="hint">支配下製造法人の必要調達量とグループ資源・部品法人の現物供給余力を比較。予約済み在庫は除外します。グループ外の市場調達は不足見込みに含まれず、実際の納入は取引規制・資金・輸送枠に制約されます。</p>'+
+  '<div class="scroll"><table><thead><tr><th>資材</th><th class="num">必要調達</th><th class="num">現在庫</th><th class="num">輸送中</th><th class="num">内部供給余力</th><th class="num">外部調達必要量</th></tr></thead><tbody>'+
+  items.map(x=>'<tr><td><b>'+SUPPLY_LABELS[x.type]+'</b> <span class="muted small">('+x.supplierCount+'社)</span></td>'+
+   '<td class="num">'+nfmt(x.required)+'</td><td class="num">'+nfmt(x.stock)+'</td>'+
+   '<td class="num">'+nfmt(x.transit)+'</td><td class="num">'+nfmt(x.free)+'</td>'+
+   '<td class="num">'+nfmt(x.externalNeed)+'</td></tr>').join('')+
+  '</tbody></table></div><p class="footnote">必要調達と供給余力は現時点の参考値です。既存の契約・法人・設備を自動変更しません。</p></section>';
+}
+
+function supplyPolicyPanelV045(s,f,editable){
+ const root=s.firms.find(item=>item.id===s.playerId),cfg=root?.globalSupplyPolicyV045||{};
+ const logistics=cfg.logistics||{};
+ const modes=Object.entries(SUPPLY_POLICY_MODES_V045);
+ const options=(chosen,inherit=false)=>
+  (inherit?'<option value="inherit"'+(chosen==='inherit'?' selected':'')+'>グループ共通に従う</option>':'')+
+  modes.map(entry=>'<option value="'+entry[0]+'"'+(chosen===entry[0]?' selected':'')+'>'+entry[1]+'</option>').join('');
+ const logisticsOptions=(chosen,inherit=false)=>
+  (inherit?'<option value="inherit"'+(chosen==='inherit'?' selected':'')+'>グループ共通に従う</option>':'')+
+  Object.entries(SUPPLY_LOGISTICS_MODES_V045).map(entry=>
+   '<option value="'+entry[0]+'"'+(chosen===entry[0]?' selected':'')+'>'+entry[1]+'</option>').join('');
+ const regions=Object.keys(s.world).map(code=>
+  '<label class="field"><span>'+esc(NAMES[code])+'</span><select id="supplyPolicyRegionV045_'+code+'"'+(editable?'':' disabled')+'>'+
+  options(cfg.regions?.[code]||'inherit',true)+'</select></label>').join('');
+ const logisticsRegions=Object.keys(s.world).map(code=>
+  '<label class="field"><span>'+esc(NAMES[code])+'</span><select id="logisticsPolicyRegionV045_'+code+'"'+(editable?'':' disabled')+'>'+
+  logisticsOptions(logistics.regions?.[code]||'inherit',true)+'</select></label>').join('');
+ return '<section class="panel span12"><h2>国際供給網AI・グループ調達方針</h2>'+
+  '<p class="hint">長期契約と既存の代替配分を優先し、残りの通常発注に適用します。実在庫・通関・輸送枠を超える仕入は行いません。未設定の旧セーブは従来方式です。</p>'+
+  '<div class="formgrid"><label class="field"><span>グループ共通の調達方針</span><select id="supplyPolicyModeV045"'+(editable?'':' disabled')+'>'+
+  options(cfg.mode||'manual')+'</select></label></div><h3>法人の所在国別の調達ルール</h3>'+
+  '<div class="formgrid">'+regions+'</div>'+
+  '<h3>工場・倉庫の自動補充方針</h3>'+
+  '<p class="hint">既存の倉庫設定で「国内工場の原材料を自動補充」をONにした法人だけで利用します。新しい在庫、借入、倉庫・工場の取得は行いません。安定稼働優先は輸送期間を加味して目標在庫を厚めに確保します。</p>'+
+  '<div class="formgrid"><label class="field"><span>グループ共通の物流方針</span><select id="logisticsPolicyModeV045"'+(editable?'':' disabled')+'>'+
+  logisticsOptions(logistics.mode||'manual')+'</select></label></div>'+
+  '<h3>法人の所在国別の物流ルール</h3><div class="formgrid">'+logisticsRegions+'</div>'+
+  '<p class="hint">この法人の調達：'+esc(SUPPLY_POLICY_MODES_V045[supplyPolicyModeV045(s,f)])+
+  ' ／ 物流：'+esc(SUPPLY_LOGISTICS_MODES_V045[logisticsPolicyModeV045(s,f)])+
+  '。支配下の法人に所在国の方針が適用され、既存の会計・物流台帳を利用します。</p>'+
+  '<button class="btn primary" data-action="saveSupplyPolicyV045"'+(editable?'':' disabled')+'>グループ調達方針を保存</button></section>';
+}
+function saveSupplyPolicyV045(){
+ try{
+  const f=current(),root=company(S.playerId,S);
+  if(!canEdit(f)||!root||!controller(S,root.id))throw Error('管理権限がありません');
+  const mode=inputValue('supplyPolicyModeV045'),regions={};
+  const logisticsMode=inputValue('logisticsPolicyModeV045'),logisticsRegions={};
+  if(!Object.hasOwn(SUPPLY_POLICY_MODES_V045,mode))throw Error('調達方針が不正です');
+  if(!Object.hasOwn(SUPPLY_LOGISTICS_MODES_V045,logisticsMode))throw Error('物流方針が不正です');
+  for(const country of Object.keys(S.world)){
+   const chosen=inputValue('supplyPolicyRegionV045_'+country);
+   const transport=inputValue('logisticsPolicyRegionV045_'+country);
+   if(chosen!=='inherit'&&!Object.hasOwn(SUPPLY_POLICY_MODES_V045,chosen))
+    throw Error('地域別調達方針が不正です');
+   if(transport!=='inherit'&&!Object.hasOwn(SUPPLY_LOGISTICS_MODES_V045,transport))
+    throw Error('地域別物流方針が不正です');
+   if(chosen!=='inherit')regions[country]=chosen;
+   if(transport!=='inherit')logisticsRegions[country]=transport;
+  }
+  root.globalSupplyPolicyV045={mode,regions,logistics:{mode:logisticsMode,regions:logisticsRegions}};
+  render();toast('企業グループの調達・物流方針を保存しました');
+ }catch(e){toast(e.message)}
+}
 function activeEconomicShocksV044(s){
  const month=ym(s.year,s.month);
  return (s.economicShocksV044??[]).filter(event=>event.start<=month&&month<event.end);
@@ -2229,13 +2473,30 @@ function internationalRoutesV041(s,origin,destination){
  }
  return [sea,alternate];
 }
+/* STEP 9 / step 04: a bounded export-and-raw-import corridor.
+   Direct exports and real inventory-backed materials may cross after the
+   synthetic regional trade-opening year. Incorporation and manufacturing
+   still require step 05 entry permission and remain disabled. */
+function emergingTradeOpenV048(s,origin,destination,cargo){
+ if(!['vehicle','parts','bulk'].includes(cargo)||!s.world?.[origin]||!s.world?.[destination]||origin===destination)return false;
+ for(const code of [origin,destination])
+  if(isEmergingMarketV047(code)&&!marketPhaseV047(s,code).trade)return false;
+ return true;
+}
+function directExportPilotV048(s,f,market){
+ return isEmergingMarketV047(market)&&marketEntryPermissionV047(s,f,market,'direct');
+}
 function internationalTradeAllowedV041(s,origin,destination,cargo){
+ if((isEmergingMarketV047(origin)||isEmergingMarketV047(destination))&&
+   !emergingTradeOpenV048(s,origin,destination,cargo))return false;
  const month=ym(s.year,s.month),restrictions=s.logisticsV041?.restrictions??{};
  if((restrictions[origin+'/'+destination]?.end??-1)>month||tradeShockV044(s,'sanctions',origin,destination))return false;
  // The historical war flags support limited wartime export licensing for vehicles.
  return !(cargo==='vehicle'&&s.world[origin]?.war&&s.world[destination]?.war);
 }
 function marketInvestmentAllowedV043(s,f,country){
+ // Direct vehicle export is not a license to create a legal entity or plant.
+ if(isEmergingMarketV047(country))return false;
  return !!s.world[country]&&(country===f.country||internationalTradeAllowedV041(s,f.country,country,'vehicle'));
 }
 const ENTRY_LABELS_V043={direct:'直接輸出',dealer:'現地代理店',subsidiary:'現地販売子会社',
@@ -2262,7 +2523,11 @@ function changeForeignMarketV043(s,f,market,action,mode,agentId){
   return 0;
  }
  if(action!=='enter'||!['direct','dealer','subsidiary','factory'].includes(mode))throw Error('利用する進出方式を選択してください');
- if(!marketInvestmentAllowedV043(s,f,market))throw Error('対象市場は現在、新規の進出を制限しています');
+ if(isEmergingMarketV047(market)){
+  if(mode!=='direct'||!marketEntryPermissionV047(s,f,market,mode))
+   throw Error('この市場では、指定年代以降の直接輸出のみ認められています');
+ }else if(!marketInvestmentAllowedV043(s,f,market))
+  throw Error('対象市場は現在、新規の進出を制限しています');
  let partner=null;
  if(mode==='dealer'){
   partner=company(agentId,s);
@@ -2469,7 +2734,7 @@ function productCostQuote(f,design,s=S){
 function supplyContractsPage(){const f=current();ensureNetwork(f);ensureSupplyNetwork(S);const edit=canEdit(f),w=S.world[f.country];return titlePage('サプライヤー・国際調達','実在するゲーム内法人を契約先に選び、7資材の輸送・価格・在庫を管理します。',tag('契約・障害・代替調達・安全在庫・リードタイム'))+(!edit?noaccess():'')+`<div class="grid"><section class="panel span12"><div class="row between"><b>7資材の仕入価格見積（契約先別）</b>${tag('資源市場連動')}</div><div class="formgrid">${SUPPLY_TYPES.map(t=>{const n=S.supplyNetwork.nodes.find(x=>x.id===f.supply.contracts[t].supplierId);return `<div class="resource-mini"><b>${SUPPLY_LABELS[t]}</b><div>${baseMoney(cents(supplierPriceBase(S,n||{country:f.country,type:t})))}/単位</div></div>`}).join('')}</div></section>
  <section class="panel span8"><h2>原材料・部品ごとの購入契約</h2><div class="scroll"><table><thead><tr><th>資材</th><th>主仕入先</th><th>代替仕入先</th><th>安全在庫係数</th><th class="num">現在庫</th><th class="num">輸送中</th></tr></thead><tbody>${SUPPLY_TYPES.map(t=>`<tr><td><b>${SUPPLY_LABELS[t]}</b></td><td><select id="supplier_${t}" ${edit?'':'disabled'}>${S.supplyNetwork.nodes.filter(x=>x.type===t&&x.firmId&&x.firmId!==f.id).map(x=>`<option value="${x.id}" ${f.supply.contracts[t].supplierId===x.id?'selected':''}>${esc(x.label)}${controller(S,x.firmId)?'【グループ内】':''} / ${NAMES[x.country]}（能力${nfmt(x.capacity)}）</option>`).join('')}</select></td><td><select id="backup_${t}" ${edit?'':'disabled'}><option value="">指定なし</option>${S.supplyNetwork.nodes.filter(x=>x.type===t&&x.firmId&&x.firmId!==f.id&&x.id!==f.supply.contracts[t].supplierId).map(x=>`<option value="${esc(x.id)}" ${f.supply.contracts[t].backupId===x.id?'selected':''}>${esc(x.label)} / ${NAMES[x.country]}</option>`).join('')}</select></td><td><select id="buffer_${t}" ${edit?'':'disabled'}>${[[1,'標準'],[1.5,'厚め'],[2,'最大']].map(([v,label])=>`<option value="${v}" ${Number(f.supply.contracts[t].buffer)===v?'selected':''}>${label}</option>`).join('')}</select></td><td class="num">${nfmt(f.stock[t]?.q)}</td><td class="num">${nfmt(f.supply.inbound.filter(x=>x.type===t).reduce((a,x)=>a+x.qty,0))}</td></tr>`).join('')}</tbody></table></div><div class="row" style="margin-top:15px"><button class="btn primary" data-action="saveSupply" ${edit?'':'disabled'}>仕入先・在庫方針を保存</button></div><p class="footnote">契約先は法人IDで管理。自社グループ・同一通貨で在庫がある場合は簿価で実物移管し、双方の現金・在庫を仕訳します。外部企業契約は価格・能力・物流と購入側仕訳を優先した試作方式（売手側の正式売買取引は次段階）。輸送中の注文は契約変更で消えません。</p></section>
  <section class="panel span4"><h2>供給網の階層</h2>${rowstat('第3階層', '鋼材・ゴム・アルミ・銅・ガラス・化学原料')}${rowstat('第2階層','加工・組立前工程（モデル上の制約）')}${rowstat('第1階層','組立用部品セット（原材料価格と連動）')}${rowstat('自社の所在国',NAMES[f.country])}<p class="footnote">第2階層と海外輸送は現在、能力・価格・納期による集約計算です。独立した第2階層企業間の資産譲渡・在庫台帳は次期実装です。</p></section>
- ${supplyRiskPanel(f)}<section class="panel span12"><h2>入荷予定・国際輸送</h2><div class="scroll"><table><thead><tr><th>材料</th><th>仕入国</th><th>数量</th><th>経路</th><th>到着予定</th><th class="num">見込仕入総額（円相当）</th></tr></thead><tbody>${f.supply.inbound.map(x=>`<tr><td>${SUPPLY_LABELS[x.type]}</td><td>${NAMES[x.origin]}</td><td>${x.qty}</td><td>${x.internationalV041?ROUTE_NAMES_V041[x.internationalV041.routeId.split('/').at(-1)]:'—'}</td><td>${Math.floor(x.due/12)}年${x.due%12+1}月</td><td class="num">${nfmt(x.totalBase)}</td></tr>`).join('')||'<tr><td colspan="6">輸送中の仕入はありません</td></tr>'}</tbody></table></div></section>
+ ${supplyPolicyPanelV045(S,f,edit)}${groupSupplyOverviewPanelV045(S)}${supplyRiskPanel(f)}<section class="panel span12"><h2>入荷予定・国際輸送</h2><div class="scroll"><table><thead><tr><th>材料</th><th>仕入国</th><th>数量</th><th>経路</th><th>到着予定</th><th class="num">見込仕入総額（円相当）</th></tr></thead><tbody>${f.supply.inbound.map(x=>`<tr><td>${SUPPLY_LABELS[x.type]}</td><td>${NAMES[x.origin]}</td><td>${x.qty}</td><td>${x.internationalV041?ROUTE_NAMES_V041[x.internationalV041.routeId.split('/').at(-1)]:'—'}</td><td>${Math.floor(x.due/12)}年${x.due%12+1}月</td><td class="num">${nfmt(x.totalBase)}</td></tr>`).join('')||'<tr><td colspan="6">輸送中の仕入はありません</td></tr>'}</tbody></table></div></section>
  <section class="panel span12"><h2>直近の納入実績</h2>${f.supply.history.slice(-12).reverse().map(x=>`<div class="data-pair"><span>${NAMES[x.origin]} → ${SUPPLY_LABELS[x.type]} ${x.qty}単位</span><b>${baseMoney(cents(x.totalBase))}</b></div>`).join('')||'<p class="muted small">月末処理後に表示されます。</p>'}</section>
  </div>`}
 function saveSupply(){try{const f=current();if(!canEdit(f))throw Error('権限がありません');ensureNetwork(f);ensureSupplyNetwork(S);for(const t of SUPPLY_TYPES){const id=inputValue('supplier_'+t),node=S.supplyNetwork.nodes.find(x=>x.id===id&&x.type===t&&x.firmId&&x.firmId!==f.id);if(!node)throw Error('仕入先が不正です');const back=inputValue('backup_'+t);if(back&&!S.supplyNetwork.nodes.some(x=>x.id===back&&x.type===t&&x.firmId!==f.id&&back!==id))throw Error('代替仕入先が不正です');f.supply.contracts[t]={supplierId:id,backupId:back||'',buffer:Number(inputValue('buffer_'+t))||1}}render();toast('資材の仕入先・安全在庫方針を更新しました。')}catch(e){toast(e.message)}}
@@ -2638,8 +2903,21 @@ function deliverMaterials(s,f,events){const month=ym(s.year,s.month),arrivals=f.
  const total=localFromBase(chargedBase,f.country);
  if(total){
   post(f,{materials:total},{payable:total},'調達品受領：'+SUPPLY_LABELS[shipment.type]+' '+shipment.qty,'operating',s);
-  const denomination=customs?foreignDenominationV042(s,f,shipment.origin,total):{};
-  f.payables.push({amount:total,due:month+1,note:'国際調達／部品仕入',account:'payable',...denomination});
+  // For emerging-market imports, customs duty and rerouting are payable in
+  // the importer's local currency; only the physical supplier invoice is FX.
+  // Keep the full landed cost in materials, with no extra phantom cash entry.
+  if(customs&&isEmergingMarketV047(shipment.origin)){
+   const supplierBill=localFromBase(shipment.totalBase-credit,f.country);
+   const localCharges=total-supplierBill;
+   if(supplierBill)f.payables.push({amount:supplierBill,due:month+1,
+     note:'国際調達／海外仕入',account:'payable',
+     ...foreignDenominationV042(s,f,shipment.origin,supplierBill)});
+   if(localCharges)f.payables.push({amount:localCharges,due:month+1,
+     note:'国際調達／輸入関税・迂回輸送費',account:'payable'});
+  }else{
+   const denomination=customs?foreignDenominationV042(s,f,shipment.origin,total):{};
+   f.payables.push({amount:total,due:month+1,note:'国際調達／部品仕入',account:'payable',...denomination});
+  }
  }
  const stock=f.stock[shipment.type]??={q:0,v:0};stock.q+=shipment.qty;stock.v+=total;
  f.supply.history.push({month,type:shipment.type,origin:shipment.origin,qty:shipment.qty,totalBase:chargedBase,creditBase:credit,
@@ -2891,6 +3169,17 @@ function procureNetwork(s,events){
  const needed=x=>x.needed;
  // Honour active contracts first, then split the remaining purchase request.
  allocateSelected(x=>x.alternate,x=>Math.floor(x.needed*x.backupShare/100));
+ // Respect long-term call-offs, then optimize only the outstanding spot request.
+ const pool=policyCandidatePoolV045(s,nodes);
+ // Re-evaluate remaining physical supply after each fair allocation.
+ // In a shortage, a second or third supplier can fill the residual order.
+ for(let pass=0;pass<3;pass++){
+  const before=candidates.reduce((n,x)=>n+(supplyPolicyModeV045(s,x.f)!=='manual'?x.needed:0),0);
+  if(before<=0)break;
+  allocateSelected(x=>policySupplierV045(s,x,nodes,remaining,pool),needed);
+  const after=candidates.reduce((n,x)=>n+(supplyPolicyModeV045(s,x.f)!=='manual'?x.needed:0),0);
+  if(after>=before)break;
+ }
  allocateSelected(x=>x.preferred,needed);
  allocateSelected(x=>!x.term&&x.primaryNode?.npc&&!homeMarket(x)?x.primaryNode.id:null,needed);
  allocateSelected(x=>homeMarket(x)?null:x.alternate,needed);
@@ -2939,6 +3228,15 @@ function saveDistribution(){let before=null;try{
  const proposed=[];let setupCost=0;
  for(const code of Object.keys(S.world)){
   const channel=inputValue('channel_'+code),capacity=Math.round(intValue('capacity_'+code,1,10000));
+  if(isEmergingMarketV047(code)){
+   const old=f.distribution.contracts[code];
+   if(channel!==old.channel||capacity!==old.capacity||
+      (f.marketPresence.includes(code)&&
+       (f.foreignMarketsV043?.[code]?.mode!=='direct'||!directExportPilotV048(S,f,code))))
+    throw Error('新市場では直接輸出以外の販売網変更は現在許可されていません：'+NAMES[code]);
+   proposed.push({code,old,channel,capacity,dealerId:old.dealerId||'',suspended:true});
+   continue;
+  }
   if(!['direct','dealer','distributor','subsidiary'].includes(channel))throw Error('販売契約種別が不正です');
   if(channel==='subsidiary'&&!f.distribution.salesCorporations[code]&&!controller(S,inputValue('dealer_'+code)))throw Error('支配下の現地販売会社がありません：'+NAMES[code]);
   const dealerId=inputValue('dealer_'+code)||'',dealer=dealerId?company(dealerId):null;if(dealerId&&(!dealer||dealer.id===f.id||dealer.country!==code))throw Error('販売店の契約法人が不正です');const old=f.distribution.contracts[code],suspended=f.foreignMarketsV043?.[code]?.phase==='withdrawn',newMarket=code!==f.country&&!f.marketPresence.includes(code)&&!suspended;
@@ -3034,6 +3332,11 @@ function deliverExports(s,events){
 }
 
 function exportShipment(s,f,key,qty,unitPrice,code,events,segment=null){
+ if(isEmergingMarketV047(code)&&
+    (!directExportPilotV048(s,f,code)||!f.marketPresence.includes(code)||
+     f.foreignMarketsV043?.[code]?.mode!=='direct'||
+     f.foreignMarketsV043?.[code]?.phase==='withdrawn'))
+  throw Error('新興市場への輸出には有効な直接輸出の販路が必要です');
  ensureNetwork(f,s);
  qty=Math.min(qty,finishedAtCountryV043(f,key,f.country));
  const channel=exportChannel(f,code,s),mult=exportChannelMultiplierV041(channel);
@@ -3132,7 +3435,7 @@ function foreignEntryPanelV043(s,f,edit){
   <p class="hint">${active?(state?.phase==='reduced'?'販売枠を縮小中':'販売中'):'販売停止'} ／ 月間需要 ${nfmt(marketDemandSnapshotV031(s,market).demand)}台
   ／ 現地企業 ${nfmt(local.length)}社 ／ 自社認知度 ${nfmt(f.brand[market]??0)}%<br>
   現地の基準賃金 ${baseMoney(cents(world.wage*eraCostFactor(s.year)))} ／ 試算法人税率 ${nfmt((MARKET_TAX_V043[market]??.15)*100)}%
-  ／ 新規投資 ${marketInvestmentAllowedV043(s,f,market)?'可能':'規制中'}</p>
+  ／ 新規投資 ${marketInvestmentAllowedV043(s,f,market)?'可能':directExportPilotV048(s,f,market)?'直接輸出のみ可能':'規制中'}</p>
   <div class="mk-table-wrap"><table class="mk-table"><thead><tr><th>進出方式</th><th>初期投資の目安</th><th>主な運営費・台</th><th>支配・契約</th></tr></thead>
   <tbody>${rows}</tbody></table></div>${controls}${links}</section>`;
 }
@@ -3282,7 +3585,7 @@ function competitorEvolution(s,events){
  const eligible=s.firms.filter(f=>f.lifecycle?.phase==='active').length;
  if(s.month!==1||month<=s.competition.lastEntry+6||eligible>=s.competition.maxFirms||s.firms.length>=s.competition.maxFirms)return;
  // Annual entry rate only; no undefined debt, cash or market demand from extinct firms.
- const countryRanking=Object.keys(s.world).sort((a,b)=>(s.world[b].demand/(1+s.firms.filter(f=>f.country===b&&f.lifecycle?.phase!=='withdrawn').length))-(s.world[a].demand/(1+s.firms.filter(f=>f.country===a&&f.lifecycle?.phase!=='withdrawn').length)));const code=countryRanking[Math.floor(random(s)*Math.min(3,countryRanking.length))];
+ const countryRanking=Object.keys(s.world).filter(code=>!isEmergingMarketV047(code)).sort((a,b)=>(s.world[b].demand/(1+s.firms.filter(f=>f.country===b&&f.lifecycle?.phase!=='withdrawn').length))-(s.world[a].demand/(1+s.firms.filter(f=>f.country===a&&f.lifecycle?.phase!=='withdrawn').length)));const code=countryRanking[Math.floor(random(s)*Math.min(3,countryRanking.length))];
  const industry=V09_INDUSTRIES[Math.floor(random(s)*V09_INDUSTRIES.length)];
  const entryNo=(s.competition.entryCount||0)+1;s.competition.entryCount=entryNo;
  const name=`${NAMES[code]} 新興${{auto:'自動車',manufacturing:'製造',trade:'商社',resource:'資源',service:'技術サービス'}[industry]} ${entryNo}`;
@@ -3365,7 +3668,9 @@ function seedStartupSupplyV035(s){
 }
 
 function newGame(cfg){const era=Number(cfg.era),capitalBase=Math.round((era<1930?2400000:era<1960?4200000:era<1990?7000000:12000000)*Math.pow(eraCostFactor(era),.70)*(cfg.difficulty==='easy'?1.6:cfg.difficulty==='hard'?.7:1));
- const s={schema:VERSION,year:era,month:1,startYear:era,seq:1,rng:390182+(era*101),config:{...cfg},world:blankWorld(era),firms:[],playerId:'',history:[],notices:[],reports:[],lastReport:null,monthCommitted:ym(era,1)-1,autosaveState:'未保存',started:true,worldEffects:{},monthEvents:[]};
+ if(!LEGACY_MARKETS_V047.includes(cfg.country))throw Error('新市場での創業は市場参入機能が完成してから利用可能です');
+ const expansion=cfg.marketExpansionV047===true;
+ const s={schema:VERSION,year:era,month:1,startYear:era,seq:1,rng:390182+(era*101),config:{...cfg},world:blankWorld(era,expansion?ALL_MARKETS_V047:LEGACY_MARKETS_V047),...(expansion?{marketExpansionV047:{enabled:true,anchorYear:era,activatedAt:ym(era,1)}}:{}),firms:[],playerId:'',history:[],notices:[],reports:[],lastReport:null,monthCommitted:ym(era,1)-1,autosaveState:'未保存',started:true,worldEffects:{},monthEvents:[]};
  const f=initFirm(s,{name:cfg.name.trim()||'東亜自動車工業',country:cfg.country,player:true,seedBase:capitalBase,size:1.2,strategy:'balanced'});s.playerId=f.id;ensureSupplyNetwork(s);for(const firm of s.firms)ensureNetwork(firm,s);
  const others=[{name:'日本交通機械',c:'JP',size:1.05,strategy:'quality'},{name:'North Atlantic Motors',c:'US',size:1.8,strategy:'growth'},{name:'Albion Motor Works',c:'UK',size:1,strategy:'profit'},{name:'Continental Automobil',c:'DE',size:1.15,strategy:'tech'},{name:'Automobiles Lumière',c:'FR',size:.95,strategy:'balanced'},{name:'東亜物産',c:'JP',industry:'trade',size:.48,strategy:'profit'}];
  for(const o of others)initFirm(s,{name:o.name,country:o.c,industry:o.industry||'auto',size:o.size,seedBase:Math.round((o.industry?350000:2400000*o.size)*eraCostFactor(s.year)),strategy:o.strategy});
@@ -3605,7 +3910,7 @@ function reorganizationPanel(f,edit){ensureV11Firm(f);
  ${S.reorgHistory?.length?`<div class="scroll"><table><thead><tr><th>年月</th><th>取引</th><th>移管元</th><th>移管先</th><th>内容</th></tr></thead><tbody>${S.reorgHistory.slice(-7).reverse().map(r=>`<tr><td>${Math.floor(r.month/12)}年${r.month%12+1}月</td><td>${r.kind==='business-transfer'?'事業移管':'事業統合'}</td><td>${esc(company(r.source)?.name||r.source)}</td><td>${esc(company(r.target)?.name||r.target)}</td><td>${esc(r.plantName||'全事業')}（簿価処理）</td></tr>`).join('')}</tbody></table></div>`:''}</section>`;
 }
 
-function check(s=S){let errs=validateContractsV036(s);if(!s||s.schema!==VERSION)return ['保存版の互換性がありません'];if(!Array.isArray(s.firms)||!s.firms.length)return ['法人情報がありません'];errs.push(...validateInternationalV041(s),...validateForeignWalletsV042(s),...validateEconomicShocksV044(s));const ids=new Set(),corporateTransit=corporateSupplyTransitV037(s,errs);for(const f of s.firms){if(ids.has(f.id))errs.push('法人ID重複 '+f.id);ids.add(f.id);const fin=financials(f);if(Math.abs(fin.bsDiff)>1)errs.push(f.name+'：貸借不一致 '+fin.bsDiff);const glSum=Object.values(f.ledger).reduce((a,b)=>a+b,0);if(glSum!==0)errs.push(f.name+'：借貸不一致');if(!Number.isSafeInteger(glSum))errs.push(f.name+'：数値異常');const stk=Object.values(f.stock||{}).reduce((a,b)=>a+(b.v||0),0);if(Math.abs(stk-acc(f,'materials'))>2)errs.push(f.name+'：材料原価台帳不一致');const goods=Object.values(f.goods||{}).reduce((a,b)=>a+(b.v||0),0);if(Math.abs(goods-acc(f,'goods'))>2)errs.push(f.name+'：製品原価台帳不一致');if(f.distribution){const transit=f.distribution.outbound.reduce((sum,x)=>sum+x.bookCost,corporateTransit.get(f.id)?.goods??0);if(Math.abs(transit-acc(f,'goodsTransit'))>2)errs.push(f.name+'：輸送中製品原価不一致');if(f.distribution.outbound.some(x=>x.qty<1||x.bookCost<0))errs.push(f.name+'：輸送中製品数量異常');}if(f.supply?.inbound?.some(x=>x.qty<1||x.totalBase<0))errs.push(f.name+'：輸送中材料数量異常');if(f.industry==='resource'&&f.rawOpsV032){if(f.goods.RESOURCE?.q>0)errs.push(f.name+'：資源在庫の旧新重複');for(const type of RAW_TYPES_V032){const bin=rawBinV032(f,type);if(!Number.isSafeInteger(bin.q)||bin.q<0||!Number.isSafeInteger(bin.v)||bin.v<0)errs.push(f.name+'：資材別在庫異常 '+type);}}for(const [k,it] of Object.entries(f.stock||{}))if(it.q<0||it.v<0)errs.push(f.name+'：負材料 '+k);for(const [k,it] of Object.entries(f.goods||{}))if(it.q<0||it.v<0)errs.push(f.name+'：負製品 '+k);if(!Number.isFinite(f.plant.condition)||f.plant.condition<0||f.plant.condition>100)errs.push(f.name+'：設備状態不正');if(f.plants){const ids=new Set();for(const p of f.plants){if(ids.has(p.id)||!FACTORY_KINDS[p.kind]||!Number.isSafeInteger(p.capacity)||p.capacity<1||p.condition<0||p.condition>100)errs.push(f.name+'：工場情報不正 '+p.id);ids.add(p.id)}if(f.plant.capacity!==activeFactories(f).reduce((a,p)=>a+p.capacity,0))errs.push(f.name+'：工場能力台帳不一致');if(f.plants.some(p=>!findSite(p.siteId)))errs.push(f.name+'：工場立地が不正')}if(f.research&&!RND_DOMAINS[f.research.topic])errs.push(f.name+'：研究テーマ不正');let sum=0;for(const o of f.owners){sum+=o.econ;if(o.econ<0||o.vote<0||o.vote>1)errs.push(f.name+'：持分比率不正');if(o.id!== 'PUBLIC'&&!company(o.id,s))errs.push(f.name+'：株主参照不正');}if(Math.abs(sum-1)>0.000001)errs.push(f.name+'：持分合計不正');if(f.shareBlocks){const pool=f.owners.find(o=>o.id==='PUBLIC')?.econ||0;const out=f.shareBlocks.reduce((a,x)=>a+x.holding,0);if(Math.abs(pool-out)>0.000002||f.shareBlocks.some(x=>x.holding<-.000001))errs.push(f.name+'：外部株主台帳不一致');}if(f.sharesOutstanding!==undefined&&(!Number.isSafeInteger(f.sharesOutstanding)||f.sharesOutstanding<1))errs.push(f.name+'：発行済株式数不正');if(!Number.isSafeInteger(f.treasuryShares||0)||(f.treasuryShares||0)<0||(f.treasuryShares||0)>=f.sharesOutstanding)errs.push(f.name+'：自己株式数不正');if(!Number.isSafeInteger(f.treasuryCostLocal||0)||(f.treasuryCostLocal||0)<0||Math.abs((f.treasuryCostLocal||0)-acc(f,'treasuryStock'))>1)errs.push(f.name+'：自己株式の取得原価台帳不一致');const votes=f.owners.reduce((a,o)=>a+(o.vote||0),0);if(Math.abs(votes-1)>.000002)errs.push(f.name+'：議決権合計不正');}for(const f of s.firms){validateResourceV037(f,errs);validateFinishedLocationsV038(f,errs);if(f.inventoryLogisticsV038&&findSite(f.inventoryLogisticsV038.warehouseSiteId)?.country!==f.country)errs.push(f.name+'：中央倉庫の立地が不正');ensureV11Firm(f);const qty=Object.values(f.interplant.siteComponents).reduce((a,b)=>a+b,0);if(qty>(f.stock.components?.q||0)||qty<0)errs.push(f.name+'：工場専用部品台帳不一致');const cash=f.interplant.shipments.reduce((a,t)=>a+t.bookCost,0)+(f.factoryOps?.shipments||[]).reduce((a,t)=>a+t.bookCost,corporateTransit.get(f.id)?.materials??0)+validateRawLogisticsV038(f,errs);if(Math.abs(cash-acc(f,'materialsTransit'))>2)errs.push(f.name+'：工場輸送中在庫の簿価不一致');if(f.interplant.shipments.some(t=>!Number.isSafeInteger(t.qty)||t.qty<1||!f.plants.some(p=>p.id===t.to)))errs.push(f.name+'：工場間輸送が不正');validateFactoryV21(f,errs,s);}errs.push(...validatePartEconomyV27(s));errs.push(...validateMarketV031(s));errs.push(...validateNpcV033(s));errs.push(...validateInventoryPolicyV034(s));return errs}
+function check(s=S){let errs=validateContractsV036(s);if(!s||s.schema!==VERSION)return ['保存版の互換性がありません'];if(!Array.isArray(s.firms)||!s.firms.length)return ['法人情報がありません'];errs.push(...validateInternationalV041(s),...validateForeignWalletsV042(s),...validateEconomicShocksV044(s),...validateSupplyPolicyV045(s),...validateWorldEvolutionV046(s),...validateMarketExpansionV047(s));const ids=new Set(),corporateTransit=corporateSupplyTransitV037(s,errs);for(const f of s.firms){if(ids.has(f.id))errs.push('法人ID重複 '+f.id);ids.add(f.id);const fin=financials(f);if(Math.abs(fin.bsDiff)>1)errs.push(f.name+'：貸借不一致 '+fin.bsDiff);const glSum=Object.values(f.ledger).reduce((a,b)=>a+b,0);if(glSum!==0)errs.push(f.name+'：借貸不一致');if(!Number.isSafeInteger(glSum))errs.push(f.name+'：数値異常');const stk=Object.values(f.stock||{}).reduce((a,b)=>a+(b.v||0),0);if(Math.abs(stk-acc(f,'materials'))>2)errs.push(f.name+'：材料原価台帳不一致');const goods=Object.values(f.goods||{}).reduce((a,b)=>a+(b.v||0),0);if(Math.abs(goods-acc(f,'goods'))>2)errs.push(f.name+'：製品原価台帳不一致');if(f.distribution){const transit=f.distribution.outbound.reduce((sum,x)=>sum+x.bookCost,corporateTransit.get(f.id)?.goods??0);if(Math.abs(transit-acc(f,'goodsTransit'))>2)errs.push(f.name+'：輸送中製品原価不一致');if(f.distribution.outbound.some(x=>x.qty<1||x.bookCost<0))errs.push(f.name+'：輸送中製品数量異常');}if(f.supply?.inbound?.some(x=>x.qty<1||x.totalBase<0))errs.push(f.name+'：輸送中材料数量異常');if(f.industry==='resource'&&f.rawOpsV032){if(f.goods.RESOURCE?.q>0)errs.push(f.name+'：資源在庫の旧新重複');for(const type of RAW_TYPES_V032){const bin=rawBinV032(f,type);if(!Number.isSafeInteger(bin.q)||bin.q<0||!Number.isSafeInteger(bin.v)||bin.v<0)errs.push(f.name+'：資材別在庫異常 '+type);}}for(const [k,it] of Object.entries(f.stock||{}))if(it.q<0||it.v<0)errs.push(f.name+'：負材料 '+k);for(const [k,it] of Object.entries(f.goods||{}))if(it.q<0||it.v<0)errs.push(f.name+'：負製品 '+k);if(!Number.isFinite(f.plant.condition)||f.plant.condition<0||f.plant.condition>100)errs.push(f.name+'：設備状態不正');if(f.plants){const ids=new Set();for(const p of f.plants){if(ids.has(p.id)||!FACTORY_KINDS[p.kind]||!Number.isSafeInteger(p.capacity)||p.capacity<1||p.condition<0||p.condition>100)errs.push(f.name+'：工場情報不正 '+p.id);ids.add(p.id)}if(f.plant.capacity!==activeFactories(f).reduce((a,p)=>a+p.capacity,0))errs.push(f.name+'：工場能力台帳不一致');if(f.plants.some(p=>!findSite(p.siteId)))errs.push(f.name+'：工場立地が不正')}if(f.research&&!RND_DOMAINS[f.research.topic])errs.push(f.name+'：研究テーマ不正');let sum=0;for(const o of f.owners){sum+=o.econ;if(o.econ<0||o.vote<0||o.vote>1)errs.push(f.name+'：持分比率不正');if(o.id!== 'PUBLIC'&&!company(o.id,s))errs.push(f.name+'：株主参照不正');}if(Math.abs(sum-1)>0.000001)errs.push(f.name+'：持分合計不正');if(f.shareBlocks){const pool=f.owners.find(o=>o.id==='PUBLIC')?.econ||0;const out=f.shareBlocks.reduce((a,x)=>a+x.holding,0);if(Math.abs(pool-out)>0.000002||f.shareBlocks.some(x=>x.holding<-.000001))errs.push(f.name+'：外部株主台帳不一致');}if(f.sharesOutstanding!==undefined&&(!Number.isSafeInteger(f.sharesOutstanding)||f.sharesOutstanding<1))errs.push(f.name+'：発行済株式数不正');if(!Number.isSafeInteger(f.treasuryShares||0)||(f.treasuryShares||0)<0||(f.treasuryShares||0)>=f.sharesOutstanding)errs.push(f.name+'：自己株式数不正');if(!Number.isSafeInteger(f.treasuryCostLocal||0)||(f.treasuryCostLocal||0)<0||Math.abs((f.treasuryCostLocal||0)-acc(f,'treasuryStock'))>1)errs.push(f.name+'：自己株式の取得原価台帳不一致');const votes=f.owners.reduce((a,o)=>a+(o.vote||0),0);if(Math.abs(votes-1)>.000002)errs.push(f.name+'：議決権合計不正');}for(const f of s.firms){validateResourceV037(f,errs);validateFinishedLocationsV038(f,errs);if(f.inventoryLogisticsV038&&findSite(f.inventoryLogisticsV038.warehouseSiteId)?.country!==f.country)errs.push(f.name+'：中央倉庫の立地が不正');ensureV11Firm(f);const qty=Object.values(f.interplant.siteComponents).reduce((a,b)=>a+b,0);if(qty>(f.stock.components?.q||0)||qty<0)errs.push(f.name+'：工場専用部品台帳不一致');const cash=f.interplant.shipments.reduce((a,t)=>a+t.bookCost,0)+(f.factoryOps?.shipments||[]).reduce((a,t)=>a+t.bookCost,corporateTransit.get(f.id)?.materials??0)+validateRawLogisticsV038(f,errs);if(Math.abs(cash-acc(f,'materialsTransit'))>2)errs.push(f.name+'：工場輸送中在庫の簿価不一致');if(f.interplant.shipments.some(t=>!Number.isSafeInteger(t.qty)||t.qty<1||!f.plants.some(p=>p.id===t.to)))errs.push(f.name+'：工場間輸送が不正');validateFactoryV21(f,errs,s);}errs.push(...validatePartEconomyV27(s));errs.push(...validateMarketV031(s));errs.push(...validateNpcV033(s));errs.push(...validateInventoryPolicyV034(s));return errs}
 function isPastOrDue(entry,s=S){return entry.due<=ym(s.year,s.month)}
 function payUpTo(f,debitAcc,amount,desc,kind='operating',s=S){amount=Math.max(0,Math.round(amount));const paid=Math.min(amount,Math.max(0,acc(f,'cash')));const rest=amount-paid;const credit={};if(paid)credit.cash=paid;if(rest)credit[debitAcc==='wip'?'wagesDue':'payable']=rest;post(f,{[debitAcc]:amount},credit,desc,kind,s);return {paid,rest}}
 function spendExpense(f,acct,amount,desc,kind='operating',s=S){amount=Math.round(Math.max(0,amount));if(!amount)return;const paid=Math.min(amount,Math.max(0,acc(f,'cash')));const cr={};if(paid)cr.cash=paid;if(amount-paid)cr.payable=amount-paid;post(f,{[acct]:amount},cr,desc,kind,s);if(amount-paid){f.payables.push({amount:amount-paid,due:ym(s.year,s.month)+1,account:'payable',note:desc});f.distress.stage=Math.max(f.distress.stage,1)}}
@@ -3621,6 +3926,184 @@ function maybeWar(s){
 }
 function nextMonthDate(s){s.month++;if(s.month>12){s.year++;s.month=1}}
 function currentMonthPrice(s,code,mat){return Math.round(s.world[code][mat==='steel'?'steelPrice':'rubberPrice'])}
+
+/* STEP 9 unit 4: synthetic maturation curves for the existing five markets.
+   Optional on existing saves; no speculative real-world historical claims. */
+const WORLD_DEVELOPMENT_V046={
+ JP:{motor:1960,industry:1940,infrastructure:1955},
+ US:{motor:1935,industry:1910,infrastructure:1925},
+ UK:{motor:1950,industry:1920,infrastructure:1935},
+ DE:{motor:1955,industry:1930,infrastructure:1940},
+ FR:{motor:1960,industry:1935,infrastructure:1950},
+ // Synthetic market maturity timelines, not historical motorization statistics.
+ CN:{motor:2005,industry:1990,infrastructure:2000},
+ IN:{motor:2020,industry:2005,infrastructure:2015},
+ BR:{motor:1980,industry:1965,infrastructure:1975}
+};
+function marketSaturationV046(year,mid,span){
+ return 1/(1+Math.exp(clamp((mid-year)/span,-25,25)));
+}
+function worldDevelopmentV046(s,code){
+ const profile=WORLD_DEVELOPMENT_V046[code]??{motor:1955,industry:1935,infrastructure:1950};
+ const now=s.year,anchor=isEmergingMarketV047(code)?(s.marketExpansionV047?.anchorYear??now):(s.worldEvolutionV046?.anchorYear??s.startYear??now);
+ const series=y=>({
+  motorization:marketSaturationV046(y,profile.motor,22),
+  industry:marketSaturationV046(y,profile.industry,28),
+  infrastructure:marketSaturationV046(y,profile.infrastructure,30)
+ });
+ const cur=series(now),old=series(anchor);
+ const relative=(value,ref,min,span)=>(min+span*value)/(min+span*ref);
+ // Structural adoption rises, then saturates. Ordinary income/population are
+ // already accounted for in the historic baseline demand formula.
+ const potential=clamp(
+  relative(cur.motorization,old.motorization,.38,.62)*
+  relative(cur.industry,old.industry,.70,.30)*
+  relative(cur.infrastructure,old.infrastructure,.77,.23),.65,4);
+ return {...cur,potential,factor:s.worldEvolutionV046?.enabled?potential:1};
+}
+function validateWorldEvolutionV046(s){
+ const v=s?.worldEvolutionV046;
+ if(v===undefined)return [];
+ return !v||typeof v!=='object'||Array.isArray(v)||typeof v.enabled!=='boolean'||
+    !Number.isSafeInteger(v.anchorYear)||v.anchorYear<1800||v.anchorYear>2500||
+    v.anchorYear>s.year?['世界市場発展モデルの設定が不正']: [];
+}
+function worldDevelopmentPanelV046(s){
+ const selected=s.worldEvolutionV046?.enabled?'evolving':'legacy';
+ const edit=canEdit(current());
+ const rows=Object.keys(s.world).map(code=>{
+  const x=worldDevelopmentV046(s,code),w=s.world[code];
+  const stage=x.motorization<.25?'普及初期':x.motorization<.7?'普及拡大':'成熟期';
+  return '<tr><td>'+esc(NAMES[code])+'</td><td>'+stage+'</td>'+
+   '<td class="mk-number">'+nfmt(w.pop)+'百万人</td>'+
+   '<td class="mk-number">'+nfmt(x.industry*100)+' / 100</td>'+
+   '<td class="mk-number">'+nfmt(x.infrastructure*100)+' / 100</td>'+
+   '<td class="mk-number">'+nfmt(x.factor*100)+'%</td></tr>';
+ }).join('');
+ return '<section class="mk-panel"><h2>年代別市場発展・自動車普及モデル</h2>'+
+  '<p class="mk-sub">人口と所得は従来の実ゲーム数値を利用します。追加モデルの自動車普及・工業化・交通網指数はゲーム用の合成推計で、史実の統計値ではありません。</p>'+
+  '<div class="formgrid"><label class="field"><span>世界の長期需要モデル</span><select id="worldEvolutionModeV046"'+(edit?'':' disabled')+'>'+
+   '<option value="legacy"'+(selected==='legacy'?' selected':'')+'>従来方式（旧セーブ互換）</option>'+
+   '<option value="evolving"'+(selected==='evolving'?' selected':'')+'>年代・自動車普及・産業発展と連動</option>'+
+   '</select></label><button class="btn primary" data-action="saveWorldEvolutionV046"'+(edit?'':' disabled')+'>世界市場の発展方針を保存</button></div>'+
+  '<p class="mk-note">有効化した時点を基準に成長率が変化し、将来の月末処理に反映します。供給能力や販売実績を直接増やすものではありません。</p>'+
+  '<div class="mk-table-wrap"><table class="mk-table"><thead><tr><th>市場</th><th>普及段階</th>'+
+  '<th class="mk-number">人口</th><th class="mk-number">工業化指数</th>'+
+  '<th class="mk-number">交通網指数</th><th class="mk-number">需要倍率（対設定時）</th>'+
+  '</tr></thead><tbody>'+rows+'</tbody></table></div></section>';
+}
+function saveWorldEvolutionV046(){
+ try{
+  if(!S||!canEdit(current()))throw Error('経済モデルを変更する権限がありません');
+  const option=inputValue('worldEvolutionModeV046');
+  if(!['legacy','evolving'].includes(option))throw Error('世界市場モデルの指定が不正です');
+  S.worldEvolutionV046={enabled:option==='evolving',anchorYear:S.year};
+  render();toast('世界市場の成長モデルを保存しました。次回の月末から反映します');
+ }catch(e){toast(e.message)}
+}
+
+/* STEP 9 / step 03: catalog validation and explicit, atomic 5-to-8 market activation.
+   No company, cash, inventory, receivable or physical shipment is fabricated. */
+function validateMarketCatalogV047(codes=ALL_MARKETS_V047){
+ const errors=[],currencies=new Set(),sites=new Set();
+ for(const code of codes){
+  const p=COUNTRIES[code],g=TRADE_GEOGRAPHY_V041[code],anchors=POPULATION_ANCHORS[code],growth=WORLD_DEVELOPMENT_V046[code];
+  const slots=INDUSTRIAL_SITES[code];
+  if(!NAMES[code]||!p||!g||!anchors||!growth||!Array.isArray(slots)||slots.length<2){
+   errors.push('国・市場メタデータ不足 '+code);continue;
+  }
+  if(!p.currency||currencies.has(p.currency)||!(p.fx>0)||!Number.isFinite(p.fx)||
+     ![p.pop,p.wealth,p.wage,p.demand,p.steel,p.rubber,p.steelSupply,p.rubberSupply].every(n=>Number.isFinite(n)&&n>0))
+   errors.push('国・通貨・基礎価格が不正 '+code);
+  currencies.add(p.currency);
+  if(!Array.isArray(g.ports)||g.ports.length<2||new Set(g.ports).size!==g.ports.length||
+     g.tariffs?.length!==3||g.tariffs.some(n=>!Number.isFinite(n)||n<0||n>.8))
+   errors.push('港湾・関税設定が不正 '+code);
+  const ids=slots.map(row=>row[0]);
+  if(new Set(ids).size!==ids.length||slots.some(row=>!row[0]?.startsWith(code+'-')||!row[1]||
+     row.length!==7||!row.slice(2).every(n=>Number.isFinite(n)&&n>0))||
+     (g.ports||[]).some(id=>!ids.includes(id)))errors.push('産業用地・港湾の整合性異常 '+code);
+  for(const id of ids){if(sites.has(id))errors.push('産業用地ID重複 '+id);sites.add(id);}
+  const populations=Object.entries(anchors);
+  if(populations.length<2||populations.some(([y,n])=>!Number.isSafeInteger(Number(y))||!(n>0)))
+   errors.push('人口係数が不正 '+code);
+  if(!['motor','industry','infrastructure'].every(key=>Number.isFinite(growth[key])&&growth[key]>=1800&&growth[key]<=2500))
+   errors.push('市場成熟係数が不正 '+code);
+  if(!Number.isFinite(MARKET_TAX_V043[code])||MARKET_TAX_V043[code]<0||MARKET_TAX_V043[code]>.8)
+   errors.push('法人税係数が不正 '+code);
+ }
+ return errors;
+}
+function validateMarketExpansionV047(s){
+ const errors=[],option=s.marketExpansionV047;
+ if(!s.world||typeof s.world!=='object'||Array.isArray(s.world))return ['世界市場情報が不正'];
+ const extra=EMERGING_MARKETS_V047.filter(code=>Object.hasOwn(s.world,code));
+ if(option===undefined){
+  if(extra.length)errors.push('新市場に有効化記録がありません');
+ }else if(!option||typeof option!=='object'||Array.isArray(option)||
+   option.enabled!==true||!Number.isSafeInteger(option.anchorYear)||
+   option.anchorYear<1800||option.anchorYear>s.year||
+   !Number.isSafeInteger(option.activatedAt)||option.activatedAt>ym(s.year,s.month)||
+   extra.length!==EMERGING_MARKETS_V047.length){
+  errors.push('新市場の設定・有効化記録が不正です');
+ }
+ for(const code of LEGACY_MARKETS_V047)if(!s.world[code])errors.push('既存市場が失われました '+code);
+ for(const [code,w] of Object.entries(s.world)){
+  if(!ALL_MARKETS_V047.includes(code)||!w||w.code!==code||!Number.isFinite(w.fx)||w.fx<=0||
+     !Number.isFinite(w.pop)||w.pop<=0||!Number.isFinite(w.wealth)||w.wealth<=0||
+     !Number.isFinite(w.demand)||w.demand<0)errors.push('市場状態が不正 '+code);
+ }
+ errors.push(...validateMarketCatalogV047());
+ return errors;
+}
+function activateEmergingMarketsV047(s){
+ if(s.marketExpansionV047?.enabled){
+  const errors=validateMarketExpansionV047(s);
+  if(errors.length)throw Error(errors.slice(0,3).join('／'));
+  return s;
+ }
+ if(s.marketExpansionV047!==undefined)throw Error('新市場の有効化状態が不正です');
+ const before=check(s);
+ if(before.length)throw Error('元のゲーム状態に問題があります：'+before.slice(0,2).join('／'));
+ const trial=structuredClone(s);
+ Object.assign(trial.world,blankWorld(trial.year,EMERGING_MARKETS_V047));
+ trial.marketExpansionV047={enabled:true,anchorYear:trial.year,activatedAt:ym(trial.year,trial.month)};
+ ensureNpcV033(trial);
+ for(const f of trial.firms)ensureNetwork(f,trial);
+ ensureSupplyNetwork(trial);
+ const errors=check(trial),baseline=consolidate(s),accounts=consolidate(trial);
+ // Unclosed initial months can have unreconciled cash flow in both states.
+ // Activation must never worsen it or alter any existing financial statement.
+ if(errors.length||accounts.errors.length||accounts.cf.reconciled!==baseline.cf.reconciled||
+    accounts.bs.assets!==baseline.bs.assets||accounts.bs.cash!==baseline.bs.cash||
+    accounts.bs.liabEquityDiff!==baseline.bs.liabEquityDiff)
+  throw Error('新市場の導入検算に失敗しました：'+[...errors,...accounts.errors].slice(0,3).join('／'));
+ return trial;
+}
+function marketExpansionPanelV047(s){
+ const active=s.marketExpansionV047?.enabled;
+ const edit=canEdit(current()),phase=active?'世界市場を観測中':'未追加（既存5市場を維持）';
+ const rows=EMERGING_MARKETS_V047.map(code=>{
+  const p=COUNTRIES[code],entry=EMERGING_MARKET_PROFILES_V047[code],world=s.world[code];
+  return '<tr><th>'+esc(NAMES[code])+'</th><td>'+esc(p.currency)+'</td><td>'+entry.opening.export+'年以降（予定）</td>'+
+   '<td>'+(world?nfmt(world.pop)+'百万人':'—')+'</td><td>'+ (world?(s.year>=entry.opening.export?'直接輸出・原材料輸入可能':'観測のみ・貿易未開放'):'未追加')+'</td></tr>';
+ }).join('');
+ return '<section class="mk-panel"><h2>新興国・地域市場（STEP 9）</h2>'+
+  '<p class="mk-sub">中国・インド・ブラジルの追加市場。人口・為替・貿易の条件はゲーム用仮定であり、史実を再現する数値ではありません。年代別の直接輸出と実在庫による原材料輸入は利用できます。現地企業・工場・競合の参入は次のSTEPで開放します。</p>'+
+  '<p class="mk-note">追加状態：'+phase+'。有効化はこのセーブに対して一度だけ適用し、既存5市場と法人・現物在庫・仕訳を変更しません。</p>'+
+  '<div class="mk-table-wrap"><table class="mk-table"><thead><tr><th>市場</th><th>通貨</th><th>輸出開始予定</th><th>人口</th><th>状態</th></tr></thead>'+
+  '<tbody>'+rows+'</tbody></table></div>'+
+  (active?'':'<button class="btn primary" data-action="activateMarketExpansionV047"'+(edit?'':' disabled')+'>中国・インド・ブラジルを市場観測に追加</button>')+
+  '</section>';
+}
+function activateMarketExpansionUIV047(){
+ try{
+  if(!S||!canEdit(current()))throw Error('市場追加の操作権限がありません');
+  S=activateEmergingMarketsV047(S);
+  render();toast('新興3市場を追加しました。年代に応じて直接輸出と原材料輸入を利用できます。');
+ }catch(e){toast(e.message)}
+}
+
 function updateWorld(s,totals){
  const regions=new Map();
  for(const [code,w] of Object.entries(s.world)){
@@ -3641,7 +4124,7 @@ function updateWorld(s,totals){
   w.pop=clamp(w.pop*(1+.00065),1,3000);
   w.wealth=clamp(w.wealth*(1+.0008+w.cycle*.001),.2,20);
   const eraDemand=s.year<1930?1:s.year<1960?1.1:s.year<1990?1.3:1.5;
-  w.demand=Math.max(10,Math.round(base.demand*(w.pop/base.pop)**1.1*(w.wealth/base.wealth)**.66*(1+w.cycle)*eraDemand));
+  w.demand=Math.max(10,Math.round(base.demand*(w.pop/base.pop)**1.1*(w.wealth/base.wealth)**.66*(1+w.cycle)*eraDemand*worldDevelopmentV046(s,code).factor));
   w.fx=code==='JP'?1:clamp(w.fx*(1+rnd(-.005,.005,s)+w.cycle*.002+shock.fx),base.fx*.25,base.fx*5);
  }
 }
@@ -3839,14 +4322,28 @@ function adjustedRegionalDemandV044(s,code){
  const w=s.world[code];
  return Math.max(0,Math.round(w.demand*(1+w.cycle)*(w.war?.6:1)*economicExposureV044(s,code).demand));
 }
+/* STEP 9 / 05-A: emerging vehicle-demand cap derives from actual population,
+   purchasing power and synthetic motorization/transport infrastructure.
+   The original five markets never receive this extra cap. */
+function emergingVehicleDemandCapV049(s,code){
+ if(!isEmergingMarketV047(code)||!s.world?.[code])return null;
+ const w=s.world[code],development=worldDevelopmentV046(s,code);
+ const purchasing=clamp(Math.pow(w.wealth,0.35),0.35,1.45);
+ return Math.max(0,Math.floor(w.pop*1.8*(0.15+0.85*development.motorization)*
+  purchasing*(0.25+0.75*development.infrastructure)));
+}
 function marketDemandSnapshotV031(s,code){
- const demand=adjustedRegionalDemandV044(s,code);
+ const potential=adjustedRegionalDemandV044(s,code),cap=emergingVehicleDemandCapV049(s,code);
+ const demand=cap===null?potential:Math.min(potential,cap);
  return {month:ym(s.year,s.month),demand,segments:segmentedDemandUnits(s,code,demand)};
 }
 function marketVehicleContendersV031(s,code){
  const contenders=[];
  for(const f of s.firms){
   if(f.lifecycle?.phase==='withdrawn'||f.reorgStatus==='integrated'||!f.marketPresence.includes(code)||!['auto','manufacturing'].includes(f.industry))continue;
+  if(isEmergingMarketV047(code)&&(!directExportPilotV048(s,f,code)||
+      f.foreignMarketsV043?.[code]?.mode!=='direct'||
+      f.foreignMarketsV043?.[code]?.phase==='withdrawn'))continue;
   for(const m of f.models.filter(m=>m.status==='active'||(m.status==='legacy'&&(f.goods[m.id]?.q||0)>0)))contenders.push({f,m});
  }
  return contenders;
@@ -5235,26 +5732,29 @@ function lineEligibility(s,f,p,job){
 }
 function lineOutputPlan(s,f,p){
  const jobs=lineSiteJobs(s,p).filter(lineUnderConstruction);
- const plan=factoryLaborPlanV026(f);
- const available=plan.byId[p.id]?.assigned??0;
- const lines=p.componentLines??[];
- let reservedWorkers=0;
- return lines.map(line=>{
-  // A deterministic share of the existing workforce, constrained by the site limit.
-  const prior=reservedWorkers;
-  reservedWorkers+=available*line.capacity/p.capacity;
-  const assigned=Math.floor(reservedWorkers)-Math.floor(prior);
-  const required=Math.ceil(line.capacity*.5);
+ const staff=factoryLaborPlanV026(f).byId[p.id];
+ const workloads=bomFactoryLineDemandV026(f,p);
+ // The legacy modules/assembly keep their own workforce reservation.
+ // Allocate only remaining workers to planned BOM lines, never to idle capacity.
+ const available=Math.max(0,(staff?.assigned||0)-(staff?.baseRequired||0));
+ const requiredTotal=workloads.reduce((n,x)=>n+x.required,0);
+ const workers=Math.min(available,requiredTotal);
+ const shares=workloads.map((x,index)=>({index,required:x.required,raw:requiredTotal?workers*x.required/requiredTotal:0,assigned:0}));
+ let allocated=0;
+ for(const x of shares){x.assigned=Math.floor(x.raw);allocated+=x.assigned;}
+ for(const x of shares.slice().sort((a,b)=>(b.raw-Math.floor(b.raw))-(a.raw-Math.floor(a.raw))||a.index-b.index).slice(0,workers-allocated))x.assigned++;
+ return workloads.map(({line,planned,required},index)=>{
+  const assigned=shares[index].assigned;
   const job=jobs.find(j=>j.lineId===line.lineId),spec=partRecord(s,line.specKey);
   const issue=job?'工事中':factoryStatus(p)!=='active'?factoryStatusLabel(p):
    p.condition<40?'設備状態不足':lineSpecIssue(s,f,p,spec);
   const tech=spec?partTechnologyProfile(f,spec.family):null;
   const efficiency=Math.min(1,Math.min(p.condition,line.condition)/100*(1+(tech?.throughput??0)/100));
-  const possible=issue?0:Math.floor(line.capacity*Math.min(1,assigned/required)*efficiency);
-  return {line,assigned,required,possible,issue,tech};
+  // The current part-production staffing rate is two units per worker.
+  const possible=issue?0:Math.min(planned,Math.floor(Math.min(line.capacity,assigned*2)*efficiency));
+  return {line,planned,assigned,required,possible,issue,tech};
  });
 }
-
 function lineCostBase(s,f,p,kind,capacity){
  const site=ensurePlantLocation(f,p);
  return Math.round(capacity*LINE_JOBS[kind].unitCost*eraCostFactor(s.year)*(.5+.5*site.land));
@@ -6745,8 +7245,8 @@ function maintain(){try{const f=current();if(!canEdit(f))throw Error('権限が�
 function expand(){try{const f=current();if(!canEdit(f))throw Error('権限がありません');if(f.plant.construction)throw Error('既に設備拡張中です');const q=Math.round(intValue('expandSize',5,1000)),cost=Math.round(q*12000*eraCostFactor(S.year));spendImmediate(f,cost,'ppe','設備増設工事','investing');f.plant.construction={add:q,monthsLeft:3};render();toast('設備増設の工事を開始しました（3か月後に完成）')}catch(e){toast(e.message)}}
 function develop(){try{const f=current();if(!canEdit(f))throw Error('権限がありません');if(f.industry!=='auto'&&f.industry!=='manufacturing')throw Error('製品設計の対象外です');const name=inputValue('modelName').trim().slice(0,30);if(!name)throw Error('製品名を入力してください');if(f.models.some(m=>m.name===name)||f.projects.some(p=>p.name===name))throw Error('同名の製品があります');const price=intValue('modelPrice',1000,900000),design=plannedDesign();for(const d of DESIGN_FIELDS)if(!allowedOption(d.id,design[d.id]))throw Error(d.name+'：開始年代または前提研究が不足しています');const a=designAnalysis(design,f.tech,f.research.levels,techBenefits(f));spendImmediate(f,Math.round(70000*eraCostFactor(S.year)),'rndExpense','10項目設計・新製品開発プロジェクト開始');f.projects.push({name,priceBase:price,left:5,status:'developing',design});render();toast('「'+name+'」を設計しました（性能'+a.performance+'／品質'+a.quality+'）。5か月後に発売予定。')}catch(e){toast(e.message)}}
 function borrow(){try{const f=current();if(!canEdit(f))throw Error('権限がありません');const base=intValue('borrowBase',50000,50000000),amount=localFromBase(base,f.country);const fin=financials(f);if(amount>Math.max(localFromBase(5000000,f.country),Math.max(0,fin.equity)*2))throw Error('試作版の借入上限を超えています');const rate=S.world[f.country].rate+.03;post(f,{cash:amount},{debt:amount},'銀行借入','financing');f.loans.push({id:'L'+S.seq++,outstanding:amount,rate,due:ym(S.year,S.month)+36});render();toast('借入を実行しました。元本返済期日：36か月後')}catch(e){toast(e.message)}}
-function spendAd(){try{const f=current();if(!canEdit(f))throw Error('権限がありません');const base=intValue('adBase',1000,1000000),code=inputValue('adCountry');spendImmediate(f,base,'advert','市場広告宣伝費');if(!f.marketPresence.includes(code))f.marketPresence.push(code);f.brand[code]=clamp((f.brand[code]||0)+Math.sqrt(base/1000)*4,0,95);f.dealers[code]=clamp((f.dealers[code]||0)+Math.sqrt(base/1000)*3,0,95);render();toast(NAMES[code]+'市場への広告・販路投資を実行しました')}catch(e){toast(e.message)}}
-function createSub(){try{const f=current();if(!canEdit(f))throw Error('権限がありません');const name=inputValue('subName').trim().slice(0,38),code=inputValue('subCountry'),ind=inputValue('subIndustry'),minimum=Math.round(450000*eraCostFactor(S.year)),base=intValue('subCapital',minimum,20000000);if(!name)throw Error('会社名を入力してください');if(S.firms.some(v=>v.name===name))throw Error('同名の企業があります');if(base<minimum)throw Error('事業設備・初期在庫の必要資本金は'+nfmt(minimum)+'円相当です');const amount=verifyMoney(f,base);post(f,{investment:amount},{cash:amount},'子会社への資本払込','investing');const parentJournal=f.journals.at(-1)?.id;const seedLocal=Math.round(amount*balanceFxRate(S,f)/balanceFxRate(S,{country:code}));const seedSpotBase=seedLocal*COUNTRIES[code].fx/100;const child=initFirm(S,{name,country:code,industry:ind,seedBase:seedSpotBase,size:.7,strategy:'balanced',publicOwnership:false});child.owners=[{id:f.id,econ:1,vote:1}];registerEquityLink(S,{parentId:f.id,childId:child.id,ratio:1,kind:'foundation',considerationLocal:amount,buyerJournal:parentJournal,childJournal:child.journals.find(j=>j.text==='創業資本')?.id,bookEquityBase:baseFromLocal(amount,f.country),cashAcquiredBase:baseFromLocal(acc(child,'cash'),child.country)});ensureSupplyNetwork(S);logNotice(`${f.name}が${name}を完全子会社として設立しました。`,'good');VIEW_FIRM=child.id;render();toast('子会社を設立しました。資本は親会社から実際に移転しました。')}catch(e){toast(e.message)}}
+function spendAd(){try{const f=current();if(!canEdit(f))throw Error('権限がありません');const base=intValue('adBase',1000,1000000),code=inputValue('adCountry');if(isEmergingMarketV047(code))throw Error('新市場の広告と販路参入は次の実装段階で開放します');spendImmediate(f,base,'advert','市場広告宣伝費');if(!f.marketPresence.includes(code))f.marketPresence.push(code);f.brand[code]=clamp((f.brand[code]||0)+Math.sqrt(base/1000)*4,0,95);f.dealers[code]=clamp((f.dealers[code]||0)+Math.sqrt(base/1000)*3,0,95);render();toast(NAMES[code]+'市場への広告・販路投資を実行しました')}catch(e){toast(e.message)}}
+function createSub(){try{const f=current();if(!canEdit(f))throw Error('権限がありません');const name=inputValue('subName').trim().slice(0,38),code=inputValue('subCountry'),ind=inputValue('subIndustry'),minimum=Math.round(450000*eraCostFactor(S.year)),base=intValue('subCapital',minimum,20000000);if(isEmergingMarketV047(code))throw Error('新興市場での子会社創業は次の実装段階から利用できます');if(!name)throw Error('会社名を入力してください');if(S.firms.some(v=>v.name===name))throw Error('同名の企業があります');if(base<minimum)throw Error('事業設備・初期在庫の必要資本金は'+nfmt(minimum)+'円相当です');const amount=verifyMoney(f,base);post(f,{investment:amount},{cash:amount},'子会社への資本払込','investing');const parentJournal=f.journals.at(-1)?.id;const seedLocal=Math.round(amount*balanceFxRate(S,f)/balanceFxRate(S,{country:code}));const seedSpotBase=seedLocal*COUNTRIES[code].fx/100;const child=initFirm(S,{name,country:code,industry:ind,seedBase:seedSpotBase,size:.7,strategy:'balanced',publicOwnership:false});child.owners=[{id:f.id,econ:1,vote:1}];registerEquityLink(S,{parentId:f.id,childId:child.id,ratio:1,kind:'foundation',considerationLocal:amount,buyerJournal:parentJournal,childJournal:child.journals.find(j=>j.text==='創業資本')?.id,bookEquityBase:baseFromLocal(amount,f.country),cashAcquiredBase:baseFromLocal(acc(child,'cash'),child.country)});ensureSupplyNetwork(S);logNotice(`${f.name}が${name}を完全子会社として設立しました。`,'good');VIEW_FIRM=child.id;render();toast('子会社を設立しました。資本は親会社から実際に移転しました。')}catch(e){toast(e.message)}}
 function acquire(id){try{const buyer=current(),target=company(id);if(!canEdit(buyer)||!target||target.id===buyer.id)throw Error('買収対象が不正です');if(controller(S,target.id)||controller(S,buyer.id,target.id))throw Error('支配済み、または循環保有となる取引です');if(target.owners.some(o=>o.id!=='PUBLIC'))throw Error('この試作版では複数株主の株式取得は未対応です');const costBase=Math.max(180000,Math.round(baseFromLocal(netWorth(target),target.country)/100*.65));const amount=verifyMoney(buyer,costBase);const bookEquityBase=baseFromLocal(netWorth(target),target.country),cashAcquiredBase=baseFromLocal(acc(target,'cash'),target.country),profitAtAcq=financials(target).profit;const revAtAcq=financials(target).revenue,expAtAcq=financials(target).expenses;post(buyer,{investment:amount},{cash:amount},'株式取得：'+target.name,'investing');const buyerJournal=buyer.journals.at(-1)?.id;target.owners=[{id:buyer.id,econ:.6,vote:.6},{id:'PUBLIC',econ:.4,vote:.4}];target.shareBlocks=HOLDER_TEMPLATES.map((h,i)=>({...h,holding:i===2?.14:roundShare(.4*h.weight)}));target.shareBlocks[2].holding=roundShare(.4-target.shareBlocks[0].holding-target.shareBlocks[1].holding);registerEquityLink(S,{parentId:buyer.id,childId:target.id,ratio:.6,kind:'acquisition',considerationLocal:amount,buyerJournal,bookEquityBase,cashAcquiredBase,revAtAcq,expAtAcq,profitAtAcq});logNotice(`${buyer.name}は${target.name}の株式60%を取得しました。対象会社の資産・負債は対象会社に残ります。`,'good');render();toast(target.name+'の60%株式を取得しました')}catch(e){toast(e.message)}}
 function groupLoan(){try{const parent=current(),id=inputValue('loanSubs'),child=company(id),base=intValue('loanAmount',10000,10000000);if(!canEdit(parent)||!child||!controller(S,child.id,parent.id)||parent.id===child.id)throw Error('支配下の別法人を指定してください');const amount=verifyMoney(parent,base);const recv=Math.round(amount*balanceFxRate(S,parent)/balanceFxRate(S,child));post(parent,{loanrec:amount},{cash:amount},'子会社への貸付','investing');const jParent=parent.journals.at(-1)?.id;post(child,{cash:recv},{debt:recv},'親会社からの借入','financing');const jChild=child.journals.at(-1)?.id;registerInterco(S,{kind:'loan',seller:parent.id,buyer:child.id,fromJournal:jParent,toJournal:jChild,yearMonth:ym(S.year,S.month),loanBase:baseFromLocal(amount,parent.country)});child.loans.push({id:'L'+S.seq++,outstanding:recv,rate:S.world[child.country].rate+.01,due:ym(S.year,S.month)+24,parent:parent.id,parentRemaining:amount,interestOutstanding:0,parentInterestRemaining:0});render();toast('会社間貸付を記録しました。単体財務に反映しました。')}catch(e){toast(e.message)}}
 function titlePage(title,desc,right=''){return `<div class="hrow"><div><div class="eyebrow">MANAGEMENT / ${esc(PAGE.toUpperCase())}</div><h1>${esc(title)}</h1><div class="muted small">${desc}</div></div>${right}</div>`}
@@ -7444,9 +7944,9 @@ function savePage(){const active=SAVE_INDEX.active,gen=SAVE_INDEX.auto.map(inspe
 function sectionPanel(){return sectionTabs();}
 function render(){if(!S){document.getElementById('content').innerHTML='';document.getElementById('modalHost').innerHTML=wizardHTML();document.getElementById('topCompany').textContent='ゲーム未開始';document.getElementById('topDate').textContent='開始シナリオを選択';document.getElementById('companySelect').innerHTML='';document.getElementById('regionSelect').innerHTML='';return}if(!current())VIEW_FIRM=S.playerId;const f=current();document.getElementById('topCompany').textContent=f.name;document.getElementById('topDate').textContent=`${dateKey()} ｜ ${NAMES[f.country]} ｜ ${industryName(f.industry)}`;document.getElementById('companySelect').innerHTML=S.firms.map(x=>`<option value="${esc(x.id)}" ${VIEW_FIRM===x.id?'selected':''}>${esc(x.name)}${controller(S,x.id)?'':' (参照)'}</option>`).join('');document.getElementById('regionSelect').innerHTML=Object.keys(S.world).map(c=>`<option value="${c}" ${VIEW_COUNTRY===c?'selected':''}>${NAMES[c]}</option>`).join('');document.querySelectorAll('[data-section]').forEach(x=>x.classList.toggle('active',x.dataset.section===sectionOf(PAGE)));const html={dashboard:dashboard,marketOverview:marketOverviewV025,marketRegion:marketRegionV025,marketRivals:marketRivalsV025,marketOwn:groupMarketPage,market:marketPage,distribution:distributionPages,product:productPage,factory:factoryPage,supply:supplyContractsPage,people:peoplePage,finance:financePage,group:groupPage,automation:automationPage,consolidated:consolidatedPage,ma:maPage,capital:capitalPage,reports:reportsPage,save:savePage}[PAGE];document.getElementById('content').innerHTML=sectionPanel()+monthDiagnosticBanner()+html();document.getElementById('modalHost').innerHTML=monthlyPreview?monthModal():(MONTH_DIAGNOSTIC_OPEN?monthDiagnosticDialog():'');if(PAGE==='product')designPreview();if(PAGE==='factory'){factorySitePreview();filterFactoryList();setupFactoryDetailsV026();}document.getElementById('nextMonthBtn').disabled=S.monthCommitted===ym(S.year,S.month)}
 function monthModal(){const issues=checkMonthPreview(),f=current();return `<div class="modalwrap"><div class="modal" role="dialog" aria-modal="true"><div class="eyebrow">MONTH-END / PRE-FLIGHT</div><h1>${dateKey()}の月末処理</h1><p class="muted">処理前チェックは確定状態を変更しません。実行後は当月を固定順序で計算し、資源・会計の整合性を検証して結果を確定します。</p><div class="grid">${card('対象',esc(dateKey()),'月次一括処理','span4')}${card('支配下法人',controlled().length+'社','計算は全世界の企業を含む','span4')}${card('現金残高',fnum(f,financials(f).cash),'現在選択中の法人','span4')}</div><h2 style="margin-top:20px">事前確認・警告</h2>${issues.length?issues.map(v=>`<div class="notice">${tag('注意','warn')}　${esc(v)}</div>`).join(''):`<div class="note">現時点の計画に重大な資源警告は見つかりませんでした。価格変化や供給不足など、実際の月末処理で決定される結果もあります。</div>`}<div class="note warnbox" style="margin-top:15px">数値計算は試作係数に基づきます。正式SPEC-095以降の計算方式は未確定です。処理失敗時は計算前の状態を保護します。</div><div class="footer"><button class="btn" data-action="cancelMonth">計画に戻る</button><button class="btn primary" data-action="runMonth">この月を確定する</button></div></div></div>`}
-function wizardHTML(){const stepLabels=['開始年代','創業国','モードと難易度','創業条件確認'];return `<div class="modalwrap"><div class="modal" role="dialog" aria-modal="true"><div class="eyebrow">NEW GAME / STEP ${wizard+1} OF 4</div><h1>新しい企業経営を始める</h1><p class="muted small">自動車メーカーを創業する試作版です。人口は史実推計の基準値、その他の経済係数は仮設定です。</p><div class="steps">${stepLabels.map((x,i)=>`<span class="${i<=wizard?'on':''}" title="${x}"></span>`).join('')}</div>${wizard===0?`<h2>1. 開始年代</h2><div class="choices">${[1900,1920,1950,1980,2020].map(y=>`<label class="choice"><input type="radio" name="era" value="${y}" ${setup.era===y?'checked':''}><b>${y}年</b><span class="small muted">${y===1900?'工業化初期・自動車市場の草創期':y===1920?'自動車普及期':y===1950?'戦後産業復興期':y===1980?'世界市場拡大期':'現代のグローバル市場'}</span></label>`).join('')}</div>`:wizard===1?`<h2>2. 創業国</h2><div class="choices">${Object.keys(NAMES).map(c=>`<label class="choice"><input type="radio" name="country" value="${c}" ${setup.country===c?'checked':''}><b>${NAMES[c]}</b><span class="small muted">試作通貨：${COUNTRIES[c].currency} / 人口基準値 ${nfmt(anchorPopulation(c,setup.era))}百万人</span></label>`).join('')}</div>`:wizard===2?`<h2>3. 歴史モードと難易度</h2><div class="formgrid"><div class="field"><label>歴史モード</label><select id="wizardHistory"><option value="historical" ${setup.history==='historical'?'selected':''}>史実モード</option><option value="alternate" ${setup.history==='alternate'?'selected':''}>仮想歴史モード</option></select></div><div class="field"><label>難易度</label><select id="wizardDifficulty"><option value="easy" ${setup.difficulty==='easy'?'selected':''}>易しい（資本1.6倍）</option><option value="normal" ${setup.difficulty==='normal'?'selected':''}>標準</option><option value="hard" ${setup.difficulty==='hard'?'selected':''}>難しい（資本0.7倍）</option></select></div><div class="field"><label>会社名</label><input id="wizardName" maxlength="38" value="${esc(setup.name)}"></div></div><div class="note" style="margin-top:20px">史実モードは主要な歴史イベントを扱い、景気循環は固定日付では発生しません。現段階ではイベントや歴史的国境・通貨の厳密再現は未完成です。</div>`:`<h2>4. 創業条件の確認</h2><div class="statrow">${[['会社名',esc(setup.name)],['開始年月',setup.era+'年1月'],['創業国',NAMES[setup.country]],['歴史モード',setup.history==='historical'?'史実':'仮想'],['難易度',setup.difficulty==='easy'?'易しい':setup.difficulty==='hard'?'難しい':'標準'],['初期資本（円相当）',nfmt((setup.era<1930?2400000:setup.era<1960?4200000:setup.era<1990?7000000:12000000)*(setup.difficulty==='easy'?1.6:setup.difficulty==='hard'?.7:1))]].map(([k,v])=>`<div><div class="label">${k}</div><strong>${v}</strong></div>`).join('')}</div><div class="note warnbox" style="margin-top:20px">人口は史実推計の概数を基準値に採用（${nfmt(anchorPopulation(setup.country,setup.era))}百万人）。現在の国境に対応した人口推計であり、当時の国境・通貨を再現するものではありません。為替・価格・需要は試作値です。</div>`}<div class="footer"><button class="btn" data-action="wizardBack" ${wizard===0?'disabled':''}>戻る</button><button class="btn primary" data-action="wizardNext">${wizard===3?'この条件で創業する':'次へ進む ▸'}</button></div></div></div>`}
+function wizardHTML(){const stepLabels=['開始年代','創業国','モードと難易度','創業条件確認'];return `<div class="modalwrap"><div class="modal" role="dialog" aria-modal="true"><div class="eyebrow">NEW GAME / STEP ${wizard+1} OF 4</div><h1>新しい企業経営を始める</h1><p class="muted small">自動車メーカーを創業する試作版です。人口は史実推計の基準値、その他の経済係数は仮設定です。</p><div class="steps">${stepLabels.map((x,i)=>`<span class="${i<=wizard?'on':''}" title="${x}"></span>`).join('')}</div>${wizard===0?`<h2>1. 開始年代</h2><div class="choices">${[1900,1920,1950,1980,2020].map(y=>`<label class="choice"><input type="radio" name="era" value="${y}" ${setup.era===y?'checked':''}><b>${y}年</b><span class="small muted">${y===1900?'工業化初期・自動車市場の草創期':y===1920?'自動車普及期':y===1950?'戦後産業復興期':y===1980?'世界市場拡大期':'現代のグローバル市場'}</span></label>`).join('')}</div>`:wizard===1?`<h2>2. 創業国</h2><div class="choices">${LEGACY_MARKETS_V047.map(c=>`<label class="choice"><input type="radio" name="country" value="${c}" ${setup.country===c?'checked':''}><b>${NAMES[c]}</b><span class="small muted">試作通貨：${COUNTRIES[c].currency} / 人口基準値 ${nfmt(anchorPopulation(c,setup.era))}百万人</span></label>`).join('')}</div>`:wizard===2?`<h2>3. 歴史モードと難易度</h2><div class="formgrid"><div class="field"><label>歴史モード</label><select id="wizardHistory"><option value="historical" ${setup.history==='historical'?'selected':''}>史実モード</option><option value="alternate" ${setup.history==='alternate'?'selected':''}>仮想歴史モード</option></select></div><div class="field"><label>難易度</label><select id="wizardDifficulty"><option value="easy" ${setup.difficulty==='easy'?'selected':''}>易しい（資本1.6倍）</option><option value="normal" ${setup.difficulty==='normal'?'selected':''}>標準</option><option value="hard" ${setup.difficulty==='hard'?'selected':''}>難しい（資本0.7倍）</option></select></div><div class="field"><label>会社名</label><input id="wizardName" maxlength="38" value="${esc(setup.name)}"></div></div><div class="note" style="margin-top:20px">史実モードは主要な歴史イベントを扱い、景気循環は固定日付では発生しません。現段階ではイベントや歴史的国境・通貨の厳密再現は未完成です。</div>`:`<h2>4. 創業条件の確認</h2><div class="statrow">${[['会社名',esc(setup.name)],['開始年月',setup.era+'年1月'],['創業国',NAMES[setup.country]],['歴史モード',setup.history==='historical'?'史実':'仮想'],['難易度',setup.difficulty==='easy'?'易しい':setup.difficulty==='hard'?'難しい':'標準'],['初期資本（円相当）',nfmt((setup.era<1930?2400000:setup.era<1960?4200000:setup.era<1990?7000000:12000000)*(setup.difficulty==='easy'?1.6:setup.difficulty==='hard'?.7:1))]].map(([k,v])=>`<div><div class="label">${k}</div><strong>${v}</strong></div>`).join('')}</div><div class="note warnbox" style="margin-top:20px">人口は史実推計の概数を基準値に採用（${nfmt(anchorPopulation(setup.country,setup.era))}百万人）。現在の国境に対応した人口推計であり、当時の国境・通貨を再現するものではありません。為替・価格・需要は試作値です。</div>`}<div class="footer"><button class="btn" data-action="wizardBack" ${wizard===0?'disabled':''}>戻る</button><button class="btn primary" data-action="wizardNext">${wizard===3?'この条件で創業する':'次へ進む ▸'}</button></div></div></div>`}
 async function wizardNext(){if(S)return;if(wizard===0)setup.era=Number(document.querySelector('input[name="era"]:checked')?.value||1900);if(wizard===1)setup.country=document.querySelector('input[name="country"]:checked')?.value||'JP';if(wizard===2){setup.history=inputValue('wizardHistory')||'historical';setup.difficulty=inputValue('wizardDifficulty')||'normal';setup.name=(inputValue('wizardName')||'').trim().slice(0,38)||'新規自動車メーカー'}if(wizard<3){wizard++;render();return}try{S=newGame(setup);LAST_MONTH_DIAGNOSTIC=null;MONTH_DIAGNOSTIC_OPEN=false;VIEW_FIRM=S.playerId;VIEW_COUNTRY=setup.country;PAGE='dashboard';render();const saved=await saveAuto();render();toast(saved?'創業しました。IndexedDBに自動保存しました。':'創業しましたが、自動保存に失敗しました。JSONバックアップを保存してください。')}catch(e){S=null;toast('創業設定エラー：'+e.message);console.error(e)}}
-function actions(action,elem){if(MONTH_RUNNING){toast('月次処理中です。保存・計算の確定を進めています。');return;}if(action==='wizardNext')return wizardNext();if(action==='wizardBack'){wizard=Math.max(0,wizard-1);return render()}if(!S)return;switch(action){case 'previewMonth':monthlyPreview=true;return render();case 'cancelMonth':monthlyPreview=false;return render();case 'runMonth':return runMonth();case 'monthDiagnosticShow':case 'monthDiagnosticDismiss':case 'monthDiagnosticCopy':case 'monthDiagnosticDownload':case 'monthDiagnosticJump':return monthlyDiagAction(action);case 'staffToHrV023':PEOPLE_VIEW='hr';PAGE='people';render();return;case 'goProductionV023':PRODUCT_VIEW='production';PAGE='product';render();return;case 'setPlan':return setPlan();case 'createGrade':return createGrade();case 'saveQualityPolicy':return saveQualityPolicy();case 'recallModel':return recallModel(elem.dataset.modelId);case 'changeBudget':return changeBudget();case 'researchFocusSave':return researchFocusSave();case 'roadmapAdd':return roadmapAdd(elem.dataset.techId);case 'roadmapRemove':return roadmapRemove(elem.dataset.techId);case 'roadmapToggle':return roadmapToggle();case 'hireStaff':return hireStaff();case 'partOrderPlace':case 'partOrderDispatch':case 'partOrderCancel':return partTradeAction(action,elem.dataset.id);case 'bomAssemblySave':case 'bomLineSave':case 'bomShipment':return bomFactoryAction(action,elem.dataset.id);case 'lineReview':case 'linePropose':case 'lineApprove':case 'lineCancel':return lineUIAction(action,elem);case 'partLicensePropose':case 'partLicenseApprove':case 'partLicenseEnd':case 'partDevelopmentPropose':case 'partDevelopmentApprove':case 'partDevelopmentEnd':return partContractsAction(action,elem.dataset.id);case 'partFamily':case 'partRevise':case 'partSubmit':case 'partBomCreate':case 'partBomOpen':case 'partBomSave':case 'partBomApprove':return partDesignAction(action,elem.dataset.id);case 'partRepair':return partRepairAction(elem.dataset.id,Number(elem.dataset.index));case 'engineeringTraining':case 'engineeringPropose':case 'engineeringApprove':case 'engineeringAllocate':case 'engineeringPause':case 'engineeringCancel':return engineeringAction(action,elem.dataset.id);case 'hrSave':return saveHRPolicy();case 'hrNegotiate':return negotiateLabor();case 'maintain':return maintain();case 'expand':return expand();case 'develop':return develop();case 'renewModel':return startModelRevision();case 'maFilter':return maFilter();case 'maSelect':return maSelect(elem.dataset.id);case 'maQuote':return maPreview();case 'maBuy':return maBuy();case 'maIntegrate':return maStartIntegration();case 'issueShares':return issueSharesUI();case 'buyBackSharesV0271':return buyBackSharesUI();case 'cancelTreasurySharesV0271':return cancelTreasurySharesUI();case 'negPreview':return negotiationPreview();case 'buyStake':return buyNegotiatedStake();case 'saveDelegate':return saveDelegationPolicy();case 'designPreview':return designPreview();case 'openSupplyContracts':return openSupplyContracts();case 'saveSupply':return saveSupply();case 'saveDistribution':return saveDistribution();case 'establishSalesCorp':return establishSalesCorporation();case 'createMarketSalesAgencyV043':return establishSalesCorporation(inputValue('marketEntryTarget'));case 'foreignEnterV043':return changeForeignMarketUIV043('enter');case 'jointCompanyV043':return establishJointCompanyUIV043();case 'foreignReduceV043':return changeForeignMarketUIV043('reduce');case 'foreignWithdrawV043':return changeForeignMarketUIV043('withdraw');case 'factoryBuild':return factoryBuild();case 'dispatchRawShipmentV038':return dispatchRawShipmentUIV038();case 'updateRawWarehouseV038':return updateRawWarehouseV038();case 'openWarehouseDepotV038':return openWarehouseDepotV038();case 'openOverseasDepotV041':return openWarehouseDepotV038(true);case 'resourceDevelopmentV037':return resourceDevelopmentUIV037();case 'factoryManageV21':return manageFactoryV21(elem.dataset.plantId);case 'factoryModeV21':return saveFactoryModeV21();case 'moduleShipV21':return shipModuleV21();case 'v21RouteSave':return saveRoutesV21();case 'partsPlan':try{return partPlanning()}catch(e){toast(e.message);return}case 'shipParts':return shipInterplant();case 'reorgTransfer':return transferBusinessUI();case 'reorgIntegrate':return integrateBusinessUI();case 'plantSettings':return plantSettings();case 'maintainPlant':return maintainPlant();case 'researchChoose':return researchChoose();case 'startTech':return startTech(elem.dataset.techId);case 'cancelTech':return cancelTech(elem.dataset.techId);case 'borrow':return borrow();case 'exchangeForeignV042':return exchangeForeignUIV042();case 'saveForeignReceiptsV042':return saveForeignReceiptsV042();case 'signForeignForwardV042':return signForeignForwardUIV042();case 'spendAd':return spendAd();case 'createSub':return createSub();case 'renameCompany':return renameCompany();case 'renamePlant':return renamePlant(elem.dataset.plantId);case 'factoryRouteSaveOne':return saveFactoryRouteOne(elem.dataset.plantId);case 'factoryManageSelected':return manageFactoryV21(elem.dataset.plantId,document.getElementById('factoryOneAction')?.value);case 'acquire':return acquire(elem.dataset.id);case 'groupLoan':return groupLoan();case 'groupSale':return groupSale();case 'diagnoseStorage':return diagnoseStorage();case 'saveManual':return saveManual(Number(elem.dataset.slot));case 'loadManual':{const i=Number(elem.dataset.slot);if(confirm('現在の未保存変更を破棄し、手動保存'+(i+1)+'を読み込みますか？'))return restore(SAVE_INDEX.manual[i]?.serialized);return}case 'loadAutoSlot':{const i=Number(elem.dataset.slot);if(confirm('自動保存世代'+(i+1)+'を読み込みますか？'))return restore(SAVE_INDEX.auto[i]?.serialized);return}case 'export':try{fileDownload(`conglomerate_${S.year}_${S.month}.json`,savePayload(S));toast('JSONバックアップを書き出しました')}catch(e){toast('書き出しに失敗：'+e.message)}return;case 'import':document.getElementById('importFile').click();return;case 'newGame':if(confirm('現在のセッションを終了し、新しいゲームを開始しますか？ 保存済みデータは削除しません。')){S=null;wizard=0;monthlyPreview=false;PAGE='dashboard';render()}return;}}
+function actions(action,elem){if(MONTH_RUNNING){toast('月次処理中です。保存・計算の確定を進めています。');return;}if(action==='wizardNext')return wizardNext();if(action==='wizardBack'){wizard=Math.max(0,wizard-1);return render()}if(!S)return;switch(action){case 'previewMonth':monthlyPreview=true;return render();case 'cancelMonth':monthlyPreview=false;return render();case 'runMonth':return runMonth();case 'monthDiagnosticShow':case 'monthDiagnosticDismiss':case 'monthDiagnosticCopy':case 'monthDiagnosticDownload':case 'monthDiagnosticJump':return monthlyDiagAction(action);case 'staffToHrV023':PEOPLE_VIEW='hr';PAGE='people';render();return;case 'goProductionV023':PRODUCT_VIEW='production';PAGE='product';render();return;case 'setPlan':return setPlan();case 'createGrade':return createGrade();case 'saveQualityPolicy':return saveQualityPolicy();case 'recallModel':return recallModel(elem.dataset.modelId);case 'changeBudget':return changeBudget();case 'researchFocusSave':return researchFocusSave();case 'roadmapAdd':return roadmapAdd(elem.dataset.techId);case 'roadmapRemove':return roadmapRemove(elem.dataset.techId);case 'roadmapToggle':return roadmapToggle();case 'hireStaff':return hireStaff();case 'partOrderPlace':case 'partOrderDispatch':case 'partOrderCancel':return partTradeAction(action,elem.dataset.id);case 'bomAssemblySave':case 'bomLineSave':case 'bomShipment':return bomFactoryAction(action,elem.dataset.id);case 'lineReview':case 'linePropose':case 'lineApprove':case 'lineCancel':return lineUIAction(action,elem);case 'partLicensePropose':case 'partLicenseApprove':case 'partLicenseEnd':case 'partDevelopmentPropose':case 'partDevelopmentApprove':case 'partDevelopmentEnd':return partContractsAction(action,elem.dataset.id);case 'partFamily':case 'partRevise':case 'partSubmit':case 'partBomCreate':case 'partBomOpen':case 'partBomSave':case 'partBomApprove':return partDesignAction(action,elem.dataset.id);case 'partRepair':return partRepairAction(elem.dataset.id,Number(elem.dataset.index));case 'engineeringTraining':case 'engineeringPropose':case 'engineeringApprove':case 'engineeringAllocate':case 'engineeringPause':case 'engineeringCancel':return engineeringAction(action,elem.dataset.id);case 'hrSave':return saveHRPolicy();case 'hrNegotiate':return negotiateLabor();case 'maintain':return maintain();case 'expand':return expand();case 'develop':return develop();case 'renewModel':return startModelRevision();case 'maFilter':return maFilter();case 'maSelect':return maSelect(elem.dataset.id);case 'maQuote':return maPreview();case 'maBuy':return maBuy();case 'maIntegrate':return maStartIntegration();case 'issueShares':return issueSharesUI();case 'buyBackSharesV0271':return buyBackSharesUI();case 'cancelTreasurySharesV0271':return cancelTreasurySharesUI();case 'negPreview':return negotiationPreview();case 'buyStake':return buyNegotiatedStake();case 'saveDelegate':return saveDelegationPolicy();case 'designPreview':return designPreview();case 'openSupplyContracts':return openSupplyContracts();case 'saveWorldEvolutionV046':return saveWorldEvolutionV046();case 'activateMarketExpansionV047':return activateMarketExpansionUIV047();case 'saveSupplyPolicyV045':return saveSupplyPolicyV045();case 'saveSupply':return saveSupply();case 'saveDistribution':return saveDistribution();case 'establishSalesCorp':return establishSalesCorporation();case 'createMarketSalesAgencyV043':return establishSalesCorporation(inputValue('marketEntryTarget'));case 'foreignEnterV043':return changeForeignMarketUIV043('enter');case 'jointCompanyV043':return establishJointCompanyUIV043();case 'foreignReduceV043':return changeForeignMarketUIV043('reduce');case 'foreignWithdrawV043':return changeForeignMarketUIV043('withdraw');case 'factoryBuild':return factoryBuild();case 'dispatchRawShipmentV038':return dispatchRawShipmentUIV038();case 'updateRawWarehouseV038':return updateRawWarehouseV038();case 'openWarehouseDepotV038':return openWarehouseDepotV038();case 'openOverseasDepotV041':return openWarehouseDepotV038(true);case 'resourceDevelopmentV037':return resourceDevelopmentUIV037();case 'factoryManageV21':return manageFactoryV21(elem.dataset.plantId);case 'factoryModeV21':return saveFactoryModeV21();case 'moduleShipV21':return shipModuleV21();case 'v21RouteSave':return saveRoutesV21();case 'partsPlan':try{return partPlanning()}catch(e){toast(e.message);return}case 'shipParts':return shipInterplant();case 'reorgTransfer':return transferBusinessUI();case 'reorgIntegrate':return integrateBusinessUI();case 'plantSettings':return plantSettings();case 'maintainPlant':return maintainPlant();case 'researchChoose':return researchChoose();case 'startTech':return startTech(elem.dataset.techId);case 'cancelTech':return cancelTech(elem.dataset.techId);case 'borrow':return borrow();case 'exchangeForeignV042':return exchangeForeignUIV042();case 'saveForeignReceiptsV042':return saveForeignReceiptsV042();case 'signForeignForwardV042':return signForeignForwardUIV042();case 'spendAd':return spendAd();case 'createSub':return createSub();case 'renameCompany':return renameCompany();case 'renamePlant':return renamePlant(elem.dataset.plantId);case 'factoryRouteSaveOne':return saveFactoryRouteOne(elem.dataset.plantId);case 'factoryManageSelected':return manageFactoryV21(elem.dataset.plantId,document.getElementById('factoryOneAction')?.value);case 'acquire':return acquire(elem.dataset.id);case 'groupLoan':return groupLoan();case 'groupSale':return groupSale();case 'diagnoseStorage':return diagnoseStorage();case 'saveManual':return saveManual(Number(elem.dataset.slot));case 'loadManual':{const i=Number(elem.dataset.slot);if(confirm('現在の未保存変更を破棄し、手動保存'+(i+1)+'を読み込みますか？'))return restore(SAVE_INDEX.manual[i]?.serialized);return}case 'loadAutoSlot':{const i=Number(elem.dataset.slot);if(confirm('自動保存世代'+(i+1)+'を読み込みますか？'))return restore(SAVE_INDEX.auto[i]?.serialized);return}case 'export':try{fileDownload(`conglomerate_${S.year}_${S.month}.json`,savePayload(S));toast('JSONバックアップを書き出しました')}catch(e){toast('書き出しに失敗：'+e.message)}return;case 'import':document.getElementById('importFile').click();return;case 'newGame':if(confirm('現在のセッションを終了し、新しいゲームを開始しますか？ 保存済みデータは削除しません。')){S=null;wizard=0;monthlyPreview=false;PAGE='dashboard';render()}return;}}
 document.addEventListener('click',e=>{const product=e.target.closest('[data-product-view]');if(product&&S){PRODUCT_VIEW=product.dataset.productView;render();window.scrollTo({top:0,behavior:'instant'});return;}const people=e.target.closest('[data-people-view]');if(people&&S){PEOPLE_VIEW=people.dataset.peopleView;render();window.scrollTo({top:0,behavior:'instant'});return;}const group=e.target.closest('[data-tech-family]');if(group&&S){TECH_FAMILY=group.dataset.techFamily;TECH_DOMAIN=TECH_FAMILIES[TECH_FAMILY].domains[0];TECH_SELECTED=TECH_DOMAIN+'-1';return redrawResearchPanel({centerSelected:false})}const field=e.target.closest('[data-tech-domain]');if(field&&S){TECH_DOMAIN=field.dataset.techDomain;techScrollDomain(TECH_DOMAIN);document.querySelectorAll('[data-tech-domain]').forEach(x=>x.classList.toggle('active',x.dataset.techDomain===TECH_DOMAIN));return}const tech=e.target.closest('[data-tech-select]');if(tech&&S){chooseTech(tech.dataset.techSelect);return}const section=e.target.closest('[data-section]');if(section&&S){PAGE=SECTIONS[section.dataset.section].pages[0][0];monthlyPreview=false;render();window.scrollTo({top:0,behavior:'instant'});return}const nav=e.target.closest('[data-page]');if(nav&&S){PAGE=nav.dataset.page;monthlyPreview=false;render();window.scrollTo({top:0,behavior:'instant'});return}const el=e.target.closest('[data-action]');if(el&&!el.disabled)actions(el.dataset.action,el)});
 document.addEventListener('change',e=>{if(e.target.matches('[data-design-field]')||e.target.id==='modelPrice')designPreview();if(['factorySite','factoryScale','factoryKind'].includes(e.target.id))factorySitePreview()});document.addEventListener('input',e=>{if(e.target.id==='modelPrice')designPreview()});document.getElementById('companySelect').addEventListener('change',e=>{VIEW_FIRM=e.target.value;render()});document.getElementById('regionSelect').addEventListener('change',e=>{VIEW_COUNTRY=e.target.value;render()});document.getElementById('importFile').addEventListener('change',async e=>{const file=e.target.files[0];if(!file)return;try{const raw=await file.text();if(confirm('読み込み中のゲーム状態をJSONバックアップで置き換えますか？'))restore(raw)}catch(err){toast('ファイルを読み込めません：'+err.message)}e.target.value=''});
 
@@ -8015,14 +8515,27 @@ function saveFactoryModeV21(){try{const f=current();if(!canEdit(f))throw Error('
    automatically balanced against actual assembly and specialist schedules.
    Explicit per-plant assignments are saved by stable plant ID and cannot exceed
    corporate production headcount. Never invent separate employees. */
+/* BOM output is scheduled independently of the legacy specialist modules.
+   Keep required headcount in the same corporate pool: no new employees or save fields. */
+function bomFactoryLineDemandV026(f,p){
+ const plans=new Map((f.partOperations?.productionPlans??[])
+  .filter(plan=>plan.plantId===p.id).map(plan=>[plan.lineId,Math.max(0,Math.floor(Number(plan.quantity)||0))]));
+ return (p.componentLines??[]).map(line=>{
+  const planned=Math.min(Math.max(0,Math.floor(line.capacity||0)),plans.get(line.lineId)||0);
+  return {line,planned,required:Math.ceil(planned*.5)};
+ });
+}
 function factoryLaborPlanV026(f){
  const active=(f.plants||[]).filter(p=>!p.construction&&!p.renovation&&!p.paused),
        detailed=f.factoryOps?.mode==='detailed',saved=f.factoryOps?.staffAssignments||{},total=Math.max(0,Math.floor(f.staff?.production||0));
  const records=active.map(p=>{
-  const support=!!v21ModuleType(p),plan=Number((detailed?f.factoryOps?.plans?.[p.id]:f.interplant?.partPlans?.[p.id])||0);
-  const required=support?(plan>0?Math.max(1,Math.ceil(Math.min(plan,Math.floor(p.capacity*(p.condition||100)/100*.35))*0.5)):0):Math.ceil(p.capacity*40/54);
+  const support=!!v21ModuleType(p);
+  const plan=Math.max(0,Number((detailed?f.factoryOps?.plans?.[p.id]:f.interplant?.partPlans?.[p.id])||0));
+  const baseRequired=support?(plan>0?Math.max(1,Math.ceil(Math.min(plan,Math.floor(p.capacity*(p.condition||100)/100*.35))*.5)):0):Math.ceil(p.capacity*40/54);
+  const bomRequired=bomFactoryLineDemandV026(f,p).reduce((n,line)=>n+line.required,0);
+  const required=baseRequired+bomRequired;
   const manual=Number.isSafeInteger(saved[p.id])&&saved[p.id]>=0?Math.min(total,saved[p.id]):null;
-  return {plant:p,required,manual,assigned:0};
+  return {plant:p,required,baseRequired,bomRequired,manual,assigned:0};
  });
  let remaining=total;
  for(const r of records)if(r.manual!==null){r.assigned=Math.min(remaining,r.manual);remaining-=r.assigned;}
@@ -8033,7 +8546,6 @@ function factoryLaborPlanV026(f){
  }
  return {total,records,byId:Object.fromEntries(records.map(x=>[x.plant.id,x])),unallocated:Math.max(0,total-records.reduce((n,x)=>n+x.assigned,0))};
 }
-
 /* v0.34 STEP 3: six-month inventory forecast and lead-time-aware reorder point. */
 const SAFETY_LEVELS_V034=[.25,.5,1,1.5,2];
 function safetyMonthsV034(contract){
@@ -8373,7 +8885,7 @@ function staffingV023(f){
  const nominal=assembly.reduce((n,p)=>n+p.capacity,0);
  const assemblyTarget=Math.ceil(nominal*40/54); // EXACT denominator in factoryCapacity labor factor.
  const details=(f.factoryOps?.mode==='detailed');
- const supportTarget=plants.filter(p=>!!v21ModuleType(p)).reduce((n,p)=>n+Math.ceil(Math.min(p.capacity*.35,(details?f.factoryOps.plans?.[p.id]:f.interplant?.partPlans?.[p.id])||0)*.5),0);
+ const supportTarget=factoryLaborPlanV026(f).records.reduce((n,r)=>n+(v21ModuleType(r.plant)?r.baseRequired:0)+r.bomRequired,0);
  const totalTarget=assemblyTarget+supportTarget;
  const researchActive=f.research?.tree?.active?.length||0;
  const researchGoal=Math.max(5,researchActive*8+(f.research?.roadmap?.targets?.length||0)*3);
@@ -8393,8 +8905,12 @@ function factoryInsightV023(f,p){
  if(['integrated','assembly'].includes(p.kind)&&factoryCapacity(f).labor<.99)warn('会社全体の製造人員不足','製造人員による生産能力補正 '+nfmt(factoryCapacity(f).labor*100)+'%','人事で製造人員を採用',true);
  if(type){
   const qty=z.plans?.[p.id]||0,spec=V21_MODULE_INFO[type];
-  if(detail&&qty===0)warn('部品生産計画が0','この工場の計画を入力してください','月間製造量を設定',true);
-  if(detail&&qty>0&&staff.assigned<staff.recommended)warn('部品工場の製造人員が不足','配属 '+staff.assigned+'人／推奨 '+staff.recommended+'人','この工場の人員配属を確認',staff.assigned===0);
+  const bomQty=(f.partOperations?.productionPlans??[]).filter(plan=>plan.plantId===p.id).reduce((n,plan)=>n+Math.max(0,plan.quantity||0),0);
+   if(detail&&qty===0&&!bomQty)warn('部品生産計画が0','従来部品・BOM部品の生産計画がありません','BOMまたは月間製造量を設定',true);
+  if((qty>0&&detail||bomQty>0)&&staff.assigned<staff.recommended)warn('部品工場の製造人員が不足','配属 '+staff.assigned+'人／推奨 '+staff.recommended+'人','この工場の人員配属を確認',staff.assigned===0);
+   if(bomQty>0){const blocked=lineOutputPlan(S,f,p).filter(line=>line.planned>0&&line.possible===0);
+    if(blocked.length)warn('BOM部品ラインが生産できません',blocked.map(x=>x.issue||'製造人員の余力不足').slice(0,3).join('・'),'部品ラインの設備・生産計画・人員配分を確認',true);
+   }
   if(detail&&qty>0){const limit=Math.min(Math.floor((f.stock.steel?.q||0)/spec.steel),Math.floor((f.stock.rubber?.q||0)/spec.rubber));if(limit<qty)warn('原材料が計画数量に不足','鋼材・ゴムから最大'+nfmt(limit)+'個分','サプライヤー・輸入で調達',limit===0);}
  } else {
   if(!planned)warn('対象車種の生産計画が0','担当する車種の計画がありません','製品・開発 → 生産計画を設定',true);
@@ -8409,12 +8925,12 @@ function factoryInsightV023(f,p){
 }
 function statusChipV023(x){return `<span class="staff-chip ${x.kind}">${esc(x.label)}</span>`}
 function staffingSummaryV023(f){const st=staffingV023(f);return `<section class="panel span12" id="staffingOverview"><div class="row between"><h2>部門別・人員需給診断</h2>${tag('推奨値は目安')}</div><div class="staff-departments">${[['production','製造','工場の稼働設備・計画量'],['research','研究','同時研究テーマ・ロードマップ'],['sales','営業・管理','販売地域数・現役車種数']].map(([k,title,why])=>{const z=st[k];return `<div class="staff-dept"><div class="row between"><b>${title}</b>${statusChipV023(z)}</div><div class="staff-numbers"><strong>${nfmt(z.actual)}<small>人</small></strong><span>推奨 ${nfmt(z.required)}人</span></div><div class="capacity-track"><span style="width:${Math.min(100,z.ratio*100)}%"></span></div><small>過不足 ${z.diff>=0?'+':''}${nfmt(z.diff)}人／${why}</small></div>`}).join('')}</div><p class="hint">製造人員は会社全体で管理されています。工場別の人数は自動配分または工場別固定配置で決まります。個人ごとの従業員台帳は未実装です。研究・営業の推奨人数は経営上の目安であり、採用を強制する条件ではありません。</p></section>`}
-function factoryOpsInsightPanelV023(f,p){const o=factoryInsightV023(f,p),last=p.lastUtilization||0,kind=v21ModuleType(p),mode=f.factoryOps.mode;
+function factoryOpsInsightPanelV023(f,p){const o=factoryInsightV023(f,p),last=p.lastUtilization||0,kind=v21ModuleType(p),mode=f.factoryOps.mode,bomQty=(f.partOperations?.productionPlans??[]).filter(x=>x.plantId===p.id).reduce((n,x)=>n+Math.max(0,x.quantity||0),0);
  const bottleneck=o.reasons.filter(x=>x.important)[0]||o.reasons[0];
  const incoming=V21_MODULE_TYPES.map(typ=>{const tx=f.factoryOps.shipments.filter(x=>x.to===p.id&&x.typ===typ).sort((a,b)=>a.due-b.due);const qty=tx.reduce((n,x)=>n+x.qty,0);const routes=f.plants.filter(x=>v21ModuleType(x)===typ&&f.factoryOps.routes?.[x.id]?.to===p.id).map(x=>x.name).slice(0,2);return {typ,qty,due:tx[0]?.due,origin:routes.join('・')};});
  const assem=mode==='detailed'&&['integrated','assembly'].includes(p.kind),assemblyStock=Math.min(...V21_MODULE_TYPES.map(t=>o.inv[t]||0));
  return `<section class="factory-insight" aria-label="工場稼働分析"><div class="insight-top"><div><div class="eyebrow">OPERATION DIAGNOSTIC</div><h3>稼働率・停止原因の分析</h3></div>${tag(bottleneck?'確認が必要':'主要な停止要因なし',bottleneck?'warn':'good')}</div>
- <div class="insight-hero"><div><small>前月稼働率</small><strong>${nfmt(last*100)}%</strong><div class="capacity-track"><span style="width:${Math.min(100,Math.max(0,last*100))}%"></span></div></div><div><small>現在の生産計画</small><strong>${nfmt(kind?(f.factoryOps.plans?.[p.id]||0):o.planned)}${kind?'個':'台'}</strong></div><div><small>従業員（配属人数）</small><strong>${nfmt(o.staff.assigned)}人</strong><div class="tiny muted">参考必要 ${nfmt(o.staff.recommended)}人</div></div></div>
+ <div class="insight-hero"><div><small>前月稼働率</small><strong>${nfmt(last*100)}%</strong><div class="capacity-track"><span style="width:${Math.min(100,Math.max(0,last*100))}%"></span></div></div><div><small>現在の生産計画</small><strong>${nfmt(kind?((mode==='detailed'?f.factoryOps.plans?.[p.id]:f.interplant?.partPlans?.[p.id])||0)+bomQty:o.planned)}${kind?'個':'台'}</strong></div><div><small>従業員（配属人数）</small><strong>${nfmt(o.staff.assigned)}人</strong><div class="tiny muted">参考必要 ${nfmt(o.staff.recommended)}人</div></div></div>
  <div class="insight-reasons">${o.reasons.map((r,i)=>`<div class="reason ${r.important?'critical':''}"><span class="reason-icon">${r.important?'!':'i'}</span><div><b>${esc(r.state)}</b><div class="hint">${esc(r.detail)}</div><div class="tiny">対策：${esc(r.action)}</div></div></div>`).join('')||'<div class="reason clear"><span class="reason-icon">✓</span><div><b>確認できる主要な停止要因はありません</b><p class="hint">工程負荷や当月市場需要などによって実生産数は変動します。</p></div></div>'}</div><p class="hint">原因は現在の計画・在庫を基準とした診断です。「前月の稼働率」とは判定時点が異なるため、過去の全停止理由を断定するものではありません。</p><div class="row"><button class="btn sm" data-action="staffToHrV023">人事・採用へ</button><button class="btn sm" data-action="goProductionV023">生産計画へ</button><button class="btn sm" data-page="supply">原材料調達へ</button></div></section>
  ${kind?`<section class="factory-insight" id="partProductionV023"><h3>${esc(V21_MODULE_INFO[kind].name)} 生産・供給状況</h3><div class="insight-hero"><div><small>前月の生産</small><strong>${nfmt(p.lastProduced||0)}個</strong></div><div><small>工場内の完成部品</small><strong>${nfmt(o.inv[kind]||0)}個</strong></div><div><small>月次計画</small><strong>${nfmt(f.factoryOps.plans?.[p.id]||0)}個</strong></div></div><p class="hint">出荷する場合は配送先・自動補充目標と月間上限を下の設定欄で指定します。</p></section>`:
  `<section class="factory-insight" id="assemblySupplyV023"><div class="row between"><h3>${p.kind==='integrated'?'総合工場の内製・組立状況':'最終組立工場の部品供給状況'}</h3>${tag(mode==='detailed'?'専門部品方式':'従来の共通部品方式')}</div>${assem?`<div class="insight-hero"><div><small>到着済み3部品のセット数</small><strong>${nfmt(assemblyStock)}台分</strong></div><div><small>前月の工場内製</small><strong>${p.kind==='integrated'?nfmt(p.lastInternalModules||0):'—'}台分</strong></div><div><small>前月の組立</small><strong>${nfmt(p.lastProduced||0)}台</strong></div></div><div class="scroll"><table><thead><tr><th>部品</th><th>到着在庫</th><th>前月内製</th><th>輸送中</th><th>最も早い到着</th><th>設定済み供給元</th></tr></thead><tbody>${incoming.map(x=>`<tr><td>${esc(V21_MODULE_INFO[x.typ].name)}</td><td>${nfmt(o.inv[x.typ]||0)}個</td><td>${p.kind==='integrated'?nfmt(p.lastInternalModules||0)+'個':'—'}</td><td>${nfmt(x.qty)}個</td><td>${x.due?Math.floor((x.due-1)/12)+'年'+((x.due-1)%12+1)+'月':'未発送'}</td><td>${esc(x.origin||'未設定')}</td></tr>`).join('')}</tbody></table></div><p class="hint">${p.kind==='integrated'?'総合工場は到着済み部品を優先使用し、不足した3部品を鋼材・ゴムから当月内製します。内製分は到着部品在庫に加算しません。':'最終組立専門工場は3種類の部品各1個が揃うまで生産できません。輸送中の部品は到着月まで使用できません。'}</p>`:'<p class="hint">従来方式では共通部品を使用します。専門部品の到着状況は詳細モードに変更したときだけ組立制約に影響します。</p>'}</section>`}`;
@@ -8731,20 +9247,32 @@ function deliverRawShipmentsV038(s,events){
 function rawFactoryDemandV038(s,f){
  const workforce=factoryLaborPlanV026(f);
  const plants=f.plants.filter(p=>factoryStatus(p)==='active');
- const weights=plants.map(p=>{
+ const types=ensureWarehouseV038(f).localizedRawTypes;
+ const baseWeights=plants.map(p=>{
   const labor=workforce.byId[p.id]?.assigned??0;
   const support=f.factoryOps.mode==='detailed'?f.factoryOps.plans[p.id]:f.interplant.partPlans[p.id];
-  const bomParts=(f.partOperations?.productionPlans??[]).reduce((n,x)=>n+(x.plantId===p.id?x.quantity:0),0);
-  return ['integrated','assembly'].includes(p.kind)?Math.min(p.capacity,labor*2):Math.min((support||0)+bomParts,labor*2);
+  return ['integrated','assembly'].includes(p.kind)?Math.min(p.capacity,labor*2):Math.min(support||0,labor*2);
  });
- const total=weights.reduce((n,w)=>n+w,0),types=ensureWarehouseV038(f).localizedRawTypes;
- const demand=Object.fromEntries(types.map(type=>[type,factoryResourceTargetV026(f,type,s).demand]));
- return plants.map((p,index)=>({p,monthly:Object.fromEntries(types.map(type=>
-  [type,total?Math.ceil(demand[type]*weights[index]/total):0]))}));
+ const totalWeight=baseWeights.reduce((n,w)=>n+w,0);
+ // BOM recipes are location-specific: do not spread their materials across other plants.
+ const bomByPlant=new Map(plants.map(p=>[p.id,Object.fromEntries(types.map(t=>[t,0]))]));
+ for(const plan of f.partOperations?.productionPlans??[]){
+  const p=plants.find(x=>x.id===plan.plantId),line=p?.componentLines?.find(l=>l.lineId===plan.lineId);
+  const spec=line&&partRecord(s,line.specKey);
+  if(!spec)continue;
+  const qty=Math.min(line.capacity,Math.max(0,bomLineQuantity(s,f,plan,spec)));
+  const recipe=bomPartRecipe(spec,partTechnologyProfile(f,spec.family)),bins=bomByPlant.get(p.id);
+  for(const type of types)bins[type]+=qty*(recipe[type]||0);
+ }
+ const globalDemand=Object.fromEntries(types.map(type=>[type,factoryResourceTargetV026(f,type,s).demand]));
+ const baseDemand=Object.fromEntries(types.map(type=>[type,Math.max(0,globalDemand[type]-plants.reduce((n,p)=>n+bomByPlant.get(p.id)[type],0))]));
+ return plants.map((p,index)=>({p,monthly:Object.fromEntries(types.map(type=>[
+  type,Math.ceil(bomByPlant.get(p.id)[type]+(totalWeight?baseDemand[type]*baseWeights[index]/totalWeight:0))
+ ]))}));
 }
 function autoRefillRawFactoriesV038(s,events){
  for(const f of s.firms){
-  const logistics=ensureWarehouseV038(f);
+  const logistics=ensureWarehouseV038(f),policy=logisticsPolicyModeV045(s,f);
   if(!logistics.autoRefill||!logistics.localizedRawTypes.length||f.reorgStatus==='integrated'||
      f.lifecycle?.phase==='withdrawn'||!['auto','manufacturing'].includes(f.industry))continue;
   const warehouse=warehouseDestinationV038(f,'warehouse'),plans=rawFactoryDemandV038(s,f);
@@ -8757,14 +9285,19 @@ function autoRefillRawFactoriesV038(s,events){
    const site=warehouseDestinationV038(f,p.id);
    if(!site||site.id===warehouse.id)continue;
    const nearby=origins.filter(origin=>origin.site.country===site.country)
-    .sort((a,b)=>Number(b.site.id===site.id)-Number(a.site.id===site.id));
+    .sort((a,b)=>{
+     if(policy==='manual')return Number(b.site.id===site.id)-Number(a.site.id===site.id);
+     const score=origin=>Object.entries(monthly).reduce((total,[type,qty])=>
+      total+(qty?logisticsOriginScoreV045(s,f,site,origin,type,policy)*Math.min(10,qty):0),0);
+     return score(a)-score(b)||a.id.localeCompare(b.id);
+    });
    for(const origin of nearby){
     const lead=v21Freight(origin.site,site,1,s).lead,requests=[];
     for(const [type,qty] of Object.entries(monthly)){
      if(!qty)continue;
      const onSite=plantRawStockV038(f,p.id,type).q;
      const onOrder=logistics.rawShipments.filter(x=>x.to===p.id&&x.type===type).reduce((n,x)=>n+x.quantity,0);
-     const shortage=Math.ceil(qty*(lead+1)-onSite-onOrder);
+     const shortage=Math.ceil(qty*(lead+(policy==='resilient'?2:1))-onSite-onOrder);
      const available=Math.floor(origin.stock?origin.stock[type]?.q??0:
       centralRawStockV038(f,type).q-(homeDemand[type]||0)+1e-8);
      if(shortage>0&&available>0)requests.push({id:type,need:Math.min(shortage,available)});
@@ -9098,7 +9631,7 @@ function factoryDetailMarkup(f,p,edit,inventoryView=null){if(!p)return `<div cla
  ${factoryInventoryMetricsV038(S,f,p)}</details>
  ${componentLinesPanel(f,p,edit)}
  ${bomShopPanel(f,p,edit)}
- ${(()=>{const people=staffOfPlantV023(f,p),man=f.factoryOps.staffAssignments?.[p.id];return `<div class="factory-v026-staff"><div class="row between"><h3>工場の人員配置</h3>${tag(people.assigned>=people.recommended?'人員充足':'人員不足',people.assigned>=people.recommended?'good':'warn')}</div><p class="hint">製造部門 ${nfmt(f.staff.production)}人を工場間で配分。部品工場の生産上限にも実際に反映します。</p><div class="factory-v026-staff-grid"><div class="staff-v026-kpi"><small>配属人数</small><b>${nfmt(people.assigned)}人</b></div><div class="staff-v026-kpi"><small>必要人数目安</small><b>${nfmt(people.recommended)}人</b></div><label class="field"><span>配置方式</span><select id="factoryStaffModeV026" ${edit?'':'disabled'}><option value="auto" ${man===undefined?'selected':''}>自動配分</option><option value="fixed" ${man!==undefined?'selected':''}>人数を固定</option></select></label><label class="field"><span>固定配置人数</span><input type="number" id="factoryStaffAmountV026" min="0" max="100000" value="${man??people.assigned}" ${edit?'':'disabled'}></label></div><div class="row"><button class="btn primary sm" data-action="saveFactoryStaffV026" data-plant-id="${esc(p.id)}" ${edit?'':'disabled'}>配置を保存</button><button class="btn sm" data-action="staffToHrV023">人事で従業員を採用</button></div><p class="hint">固定配置の合計は会社の製造人数を超えられません。未割当人員は自動配置の工場へ配分します。</p></div>`})()}
+ ${(()=>{const people=staffOfPlantV023(f,p),man=f.factoryOps.staffAssignments?.[p.id];return `<div class="factory-v026-staff"><div class="row between"><h3>工場の人員配置</h3>${tag(!people.recommended?'生産計画なし':people.assigned>=people.recommended?'人員充足':'人員不足',!people.recommended?'warn':people.assigned>=people.recommended?'good':'warn')}</div><p class="hint">製造部門 ${nfmt(f.staff.production)}人を工場間で配分。部品工場の生産上限にも実際に反映します。</p><div class="factory-v026-staff-grid"><div class="staff-v026-kpi"><small>配属人数</small><b>${nfmt(people.assigned)}人</b></div><div class="staff-v026-kpi"><small>必要人数目安</small><b>${nfmt(people.recommended)}人</b></div><label class="field"><span>配置方式</span><select id="factoryStaffModeV026" ${edit?'':'disabled'}><option value="auto" ${man===undefined?'selected':''}>自動配分</option><option value="fixed" ${man!==undefined?'selected':''}>人数を固定</option></select></label><label class="field"><span>固定配置人数</span><input type="number" id="factoryStaffAmountV026" min="0" max="100000" value="${man??people.assigned}" ${edit?'':'disabled'}></label></div><div class="row"><button class="btn primary sm" data-action="saveFactoryStaffV026" data-plant-id="${esc(p.id)}" ${edit?'':'disabled'}>配置を保存</button><button class="btn sm" data-action="staffToHrV023">人事で従業員を採用</button></div><p class="hint">固定配置の合計は会社の製造人数を超えられません。未割当人員は自動配置の工場へ配分します。</p></div>`})()}
  <div class="formgrid"><div class="field"><label for="renamePlant_${esc(p.id)}">工場名</label><input id="renamePlant_${esc(p.id)}" value="${esc(p.name)}" maxlength="32" ${edit?'':'disabled'}></div><button class="btn" data-action="renamePlant" data-plant-id="${esc(p.id)}" ${edit?'':'disabled'}>名称を変更</button>
  ${!type?`<div class="field"><label for="factoryFocus_${esc(p.id)}">担当車種</label><select id="factoryFocus_${esc(p.id)}" ${edit?'':'disabled'}><option value="all" ${p.focus==='all'?'selected':''}>全車種</option>${f.models.filter(m=>m.status==='active').map(m=>`<option value="${esc(m.id)}" ${p.focus===m.id?'selected':''}>${esc(m.name)}</option>`).join('')}</select></div><button class="btn" data-action="plantSettings" ${edit?'':'disabled'}>車種担当を保存</button>`:''}
  <div class="field"><label for="factoryOneAction">工場の管理操作</label><select id="factoryOneAction" ${edit?'':'disabled'}><option value="upgrade">設備更新（2か月）</option><option value="extend">設備を拡張 +30%（3か月）</option><option value="shrink">工場の縮小 -25%</option><option value="pause">操業を休止</option><option value="resume">操業を再開</option><option value="close">工場を廃止</option></select></div><button class="btn" data-action="factoryManageSelected" data-plant-id="${esc(p.id)}" ${edit?'':'disabled'}>工場操作を実行</button></div>
@@ -9585,7 +10118,7 @@ function marketRegionV025(){const code=Object.hasOwn(S.world,VIEW_COUNTRY)?VIEW_
  <div class="mk-grid"><div class="mk-span-3">${mkKpiV025('選択市場の推計需要',nfmt(d)+' 台/月','景気補正後の潜在需要')}</div><div class="mk-span-3">${mkKpiV025('グループ実販売',mkQtyV025(grp),'直近確定月の自動車実績',grp===0?'mk-critical':'')}</div><div class="mk-span-3">${mkKpiV025('観測内の販売割合',mkPctV025(share),'記録済み自動車企業の合計比')}</div><div class="mk-span-3">${mkKpiV025('現在の販売方式',esc(m),'選択法人の設定')}</div></div>
  <div class="mk-grid">${mkAllocationPanelV031(code)}<section class="mk-panel mk-span-7"><h2>主要市場の需要ランキング</h2><p class="mk-sub">同じ推計式による相対比較</p>${Object.keys(S.world).map(k=>mkBarV025(k,k===code)).join('')}</section><section class="mk-panel mk-span-5"><h2>${esc(NAMES[code])}市場の分析メモ</h2><div class="mk-row"><span>潜在市場需要</span><strong>${nfmt(d)}台/月</strong></div><div class="mk-row"><span>直近の自社法人販売</span><strong>${mkQtyV025(selected)}</strong></div><div class="mk-row"><span>観測された自動車販売</span><strong>${obs.hasRecord?nfmt(obs.qty)+'台':'未確定'}</strong></div><div class="mk-row"><span>販売上限（契約）</span><strong>${nfmt(ctr.capacity)}台/月</strong></div><div class="mk-row"><span>現在の販路</span><strong>${esc(m)}</strong></div><div class="mk-row"><span>経済循環指数</span><strong>${nfmt(100+w.cycle*100)}</strong></div><div class="mk-callout">市場への輸出では輸送期間と販売方式による費用が発生します。契約の設定と実販売には時間差があります。</div><div class="mk-actions"><button class="btn primary" data-page="distribution">この市場の販売網を検討 →</button></div></section></div>
  <div class="mk-grid"><section class="mk-panel mk-span-7"><h2>購買層別の推計需要</h2><p class="mk-sub">ゲーム内の6購買層（確定販売台数ではありません）</p>${Object.entries(MARKET_SEGMENTS).map(([k,v])=>`<div class="mk-bar"><b>${esc(v.label)}</b><span class="mk-bar-line"><span style="width:${Math.min(100,segments[k]/Math.max(1,d)*100*2.4)}%"></span></span><em>${nfmt(segments[k])}台</em></div>`).join('')}<div class="mk-note">購入価格感応度や各車種の適合性は販売配分に反映されます。</div></section><section class="mk-panel mk-span-5"><h2>参入時の確認事項</h2><div class="mk-row"><span>国内／海外</span><strong>${code===current().country?'国内市場':'海外輸出先'}</strong></div><div class="mk-row"><span>販売契約の方式</span><strong>${esc(m)}</strong></div><div class="mk-row"><span>契約先法人</span><strong>${ctr.dealerId?esc(company(ctr.dealerId)?.name||'契約先不明'):'直接販売'}</strong></div><div class="mk-row"><span>広告・販売店投資</span><strong>${nfmt(current().brand?.[code]||0)} / ${nfmt(current().dealers?.[code]||0)}</strong></div><div class="mk-actions"><button class="btn" data-page="marketOwn">自社販売実績 →</button><button class="btn" data-page="market">マクロ詳細 →</button></div></section></div>
- <section class="mk-panel"><h2>地域の比較表</h2><div class="mk-table-wrap"><table class="mk-table"><thead><tr><th>市場</th><th class="mk-number">推計需要</th><th class="mk-number">自社グループ</th><th class="mk-number">観測販売</th><th class="mk-number">観測内構成比</th><th>販路</th><th>操作</th></tr></thead><tbody>${mkRegionRowsV025()}</tbody></table></div><p class="mk-note">観測販売数には記録済みの自動車企業のみを含みます。製品別実績と販路は実ゲームデータです。</p></section></div>`;}
+ <section class="mk-panel"><h2>地域の比較表</h2><div class="mk-table-wrap"><table class="mk-table"><thead><tr><th>市場</th><th class="mk-number">推計需要</th><th class="mk-number">自社グループ</th><th class="mk-number">観測販売</th><th class="mk-number">観測内構成比</th><th>販路</th><th>操作</th></tr></thead><tbody>${mkRegionRowsV025()}</tbody></table></div><p class="mk-note">観測販売数には記録済みの自動車企業のみを含みます。製品別実績と販路は実ゲームデータです。</p></section></div>`+worldDevelopmentPanelV046(S)+marketExpansionPanelV047(S);}
 function mkCompetitorPoolV025(){const q=MK_V025.query.toLocaleLowerCase();let fs=S.firms.filter(x=>x.lifecycle?.phase!=='withdrawn'&&x.reorgStatus!=='integrated');if(q)fs=fs.filter(x=>x.name.toLocaleLowerCase().includes(q)||String(NAMES[x.country]||'').includes(q));if(MK_V025.country!=='all')fs=fs.filter(x=>x.country===MK_V025.country);if(MK_V025.industry!=='all')fs=fs.filter(x=>x.industry===MK_V025.industry);return fs.sort((a,b)=>MK_V025.sort==='sales'?(mkFirmSalesV025(b)||0)-(mkFirmSalesV025(a)||0):MK_V025.sort==='models'?(b.models?.filter(m=>m.status==='active').length||0)-(a.models?.filter(m=>m.status==='active').length||0):a.name.localeCompare(b.name,'ja'));}
 function mkCompetitorTableV025(){const firms=mkCompetitorPoolV025(),size=10,totalPages=Math.max(1,Math.ceil(firms.length/size));MK_V025.page=Math.min(totalPages-1,Math.max(0,MK_V025.page));const subset=firms.slice(MK_V025.page*size,(MK_V025.page+1)*size),chosen=MK_V025.selected;
  const rows=subset.map(f=>{const checked=chosen.includes(f.id);const last=mkLastV025(f);return `<tr><td><input type="checkbox" aria-label="${esc(f.name)}を比較" data-mk-select="${esc(f.id)}" ${checked?'checked':''} ${!checked&&chosen.length>=4?'disabled':''}></td><td><b>${esc(f.name)}</b></td><td>${esc(NAMES[f.country])}</td><td>${esc(industryName(f.industry))}</td><td class="mk-number">${nfmt(f.models?.filter(m=>m.status==='active').length||0)}種</td><td class="mk-number">${mkQtyV025(mkFirmSalesV025(f))}</td><td>${last?'<span class="mk-tag good">直近実績あり</span>':'<span class="mk-tag warn">月次未確定</span>'}</td><td><button class="mk-link" data-mk-open-firm="${esc(f.id)}">詳細 →</button></td></tr>`;}).join('');return `<div class="mk-table-wrap"><table class="mk-table"><thead><tr><th>比較</th><th>企業名</th><th>所在国</th><th>業態</th><th class="mk-number">現役車種</th><th class="mk-number">直近実販売</th><th>情報公開範囲</th><th>操作</th></tr></thead><tbody>${rows||'<tr><td colspan="8">検索条件に該当する企業がありません。</td></tr>'}</tbody></table></div><div class="mk-pagination"><span class="mk-muted" id="mkRivalsCount">${firms.length}社 · ${MK_V025.page+1} / ${totalPages}ページ</span><button class="btn sm" data-mk-action="prev" ${MK_V025.page===0?'disabled':''}>前へ</button><button class="btn sm" data-mk-action="next" ${MK_V025.page>=totalPages-1?'disabled':''}>次へ</button></div>`;}
