@@ -110,6 +110,9 @@ with sync_playwright() as pw:
     }""")
     assert initial['kind']=='assembly' and initial['site']=='US-LAX',initial
     assert initial['plan']==230 and initial['moduleStock']==[0,0,0],initial
+    assert not p.evaluate('aiModeAllows(current(),"shipping")'),'Expected non-delegated player mode to be disabled'
+    # Construct full five-plant topology using actual runMonth.
+    for i in range(5): month(p,'build-'+str(i+1))
     diagnostic=p.evaluate("""()=>{
       const f=current(),la=f.plants.find(x=>x.name==='米大成工場');
       return factoryInsightV023(f,la);
@@ -117,9 +120,6 @@ with sync_playwright() as pw:
     assert diagnostic['plantPlanned']>0,diagnostic
     assert diagnostic['estimate']['value']==0,diagnostic
     assert any('専門部品セットが不足' in x['state'] for x in diagnostic['reasons']),diagnostic
-    assert not p.evaluate('aiModeAllows(current(),"shipping")'),'Expected non-delegated player mode to be disabled'
-    # Construct full five-plant topology using actual runMonth.
-    for i in range(5): month(p,'build-'+str(i+1))
     assert p.evaluate("current().plants.find(x=>x.name==='米大成工場').construction===null")
     ids=p.evaluate("""()=>{
       const f=current();
