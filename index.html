@@ -3197,9 +3197,11 @@ function saveDistribution(){let before=null;try{
   const channel=inputValue('channel_'+code),capacity=Math.round(intValue('capacity_'+code,1,10000));
   if(isEmergingMarketV047(code)){
    const old=f.distribution.contracts[code];
-   if(channel!==old.channel||capacity!==old.capacity||f.marketPresence.includes(code))
-    throw Error('新市場の販売契約・進出は次の実装段階で開放します：'+NAMES[code]);
-   proposed.push({code,old,channel,capacity,dealerId:'',suspended:true});
+   if(channel!==old.channel||capacity!==old.capacity||
+      (f.marketPresence.includes(code)&&
+       (f.foreignMarketsV043?.[code]?.mode!=='direct'||!directExportPilotV048(S,f,code))))
+    throw Error('新市場では直接輸出以外の販売網変更は現在許可されていません：'+NAMES[code]);
+   proposed.push({code,old,channel,capacity,dealerId:old.dealerId||'',suspended:true});
    continue;
   }
   if(!['direct','dealer','distributor','subsidiary'].includes(channel))throw Error('販売契約種別が不正です');
