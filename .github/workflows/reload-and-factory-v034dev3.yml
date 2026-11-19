@@ -27,6 +27,8 @@ jobs:
         run: python tests/test_real_specialist_factory_v034dev2.py
       - name: Test factory bulk settings, month-end utilization, and in-transit stocks
         run: python tests/test_specialist_bulk_ui_v034dev2.py
+      - name: Test zero-plan old factories recover even without an assembler
+        run: python tests/test_factory_idle_recovery_v034dev3.py
       - name: Test old-save factory recovery and BOM production
         run: |
           python tests/test_main_support_factory_auto_restore.py
