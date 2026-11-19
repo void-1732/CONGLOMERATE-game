@@ -188,9 +188,9 @@ with sync_playwright() as pw:
     # procurement and freight over the long horizon (no unearned cash).
     p.evaluate("PAGE='finance';render()")
     p.locator('#borrowBase').fill('1500000')
-    debt_before=p.evaluate("acc(current(),'debt')")
+    debt_before=p.evaluate("financials(current()).debt")
     p.locator('[data-action="borrow"]').click()
-    assert p.evaluate("acc(current(),'debt')")>debt_before,'legitimate loan was not executed'
+    assert p.evaluate("financials(current()).debt")>debt_before,('legitimate loan was not executed',p.evaluate("financials(current()).debt"),debt_before,p.locator('.toast').inner_text())
     assert not p.evaluate('check(S)')
     # Persist all factory state with the real IndexedDB save and a real reload.
     before=p.evaluate("""()=>{
