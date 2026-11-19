@@ -43,7 +43,7 @@ with sync_playwright() as pw:
     page.evaluate("""()=>{
         S=newGame({era:1900,country:'JP',difficulty:'easy',
           history:'historical',name:'完成した工場が稼働するかの実地回帰'});
-        VIEW_FIRM=S.playerId;PAGE='people';render();
+        VIEW_FIRM=S.playerId;PAGE='people';PEOPLE_VIEW='hr';render();
     }""")
     # Hire actual manufacturing workers through the user interface.
     page.locator("#hireArea").select_option("production")
