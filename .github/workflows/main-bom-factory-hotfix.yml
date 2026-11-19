@@ -36,5 +36,7 @@ jobs:
         run: python tests/test_v026_factory_supply.py
       - name: Confirm existing BOM manufacture, shipments and save data
         run: python tests/test_v029_bom.py
+      - name: Confirm researched BOM throughput and resource supply
+        run: python tests/test_v030_research_supply.py
       - name: Confirm prior save compatibility
         run: python tests/test_v0271_smoke.py
