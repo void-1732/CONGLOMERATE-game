@@ -1549,6 +1549,10 @@ function ensureNetwork(f,s=S){
  f.distribution.contracts??={};f.distribution.outbound??=[];f.distribution.salesCorporations??={};f.distribution.history??=[];
  for(const code of Object.keys(s?.world||COUNTRIES)){
   f.distribution.contracts[code]??={channel:code===f.country?'direct':'dealer',capacity:code===f.country?500:45,freightPct:code===f.country?0:.05,contractMonths:0};
+  const agencyId=f.distribution.salesCorporations[code],agency=agencyId?company(agencyId,s):null;
+  // Existing saves founded the local agent without selecting it as dealer.
+  if(agency&&agency.country===code&&f.distribution.contracts[code].channel==='subsidiary')
+   f.distribution.contracts[code].dealerId=agencyId;
  }
 }
 function materialRequirement(design,f=null){const d=designAnalysis(design||DESIGN_DEFAULT),benefits=techBenefits(f),mod=trimSpec(design),light=Math.min(.24,benefits.lightweight*(design?.size==='small'?1.22:design?.size==='large'?.85:1)+benefits.circular*.24);return {steel:Math.max(.1,Math.round(d.steel*(1-light)*mod.steel*1000)/1000),rubber:Math.round(d.rubber*(1-light*.45)*1000)/1000,components:((['hybrid','plughybrid'].includes(design?.power)||['awd','eawd'].includes(design?.drive)||['advanced','assist'].includes(design?.safety))?2:1)+mod.parts,
@@ -6893,14 +6897,16 @@ function factoryInventoryAuditV035(s,f,p){
  const legacyMove=(f.interplant?.shipments||[]).filter(t=>t.from===p.id).reduce((n,t)=>n+t.qty,0);
  const moduleMove=(f.factoryOps?.shipments||[]).filter(t=>t.from===p.id).reduce((n,t)=>n+t.qty,0);
  const bomMove=(s.partEconomy?.shipments||[]).filter(t=>t.firmId===f.id&&t.from===p.id&&t.arrivedAt===null).reduce((n,t)=>n+t.quantity,0);
- const orderMove=(s.partEconomy?.orders||[]).filter(t=>t.seller===f.id&&t.from===p.id&&t.state==='DISPATCHED').reduce((n,t)=>n+t.quantity,0);
+ const orders=(s.partEconomy?.orders||[]).filter(t=>t.seller===f.id&&t.from===p.id);
+ const orderReserved=orders.filter(t=>t.state==='ORDERED').reduce((n,t)=>n+t.quantity,0);
+ const orderMove=orders.filter(t=>t.state==='IN_TRANSIT').reduce((n,t)=>n+t.quantity,0);
  return `<section class="factory-insight" id="factoryInventoryAuditV035"><h3>部品在庫の台帳照合</h3>
-  <p class="hint">未発送部品は工場内に残ります。共通部品・専門モジュール・BOM部品は別の資産台帳です。輸送中と組立で消費した部品を区別します。</p>
+  <p class="hint">未発送・未引当の部品は工場内に残ります。法人間注文で引当済みのBOM部品はロットから控除されるため、予約済み・輸送中を別表示します。共通部品・専門モジュール・BOM部品は別台帳です。</p>
   <div class="factory-metrics"><div>共通部品（工場内）<strong>${nfmt(legacy)}個</strong></div>
   <div>専門モジュール（工場内）<strong>${nfmt(moduleTypes.reduce((n,v)=>n+v.qty,0))}個</strong></div>
   <div>BOM部品（工場内）<strong>${nfmt(bomQty)}個</strong></div></div>
   <div class="hint">${moduleTypes.map(x=>esc(x.label)+' '+nfmt(x.qty)+'個').join(' ／ ')}</div>
-  <div class="hint">工場から輸送中：共通部品 ${nfmt(legacyMove)} ／ モジュール ${nfmt(moduleMove)} ／ BOM ${nfmt(bomMove)} ／ 法人間部品 ${nfmt(orderMove)}個</div>
+  <div class="hint">工場から輸送中：共通部品 ${nfmt(legacyMove)} ／ モジュール ${nfmt(moduleMove)} ／ BOM ${nfmt(bomMove)} ／ 法人間部品 ${nfmt(orderMove)}個 ／ 法人間注文引当（未発送） ${nfmt(orderReserved)}個</div>
   <div class="hint">BOMロット：${lots.length}件。詳細は「BOM部品生産・ロット在庫・物流」を参照。総合工場の即時内製・組立部品は在庫に計上しません。</div>
   </section>`;
 }
