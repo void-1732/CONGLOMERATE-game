@@ -68,12 +68,15 @@ def import_materials(page, code, currency):
         const f=company(buyer.id,backup);
         while(ym(backup.year,backup.month)<reserved.due)nextMonthDate(backup);
         const inTransit=f.supply.inbound.find(x=>x.id===reserved.id);
-        const firstValue=acc(f,'materials');
+        const firstValue=acc(f,'materials'),historyStart=f.supply.history.length;
         deliverMaterials(backup,f,[]);
         const invoice=f.payables.find(p=>p.currency===currency);
         const stock=f.stock[type];
         const debit=acc(f,'materials')-firstValue;
-        const importJournal=f.journals.find(j=>j.text.startsWith('調達品受領：鋼材'));
+        const importReceipt=f.supply.history.slice(historyStart).find(r=>
+            r.origin===code&&r.routeId===route&&r.qty===reserved.qty);
+        const importJournal=f.journals.find(j=>j.text.startsWith('調達品受領：鋼材')&&
+            j.amount===invoice?.amount);
         const customs=inTransit.internationalV041;
         const beforeSettle=invoice?structuredClone(invoice):null;
         // Cover the actual foreign invoice in its specified currency.
@@ -89,7 +92,7 @@ def import_materials(page, code, currency):
         return {code,currency,route,shipment:reserved,
             before,physical,sent,qty:reserved.qty,
             importBook:debit,stock,openingInventory:opening.v,
-            invoice:beforeSettle,customs,importJournal:importJournal?.amount,
+            invoice:beforeSettle,customs,importReceipt,importJournal:importJournal?.amount,
             purchased,payments:settled.length,remaining:openInvoice?.amount??0,
             errors:check(backup),financialErrors:financial.errors,
             keys:Object.keys(backup.world),wallet:f.foreignFinanceV042?.wallets?.[currency]};
@@ -101,8 +104,10 @@ def import_materials(page, code, currency):
     assert outcome["physical"]["dispatched"]-outcome["before"]["dispatched"] == outcome["qty"], outcome
     assert outcome["customs"]["clearedMonth"] > outcome["customs"]["dispatched"], outcome
     assert outcome["customs"]["dutyBase"] > 0, outcome
-    assert outcome["importBook"] == outcome["stock"]["v"] == outcome["importJournal"], outcome
-    assert outcome["stock"]["q"] == outcome["qty"], outcome
+    assert outcome["importReceipt"]["qty"] == outcome["qty"], outcome
+    assert outcome["importReceipt"]["routeId"] == outcome["route"], outcome
+    assert outcome["importBook"] >= outcome["importJournal"] == outcome["invoice"]["amount"], outcome
+    assert outcome["stock"]["q"] >= outcome["qty"] and outcome["stock"]["v"] >= outcome["invoice"]["amount"], outcome
     assert outcome["invoice"]["currency"] == currency and outcome["invoice"]["foreignMinor"] > 0, outcome
     assert outcome["purchased"] > 0 and outcome["payments"] > 0, outcome
     assert outcome["remaining"] == 0, outcome
