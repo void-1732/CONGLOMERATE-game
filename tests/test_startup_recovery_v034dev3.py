@@ -60,11 +60,13 @@ with sync_playwright() as pw:
       const prior=savePayload(S),original=structuredClone(S);
       const next=newGame({era:2020,country:'US',difficulty:'normal',history:'historical',name:'別の創業'});
       writeSafetySnapshotV037(savePayload(next));
+      localStorage.removeItem(RECOVERY_SELECTION_KEY_V038); // simulate unknown player choice
       await refreshSaveIndex();
       const ok=await restoreAuto();
       if(ok||!RECOVERY_BLOCKED_V038||RECOVERY_CHOICES_V038.length<2)
         throw Error('different games incorrectly auto-selected');
       S=original;writeSafetySnapshotV037(prior);
+      localStorage.setItem(RECOVERY_SELECTION_KEY_V038,saveIdentityV038(S));
       RECOVERY_BLOCKED_V038=false;RECOVERY_CHOICES_V038=[];
     }""")
     # Corrupt only the current IDB generation; previous generation must remain intact.
