@@ -378,7 +378,7 @@ function recoveryChoiceV038(index){
  const c=RECOVERY_CHOICES_V038[index];if(!c)return;
  S=c.s;VIEW_FIRM=S.playerId;VIEW_COUNTRY=company(S.playerId,S).country;
  PAGE='dashboard';RECOVERY_CHOICES_V038=[];RECOVERY_BLOCKED_V038=false;
- try{localStorage.setItem(RECOVERY_SELECTION_KEY_V038,c.gameId)}catch(_){}
+ try{localStorage.setItem(RECOVERY_SELECTION_KEY_V038,JSON.stringify({gameId:c.gameId,checksum:hash(c.raw)}))}catch(_){}
  render();startupTopV038();
  toast('指定したゲームを復元しました。状態を確認してください。元の保存世代は変更していません。');
 }
@@ -5258,9 +5258,14 @@ async function restoreAuto(){
  let available=[...distinct.values()];
  const identities=new Set(available.map(c=>c.gameId));
  if(identities.size>1){
-  const selected=storageGet(RECOVERY_SELECTION_KEY_V038);
-  if(selected&&available.some(c=>c.gameId===selected))
+  const token=storageGet(RECOVERY_SELECTION_KEY_V038);
+  let selected=token,selectedChecksum='';
+  try{const value=JSON.parse(token);if(value&&typeof value==='object'){selected=value.gameId;selectedChecksum=value.checksum||''}}catch(_){}
+  if(selected&&available.some(c=>c.gameId===selected)){
    available=available.filter(c=>c.gameId===selected);
+   if(selectedChecksum&&available.some(c=>hash(c.raw)===selectedChecksum))
+    available=available.filter(c=>hash(c.raw)===selectedChecksum);
+  }
   else {
   RECOVERY_CHOICES_V038=available.sort((a,b)=>b.progress-a.progress||a.rank-b.rank);
   RECOVERY_BLOCKED_V038=true;
