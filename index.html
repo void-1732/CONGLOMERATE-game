@@ -5280,9 +5280,9 @@ async function boot(){
   SAVE_INDEX.backend='IndexedDB利用不可';
   saveWarning='IndexedDBの初期化ができません：'+e.message+'。再読込保護データの復旧を試みます。';
   console.error(e);IDB=null;
-  const emergency=readSafetySnapshotV037();
-  if(emergency){S=emergency.s;VIEW_FIRM=S.playerId;VIEW_COUNTRY=company(S.playerId,S).country}
-  else{S=null;wizard=0;RECOVERY_BLOCKED_V038=!!storageGet(EMERGENCY_KEY)||SAVE_INDEX.auto.some(Boolean)||SAVE_INDEX.manual.some(Boolean)}
+  // Even without IndexedDB, validate the emergency snapshot and the original
+  // localStorage auto/manual generations. Never assume absence of IDB means new game.
+  if(!await restoreAuto()){S=null;wizard=0}
   STORAGE_READY=true;
  }
  PAGE='dashboard';render();startupTopV038();
