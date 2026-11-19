@@ -92,6 +92,8 @@ def delayed_customs_and_currency(page):
         if(!shipment)return {reason:'no physical shipment'};
         const initial=structuredClone(shipment),originalDue=shipment.due;
         const first=internationalRoutesV041(s,origin,'JP')[0];
+        s.logisticsV041??={};
+        s.logisticsV041.disruptions??={};
         s.logisticsV041.disruptions[first.id]={end:originalDue+8,capacityFactor:0};
         while(ym(s.year,s.month)<originalDue)nextMonthDate(s);
         const events=[];
