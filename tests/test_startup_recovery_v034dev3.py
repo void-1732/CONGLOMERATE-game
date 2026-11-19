@@ -85,6 +85,33 @@ with sync_playwright() as pw:
     }""")
     assert actual_previous==expected_previous,(expected_previous,actual_previous)
     assert page.evaluate('check(S)')==[]
+    # Twelve real month commits with accounting reconciliation, then hard reload.
+    for i in range(12):
+        prev=page.evaluate('S.monthCommitted')
+        page.evaluate('async()=>await runMonth()')
+        state=page.evaluate("""()=>{
+          const c=consolidate(S),f=current();return {
+           committed:S.monthCommitted,errors:check(S),conso:c.errors,cf:c.cf.reconciled,
+           inventories:Object.fromEntries(['steel','rubber','components','moduleEngine',
+             'moduleBody','moduleElectronics'].map(t=>[t,structuredClone(f.stock[t])])),
+           produced:f._produced||0,validYear:S.year,validMonth:S.month
+          };
+        }""")
+        assert state["committed"]==prev+1,(i,state,page.evaluate('LAST_MONTH_DIAGNOSTIC?.message'))
+        assert not state["errors"] and not state["conso"] and state["cf"],(i,state)
+        assert all(v["q"]>=0 and v["v"]>=0 for v in state["inventories"].values()),(i,state)
+    pre_reload=page.evaluate("""()=>({
+      id:S.playerId,year:S.year,month:S.month,committed:S.monthCommitted,
+      cash:acc(current(),'cash'),staff:current().staff.production,history:S.history.length,
+      inventory:structuredClone(current().stock)
+    })""")
+    page.reload();page.wait_for_function('STORAGE_READY')
+    post_reload=page.evaluate("""()=>({
+      id:S.playerId,year:S.year,month:S.month,committed:S.monthCommitted,
+      cash:acc(current(),'cash'),staff:current().staff.production,history:S.history.length,
+      inventory:structuredClone(current().stock)
+    })""")
+    assert pre_reload==post_reload,(pre_reload,post_reload)
     assert not errors,errors
     browser.close()
 server.shutdown()
