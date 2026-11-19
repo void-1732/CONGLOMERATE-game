@@ -58,6 +58,22 @@ with sync_playwright() as p:
     assert page.evaluate("current().plants.some(x=>x.name==='再読込試験工場')")
     page.reload();page.wait_for_function('STORAGE_READY')
     assert page.evaluate("current().plants.some(x=>x.name==='再読込試験工場')"), 'factory disappeared'
+    # Month close must advance the saved year/month and preserve live factories.
+    previous=page.evaluate('S.monthCommitted')
+    page.evaluate('async()=>await runMonth()')
+    assert page.evaluate('S.monthCommitted')==previous+1
+    after_month=page.evaluate("""()=>({
+       committed:S.monthCommitted,year:S.year,month:S.month,
+       workers:current().staff.production,
+       plant:current().plants.some(x=>x.name==='再読込試験工場')
+    })""")
+    page.reload();page.wait_for_function('STORAGE_READY')
+    recovered_month=page.evaluate("""()=>({
+       committed:S.monthCommitted,year:S.year,month:S.month,
+       workers:current().staff.production,
+       plant:current().plants.some(x=>x.name==='再読込試験工場')
+    })""")
+    assert recovered_month==after_month,(after_month,recovered_month)
     # Pagehide snapshots must protect data if the IDB connection is unavailable.
     page.evaluate("()=>{if(IDB){IDB.close();IDB=null}}")
     page.evaluate("PEOPLE_VIEW='hr';PAGE='people';render()")
