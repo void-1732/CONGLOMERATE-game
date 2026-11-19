@@ -165,6 +165,38 @@ def direct_vehicle_export(page, code, currency):
     assert not outcome["errors"] and not outcome["financeErrors"] and outcome["saved"]["enabled"],outcome
 
 
+def direct_export_distributor_ui(page):
+    # An established direct-export corridor must survive edits to the original
+    # five-country distribution settings, but must not become a dealer route.
+    page.evaluate("""() => {
+        S=newGame({era:2010,country:'JP',difficulty:'easy',
+            history:'historical',name:'輸出開設後の旧市場販路維持',
+            marketExpansionV047:true});
+        VIEW_FIRM=S.playerId;PAGE='distribution';render();
+    }""")
+    page.locator("#marketEntryTarget").select_option("BR")
+    page.locator("#marketEntryMode").select_option("direct")
+    page.get_by_role("button",name="参入・再開").click()
+    before=page.evaluate("""() => {
+        const f=current();
+        return {capacity:f.distribution.contracts.US.capacity,
+            br:structuredClone(f.foreignMarketsV043.BR),
+            ledger:acc(f,'cash')};
+    }""")
+    page.locator("#capacity_US").fill(str(before["capacity"]+1))
+    page.locator('[data-action="saveDistribution"]').click()
+    after=page.evaluate("""() => {
+        const f=current();
+        return {us:f.distribution.contracts.US.capacity,
+            br:f.foreignMarketsV043.BR,
+            present:f.marketPresence.includes('BR'),
+            errors:check(S),saved:parsePayload(savePayload(S)).marketExpansionV047};
+    }""")
+    assert after["us"] == before["capacity"]+1,after
+    assert after["br"] == before["br"] and after["present"],after
+    assert after["saved"]["enabled"] and not after["errors"],after
+
+
 if __name__ == "__main__":
     with sync_playwright() as playwright:
         browser=playwright.chromium.launch(
@@ -176,5 +208,8 @@ if __name__ == "__main__":
         for code,(currency,year) in MARKETS.items():
             import_materials(page,code,currency)
             direct_vehicle_export(page,code,currency)
+        page.goto("about:blank")
+        page.set_content(HTML.read_text(encoding="utf-8"),wait_until="domcontentloaded")
+        direct_export_distributor_ui(page)
         browser.close()
     print("PASS STEP 9 trade: 3 emerging markets, real imports, vehicle exports, customs, FX payable/receivable")
