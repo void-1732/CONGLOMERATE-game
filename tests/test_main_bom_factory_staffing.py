@@ -156,6 +156,48 @@ with sync_playwright() as playwright:
     assert ui["status"]["required"] == 0, ui["status"]
     assert "生産計画なし" in ui["html"], "Idle factory is incorrectly labelled fully staffed"
 
+    # Reproduce an existing save where neither the BOM line nor the specialist
+    # production schedule is active, and fixed-zero workers block production.
+    # One explicit UI recovery action must restore a real plan and workforce.
+    page.evaluate("""id=>{
+        const f=current();
+        f.factoryOps.staffAssignments[id]=0;
+        f.factoryOps.plans[id]=0;
+        f.interplant.partPlans[id]=0;
+        f.factoryOps.mode='detailed';
+    }""", fixture["id"])
+    blocked = page.evaluate("""id=>{
+        const f=current(),p=f.plants.find(x=>x.id===id);
+        return {assigned:staffOfPlantV023(f,p).assigned,
+            required:staffOfPlantV023(f,p).recommended,
+            diagnostic:factoryInsightV023(f,p).reasons.map(x=>x.state),
+            html:factoryDetailMarkup(f,p,true)};
+    }""", fixture["id"])
+    assert blocked["assigned"] == 0 and blocked["required"] == 0, blocked
+    assert "部品生産計画が0" in blocked["diagnostic"], blocked
+    assert "startSupportProductionV026" in blocked["html"], blocked
+    page.evaluate("id=>startSupportProductionV026(id)", fixture["id"])
+    recovered = page.evaluate("""id=>{
+        const f=current(),p=f.plants.find(x=>x.id===id);
+        return {mode:f.factoryOps.mode,plan:f.factoryOps.plans[id],
+            assigned:staffOfPlantV023(f,p).assigned,
+            fixed:f.factoryOps.staffAssignments[id]};
+    }""", fixture["id"])
+    assert recovered["mode"] == "detailed", recovered
+    assert recovered["plan"] > 0 and recovered["assigned"] > 0, recovered
+    assert recovered["fixed"] is None, recovered
+    previous = page.evaluate("S.monthCommitted")
+    page.evaluate("async()=>await runMonth()")
+    actual = page.evaluate("""id=>{
+        const f=current(),p=f.plants.find(x=>x.id===id);
+        return {month:S.monthCommitted,produced:p.lastProduced,
+            utilization:p.lastUtilization,errors:check(S),
+            group:consolidate(S).errors,cf:consolidate(S).cf.reconciled};
+    }""", fixture["id"])
+    assert actual["month"] == previous + 1, actual
+    assert actual["produced"] > 0 and actual["utilization"] > 0, actual
+    assert not actual["errors"] and not actual["group"] and actual["cf"], actual
+
     raw = page.evaluate("savePayload(S)")
     assert page.evaluate("data=>restore(data)", raw)
     assert not page.evaluate("check(S)"), page.evaluate("check(S)")
