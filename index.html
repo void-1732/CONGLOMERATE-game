@@ -5221,7 +5221,7 @@ async function saveAuto(){if(!IDB){const ok=!!S&&writeSafetySnapshotV037();if(S)
   await idbWrite('snapshots',rec);const reread=await idbRead('snapshots','auto:'+slot);if(!reread||reread.serialized!==raw)throw Error('保存内容の読み戻し照合に失敗');parsePayload(reread.serialized);
   // Phase 2: only change the active-generation pointer after full validation.
   if(saveIdentityV038(S)!==saveIdentityV038(snapshot))throw Error('保存中に別のゲームへ切り替わったため保存を確定しませんでした');
-  await idbWrite('meta',{key:'active',slot,checksum:hash(raw),previousSlot:meta?.slot??null,previousChecksum:meta?.previousChecksum??null,updatedAt:new Date().toISOString()});
+  await idbWrite('meta',{key:'active',slot,checksum:hash(raw),previousSlot:meta?.slot??null,previousChecksum:meta?.checksum??null,updatedAt:new Date().toISOString()});
   S.autosaveState='保存成功';saveWarning='';await refreshSaveIndex();
   if(S)writeSafetySnapshotV037(savePayload(S));
   return true;
