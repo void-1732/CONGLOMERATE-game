@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>CONGLOMERATE v0.34-dev.2 | 企業経営シミュレーション 開発版</title>
+<title>CONGLOMERATE v0.34-dev.3 | 企業経営シミュレーション 開発版</title>
 <style>
 :root{color-scheme:light;--bg:#f3f5f8;--paper:#fff;--ink:#182a40;--muted:#607187;--nav:#14263c;--nav2:#203a56;--line:#dce4eb;--blue:#2865a4;--blue2:#e8f2fb;--green:#16724a;--red:#ae4050;--amber:#9b680c;--radius:13px;--shadow:0 5px 18px #12253b0c;font-family:system-ui,-apple-system,"Yu Gothic","Hiragino Kaku Gothic ProN","Meiryo",sans-serif}
 *{box-sizing:border-box}body{background:var(--bg);color:var(--ink);margin:0;font-size:14px}button,input,select{font:inherit}button{cursor:pointer}a{color:var(--blue)}.shell{display:grid;grid-template-columns:242px 1fr;min-height:100vh}.side{background:var(--nav);color:#ebf4fc;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;padding:20px 13px;gap:11px}.logo{font-weight:900;letter-spacing:1px;font-size:18px;padding:7px 12px;line-height:1.27}.logo small{font-size:11px;font-weight:500;letter-spacing:0;color:#a4bfd6}.prototype{font-size:11px;color:#d7e8f8;background:#2c465f;border-radius:7px;padding:7px 10px;margin:0 10px}.nav{display:grid;gap:3px;margin-top:12px}.nav button{border:0;color:#c9d5e2;background:transparent;text-align:left;padding:10px 13px;border-radius:8px;font-weight:600}.nav button:hover{background:#ffffff18}.nav button.active{background:#dfebf8;color:#163f65}.sidemeta{margin-top:auto;padding:12px;font-size:11px;color:#a8bbcd;line-height:1.7}.main{min-width:0}.topbar{background:#fff;min-height:70px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:12px 28px;border-bottom:1px solid var(--line)}.topright{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.topbar strong{font-size:17px}.wrap{max-width:1480px;margin:auto;padding:24px 28px 40px}.eyebrow{font-size:11px;letter-spacing:.08em;color:var(--blue);font-weight:800;text-transform:uppercase}.hrow{display:flex;align-items:flex-start;justify-content:space-between;gap:15px;flex-wrap:wrap;margin-bottom:18px}h1{margin:4px 0 7px;font-size:26px;letter-spacing:-.03em}h2{font-size:18px;margin:0 0 16px}h3{font-size:15px;margin:0 0 10px}p{line-height:1.65}.muted{color:var(--muted)}.small{font-size:12px}.tiny{font-size:11px}.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:15px}.span3{grid-column:span 3}.span4{grid-column:span 4}.span5{grid-column:span 5}.span6{grid-column:span 6}.span7{grid-column:span 7}.span8{grid-column:span 8}.span9{grid-column:span 9}.span12{grid-column:span 12}.panel{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);min-width:0}.metric{font-size:25px;font-weight:850;line-height:1.35;overflow-wrap:anywhere}.submetric{margin-top:8px;font-size:12px;color:var(--muted)}.unit{font-size:13px;font-weight:500;color:var(--muted)}.label{font-size:12px;color:var(--muted);font-weight:700}.bar{height:8px;background:#e5ebf1;border-radius:10px;overflow:hidden}.bar>span{display:block;background:#337bbb;height:100%;border-radius:10px}.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.between{justify-content:space-between}.btn{border:1px solid #b6c9da;background:#fff;color:#17456e;border-radius:8px;padding:9px 14px;font-weight:750;transition:.15s}.btn:hover{background:#eff6fc}.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}.btn.primary:hover{background:#18568f}.btn.danger{color:var(--red);border-color:#e4b7bd}.btn.sm{padding:6px 10px;font-size:12px}.btn:disabled{opacity:.45;cursor:not-allowed}.field{display:grid;gap:5px;min-width:0}.field label{font-weight:650;font-size:12px;color:#42546a}.field input,.field select,.field textarea,select.topselect{border:1px solid #c6d3dd;background:#fff;color:var(--ink);border-radius:7px;padding:9px 11px;width:100%;min-width:0}.field textarea{resize:vertical}.topselect{max-width:250px;padding:7px 10px}.formgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:13px;align-items:end}.tag{display:inline-block;font-weight:750;font-size:11px;padding:3px 8px;border-radius:999px;background:var(--blue2);color:#245b8c}.tag.good{background:#e3f3eb;color:var(--green)}.tag.warn{background:#fff2d8;color:#915f09}.tag.bad{background:#fbe9ec;color:var(--red)}table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:11px 9px;text-align:left;border-bottom:1px solid #e8edf1;vertical-align:middle}th{font-size:11px;color:var(--muted);background:#f7f9fb;white-space:nowrap}td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}.scroll{overflow:auto}.note{border-left:3px solid #85b4d6;background:#f1f7fc;padding:12px 14px;color:#3b5975;font-size:12px;line-height:1.7;border-radius:0 8px 8px 0}.warnbox{border-left-color:#d3a24d;background:#fffaec}.notice{padding:11px 0;border-bottom:1px solid var(--line);line-height:1.5}.notice:last-child{border-bottom:0}.notice .date{font-size:11px;color:var(--muted);margin-right:8px}.positive{color:var(--green)}.negative{color:var(--red)}.right{text-align:right}.figure{width:100%;height:220px;display:block}.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:15px;margin-bottom:16px}.twocol{display:grid;grid-template-columns:1fr 1fr;gap:15px}.controls{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.pill{background:#f3f6f9;border-radius:40px;padding:6px 11px;font-size:12px;color:#486176}.modalwrap{position:fixed;inset:0;background:#13253be6;display:flex;align-items:center;justify-content:center;z-index:99;padding:20px;overflow:auto}.modal{background:#fff;border-radius:18px;box-shadow:0 24px 65px #05132466;width:min(800px,100%);max-height:94vh;overflow:auto;padding:27px}.modal h1{font-size:26px}.steps{display:flex;gap:6px;margin:15px 0 22px}.steps span{flex:1;height:6px;background:#e5ebf0;border-radius:5px}.steps span.on{background:var(--blue)}.choices{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.choice{padding:13px;border:1px solid var(--line);border-radius:9px;cursor:pointer;background:white;min-height:80px}.choice:has(input:checked){border:2px solid var(--blue);background:#edf6ff;padding:12px}.choice input{margin-right:6px}.choice b{display:block;font-size:14px;margin:5px 0}.footer{border-top:1px solid var(--line);margin-top:24px;padding-top:15px;display:flex;justify-content:space-between;align-items:center;gap:10px}.toast{position:fixed;bottom:22px;right:23px;z-index:130;background:#1a314b;color:#fff;border-radius:10px;padding:12px 18px;box-shadow:0 8px 30px #15293a44;max-width:min(600px,90vw);display:none}.toast.show{display:block}.savebox{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:13px 0;border-bottom:1px solid var(--line)}.savebox:last-child{border:0}.savebox .grow{flex:1;min-width:180px}#importFile{display:none}.chartdots{color:#6688ab}.statrow{display:grid;grid-template-columns:1fr 1fr;gap:9px}.statrow>div{background:#f6f8fa;border-radius:8px;padding:10px}.vlist{display:grid;gap:9px}.vitem{background:#f7f9fb;padding:12px;border:1px solid #e6edf2;border-radius:9px}.tabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px}.tabs .btn.active{background:#dcecf9;border-color:#6597c1}.hidden{display:none!important}.icon{font-size:18px}.whitehead{color:var(--ink);font-size:15px;font-weight:800}.mini{background:#eff3f7;padding:3px 7px;border-radius:5px;font-size:11px}.scenbar{display:flex;flex-wrap:wrap;gap:6px}.scenbar .mini{background:#f0f5fb;color:#375c80}.footnote{font-size:11px;color:var(--muted);margin-top:15px;line-height:1.7}.progress{height:9px;border-radius:9px;background:#e5edf3;overflow:hidden}.progress span{display:block;height:100%;background:#3e8aaa}.itemstat{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid #eaf0f3;padding:8px 0}.itemstat:last-child{border:0}.sep{height:1px;background:var(--line);margin:16px 0}.noprint{}@media(max-width:1180px){.span3{grid-column:span 6}.span4,.span5,.span6,.span7,.span8,.span9{grid-column:span 6}.kpis{grid-template-columns:repeat(2,1fr)}}@media(max-width:800px){.shell{display:block}.side{position:relative;height:auto;padding:10px}.nav{display:flex;flex-wrap:wrap;margin:0}.nav button{padding:7px 9px;font-size:12px}.sidemeta,.prototype{display:none}.logo{font-size:14px}.topbar{padding:11px 16px}.wrap{padding:17px 14px}.grid{grid-template-columns:1fr}.span3,.span4,.span5,.span6,.span7,.span8,.span9,.span12{grid-column:span 1}.twocol{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}.choices{grid-template-columns:1fr}.modal{padding:17px}h1{font-size:22px}}@media print{.side,.topbar,.noprint,.btn{display:none!important}.shell{display:block}.panel{break-inside:avoid}}
@@ -347,7 +347,7 @@
 @media(max-width:430px){.resource-v026-actions{grid-template-columns:1fr}.resource-v026-actions>div{grid-column:1}}
 </style>
 </head>
-<body><div class="shell"><aside class="side"><div class="logo">CONGLOMERATE<br><small>企業経営シミュレーション</small></div><div class="prototype">機能検証用・開発版 v0.34-dev.2｜専門工場復旧 2026-11-20</div><nav class="nav" id="nav">
+<body><div class="shell"><aside class="side"><div class="logo">CONGLOMERATE<br><small>企業経営シミュレーション</small></div><div class="prototype">機能検証用・開発版 v0.34-dev.3</div><nav class="nav" id="nav">
 <button data-section="management">▣　会社経営</button><button data-section="vehicles">◇　製品・研究</button><button data-section="operations">▤　工場・調達</button><button data-section="markets">◎　市場・販売網</button><button data-section="corporate">⌘　企業グループ</button><button data-section="finance">¥　財務・保存</button></nav>
 <div class="sidemeta">オフライン動作・外部通信なし<br>既存 SPEC-001〜094 は変更なし<br>未確定数値は試作パラメータ<br>正式な会計監査・史実検証は未実装</div></aside>
 <main class="main"><header class="topbar"><div><strong id="topCompany">未開始</strong><div class="small muted" id="topDate">開始条件を設定してください</div></div><div class="topright"><select class="topselect" id="companySelect" aria-label="表示会社"></select><select class="topselect" id="regionSelect" aria-label="表示国"></select><button class="btn primary" id="nextMonthBtn" data-action="previewMonth">月末処理 ▸</button></div></header><div class="wrap" id="content"></div></main></div>
@@ -359,7 +359,7 @@
    Ratified design is SPEC-001..094; questions 91..93 and SPEC-095+ remain unanswered. */
 // Save format v1 is intentionally retained for compatibility with v0.1 exports.
 const VERSION=1, AUTOKEY='conglomerate.autosave.',MANKEY='conglomerate.manual.',POINTER='conglomerate.auto.active';
-const DB_NAME='CONGLOMERATE_LOCAL_V02', DB_VERSION=1;
+const DB_NAME='CONGLOMERATE_LOCAL_V02', DB_VERSION=1, EMERGENCY_KEY='conglomerate.emergency.latest';
 let IDB=null, STORAGE_READY=false, SAVE_BUSY=false, MONTH_RUNNING=false;
 let LAST_MONTH_DIAGNOSTIC=null, MONTH_DIAGNOSTIC_OPEN=false;
 const SAVE_INDEX={backend:'初期化中',active:null,previous:null,activeChecksum:null,previousChecksum:null,auto:[null,null,null],manual:[null,null,null],legacyImported:false};
@@ -5129,6 +5129,36 @@ function partTradePanel(f,edit){
 }
 
 function savePayload(s){const json=JSON.stringify(s);return JSON.stringify({format:'CONGLOMERATE',version:VERSION,checksum:hash(json),payload:json,savedAt:new Date().toISOString()})}
+/* Same-origin, synchronous safety snapshot for refresh/browser close and when
+   IndexedDB is unavailable. A failed localStorage write never deletes an IDB
+   generation. Checksums are checked with the unchanged v1 save parser. */
+function writeSafetySnapshotV037(raw=savePayload(S)){
+ try{localStorage.setItem(EMERGENCY_KEY,raw);return true}
+ catch(e){console.warn('再読込保護用スナップショットの保存失敗',e);return false}
+}
+function readSafetySnapshotV037(){
+ const raw=storageGet(EMERGENCY_KEY);
+ if(!raw)return null;
+ try{const s=parsePayload(raw);return {s,raw,savedAt:JSON.parse(raw).savedAt||''}}
+ catch(e){saveWarning='緊急保存データの検証に失敗しました：'+e.message;console.warn(saveWarning);return null}
+}
+let OPERATION_SAVE_TIMER_V037=null;
+function requestOperationSaveV037(){
+ if(!S||MONTH_RUNNING)return;
+ try{if(check(S).length)return;writeSafetySnapshotV037()}catch(e){console.warn('操作直後の保存準備失敗',e);return}
+ if(OPERATION_SAVE_TIMER_V037!==null)clearTimeout(OPERATION_SAVE_TIMER_V037);
+ OPERATION_SAVE_TIMER_V037=setTimeout(async()=>{
+  OPERATION_SAVE_TIMER_V037=null;
+  if(!S||MONTH_RUNNING)return;
+  if(SAVE_BUSY){requestOperationSaveV037();return}
+  const ok=await saveAuto();
+  if(!ok)console.warn('操作後の自動保存失敗：'+saveWarning);
+ },250);
+}
+function flushSafetySnapshotV037(){
+ if(!S||MONTH_RUNNING)return;
+ try{if(check(S).length===0)writeSafetySnapshotV037()}catch(e){console.warn('終了前保存に失敗',e)}
+}
 function parsePayload(raw){if(typeof raw!=='string')throw Error('保存データが存在しません');const obj=JSON.parse(raw);if(obj.format!=='CONGLOMERATE'||obj.version!==VERSION)throw Error('対応しない保存形式です');if(hash(obj.payload)!==obj.checksum)throw Error('チェックサム不一致');const s=JSON.parse(obj.payload);ensureV11(s);ensureMAState(s);ensureV20(s);ensureSupplyNetwork(s);for(const f of s.firms||[]){ensureFirmGameplay(f);ensureNetwork(f,s);}ensureV27(s);recoverIdleSupportSaveV0262(s);recoverSpecialistFactoriesV036(s);const errs=check(s);if(errs.length)throw Error(errs.slice(0,3).join(' / '));return s}
 function openDatabase(){return new Promise((resolve,reject)=>{if(!('indexedDB' in window))return reject(Error('IndexedDBに非対応の環境です'));const req=indexedDB.open(DB_NAME,DB_VERSION);req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains('snapshots'))db.createObjectStore('snapshots',{keyPath:'key'});if(!db.objectStoreNames.contains('meta'))db.createObjectStore('meta',{keyPath:'key'})};req.onsuccess=()=>{req.result.onversionchange=()=>req.result.close();resolve(req.result)};req.onerror=()=>reject(req.error||Error('保存領域の初期化失敗'));req.onblocked=()=>reject(Error('他のタブがデータベースを使用中です'))})}
 function idbRead(store,key){return new Promise((resolve,reject)=>{const tx=IDB.transaction(store,'readonly');const r=tx.objectStore(store).get(key);r.onsuccess=()=>resolve(r.result??null);r.onerror=()=>reject(r.error||Error('保存領域の読み出し失敗'))})}
@@ -5144,20 +5174,68 @@ async function importLegacyOnce(){// Migration only if the new database has no e
  for(let i=0;i<3;i++){const raw=storageGet(MANKEY+i);if(!raw)continue;try{await idbWrite('snapshots',slotRecord('manual:'+i,raw));copied++}catch(e){console.warn('旧手動保存の移行をスキップ',i,e)}}
  if(copied){const p=storageGet(POINTER);let active=p==='0'||p==='1'?Number(p):0;if(!await idbRead('snapshots','auto:'+active))active=1-active;if(await idbRead('snapshots','auto:'+active)){const old=1-active,oldRecord=await idbRead('snapshots','auto:'+old),activeRecord=await idbRead('snapshots','auto:'+active);await idbWrite('meta',{key:'active',slot:active,checksum:hash(activeRecord.serialized),previousSlot:oldRecord?old:null,previousChecksum:oldRecord?hash(oldRecord.serialized):null});}SAVE_INDEX.legacyImported=true;saveWarning='v0.1の保存データをIndexedDBへコピーしました。旧データは削除していません。';}
 }
-async function saveAuto(){if(!IDB){if(S)S.autosaveState='保存失敗';saveWarning='IndexedDBを利用できません。JSONバックアップをご利用ください。';return false}if(SAVE_BUSY){saveWarning='保存処理が重複しています';return false}SAVE_BUSY=true;
+async function saveAuto(){if(!IDB){const ok=!!S&&writeSafetySnapshotV037();if(S)S.autosaveState=ok?'保存成功':'保存失敗';saveWarning=ok?'IndexedDBが利用できないため、同一ブラウザの簡易バックアップを利用しています。JSON保存も推奨します。':'IndexedDBと簡易バックアップを利用できません。JSONで保存してください。';return ok}if(SAVE_BUSY){saveWarning='保存処理が重複しています';return false}SAVE_BUSY=true;
  try{const meta=await idbRead('meta','active');const slot=[0,1,2].find(i=>i!==meta?.slot&&i!==meta?.previousSlot);if(slot===undefined)throw Error('保存用の予備世代がありません');
   const snapshot=structuredClone(S);snapshot.autosaveState='保存成功';const raw=savePayload(snapshot);const rec=slotRecord('auto:'+slot,raw);
   // Phase 1: prepare the inactive generation, commit, then read it back and check its whole state.
   await idbWrite('snapshots',rec);const reread=await idbRead('snapshots','auto:'+slot);if(!reread||reread.serialized!==raw)throw Error('保存内容の読み戻し照合に失敗');parsePayload(reread.serialized);
   // Phase 2: only change the active-generation pointer after full validation.
-  await idbWrite('meta',{key:'active',slot,checksum:hash(raw),previousSlot:meta?.slot??null,previousChecksum:meta?.checksum??null,updatedAt:new Date().toISOString()});S.autosaveState='保存成功';saveWarning='';await refreshSaveIndex();return true;
- }catch(e){S.autosaveState='保存失敗';saveWarning=String(e?.message||e);try{await refreshSaveIndex()}catch(_){}return false}finally{SAVE_BUSY=false}}
+  await idbWrite('meta',{key:'active',slot,checksum:hash(raw),previousSlot:meta?.slot??null,previousChecksum:meta?.checksum??null,updatedAt:new Date().toISOString()});S.autosaveState='保存成功';saveWarning='';await refreshSaveIndex();writeSafetySnapshotV037(raw);return true;
+ }catch(e){S.autosaveState='保存失敗';saveWarning=String(e?.message||e);try{await refreshSaveIndex()}catch(_){}if(S&&writeSafetySnapshotV037()){S.autosaveState='保存成功';saveWarning='IndexedDBへの保存失敗。再読込用の簡易バックアップに保存しました。JSONバックアップも出力してください。';return true}return false}finally{SAVE_BUSY=false}}
 async function saveManual(num){if(!IDB){toast('IndexedDBを使えません。JSONでバックアップしてください。');return}if(SAVE_BUSY){toast('保存中です。重複書込みを回避しました。');return}SAVE_BUSY=true;
  try{const raw=savePayload(S),rec=slotRecord('manual:'+num,raw);await idbWrite('snapshots',rec);const verified=await idbRead('snapshots','manual:'+num);if(!verified||verified.serialized!==raw)throw Error('手動保存の検証に失敗');parsePayload(verified.serialized);await refreshSaveIndex();toast('手動保存 '+(num+1)+' をIndexedDBに記録しました');render()}
  catch(e){toast('手動保存失敗：'+e.message)}finally{SAVE_BUSY=false}}
-function restore(raw){try{const s=parsePayload(raw);S=s;PART_FORM=null;PART_CONTRACTS_OPEN=null;BOM_PANEL_OPEN=null;PART_TRADE_VIEW=null;LINE_VIEW={plantId:null,review:null};LAST_MONTH_DIAGNOSTIC=null;MONTH_DIAGNOSTIC_OPEN=false;VIEW_FIRM=s.playerId;VIEW_COUNTRY=company(s.playerId,s).country;PAGE='dashboard';monthlyPreview=false;render();toast('保存データを読み込みました：'+dateKey(s));return true}catch(e){toast('ロードできません：'+e.message);return false}}
-async function restoreAuto(){const generations=[{slot:SAVE_INDEX.active,checksum:SAVE_INDEX.activeChecksum},{slot:SAVE_INDEX.previous,checksum:SAVE_INDEX.previousChecksum}];for(const entry of generations){const k=entry.slot;if(k===null||k===undefined||!entry.checksum)continue;const rec=SAVE_INDEX.auto[k];if(rec){try{if(hash(rec.serialized)!==entry.checksum)throw Error('保存世代の確定チェックサムが異なります');const s=parsePayload(rec.serialized);S=s;VIEW_FIRM=s.playerId;VIEW_COUNTRY=company(s.playerId,s).country;return true}catch(e){console.warn('保存世代を検証できません',k,e)}}}return false}
-async function boot(){try{IDB=await openDatabase();SAVE_INDEX.backend='IndexedDB';await importLegacyOnce();await refreshSaveIndex();if(!await restoreAuto()){S=null;wizard=0;}STORAGE_READY=true;}catch(e){SAVE_INDEX.backend='利用不可';saveWarning='IndexedDBの初期化に失敗しました。JSONバックアップで保護してください：'+e.message;console.error(e);S=null;wizard=0;STORAGE_READY=true;}render()}
+function restore(raw){try{const s=parsePayload(raw);S=s;writeSafetySnapshotV037(raw);requestOperationSaveV037();PART_FORM=null;PART_CONTRACTS_OPEN=null;BOM_PANEL_OPEN=null;PART_TRADE_VIEW=null;LINE_VIEW={plantId:null,review:null};LAST_MONTH_DIAGNOSTIC=null;MONTH_DIAGNOSTIC_OPEN=false;VIEW_FIRM=s.playerId;VIEW_COUNTRY=company(s.playerId,s).country;PAGE='dashboard';monthlyPreview=false;render();toast('保存データを読み込みました：'+dateKey(s));return true}catch(e){toast('ロードできません：'+e.message);return false}}
+async function restoreAuto(){
+ const candidates=[];
+ const emergency=readSafetySnapshotV037();
+ if(emergency)candidates.push({raw:emergency.raw,s:emergency.s,savedAt:emergency.savedAt,source:'簡易復旧'});
+ const generations=[{slot:SAVE_INDEX.active,checksum:SAVE_INDEX.activeChecksum},{slot:SAVE_INDEX.previous,checksum:SAVE_INDEX.previousChecksum}];
+ for(const e of generations){
+  if(e.slot===null||e.slot===undefined||!e.checksum)continue;
+  const rec=SAVE_INDEX.auto[e.slot];
+  if(!rec)continue;
+  try{
+   if(hash(rec.serialized)!==e.checksum)throw Error('確定済み世代のチェックサムが不一致');
+   candidates.push({raw:rec.serialized,s:parsePayload(rec.serialized),savedAt:rec.savedAt||'',source:'自動保存世代'+e.slot});
+  }catch(err){console.warn('自動保存世代の破損、前世代を試みます',e.slot,err)}
+ }
+ // A corrupt or missing active pointer must not make valid, manually saved
+ // snapshots vanish. Never delete/mutate any snapshot during recovery.
+ if(!candidates.length){
+  for(const rec of [...SAVE_INDEX.auto,...SAVE_INDEX.manual]){
+   if(!rec?.serialized)continue;
+   try{candidates.push({raw:rec.serialized,s:parsePayload(rec.serialized),savedAt:rec.savedAt||'',source:rec.key})}
+   catch(err){console.warn('候補セーブを検証できません',rec.key,err)}
+  }
+ }
+ if(!candidates.length)return false;
+ // Pick newest *valid* user state. The safety snapshot captures changes
+ // made between month closes; older IDB generations remain protected.
+ candidates.sort((a,b)=>String(b.savedAt).localeCompare(String(a.savedAt)));
+ const best=candidates[0];S=best.s;VIEW_FIRM=S.playerId;
+ VIEW_COUNTRY=company(S.playerId,S).country;
+ if(best.source!=='簡易復旧')writeSafetySnapshotV037(best.raw);
+ else if(IDB&&SAVE_INDEX.active!==null)saveWarning='直近の操作内容を再読込保護バックアップから復元しました。';
+ return true;
+}
+async function boot(){
+ try{
+  IDB=await openDatabase();SAVE_INDEX.backend='IndexedDB';
+  await importLegacyOnce();await refreshSaveIndex();
+  if(!await restoreAuto()){S=null;wizard=0}
+  STORAGE_READY=true;
+ }catch(e){
+  SAVE_INDEX.backend='IndexedDB利用不可';
+  saveWarning='IndexedDBの初期化ができません：'+e.message+'。再読込保護データの復旧を試みます。';
+  console.error(e);IDB=null;
+  const emergency=readSafetySnapshotV037();
+  if(emergency){S=emergency.s;VIEW_FIRM=S.playerId;VIEW_COUNTRY=company(S.playerId,S).country}
+  else{S=null;wizard=0}
+  STORAGE_READY=true;
+ }
+ render();
+}
 function fileDownload(name,contents){const blob=new Blob([contents],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),700)}
 function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('show'),4500)}
 function inputValue(id){return document.getElementById(id)?.value}
@@ -7377,6 +7455,15 @@ render=function(){mkPriorRenderV025();if(PAGE==='distribution')mkUpdateDistribut
 
 
 document.addEventListener('click',e=>{const tab=e.target.closest('[data-factory-view-v026]');if(tab&&PAGE==='factory'){FACTORY_DETAIL_VIEW_V026=tab.dataset.factoryViewV026;showFactoryDetailV026();}});
+/* Persist operations without requiring a month close. Debounced IDB commit is
+   backed by synchronous pagehide/visibility snapshots before tab refresh. */
+document.addEventListener('click',e=>{
+ const el=e.target.closest('[data-action]');if(!el||el.disabled||!S)return;
+ if(['previewMonth','cancelMonth','runMonth','wizardNext','wizardBack','newGame','saveManual','loadManual','loadAutoSlot','import','export','diagnoseStorage','monthDiagnosticShow','monthDiagnosticDismiss','monthDiagnosticCopy','monthDiagnosticDownload','monthDiagnosticJump'].includes(el.dataset.action))return;
+ queueMicrotask(()=>requestOperationSaveV037());
+});
+window.addEventListener('pagehide',flushSafetySnapshotV037);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushSafetySnapshotV037()});
 document.addEventListener('click',e=>{const b=e.target.closest('[data-action="saveFactoryStaffV026"]');if(b&&PAGE==='factory')saveFactoryStaffV026(b.dataset.plantId);if(e.target.closest('[data-action="activateSupportV026"]')&&PAGE==='factory')activateSupportV026();const start=e.target.closest('[data-action="startSupportProductionV026"]');if(start&&PAGE==='factory')startSupportProductionV026(start.dataset.plantId);if(e.target.closest('[data-action="buySpotV026"]')&&PAGE==='supply')buySpotV026();});
 
 boot();
