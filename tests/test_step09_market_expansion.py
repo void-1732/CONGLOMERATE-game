@@ -49,7 +49,8 @@ def catalog_and_new_game(page):
                 serialization:saved.marketExpansionV047,
                 savedKeys:Object.keys(saved.world),
                 errors:stateErrors,financialErrors:financial.errors,
-                reconciled:financial.cf.reconciled});
+                reconciled:financial.cf.reconciled,
+                legacyReconciled:consolidate(standard).cf.reconciled});
         }
         return {catalogErrors:errs,cases};
     }""")
@@ -62,7 +63,8 @@ def catalog_and_new_game(page):
         assert not item["sellerCount"] and item["countryBlocked"], item
         assert not item["permission"] and not item["trade"], item
         assert item["serialization"]["enabled"], item
-        assert not item["errors"] and not item["financialErrors"] and item["reconciled"], item
+        assert not item["errors"] and not item["financialErrors"], item
+        assert item["reconciled"] == item["legacyReconciled"], item
         for market in item["fx"]:
             assert market["worldFx"] > 0 and market["rate"] > 0, market
             assert market["sites"] >= 3 and market["siteCountry"] == market["country"], market
