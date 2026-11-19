@@ -39,20 +39,33 @@ with sync_playwright() as pw:
     assert check["assigned"]>0,check
     assert check["estimate"]["value"]>0,check
     assert not any("共通部品方式では3種類の専門モジュールは増えません" in r["state"] for r in check["reasons"]),check
-    page.evaluate("""()=>{
-      const f=current();f.stock.steel.q=0;f.stock.steel.v=0;
-      // Zeroing a material in this UI-only fixture is not used for book entry assertions.
+    # Diagnose shortage in an isolated copy: never perturb the live accounting ledger.
+    before=page.evaluate("""()=>{
+      const f=current();return {
+        steel:structuredClone(f.stock.steel),
+        rubber:structuredClone(f.stock.rubber),
+        ledger:acc(f,'materials'),beforeErrors:check(S)
+      };
     }""")
+    assert not before["beforeErrors"], before
     missing=page.evaluate("""()=>{
-      const f=current(),p=f.plants.find(x=>x.id==='LEGACY-COMPONENTS');
+      const copy=structuredClone(S);
+      const f=company(copy.playerId,copy);
+      f.stock.steel.q=0;f.stock.steel.v=0;
+      const p=f.plants.find(x=>x.id==='LEGACY-COMPONENTS');
       return factoryInsightV023(f,p);
     }""")
     assert missing["estimate"]["value"]==0,missing
     assert any("不足" in r["detail"] and "鋼材" in r["detail"] for r in missing["reasons"]),missing
-    # Restore a consistent stock ledger and actual monthly production.
-    page.evaluate("""()=>{
-      const f=current();f.stock.steel.q=100;f.stock.steel.v=5000;
+    after_probe=page.evaluate("""()=>{
+      const f=current();return {
+        steel:structuredClone(f.stock.steel),
+        rubber:structuredClone(f.stock.rubber),
+        ledger:acc(f,'materials'),afterErrors:check(S)
+      };
     }""")
+    assert before["steel"]==after_probe["steel"] and before["rubber"]==after_probe["rubber"], (before,after_probe)
+    assert before["ledger"]==after_probe["ledger"] and not after_probe["afterErrors"], after_probe
     prev=page.evaluate("S.monthCommitted")
     page.evaluate("async()=>await runMonth()")
     state=page.evaluate("""()=>{
