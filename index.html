@@ -1986,7 +1986,7 @@ function v11Record(s,entry){s.reorgHistory??=[];s.reorgHistory.push({id:'R'+s.se
 function interplantUnassigned(f){ensureV11Firm(f);return Math.max(0,(f.stock.components?.q||0)-Object.values(f.interplant.siteComponents).reduce((a,b)=>a+(b||0),0));}
 function supportPartFactories(f){return (f.plants||[]).filter(p=>!p.construction&&!p.paused&&!p.renovation&&['components','engine','body'].includes(p.kind));}
 function partPlanning(){const f=current();if(!canEdit(f))throw Error('管理権限がありません');ensureV11Firm(f);ensureFactoryV21(f);
- for(const p of supportPartFactories(f)){const el=document.getElementById('partsPlan_'+p.id);if(!el)continue;const q=Number(el.value);if(!Number.isSafeInteger(q)||q<0||q>10000)throw Error('工場の部品生産数が不正');if(f.factoryOps.mode==='detailed')f.factoryOps.plans[p.id]=q;else f.interplant.partPlans[p.id]=q;}
+ for(const p of supportPartFactories(f)){const el=document.getElementById('partsPlan_'+p.id);if(!el)continue;const q=Number(el.value);if(!Number.isSafeInteger(q)||q<0||q>10000)throw Error('工場の部品生産数が不正');if(f.factoryOps.mode==='detailed')f.factoryOps.plans[p.id]=q;else f.interplant.partPlans[p.id]=q;f.factoryOps.planExplicit??={};f.factoryOps.planExplicit[p.id]=true;}
  render();toast('現在の製造方式で専門工場の部品生産計画を保存しました');}
 function issueInterplantShipment(f,fromId,toId,qty,s=S){ensureV11Firm(f);
  const from=f.plants.find(p=>p.id===fromId),to=f.plants.find(p=>p.id===toId),stock=f.stock.components;
@@ -6507,6 +6507,10 @@ function transitionSpecialistModeV036(f,mode){
    const type=v21ModuleType(p);if(!type)continue;
    const plan=Math.floor(Math.max(0,Number(f.interplant.partPlans[p.id])||0));
    if(!(z.plans[p.id]>0)&&plan>0)z.plans[p.id]=plan;
+   // The user explicitly switched to typed components: initialize a missing
+   // plan and free stale zero staff, without overriding a deliberately saved 0.
+   if(!(z.plans[p.id]>0)&&!z.planExplicit?.[p.id])z.plans[p.id]=defaultSpecialistPlanV036(p);
+   if(z.plans[p.id]>0&&z.staffAssignments[p.id]===0&&f.staff?.production>0)delete z.staffAssignments[p.id];
    const stored=Math.floor(Math.max(0,Number(f.interplant.siteComponents[p.id])||0));
    const available=Math.floor(Math.max(0,Number(f.stock.components?.q)||0));
    const qty=Math.min(stored,available);
@@ -6838,12 +6842,12 @@ function showFactoryDetailV026(){const root=document.getElementById('factorySele
 }
 function activateSupportV026(){try{
  const f=current();if(!canEdit(f))throw Error('設定権限がありません');ensureFactoryV21(f);
- const supports=supportPartFactories(f),assemblers=activeFactories(f);if(!supports.length)throw Error('稼働中の専門部品工場がありません');if(!assemblers.length)throw Error('稼働中の完成車工場がありません');
+ const supports=supportPartFactories(f),assemblers=activeFactories(f);if(!supports.length)throw Error('稼働中の専門部品工場がありません');
  if(!confirm('専門部品工場の生産計画を初期設定し、自動配送を有効化します。詳細製造モードを使用しますか？'))return;
  transitionSpecialistModeV036(f,'detailed');f.factoryOps.modeExplicit=true;for(const p of supports){if(f.factoryOps.staffAssignments[p.id]===0)delete f.factoryOps.staffAssignments[p.id];
   if(!(f.factoryOps.plans[p.id]>0))f.factoryOps.plans[p.id]=Math.max(1,Math.floor(p.capacity*p.condition/100*.35));
   const nearest=assemblers.slice().sort((a,b)=>{const a1=ensurePlantLocation(f,a),b1=ensurePlantLocation(f,b),src=ensurePlantLocation(f,p);return (a1.id===src.id?0:a1.country===src.country?1:2)-(b1.id===src.id?0:b1.country===src.country?1:2)})[0];
-  const route=f.factoryOps.routes[p.id]||{};if(!route.to)route.to=nearest.id;route.target=Math.max(8,route.target||0);route.limit=Math.max(8,route.limit||0);route.enabled=true;f.factoryOps.routes[p.id]=route;
+  const route=f.factoryOps.routes[p.id]||{};if(nearest){if(!route.to)route.to=nearest.id;route.target=Math.max(8,route.target||0);route.limit=Math.max(8,route.limit||0);route.enabled=true;}else{route.to='';route.enabled=false;}f.factoryOps.routes[p.id]=route;
  }
  render();toast('稼働工場の詳細製造・部品生産計画・自動配送を設定しました。原材料と人員を確認して月末処理を実行してください');
  }catch(e){toast(e.message)}}
@@ -6925,6 +6929,7 @@ function saveRoutesV21(){
    const to=inputValue('v21Dest_'+p.id);if(to&&!f.plants.some(x=>x.id===to&&['integrated','assembly'].includes(x.kind)))throw Error('納入先が不正');
    if(z.mode==='detailed')z.plans[p.id]=plan;
    else f.interplant.partPlans[p.id]=plan;
+   z.planExplicit??={};z.planExplicit[p.id]=true;
    // Release an obsolete fixed-zero staffing override for a newly positive production plan.
    if(plan>0&&z.staffAssignments[p.id]===0&&f.staff?.production>0)delete z.staffAssignments[p.id];
    z.routes[p.id]={enabled:!!document.getElementById('v21Auto_'+p.id)?.checked,to,target,limit};
