@@ -2512,7 +2512,7 @@ async function runMonth(){
   step('MODULE_PRODUCTION',()=>produceModulesV21(trial,events));
   step('AUTO_LOGISTICS',()=>autoShipModulesV21(trial,events));
   step('BOM_DISPATCH',()=>autoDispatchBomParts(trial));
-  step('VEHICLE_PRODUCTION',()=>{for(const i of ['auto','manufacturing','trade','service'])laborAndPlant(trial,events,i);for(const f of trial.firms)for(const t of SUPPLY_TYPES){const fl=f.supply?.monthFlow?.[t];if(!fl)continue;fl.end=f.stock[t]?.q||0;fl.received=(f.supply.history||[]).filter(x=>x.type===t&&x.month===fl.month).reduce((n,x)=>n+x.qty,0);fl.consumed=Math.max(0,Math.round((fl.start+fl.received-fl.end)*1000)/1000);}});
+  step('VEHICLE_PRODUCTION',()=>{for(const i of ['auto','manufacturing','trade','service'])laborAndPlant(trial,events,i);finalizeBomSupportOutputV026(trial);for(const f of trial.firms)for(const t of SUPPLY_TYPES){const fl=f.supply?.monthFlow?.[t];if(!fl)continue;fl.end=f.stock[t]?.q||0;fl.received=(f.supply.history||[]).filter(x=>x.type===t&&x.month===fl.month).reduce((n,x)=>n+x.qty,0);fl.consumed=Math.max(0,Math.round((fl.start+fl.received-fl.end)*1000)/1000);}});
   step('EXPORTS',()=>deliverExports(trial,events));
   step('WARRANTIES',()=>{for(const f of trial.firms)processWarrantyMonth(trial,f,events)});
   step('SALES',()=>sellMonthly(trial,events));
@@ -4217,6 +4217,23 @@ function produceBomParts(s){
  }
 }
 
+/* Physical BOM output is completed before legacy specialist production.
+   Reconcile both outputs after all other monthly production paths so that
+   an idle legacy schedule never hides actual BOM activity in the UI. */
+function finalizeBomSupportOutputV026(s){
+ for(const f of s.firms){
+  const workforce=factoryLaborPlanV026(f);
+  for(const p of supportPartFactories(f)){
+   const bom=bomPlantLoad(f,p);
+   if(!bom)continue;
+   const legacy=Math.max(0,Math.floor(p.lastProduced||0));
+   p.lastProduced=legacy+bom;
+   p.lastUtilization=p.lastProduced/Math.max(1,p.capacity);
+   p.lastAssignedStaff=workforce.byId[p.id]?.assigned||0;
+   p.condition=clamp(p.condition-(legacy?0:.1)-1.2*Math.min(1,bom/Math.max(1,p.capacity)),20,100);
+  }
+ }
+}
 function dispatchBomParts(s,f,from,to,specKey,quantity){
  if(!engineeringEligible(f)||!f.plants.includes(from)||!f.plants.includes(to)||from.id===to.id||from.construction||to.construction||
     !['integrated','assembly'].includes(to.kind)||!Number.isSafeInteger(quantity)||quantity<1){
