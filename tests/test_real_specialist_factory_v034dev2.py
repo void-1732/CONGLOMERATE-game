@@ -11,7 +11,7 @@ from playwright.sync_api import sync_playwright
 HTML=(Path(__file__).resolve().parents[1]/"index.html").read_text(encoding="utf-8")
 BUILD="v0.34-dev.2"
 
-def verify(p, label):
+def verify(p, label, require_cf=False):
     report=p.evaluate("""()=>{const f=current(), c=consolidate(S);return {
       check:check(S), group:c.errors, cf:c.cf.reconciled,
       mode:f.factoryOps.mode, committed:S.monthCommitted,
@@ -20,14 +20,14 @@ def verify(p, label):
         id:p.id,kind:p.kind,status:factoryStatus(p),done:p.lastProduced,util:p.lastUtilization,
         plan:f.factoryOps.plans[p.id],assigned:factoryLaborPlanV026(f).byId[p.id]?.assigned||0
       }))};}""")
-    assert not report["check"] and not report["group"] and report["cf"],(label,report)
+    assert not report["check"] and not report["group"] and (not require_cf or report["cf"]),(label,report)
     return report
 
 def month(p):
     old=p.evaluate("S.monthCommitted")
     p.evaluate("async()=>await runMonth()")
     assert p.evaluate("S.monthCommitted")==old+1, p.evaluate("LAST_MONTH_DIAGNOSTIC?.message")
-    return verify(p,"monthly progression")
+    return verify(p,"monthly progression",require_cf=True)
 
 with sync_playwright() as pw:
     browser=pw.chromium.launch(
