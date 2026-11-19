@@ -20,7 +20,7 @@ def snapshot(p, stage):
     r=p.evaluate("""()=>{
       const f=current(),c=consolidate(S),month=S.monthCommitted;
       return {
-        date:S.year+'-'+S.month,committed:month,mode:f.factoryOps.mode,
+        date:S.year+'-'+S.month,committed:month,mode:f.factoryOps.mode,cash:acc(f,'cash'),debt:acc(f,'debt'),
         errors:check(S),group:c.errors,cf:c.cf.reconciled,
         materials:{steel:structuredClone(f.stock.steel),rubber:structuredClone(f.stock.rubber),
           ledger:acc(f,'materials'),transit:acc(f,'materialsTransit')},
@@ -110,6 +110,13 @@ with sync_playwright() as pw:
     }""")
     assert initial['kind']=='assembly' and initial['site']=='US-LAX',initial
     assert initial['plan']==230 and initial['moduleStock']==[0,0,0],initial
+    diagnostic=p.evaluate("""()=>{
+      const f=current(),la=f.plants.find(x=>x.name==='米大成工場');
+      return factoryInsightV023(f,la);
+    }""")
+    assert diagnostic['plantPlanned']>0,diagnostic
+    assert diagnostic['estimate']['value']==0,diagnostic
+    assert any('専門部品セットが不足' in x['state'] for x in diagnostic['reasons']),diagnostic
     assert not p.evaluate('aiModeAllows(current(),"shipping")'),'Expected non-delegated player mode to be disabled'
     # Construct full five-plant topology using actual runMonth.
     for i in range(5): month(p,'build-'+str(i+1))
@@ -177,6 +184,14 @@ with sync_playwright() as pw:
         p.locator('#v21Limit_'+sid).fill('8')
     p.locator('[data-action="v21RouteSave"]').click()
     assert all(p.evaluate("ids=>ids.map(id=>current().factoryOps.routes[id].to===current().plants.find(p=>p.name==='米大成工場').id)",ids['parts']))
+    # Player takes a real 36-month bank loan to fund uninterrupted salaries,
+    # procurement and freight over the long horizon (no unearned cash).
+    p.evaluate("PAGE='finance';render()")
+    p.locator('#borrowBase').fill('1500000')
+    debt_before=p.evaluate("acc(current(),'debt')")
+    p.locator('[data-action="borrow"]').click()
+    assert p.evaluate("acc(current(),'debt')")>debt_before,'legitimate loan was not executed'
+    assert not p.evaluate('check(S)')
     # Persist all factory state with the real IndexedDB save and a real reload.
     before=p.evaluate("""()=>{
       const f=current();return {year:S.year,month:S.month,committed:S.monthCommitted,
