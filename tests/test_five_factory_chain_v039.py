@@ -167,6 +167,16 @@ with sync_playwright() as pw:
     for i in range(4): last=month(p,'domestic-transit-'+str(i+1))
     assert any(x['id']==ids['tokyo'] and x['produced']>0 for x in last['plants']),last
     assert any(x['action']=='到着' and x['to']==ids['tokyo'] for x in last['history']),last
+    # Return the player's explicit replenishment destination to LA for the
+    # subsequent 12-month sustained-operation test.
+    p.evaluate("PAGE='factory';render()")
+    p.get_by_text("専門部品の製造方式・輸送中在庫・一括管理",exact=True).click()
+    for sid in ids['parts']:
+        p.locator('#v21Dest_'+sid).select_option(ids['la'])
+        p.locator('#v21Target_'+sid).fill('24')
+        p.locator('#v21Limit_'+sid).fill('8')
+    p.locator('[data-action="v21RouteSave"]').click()
+    assert all(p.evaluate("ids=>ids.map(id=>current().factoryOps.routes[id].to===current().plants.find(p=>p.name==='米大成工場').id)",ids['parts']))
     # Persist all factory state with the real IndexedDB save and a real reload.
     before=p.evaluate("""()=>{
       const f=current();return {year:S.year,month:S.month,committed:S.monthCommitted,
