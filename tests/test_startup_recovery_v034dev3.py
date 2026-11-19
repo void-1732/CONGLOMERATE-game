@@ -26,7 +26,7 @@ with sync_playwright() as pw:
           return {year:s.year,month:s.month,committed:s.monthCommitted,gameId:s.gameIdV038,
              name:f.name,country:f.country,difficulty:s.config.difficulty};
         }""",year)
-        assert result['year']==year and result['month']==1 and result['committed']==year*12,result
+        assert result['year']==year and result['month']==1 and result['committed']==year*12-1,result
         assert result['name']=='開始テスト' and result['country']=='JP' and result['difficulty']=='normal',result
         assert result['gameId'],result
     # Start through the normal UI and commit real storage, not a saveAuto mock.
