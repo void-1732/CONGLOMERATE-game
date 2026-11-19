@@ -38,3 +38,7 @@ jobs:
         run: python tests/test_v026_factory_supply.py
       - name: Verify BOM manufacture, logistics, assembly and ledger
         run: python tests/test_v029_bom.py
+      - name: Verify STEP 9 global procurement AI and ledger integration
+        run: python tests/test_step09_global_ai.py
+      - name: Verify STEP 9 five-market compatibility and migration readiness
+        run: python tests/test_step09_market_readiness.py
