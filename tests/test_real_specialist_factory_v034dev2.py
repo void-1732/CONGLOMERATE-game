@@ -64,6 +64,8 @@ with sync_playwright() as pw:
     verify(page,"before factory construction")
     factory_ids=[]
     for kind in ("engine","body","components"):
+        # The actual production UI keeps new construction in a collapsed details panel.
+        page.get_by_text("新工場を建設する", exact=True).click()
         page.locator("#factoryName").fill("実工場-"+kind)
         page.locator("#factoryScale").select_option("small")
         page.locator("#factoryKind").select_option(kind)
