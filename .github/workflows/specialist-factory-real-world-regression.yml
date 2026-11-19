@@ -1,0 +1,36 @@
+name: Specialist factory real-world scenario regression
+on:
+  push:
+    branches:
+      - fix/specialist-factory-real-world-recovery-20261120
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  factory-full-flow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install browser test tools
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Test real build, hire, old saves, all three module stock ledgers
+        run: python tests/test_real_specialist_factory_v034dev2.py
+      - name: Recheck prior factory regressions
+        run: |
+          python tests/test_fix_four_operational_issues.py
+          python tests/test_main_bom_factory_staffing.py
+          python tests/test_main_support_factory_auto_restore.py
+      - name: Check existing inventory and demand regressions
+        run: |
+          python tests/test_v034_inventory_forecast.py
+          python tests/test_v031_demand_allocation.py
+          python tests/test_v029_trade.py
+          python tests/test_v029_ai_investment.py
