@@ -53,6 +53,13 @@ with sync_playwright() as pw:
    IDB=real;
    if(!await saveAuto()||S.autosaveState!=='保存成功')throw Error('IDB recovery failed');
    const latest=LAST_SAVE_RESULT_V035;
+   // IndexedDB can succeed even if the secondary localStorage backup fails.
+   const safetyFn=writeSafetySnapshotV037;
+   writeSafetySnapshotV037=()=>false;
+   if(!await saveAuto()||S.autosaveState!=='保存成功'||
+     !LAST_SAVE_RESULT_V035.indexedDB||LAST_SAVE_RESULT_V035.safety)
+     throw Error('IDB-only verified save misreported');
+   writeSafetySnapshotV037=safetyFn;
    const p=factoryPlantPlanV039(current(),current().plants[0]);
    if(p.plantTotal>p.companyTotal)throw Error('factory allocation exceeds company plan');
    return {idA,idB,latest,choices:2};
