@@ -5384,8 +5384,12 @@ async function saveManual(num){if(!IDB){toast('IndexedDBを使えません。JSO
   const raw=savePayload(S),rec=slotRecord('manual:'+num,raw);await idbWrite('snapshots',rec);const verified=await idbRead('snapshots','manual:'+num);if(!verified||verified.serialized!==raw)throw Error('手動保存の検証に失敗');parsePayload(verified.serialized);await refreshSaveIndex();toast('手動保存 '+(num+1)+' をIndexedDBに記録しました');render()}
  catch(e){toast('手動保存失敗：'+e.message)}finally{SAVE_BUSY=false}}
 function restore(raw){try{const s=parsePayload(raw);if(!s.gameIdV038)s.gameIdV038=saveCandidateV038(raw,'明示的JSON読込').gameId;S=s;writeSafetySnapshotV037(savePayload(s),true);
- try{localStorage.setItem(RECOVERY_SELECTION_KEY_V038,JSON.stringify({gameId:saveIdentityV038(s),checksum:hash(raw)}))}catch(_){}
- requestOperationSaveV037();PART_FORM=null;PART_CONTRACTS_OPEN=null;BOM_PANEL_OPEN=null;PART_TRADE_VIEW=null;LINE_VIEW={plantId:null,review:null};LAST_MONTH_DIAGNOSTIC=null;MONTH_DIAGNOSTIC_OPEN=false;VIEW_FIRM=s.playerId;VIEW_COUNTRY=company(s.playerId,s).country;PAGE='dashboard';monthlyPreview=false;RECOVERY_BLOCKED_V038=false;RECOVERY_CHOICES_V038=[];render();startupTopV038();toast('保存データを読み込みました：'+dateKey(s));return true}catch(e){toast('ロードできません：'+e.message);return false}}
+ requestOperationSaveV037();
+ // requestOperationSave rewrites the emergency payload's timestamp, so pin
+ // the actual verified emergency snapshot rather than the import's old bytes.
+ try{const emergency=storageGet(EMERGENCY_KEY);
+  localStorage.setItem(RECOVERY_SELECTION_KEY_V038,JSON.stringify({gameId:saveIdentityV038(s),checksum:emergency?hash(emergency):hash(raw)}));
+ }catch(_){}PART_FORM=null;PART_CONTRACTS_OPEN=null;BOM_PANEL_OPEN=null;PART_TRADE_VIEW=null;LINE_VIEW={plantId:null,review:null};LAST_MONTH_DIAGNOSTIC=null;MONTH_DIAGNOSTIC_OPEN=false;VIEW_FIRM=s.playerId;VIEW_COUNTRY=company(s.playerId,s).country;PAGE='dashboard';monthlyPreview=false;RECOVERY_BLOCKED_V038=false;RECOVERY_CHOICES_V038=[];render();startupTopV038();toast('保存データを読み込みました：'+dateKey(s));return true}catch(e){toast('ロードできません：'+e.message);return false}}
 async function restoreAuto(){
  RECOVERY_CHOICES_V038=[];RECOVERY_BLOCKED_V038=false;
  const candidates=[],warnings=[];
