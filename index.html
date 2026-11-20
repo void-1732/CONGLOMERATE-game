@@ -5279,7 +5279,7 @@ async function restoreAuto(){
   if(RECOVERY_BLOCKED_V038)saveWarning='保存データを検証できませんでした。既存データは保持しています。'+warnings.slice(0,2).join(' / ');
   return false;
  }
- available.sort((a,b)=>b.progress-a.progress||b.committed-a.committed||String(b.savedAt).localeCompare(String(a.savedAt))||a.rank-b.rank);
+ available.sort((a,b)=>String(b.savedAt).localeCompare(String(a.savedAt))||b.progress-a.progress||b.committed-a.committed||a.rank-b.rank);
  const best=available[0];S=best.s;VIEW_FIRM=S.playerId;VIEW_COUNTRY=company(S.playerId,S).country;PAGE='dashboard';
  if(best.source!=='再読込保護')writeSafetySnapshotV037(best.raw);
  else if(IDB&&SAVE_INDEX.active!==null)saveWarning='直近の操作を再読込保護バックアップから復元しました。';
