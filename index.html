@@ -2082,13 +2082,20 @@ function autoShipLegacyPartsV035(s,events){
   for(const route of f.interplant.autoRoutes){
    if(!route.enabled||route.target<=0||route.limit<=0)continue;
    const from=f.plants.find(p=>p.id===route.from),to=f.plants.find(p=>p.id===route.to);
-   if(!from||!to||factoryStatus(from)!=='active'||factoryStatus(to)!=='active')continue;
+   if(!from||!to||factoryStatus(from)!=='active'||factoryStatus(to)!=='active'){
+    f.interplant.history.push({month:ym(s.year,s.month),action:'配送見送り',from:route.from,to:route.to,qty:0,reason:'配送元・配送先が存在しない、または設備休止・工事中'});
+    if(f.interplant.history.length>80)f.interplant.history.shift();continue;
+   }
    const own=Math.max(0,Math.floor(f.interplant.siteComponents[from.id]||0));
    const onHand=Math.max(0,Math.floor(f.interplant.siteComponents[to.id]||0));
    const incoming=f.interplant.shipments.filter(tx=>tx.to===to.id).reduce((n,tx)=>n+tx.qty,0);
    const gap=Math.max(0,route.target-onHand-incoming);
    const available=Math.max(0,Math.min(gap,route.limit,own,Math.floor(f.stock.components.q)));
-   if(!available)continue;
+   if(!available){
+    const reason=!own?'発送元に共通部品在庫なし':gap===0?'目標在庫に到達（輸送中を含む）':'発送上限0または部品総在庫不足';
+    f.interplant.history.push({month:ym(s.year,s.month),action:'配送見送り',from:route.from,to:route.to,qty:0,reason});
+    if(f.interplant.history.length>80)f.interplant.history.shift();continue;
+   }
    const origin=ensurePlantLocation(f,from),destination=ensurePlantLocation(f,to);
    const cash=Math.max(0,acc(f,'cash'));
    let lo=0,hi=available;
@@ -2097,7 +2104,11 @@ function autoShipLegacyPartsV035(s,events){
     const freight=localFromBase(v21Freight(origin,destination,mid,s).base,f.country);
     if(freight<=cash)lo=mid;else hi=mid-1;
    }
-   if(!lo){events.push(f.name+'：自動部品配送は運賃不足のため保留（'+from.name+' → '+to.name+'）');continue;}
+   if(!lo){
+    f.interplant.history.push({month:ym(s.year,s.month),action:'配送見送り',from:route.from,to:route.to,qty:0,reason:'輸送費用の現金不足'});
+    if(f.interplant.history.length>80)f.interplant.history.shift();
+    events.push(f.name+'：自動部品配送は運賃不足のため保留（'+from.name+' → '+to.name+'）');continue;
+   }
    const lead=issueInterplantShipment(f,from.id,to.id,lo,s,true);
    events.push(f.name+'：共通部品 '+lo+'個を自動発送（'+from.name+' → '+to.name+'／到着まで'+lead+'か月）');
   }
@@ -7142,11 +7153,13 @@ function deliverModulesV21(s,events){const now=ym(s.year,s.month);for(const f of
 }}
 function autoShipModulesV21(s,events){for(const f of s.firms){ensureFactoryV21(f);if(f.factoryOps.mode!=='detailed')continue;
  /* Saved enabled factory routes are direct player instructions, regardless of AI delegation. */
- for(const p of supportPartFactories(f)){const route=f.factoryOps.routes[p.id];if(!route?.enabled||!route.to)continue;const typ=v21ModuleType(p),to=f.plants.find(x=>x.id===route.to);
-  if(!to||to.paused||to.construction||to.renovation){
-   f.factoryOps.history.push({month:ym(s.year,s.month),action:'配送見送り',from:p.id,to:route.to,typ:v21ModuleType(p),qty:0,reason:'配送先が存在しない・休止・工事中'});
-   if(f.factoryOps.history.length>100)f.factoryOps.history.shift();continue;
-  }
+ for(const p of f.plants.filter(p=>v21ModuleType(p))){const route=f.factoryOps.routes[p.id];if(!route?.enabled)continue;
+  const typ=v21ModuleType(p);
+  const skip=reason=>{f.factoryOps.history.push({month:ym(s.year,s.month),action:'配送見送り',from:p.id,to:route.to||'',typ,qty:0,reason});if(f.factoryOps.history.length>100)f.factoryOps.history.shift();};
+  if(!route.to){skip('配送先が未設定');continue;}
+  if(factoryStatus(p)!=='active'){skip('発送元工場が休止・工事中');continue;}
+  const to=f.plants.find(x=>x.id===route.to);
+  if(!to||factoryStatus(to)!=='active'){skip('配送先が存在しない・休止・工事中');continue;}
   const onHand=moduleAtV21(f,to.id)[typ];const incoming=f.factoryOps.shipments.filter(x=>x.to===to.id&&x.typ===typ).reduce((a,x)=>a+x.qty,0);
   const available=moduleAtV21(f,p.id)[typ];const gap=Math.max(0,route.target-onHand-incoming);
   const qty=Math.max(0,Math.min(available,gap,route.limit));
