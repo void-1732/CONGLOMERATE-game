@@ -23,6 +23,8 @@ jobs:
           python -m playwright install --with-deps chromium
       - name: Test startup eras and safe recovery across game identities
         run: python tests/test_startup_recovery_v034dev3.py
+      - name: Test v0.35 fail-closed storage recovery and factory metadata
+        run: python tests/test_v035_recovery_guard.py
       - name: Test persistence through real HTTP reload and IndexedDB failure
         run: python tests/test_reload_autosave_v034dev3.py
       - name: Test physical engine/body/electronic production after real hiring and construction
