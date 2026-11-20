@@ -54,6 +54,7 @@ with sync_playwright() as pw:
     # Confirm UI creates only explicitly selected routes.
     page.evaluate("PAGE='factory';render()")
     assert page.locator('[data-action="legacyRouteSaveV035"]').count()>=1
+    page.locator('details.factory-accordion').filter(has=page.locator('[data-action="legacyRouteSaveV035"]')).locator('summary').click()
     page.locator('#legacyEnabled_LEG-N0__P-F1-legacy').check()
     page.locator('#legacyTarget_LEG-N0__P-F1-legacy').fill('45')
     page.locator('#legacyLimit_LEG-N0__P-F1-legacy').fill('18')
