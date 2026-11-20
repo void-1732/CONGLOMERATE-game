@@ -25,6 +25,8 @@ jobs:
         run: python tests/test_startup_recovery_v034dev3.py
       - name: Test v0.35 fail-closed storage recovery and factory metadata
         run: python tests/test_v035_recovery_guard.py
+      - name: Verify 3 save statuses, same-name games and restoration
+        run: python tests/test_v035_multi_game_storage.py
       - name: Test legacy common-component routes, real shipment, accounting and reload
         run: python tests/test_legacy_auto_routes_v035.py
       - name: Test persistence through real HTTP reload and IndexedDB failure
