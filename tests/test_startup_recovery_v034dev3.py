@@ -119,6 +119,14 @@ with sync_playwright() as pw:
     # a newer IDB generation during an immediate page refresh.
     assert page.evaluate('raw=>restore(raw)',earlier_manual)
     expected_rollback=page.evaluate("()=>({year:S.year,month:S.month,id:S.playerId})")
+    print('ROLLBACK_DEBUG',page.evaluate("""()=>{
+      const raw=storageGet(EMERGENCY_KEY),token=storageGet(RECOVERY_SELECTION_KEY_V038);
+      const recent=SAVE_INDEX.auto.map(x=>x&&({year:x.year,month:x.month,key:x.key}));
+      let candidate=null;try{candidate=raw&&saveCandidateV038(raw,'emergency')}catch(e){candidate={error:e.message}}
+      return {token,emergency:raw&&{length:raw.length,checksum:hash(raw),
+        gameId:candidate?.gameId,year:candidate?.s?.year,month:candidate?.s?.month},
+        recent,gameId:saveIdentityV038(S),status:S.autosaveState};
+    }"""),flush=True)
     assert (expected_rollback['year'],expected_rollback['month'])!=(pre_reload['year'],pre_reload['month'])
     page.reload();page.wait_for_function('STORAGE_READY')
     actual_rollback=page.evaluate("()=>({year:S.year,month:S.month,id:S.playerId})")
