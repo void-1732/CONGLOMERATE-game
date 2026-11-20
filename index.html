@@ -362,7 +362,7 @@ const VERSION=1, AUTOKEY='conglomerate.autosave.',MANKEY='conglomerate.manual.',
 const DB_NAME='CONGLOMERATE_LOCAL_V02', DB_VERSION=1, EMERGENCY_KEY='conglomerate.emergency.latest';
 let IDB=null, STORAGE_READY=false, SAVE_BUSY=false, MONTH_RUNNING=false;
 let LAST_MONTH_DIAGNOSTIC=null, MONTH_DIAGNOSTIC_OPEN=false;
-let RECOVERY_CHOICES_V038=[],RECOVERY_BLOCKED_V038=false;
+let RECOVERY_CHOICES_V038=[],RECOVERY_BLOCKED_V038=false,RECOVERY_STORAGE_UNAVAILABLE_V035=false;
 const RECOVERY_SELECTION_KEY_V038='conglomerate.recovery.selectedGame';
 function startupTopV038(){try{history.scrollRestoration='manual';window.scrollTo(0,0)}catch(_){}}
 function saveIdentityV038(s){
@@ -386,7 +386,7 @@ function recoveryWarningMarkupV038(){
  const choices=RECOVERY_CHOICES_V038.map((x,i)=>{
  const f=company(x.s.playerId,x.s);
  return '<div class="savebox"><div class="grow"><b>'+esc(f?.name||'会社不明')+'</b><div class="small muted">'+
- esc(x.s.year+'年'+x.s.month+'月 / '+(x.source||'保存候補'))+' / '+esc(x.savedAt||'日時不明')+'</div></div>'+
+ esc(x.s.year+'年'+x.s.month+'月 / '+(x.source||'保存候補')+' / '+(x.savedAt||'日時不明')+' / 世代 '+(x.source||'不明'))+'</div></div>'+
  '<button class="btn primary sm" data-action="recoveryChoiceV038" data-slot="'+i+'">このゲームを復元</button></div>';
  }).join('');
  return '<div class="modalwrap"><div class="modal"><h1>保存済みゲームの復旧</h1><div class="note warnbox">'+
@@ -4218,7 +4218,6 @@ function bomMonthlyFactoryOutputV0263(s,f,p){
   return result;
  },{attempted:0,good:0});
 }
-const FACTORY_HOTFIX_BUILD_V0263='2026-11-20-SPECIALIST-2';
 function bomPartRecipe(spec,tech){
  return Object.fromEntries(Object.entries(BOM_RECIPES[spec.family]).map(([type,q])=>
   [type,Math.round(q*(1-tech.material/100)*1000)/1000]));
@@ -5227,7 +5226,7 @@ async function saveAuto(){if(!IDB){const ok=!!S&&writeSafetySnapshotV037();if(ok
   S.autosaveState='保存成功';saveWarning='';await refreshSaveIndex();
   if(S){try{localStorage.setItem(RECOVERY_SELECTION_KEY_V038,saveIdentityV038(S))}catch(_){}writeSafetySnapshotV037(savePayload(S));}
   return true;
- }catch(e){S.autosaveState='保存失敗';saveWarning=String(e?.message||e);try{await refreshSaveIndex()}catch(_){}if(S&&writeSafetySnapshotV037()){try{localStorage.setItem(RECOVERY_SELECTION_KEY_V038,saveIdentityV038(S))}catch(_){}S.autosaveState='保存成功';saveWarning='IndexedDBへの保存失敗。再読込用の簡易バックアップに保存しました。JSONバックアップも出力してください。';return true}return false}finally{SAVE_BUSY=false}}
+ }catch(e){S.autosaveState='保存失敗';saveWarning=String(e?.message||e);try{await refreshSaveIndex()}catch(_){}if(S&&writeSafetySnapshotV037()){try{localStorage.setItem(RECOVERY_SELECTION_KEY_V038,saveIdentityV038(S))}catch(_){}S.autosaveState='保存失敗';saveWarning='IndexedDBへの保存に失敗しました。簡易バックアップのみ保存されました。JSONバックアップも出力してください。';return false}return false}finally{SAVE_BUSY=false}}
 async function saveManual(num){if(!IDB){toast('IndexedDBを使えません。JSONでバックアップしてください。');return}if(SAVE_BUSY){toast('保存中です。重複書込みを回避しました。');return}SAVE_BUSY=true;
  try{const raw=savePayload(S),rec=slotRecord('manual:'+num,raw);await idbWrite('snapshots',rec);const verified=await idbRead('snapshots','manual:'+num);if(!verified||verified.serialized!==raw)throw Error('手動保存の検証に失敗');parsePayload(verified.serialized);await refreshSaveIndex();toast('手動保存 '+(num+1)+' をIndexedDBに記録しました');render()}
  catch(e){toast('手動保存失敗：'+e.message)}finally{SAVE_BUSY=false}}
@@ -5248,11 +5247,13 @@ async function restoreAuto(){
   if(hash(rec.serialized)!==checksum){warnings.push('保存世代'+slot+'のチェックサム不一致');continue}
   add(rec.serialized,'確定自動保存世代'+slot,rank);
  }
- if(!candidates.length){
-  for(const rec of [...SAVE_INDEX.auto,...SAVE_INDEX.manual])if(rec?.serialized)add(rec.serialized,rec.key,4);
-  for(const key of [AUTOKEY+'0',AUTOKEY+'1',MANKEY+'0',MANKEY+'1',MANKEY+'2'])
-   add(storageGet(key),'旧保存 '+key,5);
- }
+ // Enumerate fallback candidates even when the emergency snapshot is valid:
+ // a valid emergency slot must not hide newer manual or legacy saves.
+ for(const rec of SAVE_INDEX.manual)if(rec?.serialized)add(rec.serialized,rec.key,4);
+ for(const key of [AUTOKEY+'0',AUTOKEY+'1',MANKEY+'0',MANKEY+'1',MANKEY+'2'])
+  add(storageGet(key),'旧保存 '+key,5);
+ // Uncommitted auto generations are never trusted as normal auto saves.
+
  const distinct=new Map();
  for(const c of candidates){const sig=hash(c.raw);if(!distinct.has(sig))distinct.set(sig,c)}
  let available=[...distinct.values()];
@@ -5274,30 +5275,30 @@ async function restoreAuto(){
   }
  }
  if(!available.length){
-  RECOVERY_BLOCKED_V038=!!emergencyRaw||SAVE_INDEX.auto.some(Boolean)||SAVE_INDEX.manual.some(Boolean)||warnings.length>0;
+  RECOVERY_BLOCKED_V038=RECOVERY_STORAGE_UNAVAILABLE_V035||!!emergencyRaw||SAVE_INDEX.auto.some(Boolean)||SAVE_INDEX.manual.some(Boolean)||warnings.length>0;
   if(RECOVERY_BLOCKED_V038)saveWarning='保存データを検証できませんでした。既存データは保持しています。'+warnings.slice(0,2).join(' / ');
   return false;
  }
- available.sort((a,b)=>String(b.savedAt).localeCompare(String(a.savedAt))||
-  b.progress-a.progress||b.committed-a.committed||a.rank-b.rank);
+ available.sort((a,b)=>b.progress-a.progress||b.committed-a.committed||String(b.savedAt).localeCompare(String(a.savedAt))||a.rank-b.rank);
  const best=available[0];S=best.s;VIEW_FIRM=S.playerId;VIEW_COUNTRY=company(S.playerId,S).country;PAGE='dashboard';
  if(best.source!=='再読込保護')writeSafetySnapshotV037(best.raw);
  else if(IDB&&SAVE_INDEX.active!==null)saveWarning='直近の操作を再読込保護バックアップから復元しました。';
  return true;
 }
 async function boot(){
+ RECOVERY_STORAGE_UNAVAILABLE_V035=false;
  try{
   IDB=await openDatabase();SAVE_INDEX.backend='IndexedDB';
   await importLegacyOnce();await refreshSaveIndex();
   if(!await restoreAuto()){S=null;wizard=0}
   STORAGE_READY=true;
  }catch(e){
-  SAVE_INDEX.backend='IndexedDB利用不可';
+  SAVE_INDEX.backend='IndexedDB利用不可';RECOVERY_STORAGE_UNAVAILABLE_V035=true;
   saveWarning='IndexedDBの初期化ができません：'+e.message+'。再読込保護データの復旧を試みます。';
   console.error(e);IDB=null;
   // Even without IndexedDB, validate the emergency snapshot and the original
   // localStorage auto/manual generations. Never assume absence of IDB means new game.
-  if(!await restoreAuto()){S=null;wizard=0}
+  if(!await restoreAuto()){S=null;wizard=0;RECOVERY_BLOCKED_V038=true}
   STORAGE_READY=true;
  }
  PAGE='dashboard';render();startupTopV038();
@@ -7227,7 +7228,7 @@ function factoryInventoryAuditV035(s,f,p){
 function factoryDetailMarkup(f,p,edit){if(!p)return `<div class="hint">工場がありません。下の「新工場建設」から工場を追加してください。</div>`;
  ensureFactoryV21(f);const site=ensurePlantLocation(f,p),type=v21ModuleType(p),z=f.factoryOps,route=z.routes[p.id]||{enabled:false,to:'',target:8,limit:12},other=f.plants.filter(x=>['integrated','assembly'].includes(x.kind)),inventory=moduleAtV21(f,p.id),working=factoryStatus(p);
  const fare=other.find(x=>x.id===route.to);const freight=fare?v21Freight(site,ensurePlantLocation(f,fare),1):null;
- return `<div class="factory-detail-head"><div><h3>${esc(p.name)}</h3><div class="hint">${esc(FACTORY_KINDS[p.kind]?.name||p.kind)} ・ ${esc(NAMES[site.country]||site.country)} / ${esc(site.name)} ・ ${esc(p.id)} ・ 修正ビルド ${FACTORY_HOTFIX_BUILD_V0263}</div></div>${tag(factoryStatusLabel(p),working==='active'?'good':'warn')}</div>
+ return `<div class="factory-detail-head"><div><h3>${esc(p.name)}</h3><div class="hint">${esc(FACTORY_KINDS[p.kind]?.name||p.kind)} ・ ${esc(NAMES[site.country]||site.country)} / ${esc(site.name)} ・ ${esc(p.id)}</div></div>${tag(factoryStatusLabel(p),working==='active'?'good':'warn')}</div>
  <div class="factory-details-grid"><div><small>名目設備能力</small><strong>${nfmt(p.capacity)}単位/月</strong></div><div><small>設備状態</small><strong>${nfmt(p.condition)}%</strong></div><div><small>前月の実績</small><strong>${nfmt(p.lastProduced||0)}${type?'個':'台'}</strong></div><div><small>前月稼働率</small><strong>${nfmt((p.lastUtilization||0)*100)}%</strong></div><div><small>設備世代</small><strong>第${p.equipmentTier||1}世代</strong></div><div><small>工場種別</small><strong>${type?'部品供給':'完成車組立'}</strong></div></div>
  ${factoryOpsInsightPanelV023(f,p)}
  ${factoryInventoryAuditV035(S,f,p)}
