@@ -5300,7 +5300,16 @@ function requestOperationSaveV037(){
 }
 function flushSafetySnapshotV037(){
  if(!S||MONTH_RUNNING)return;
- try{if(check(S).length===0)writeSafetySnapshotV037()}catch(e){console.warn('終了前保存に失敗',e)}
+ try{
+  // A historical generation explicitly selected by the player is pinned to
+  // the verified emergency bytes. Rewriting identical state with a new
+  // savedAt would invalidate that checksum during beforeunload.
+  const selected=storageGet(RECOVERY_SELECTION_KEY_V038),emergency=storageGet(EMERGENCY_KEY);
+  let pin=null;try{pin=JSON.parse(selected)}catch(_){}
+  if(pin&&typeof pin==='object'&&pin.gameId===saveIdentityV038(S)&&
+    pin.checksum&&emergency&&hash(emergency)===pin.checksum)return;
+  if(check(S).length===0)writeSafetySnapshotV037();
+ }catch(e){console.warn('終了前保存に失敗',e)}
 }
 function parsePayload(raw){if(typeof raw!=='string')throw Error('保存データが存在しません');const obj=JSON.parse(raw);if(obj.format!=='CONGLOMERATE'||obj.version!==VERSION)throw Error('対応しない保存形式です');if(hash(obj.payload)!==obj.checksum)throw Error('チェックサム不一致');const s=JSON.parse(obj.payload);ensureV11(s);ensureMAState(s);ensureV20(s);ensureSupplyNetwork(s);for(const f of s.firms||[]){ensureFirmGameplay(f,s);ensureNetwork(f,s);}ensureV27(s);recoverIdleSupportSaveV0262(s);recoverSpecialistFactoriesV036(s);const errs=check(s);if(errs.length)throw Error(errs.slice(0,3).join(' / '));return s}
 function openDatabase(){return new Promise((resolve,reject)=>{if(!('indexedDB' in window))return reject(Error('IndexedDBに非対応の環境です'));const req=indexedDB.open(DB_NAME,DB_VERSION);req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains('snapshots'))db.createObjectStore('snapshots',{keyPath:'key'});if(!db.objectStoreNames.contains('meta'))db.createObjectStore('meta',{keyPath:'key'})};req.onsuccess=()=>{req.result.onversionchange=()=>req.result.close();resolve(req.result)};req.onerror=()=>reject(req.error||Error('保存領域の初期化失敗'));req.onblocked=()=>reject(Error('他のタブがデータベースを使用中です'))})}
