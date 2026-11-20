@@ -367,16 +367,22 @@ const RECOVERY_SELECTION_KEY_V038='conglomerate.recovery.selectedGame';
 function startupTopV038(){try{history.scrollRestoration='manual';window.scrollTo(0,0)}catch(_){}}
 function saveIdentityV038(s){
  if(s?.gameIdV038)return String(s.gameIdV038);
- const f=(s?.firms||[]).find(x=>x.id===s?.playerId);
- return 'legacy:'+hash(JSON.stringify([s?.startYear,s?.playerId,s?.config?.name??f?.name,s?.config?.country??f?.country,s?.config?.difficulty,s?.config?.history]));
+ // A historical save's company name and start era are NOT unique identifiers.
+ return 'legacy-unverified:'+hash(JSON.stringify(s||null));
+}
+function ensurePersistedGameIdV035(s){
+ if(s&&!s.gameIdV038)s.gameIdV038='legacy-import:'+hash(JSON.stringify(s));
+ return saveIdentityV038(s);
 }
 function saveCandidateV038(raw,source,rank=0){
- const s=parsePayload(raw),obj=JSON.parse(raw);
- return {raw,s,source,rank,gameId:saveIdentityV038(s),savedAt:obj.savedAt||'',progress:ym(s.year,s.month),committed:s.monthCommitted??0};
+ const s=parsePayload(raw),obj=JSON.parse(raw),legacyUnverified=!s.gameIdV038;
+ // Different old generations may be the same game, but we cannot prove that.
+ const gameId=legacyUnverified?'legacy-snapshot:'+obj.checksum:saveIdentityV038(s);
+ return {raw,s,source,rank,gameId,legacyUnverified,savedAt:obj.savedAt||'',progress:ym(s.year,s.month),committed:s.monthCommitted??0};
 }
 function recoveryChoiceV038(index){
  const c=RECOVERY_CHOICES_V038[index];if(!c)return;
- S=c.s;VIEW_FIRM=S.playerId;VIEW_COUNTRY=company(S.playerId,S).country;
+ S=c.s;if(!S.gameIdV038)S.gameIdV038=c.gameId;VIEW_FIRM=S.playerId;VIEW_COUNTRY=company(S.playerId,S).country;
  PAGE='dashboard';RECOVERY_CHOICES_V038=[];RECOVERY_BLOCKED_V038=false;
  try{localStorage.setItem(RECOVERY_SELECTION_KEY_V038,JSON.stringify({gameId:c.gameId,checksum:hash(c.raw)}))}catch(_){}
  render();startupTopV038();
@@ -396,7 +402,7 @@ function recoveryWarningMarkupV038(){
  '<div class="row"><button class="btn" data-action="recoveryRetryV038">保存領域を再確認</button>'+
  '<button class="btn" data-action="import">JSONバックアップを読み込む</button></div></div></div>';
 }
-const SAVE_INDEX={backend:'初期化中',active:null,previous:null,activeChecksum:null,previousChecksum:null,auto:[null,null,null],manual:[null,null,null],legacyImported:false};
+const SAVE_INDEX={backend:'初期化中',active:null,previous:null,activeChecksum:null,previousChecksum:null,auto:[null,null,null],manual:[null,null,null],archive:[],legacyImported:false};
 // Approximate population anchors (millions); other economic variables remain synthetic.
 // Based on the OWID long-run population series (Gapminder before 1950; UN WPP since 1950).
 // Reference values are rounded and based on modern territorial boundaries, not historical sovereignty.
@@ -5261,7 +5267,7 @@ function readSafetySnapshotV037(){
 }
 let OPERATION_SAVE_TIMER_V037=null;
 function requestOperationSaveV037(){
- if(!S||MONTH_RUNNING)return;
+ if(!S||MONTH_RUNNING)return;ensurePersistedGameIdV035(S);
  try{if(check(S).length)return;try{localStorage.setItem(RECOVERY_SELECTION_KEY_V038,saveIdentityV038(S))}catch(_){}writeSafetySnapshotV037()}catch(e){console.warn('操作直後の保存準備失敗',e);return}
  if(OPERATION_SAVE_TIMER_V037!==null)clearTimeout(OPERATION_SAVE_TIMER_V037);
  OPERATION_SAVE_TIMER_V037=setTimeout(async()=>{
@@ -5280,9 +5286,10 @@ function parsePayload(raw){if(typeof raw!=='string')throw Error('保存データ
 function openDatabase(){return new Promise((resolve,reject)=>{if(!('indexedDB' in window))return reject(Error('IndexedDBに非対応の環境です'));const req=indexedDB.open(DB_NAME,DB_VERSION);req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains('snapshots'))db.createObjectStore('snapshots',{keyPath:'key'});if(!db.objectStoreNames.contains('meta'))db.createObjectStore('meta',{keyPath:'key'})};req.onsuccess=()=>{req.result.onversionchange=()=>req.result.close();resolve(req.result)};req.onerror=()=>reject(req.error||Error('保存領域の初期化失敗'));req.onblocked=()=>reject(Error('他のタブがデータベースを使用中です'))})}
 function idbRead(store,key){return new Promise((resolve,reject)=>{const tx=IDB.transaction(store,'readonly');const r=tx.objectStore(store).get(key);r.onsuccess=()=>resolve(r.result??null);r.onerror=()=>reject(r.error||Error('保存領域の読み出し失敗'))})}
 function idbWrite(store,record){return new Promise((resolve,reject)=>{const tx=IDB.transaction(store,'readwrite');tx.oncomplete=()=>resolve();tx.onabort=()=>reject(tx.error||Error('保存領域の書込み中断'));tx.onerror=()=>reject(tx.error||Error('保存領域の書込み失敗'));tx.objectStore(store).put(record)})}
+function idbAll(store){return new Promise((resolve,reject)=>{const tx=IDB.transaction(store,'readonly'),req=tx.objectStore(store).getAll();req.onsuccess=()=>resolve(req.result||[]);req.onerror=()=>reject(req.error||Error('保存候補の列挙に失敗'))})}
 function slotRecord(key,raw){const s=parsePayload(raw),o=JSON.parse(raw);return {key,serialized:raw,savedAt:o.savedAt,year:s.year,month:s.month,name:company(s.playerId,s)?.name||'不明'}}
 function inspectRecord(rec){if(!rec)return null;try{const s=parsePayload(rec.serialized);return {date:`${s.year}年${s.month}月`,name:company(s.playerId,s)?.name||'不明',savedAt:rec.savedAt}}catch(e){return {error:String(e.message)}}}
-async function refreshSaveIndex(){if(!IDB)return;const meta=await idbRead('meta','active');SAVE_INDEX.active=meta?.slot??null;SAVE_INDEX.previous=meta?.previousSlot??null;SAVE_INDEX.activeChecksum=meta?.checksum??null;SAVE_INDEX.previousChecksum=meta?.previousChecksum??null;for(let i=0;i<3;i++)SAVE_INDEX.auto[i]=await idbRead('snapshots','auto:'+i);for(let i=0;i<3;i++)SAVE_INDEX.manual[i]=await idbRead('snapshots','manual:'+i)}
+async function refreshSaveIndex(){if(!IDB)return;const meta=await idbRead('meta','active');SAVE_INDEX.active=meta?.slot??null;SAVE_INDEX.previous=meta?.previousSlot??null;SAVE_INDEX.activeChecksum=meta?.checksum??null;SAVE_INDEX.previousChecksum=meta?.previousChecksum??null;for(let i=0;i<3;i++)SAVE_INDEX.auto[i]=await idbRead('snapshots','auto:'+i);for(let i=0;i<3;i++)SAVE_INDEX.manual[i]=await idbRead('snapshots','manual:'+i);SAVE_INDEX.archive=(await idbAll('snapshots')).filter(x=>String(x.key).startsWith('archive:'))}
 async function importLegacyOnce(){// Migration only if the new database has no existing snapshots; original v0.1 localStorage is not altered.
  for(let i=0;i<3;i++)if(await idbRead('snapshots','auto:'+i))return;
  for(let i=0;i<3;i++)if(await idbRead('snapshots','manual:'+i))return;
@@ -5306,7 +5313,7 @@ async function saveAuto(){if(!IDB){const ok=!!S&&writeSafetySnapshotV037();if(ok
 async function saveManual(num){if(!IDB){toast('IndexedDBを使えません。JSONでバックアップしてください。');return}if(SAVE_BUSY){toast('保存中です。重複書込みを回避しました。');return}SAVE_BUSY=true;
  try{const raw=savePayload(S),rec=slotRecord('manual:'+num,raw);await idbWrite('snapshots',rec);const verified=await idbRead('snapshots','manual:'+num);if(!verified||verified.serialized!==raw)throw Error('手動保存の検証に失敗');parsePayload(verified.serialized);await refreshSaveIndex();toast('手動保存 '+(num+1)+' をIndexedDBに記録しました');render()}
  catch(e){toast('手動保存失敗：'+e.message)}finally{SAVE_BUSY=false}}
-function restore(raw){try{const s=parsePayload(raw);S=s;writeSafetySnapshotV037(savePayload(s),true);
+function restore(raw){try{const s=parsePayload(raw);if(!s.gameIdV038)s.gameIdV038=saveCandidateV038(raw,'明示的JSON読込').gameId;S=s;writeSafetySnapshotV037(savePayload(s),true);
  try{localStorage.setItem(RECOVERY_SELECTION_KEY_V038,saveIdentityV038(s))}catch(_){}
  requestOperationSaveV037();PART_FORM=null;PART_CONTRACTS_OPEN=null;BOM_PANEL_OPEN=null;PART_TRADE_VIEW=null;LINE_VIEW={plantId:null,review:null};LAST_MONTH_DIAGNOSTIC=null;MONTH_DIAGNOSTIC_OPEN=false;VIEW_FIRM=s.playerId;VIEW_COUNTRY=company(s.playerId,s).country;PAGE='dashboard';monthlyPreview=false;RECOVERY_BLOCKED_V038=false;RECOVERY_CHOICES_V038=[];render();startupTopV038();toast('保存データを読み込みました：'+dateKey(s));return true}catch(e){toast('ロードできません：'+e.message);return false}}
 async function restoreAuto(){
@@ -5316,6 +5323,9 @@ async function restoreAuto(){
   catch(e){warnings.push(source+': '+String(e.message||e));console.warn('保存検証失敗',source,e)}};
  const emergencyRaw=storageGet(EMERGENCY_KEY);
  add(emergencyRaw,'再読込保護',0);
+ try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);
+  if(k?.startsWith(EMERGENCY_KEY+'.archive.'))add(storageGet(k),'別ゲーム緊急保存 '+k,3);
+ }}catch(e){warnings.push('緊急保存候補の列挙失敗：'+e.message)}
  for(const [slot,checksum,rank] of [[SAVE_INDEX.active,SAVE_INDEX.activeChecksum,1],[SAVE_INDEX.previous,SAVE_INDEX.previousChecksum,2]]){
   if(slot===null||slot===undefined||!checksum)continue;
   const rec=SAVE_INDEX.auto[slot];
@@ -5326,6 +5336,7 @@ async function restoreAuto(){
  // Enumerate fallback candidates even when the emergency snapshot is valid:
  // a valid emergency slot must not hide newer manual or legacy saves.
  for(const rec of SAVE_INDEX.manual)if(rec?.serialized)add(rec.serialized,rec.key,4);
+ for(const rec of SAVE_INDEX.archive||[])if(rec?.serialized)add(rec.serialized,rec.key,3);
  for(const key of [AUTOKEY+'0',AUTOKEY+'1',MANKEY+'0',MANKEY+'1',MANKEY+'2'])
   add(storageGet(key),'旧保存 '+key,5);
  // Uncommitted auto generations are never trusted as normal auto saves.
@@ -5340,8 +5351,7 @@ async function restoreAuto(){
   try{const value=JSON.parse(token);if(value&&typeof value==='object'){selected=value.gameId;selectedChecksum=value.checksum||''}}catch(_){}
   if(selected&&available.some(c=>c.gameId===selected)){
    available=available.filter(c=>c.gameId===selected);
-   if(selectedChecksum&&available.some(c=>hash(c.raw)===selectedChecksum))
-    available=available.filter(c=>hash(c.raw)===selectedChecksum);
+   // Prefer the explicitly selected game, not an older generation's checksum.
   }
   else {
   RECOVERY_CHOICES_V038=available.sort((a,b)=>b.progress-a.progress||a.rank-b.rank);
@@ -5355,8 +5365,8 @@ async function restoreAuto(){
   if(RECOVERY_BLOCKED_V038)saveWarning='保存データを検証できませんでした。既存データは保持しています。'+warnings.slice(0,2).join(' / ');
   return false;
  }
- available.sort((a,b)=>String(b.savedAt).localeCompare(String(a.savedAt))||b.progress-a.progress||b.committed-a.committed||a.rank-b.rank);
- const best=available[0];S=best.s;VIEW_FIRM=S.playerId;VIEW_COUNTRY=company(S.playerId,S).country;PAGE='dashboard';
+ available.sort((a,b)=>b.progress-a.progress||b.committed-a.committed||a.rank-b.rank||String(b.savedAt).localeCompare(String(a.savedAt)));
+ const best=available[0];S=best.s;if(!S.gameIdV038)S.gameIdV038=best.gameId;VIEW_FIRM=S.playerId;VIEW_COUNTRY=company(S.playerId,S).country;PAGE='dashboard';
  if(best.source!=='再読込保護')writeSafetySnapshotV037(best.raw);
  else if(IDB&&SAVE_INDEX.active!==null)saveWarning='直近の操作を再読込保護バックアップから復元しました。';
  return true;
