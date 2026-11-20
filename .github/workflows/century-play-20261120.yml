@@ -1,0 +1,27 @@
+name: CONGLOMERATE 101-year playthrough
+on:
+  push:
+    branches:
+      - test/century-play-20261120
+jobs:
+  century-play:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Chromium and Playwright
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Run 1212 real game months
+        run: python tests/test_century_play_20261120.py
+      - name: Save playthrough result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: century-play-summary
+          path: century_play_result.json
+          if-no-files-found: ignore
