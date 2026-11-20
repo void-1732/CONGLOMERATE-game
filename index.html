@@ -7236,6 +7236,19 @@ function factoryInsightV023(f,p){
     if(!detail){
      const incoming=(f.interplant?.shipments??[]).filter(x=>x.to===p.id).reduce((n,x)=>n+x.qty,0);
      const elsewhere=Object.entries(f.interplant?.siteComponents||{}).filter(([id])=>id!==p.id).reduce((n,[,q])=>n+Math.max(0,q||0),0);
+     if(canUse+1e-8<target*req.components){
+      const supplySite=f.plants.filter(x=>v21ModuleType(x)&&['components','engine','body'].includes(x.kind)&&(f.interplant.siteComponents[x.id]||0)>0);
+      const configured=(f.interplant.autoRoutes||[]).filter(r=>r.to===p.id&&r.enabled);
+      if(incoming>0)warn('共通部品は輸送中',
+       '当地 '+format(partsHere)+'個、輸送中 '+format(incoming)+'個。到着予定までこの在庫は組立に使用できません',
+       '工場間物流の到着予定を確認',canUse<req.components);
+      else if(supplySite.length&&!configured.length)warn('部品工場に在庫がありますが、この工場へ配送する設定がありません',
+       supplySite.map(x=>x.name+' '+format(f.interplant.siteComponents[x.id])+'個').join(' ／ '),
+       '工場間物流で発送元・配送先・目標在庫・月間上限を指定し、自動配送を有効にしてください',true);
+      else if(supplySite.length&&configured.length)warn('自動配送設定済みですが共通部品が未到着',
+       '発送元在庫 '+format(elsewhere)+'個 ／ 当地 '+format(partsHere)+'個。月間上限・運賃・発送元設備の状態を確認',
+       '次の月末処理後の配送履歴・輸送費用・発送数量を確認',canUse<req.components);
+     }
      if(canUse+1e-8<target*req.components)warn('組立用の共通部品が不足',
       '使用可能 '+format(canUse)+'個（当地 '+format(partsHere)+'／未割当 '+format(free)+'）・必要 '+format(target*req.components)+'個・不足 '+format(Math.max(0,target*req.components-canUse))+'個。別工場 '+format(elsewhere)+'個・輸送中 '+format(incoming)+'個',
       '部品生産計画・在庫の工場間輸送・到着時期を確認',canUse<req.components);
