@@ -5372,7 +5372,7 @@ async function saveManual(num){if(!IDB){toast('IndexedDBを使えません。JSO
  try{const raw=savePayload(S),rec=slotRecord('manual:'+num,raw);await idbWrite('snapshots',rec);const verified=await idbRead('snapshots','manual:'+num);if(!verified||verified.serialized!==raw)throw Error('手動保存の検証に失敗');parsePayload(verified.serialized);await refreshSaveIndex();toast('手動保存 '+(num+1)+' をIndexedDBに記録しました');render()}
  catch(e){toast('手動保存失敗：'+e.message)}finally{SAVE_BUSY=false}}
 function restore(raw){try{const s=parsePayload(raw);if(!s.gameIdV038)s.gameIdV038=saveCandidateV038(raw,'明示的JSON読込').gameId;S=s;writeSafetySnapshotV037(savePayload(s),true);
- try{localStorage.setItem(RECOVERY_SELECTION_KEY_V038,saveIdentityV038(s))}catch(_){}
+ try{localStorage.setItem(RECOVERY_SELECTION_KEY_V038,JSON.stringify({gameId:saveIdentityV038(s),checksum:hash(raw)}))}catch(_){}
  requestOperationSaveV037();PART_FORM=null;PART_CONTRACTS_OPEN=null;BOM_PANEL_OPEN=null;PART_TRADE_VIEW=null;LINE_VIEW={plantId:null,review:null};LAST_MONTH_DIAGNOSTIC=null;MONTH_DIAGNOSTIC_OPEN=false;VIEW_FIRM=s.playerId;VIEW_COUNTRY=company(s.playerId,s).country;PAGE='dashboard';monthlyPreview=false;RECOVERY_BLOCKED_V038=false;RECOVERY_CHOICES_V038=[];render();startupTopV038();toast('保存データを読み込みました：'+dateKey(s));return true}catch(e){toast('ロードできません：'+e.message);return false}}
 async function restoreAuto(){
  RECOVERY_CHOICES_V038=[];RECOVERY_BLOCKED_V038=false;
@@ -5409,7 +5409,10 @@ async function restoreAuto(){
   try{const value=JSON.parse(token);if(value&&typeof value==='object'){selected=value.gameId;selectedChecksum=value.checksum||''}}catch(_){}
   if(selected&&available.some(c=>c.gameId===selected)){
    available=available.filter(c=>c.gameId===selected);
-   // Prefer the explicitly selected game, not an older generation's checksum.
+   // An explicit manual restoration pins that exact verified generation until the
+   // next successful save; it must not be replaced by a newer generation.
+   if(selectedChecksum&&available.some(c=>hash(c.raw)===selectedChecksum))
+    available=available.filter(c=>hash(c.raw)===selectedChecksum);
   }
   else {
   RECOVERY_CHOICES_V038=available.sort((a,b)=>b.progress-a.progress||a.rank-b.rank);
