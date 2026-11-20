@@ -5369,7 +5369,19 @@ async function saveAuto(){
  }finally{SAVE_BUSY=false}
 }
 async function saveManual(num){if(!IDB){toast('IndexedDBを使えません。JSONでバックアップしてください。');return}if(SAVE_BUSY){toast('保存中です。重複書込みを回避しました。');return}SAVE_BUSY=true;
- try{const raw=savePayload(S),rec=slotRecord('manual:'+num,raw);await idbWrite('snapshots',rec);const verified=await idbRead('snapshots','manual:'+num);if(!verified||verified.serialized!==raw)throw Error('手動保存の検証に失敗');parsePayload(verified.serialized);await refreshSaveIndex();toast('手動保存 '+(num+1)+' をIndexedDBに記録しました');render()}
+ try{
+  ensurePersistedGameIdV035(S);
+  const existing=await idbRead('snapshots','manual:'+num);
+  if(existing?.serialized){
+   const prior=saveCandidateV038(existing.serialized,'手動保存');
+   if(prior.gameId!==saveIdentityV038(S)){
+    const key='archive:'+hash(prior.gameId)+':'+hash(existing.serialized);
+    await idbWrite('snapshots',{...existing,key});
+    if((await idbRead('snapshots',key))?.serialized!==existing.serialized)
+     throw Error('別ゲームの手動セーブ退避に失敗しました。既存の保存は上書きしません');
+   }
+  }
+  const raw=savePayload(S),rec=slotRecord('manual:'+num,raw);await idbWrite('snapshots',rec);const verified=await idbRead('snapshots','manual:'+num);if(!verified||verified.serialized!==raw)throw Error('手動保存の検証に失敗');parsePayload(verified.serialized);await refreshSaveIndex();toast('手動保存 '+(num+1)+' をIndexedDBに記録しました');render()}
  catch(e){toast('手動保存失敗：'+e.message)}finally{SAVE_BUSY=false}}
 function restore(raw){try{const s=parsePayload(raw);if(!s.gameIdV038)s.gameIdV038=saveCandidateV038(raw,'明示的JSON読込').gameId;S=s;writeSafetySnapshotV037(savePayload(s),true);
  try{localStorage.setItem(RECOVERY_SELECTION_KEY_V038,JSON.stringify({gameId:saveIdentityV038(s),checksum:hash(raw)}))}catch(_){}
@@ -7127,10 +7139,25 @@ function deliverModulesV21(s,events){const now=ym(s.year,s.month);for(const f of
 function autoShipModulesV21(s,events){for(const f of s.firms){ensureFactoryV21(f);if(f.factoryOps.mode!=='detailed')continue;
  /* Saved enabled factory routes are direct player instructions, regardless of AI delegation. */
  for(const p of supportPartFactories(f)){const route=f.factoryOps.routes[p.id];if(!route?.enabled||!route.to)continue;const typ=v21ModuleType(p),to=f.plants.find(x=>x.id===route.to);
-  if(!to||to.paused||to.construction||to.renovation)continue;
+  if(!to||to.paused||to.construction||to.renovation){
+   f.factoryOps.history.push({month:ym(s.year,s.month),action:'配送見送り',from:p.id,to:route.to,typ:v21ModuleType(p),qty:0,reason:'配送先が存在しない・休止・工事中'});
+   if(f.factoryOps.history.length>100)f.factoryOps.history.shift();continue;
+  }
   const onHand=moduleAtV21(f,to.id)[typ];const incoming=f.factoryOps.shipments.filter(x=>x.to===to.id&&x.typ===typ).reduce((a,x)=>a+x.qty,0);
-  const available=moduleAtV21(f,p.id)[typ];const qty=Math.max(0,Math.min(available,Math.max(0,route.target-onHand-incoming),route.limit));
-  if(qty<=0)continue;try{const fare=issueModuleShipmentV21(f,p.id,to.id,qty,s,true);events.push(f.name+'：'+p.name+' → '+to.name+' '+qty+'個を自動発送（'+fare.tier+'）');}catch(e){events.push(f.name+'：自動輸送の見送り '+e.message);}
+  const available=moduleAtV21(f,p.id)[typ];const gap=Math.max(0,route.target-onHand-incoming);
+  const qty=Math.max(0,Math.min(available,gap,route.limit));
+  if(qty<=0){
+   const reason=!available?'発送元の部品在庫不足':!gap?'配送先の目標在庫に到達（輸送中を含む）':'月間発送上限0';
+   f.factoryOps.history.push({month:ym(s.year,s.month),action:'配送見送り',from:p.id,to:to.id,typ,qty:0,reason});
+   if(f.factoryOps.history.length>100)f.factoryOps.history.shift();
+   continue;
+  }
+  try{const fare=issueModuleShipmentV21(f,p.id,to.id,qty,s,true);events.push(f.name+'：'+p.name+' → '+to.name+' '+qty+'個を自動発送（'+fare.tier+'）');}
+  catch(e){const reason=String(e?.message||e);
+   f.factoryOps.history.push({month:ym(s.year,s.month),action:'配送見送り',from:p.id,to:to.id,typ,qty:0,reason});
+   if(f.factoryOps.history.length>100)f.factoryOps.history.shift();
+   events.push(f.name+'：自動輸送の見送り '+reason);
+  }
  }
 }}
 function shipModuleV21(){try{const f=current();if(!canEdit(f))throw Error('権限がありません');const from=inputValue('v21ManualFrom'),to=inputValue('v21ManualTo'),qty=intValue('v21ManualQty',1,100000);const fare=issueModuleShipmentV21(f,from,to,qty);render();toast(qty+'個を発送。'+fare.lead+'か月後到着／運賃'+nfmt(fare.base)+'円相当');}catch(e){toast(e.message)}}
