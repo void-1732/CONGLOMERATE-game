@@ -5395,7 +5395,9 @@ async function saveManual(num){if(!IDB){toast('IndexedDBを使えません。JSO
   const raw=savePayload(S),rec=slotRecord('manual:'+num,raw);await idbWrite('snapshots',rec);const verified=await idbRead('snapshots','manual:'+num);if(!verified||verified.serialized!==raw)throw Error('手動保存の検証に失敗');parsePayload(verified.serialized);await refreshSaveIndex();toast('手動保存 '+(num+1)+' をIndexedDBに記録しました');render()}
  catch(e){toast('手動保存失敗：'+e.message)}finally{SAVE_BUSY=false}}
 function restore(raw){try{const s=parsePayload(raw);if(!s.gameIdV038)s.gameIdV038=saveCandidateV038(raw,'明示的JSON読込').gameId;S=s;writeSafetySnapshotV037(savePayload(s),true);
- requestOperationSaveV037();
+ // Explicit historical rollback must not be superseded by a later generation.
+ // The verified emergency record is pinned until the next player operation
+ // schedules a regular save; do not start a debounced write during restore.
  // requestOperationSave rewrites the emergency payload's timestamp, so pin
  // the actual verified emergency snapshot rather than the import's old bytes.
  try{const emergency=storageGet(EMERGENCY_KEY);
