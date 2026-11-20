@@ -5450,6 +5450,16 @@ async function restoreAuto(){
   return false;
   }
  }
+ // Explicit restore of a historical generation is a stronger preference than
+ // automatic progress ordering, even when every candidate has the same game ID.
+ const preference=storageGet(RECOVERY_SELECTION_KEY_V038);
+ try{
+  const choice=JSON.parse(preference);
+  if(choice&&typeof choice==='object'&&choice.gameId&&choice.checksum){
+   const pinned=available.find(c=>c.gameId===choice.gameId&&hash(c.raw)===choice.checksum);
+   if(pinned)available=[pinned];
+  }
+ }catch(_){}
  if(!available.length){
   RECOVERY_BLOCKED_V038=RECOVERY_STORAGE_UNAVAILABLE_V035||!!emergencyRaw||SAVE_INDEX.auto.some(Boolean)||SAVE_INDEX.manual.some(Boolean)||warnings.length>0;
   if(RECOVERY_BLOCKED_V038)saveWarning='保存データを検証できませんでした。既存データは保持しています。'+warnings.slice(0,2).join(' / ');
