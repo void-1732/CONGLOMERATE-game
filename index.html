@@ -345,6 +345,88 @@
 .resource-v026-actions p{margin:4px 0}.resource-v026-actions .btn{height:40px;white-space:nowrap}
 @media(max-width:780px){.resource-v026-actions{grid-template-columns:repeat(2,minmax(0,1fr))}.resource-v026-actions>div{grid-column:1/-1}}
 @media(max-width:430px){.resource-v026-actions{grid-template-columns:1fr}.resource-v026-actions>div{grid-column:1}}
+
+/* CONGLOMERATE STEP 2: UI-only scope. */
+.step2-project-strip{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 14px;margin:11px 0 14px;background:#f0f5fa;border:1px solid #d8e4ef;border-radius:12px;font-size:13px}
+.step2-project-info{display:flex;gap:12px;flex-wrap:wrap;color:#526782;font-size:12px}
+.step2-project-item{display:inline-block}
+.step2-hr-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:12px 0 16px}
+.step2-hr-tabs>.btn{white-space:normal;min-height:42px}
+#step2DeptCounter{margin-top:9px}
+[data-step2-dept][hidden]{display:none}
+@media(max-width:760px){.step2-hr-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}.step2-project-strip{align-items:flex-start}}
+
+
+/* STEP 3: presentation only. Native design inputs and develop button remain authoritative. */
+.step3-wizard{margin:8px 0 14px;padding:14px 16px}
+.step3-mode-row,.step3-project-head,.step3-draft-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.step3-mode-row>div{display:flex;gap:6px;flex-wrap:wrap}
+.step3-wizard .btn.active{background:var(--blue,#2865a4);border-color:var(--blue,#2865a4);color:white}
+.step3-guide{margin-top:12px}.step3-step-list{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:8px 0}
+.step3-step-list .btn{white-space:normal;min-height:38px;font-size:12px}
+.step3-step-description{font-size:13px;min-height:1.3em;color:var(--muted,#607187)}
+.step3-step-nav{display:flex;gap:8px;justify-content:flex-end;margin-top:8px}
+.step3-draft-bar{border-top:1px solid var(--line,#dce4eb);margin-top:12px;padding-top:9px}
+.step3-confirm-content{margin:10px 0;padding:12px;border:1px solid var(--line,#dce4eb);border-radius:8px}
+.step3-confirm-content h3{margin:0 0 9px}.step3-spec-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.step3-spec-grid>div{background:var(--bg,#f3f5f8);border-radius:6px;padding:8px;min-width:0}
+.step3-spec-grid small{display:block;color:var(--muted,#607187);font-size:11px}
+.step3-spec-grid strong{display:block;font-size:13px;overflow-wrap:anywhere}
+.step3-warning{color:var(--red,#ae4050);font-weight:600}
+.step3-project-summary{margin-top:10px}.step3-project-head>span{font-size:13px}
+.step3-project-summary .step3-project-detail{width:100%;margin-top:8px}
+#content[data-step3-mode="full"] .step3-guide{display:none}
+#content[data-step3-mode="guided"][data-step3-step="0"] [data-step3-design-form] .design-layout>.field:nth-child(n+3){display:none}
+#content[data-step3-mode="guided"][data-step3-step="1"] [data-step3-design-form] .design-layout>.field:nth-child(-n+2){display:none}
+#content[data-step3-mode="guided"][data-step3-step="2"] [data-step3-design-form]{display:none}
+#content[data-step3-mode="guided"][data-step3-step="3"] [data-step3-design-form] .design-layout{display:none}
+#content[data-step3-mode="guided"][data-step3-step="0"] [data-step3-design-form]>.row,
+#content[data-step3-mode="guided"][data-step3-step="1"] [data-step3-design-form]>.row{display:none}
+#content[data-step3-mode="guided"][data-step3-step="0"] [data-step3-design-form] .design-preview{display:none}
+@media(max-width:700px){.step3-step-list{grid-template-columns:repeat(2,minmax(0,1fr))}.step3-spec-grid{grid-template-columns:1fr}}
+
+
+/* STEP4 display-only enhancements; initial 22 specialist definitions */
+#step4ScalePanel .grid {margin:10px 0}
+#step4CatalogPanel table {min-width:740px}
+#step4CatalogPanel td {vertical-align:top}
+#step4CatalogPanel tr[hidden] {display:none}
+#step4CatalogPanel .tiny {font-size:11px;max-width:340px;overflow-wrap:anywhere}
+#step4CatalogPanel th:nth-child(5),#step4CatalogPanel td:nth-child(5){min-width:170px}
+#step4CatalogPanel .formgrid {margin:10px 0}
+@media (max-width:560px){#step4ScalePanel .grid{display:block}#step4CatalogPanel table{min-width:700px}}
+
+
+/* STEP5: specialist organization operation panels */
+#step4CatalogPanel td,#step5StaffPanel td,#step5TrainingPanel td{vertical-align:middle}
+#step4CatalogPanel td .btn{margin:2px 4px 2px 0}
+#step5StaffPanel input,#step5TrainingPanel input{max-width:112px;min-width:72px}
+#step5StaffPanel select{max-width:145px}
+#step5StaffPanel td,#step5TrainingPanel td{white-space:normal}
+@media(max-width:720px){#step5StaffPanel .scroll,#step5TrainingPanel .scroll{overflow:auto}}
+
+
+/* STEP6 layout additions. Reuse existing responsive panel/table primitives. */
+#step6AdvancedPanel table td,#step6AdvancedPanel table th{vertical-align:top}
+#step6AdvancedPanel .hint{line-height:1.65}
+@media(max-width:600px){#step6AdvancedPanel .scroll{overflow-x:auto}#step6AdvancedPanel table{min-width:660px}}
+
+
+/* STEP7 small, accessible linked notification surfaces. */
+.step7-shortcuts{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.step7-notifications{margin:10px 0 15px;padding:10px 14px;border:1px solid var(--line,#ccc);border-radius:12px}
+.step7-notifications summary{cursor:pointer;display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
+.step7-counter{font-size:12px;opacity:.8}
+.step7-notice-list{display:grid;gap:7px;margin-top:12px}
+.step7-notice{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;border:1px solid var(--line,#ddd)}
+.step7-unread{border-left:3px solid #336f9e}
+.step7-read{opacity:.72}
+.step7-notice-main{display:grid;gap:3px;min-width:0;overflow-wrap:anywhere}
+.step7-notice-main small,.step7-notice-kind{font-size:11px;opacity:.75}
+.step7-notice-actions{display:flex;gap:5px;flex-shrink:0}
+.step7-notice-footer{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:10px}
+@media(max-width:600px){.step7-notice{align-items:flex-start;flex-direction:column}.step7-notice-actions{align-self:flex-end}}
+
 </style>
 </head>
 <body><div class="shell"><aside class="side"><div class="logo">CONGLOMERATE<br><small>企業経営シミュレーション</small></div><div class="prototype">機能検証用・開発版 v0.34-dev.3</div><nav class="nav" id="nav">
@@ -5950,7 +6032,7 @@ async function diagnoseStorage(){
 function savePage(){const active=SAVE_INDEX.active,gen=SAVE_INDEX.auto.map(inspectRecord);return titlePage('保存・設定','大容量IndexedDB・保護世代・外部JSONバックアップを利用できます。',tag('オフライン保存'))+`<div class="hint" style="margin:2px 0 10px">Ver.0.27：部品・権利・取引の保存基盤を準備済み。旧車種の製造計算は従来どおりです。新BOM量産・部品売買・ライセンス請求・設備投資は未実装です。</div><div class="grid"><section class="panel span7"><h2>手動セーブ（3スロット）</h2>${[0,1,2].map(i=>{const x=inspectRecord(SAVE_INDEX.manual[i]);return `<div class="savebox"><div class="grow"><b>手動保存 ${i+1}</b><div class="small muted">${!x?'空きスロット':x.error?'読込不能：'+esc(x.error):esc(x.date)+' / '+esc(x.name)}</div></div><button class="btn sm" data-action="saveManual" data-slot="${i}">保存</button><button class="btn sm" data-action="loadManual" data-slot="${i}" ${x&&!x.error?'':'disabled'}>読込</button></div>`}).join('')}<h2 style="margin-top:22px">自動保存・保護世代</h2>${gen.map((x,i)=>`<div class="savebox"><div class="grow"><b>自動保存世代 ${i+1}</b> ${active===i?tag('有効世代','good'):SAVE_INDEX.previous===i?tag('保護済み前世代'):tag('書込候補')}<div class="small muted">${!x?'未保存':x.error?'検証失敗：'+esc(x.error):esc(x.date)+' / '+esc(x.name)}</div></div><button class="btn sm" data-action="loadAutoSlot" data-slot="${i}" ${x&&!x.error?'':'disabled'}>読込</button></div>`).join('')}<p class="footnote">IndexedDBに3領域（有効世代・前回確定世代・書込候補）を設け、旧2世代を保持したまま候補を書込・検証し、成功後に参照を切り替えます。失敗時の未確定候補は復元対象にしません。</p></section>
  <section class="panel span5"><h2>バックアップと新しいゲーム</h2><div class="vlist"><button class="btn" data-action="diagnoseStorage">IndexedDB実機診断（既存セーブ非変更）</button><button class="btn primary" data-action="export">現在の状態をJSONで書き出す</button><button class="btn" data-action="import">JSONバックアップを読み込む</button><button class="btn danger" data-action="newGame">新しいゲームを開始する</button></div><div class="sep"></div><h3>現在の保存状態</h3>${rowstat('保存バックエンド',tag(SAVE_INDEX.backend,SAVE_INDEX.backend==='IndexedDB'?'good':'warn'))}${rowstat('計算状態',S.monthCommitted===ym(S.year,S.month)?'当月確定済み':'次月実行待ち')}${rowstat('自動保存',S.autosaveState==='保存成功'?tag('成功','good'):tag(S.autosaveState,'warn'))}${rowstat('検算',check(S).length?tag('異常','bad'):tag('合格','good'))}${SAVE_INDEX.legacyImported?`<div class="note">旧版v0.1から保存データをコピーしました。旧キーは保持しています。</div>`:''}${saveWarning?`<div class="note warnbox">${esc(saveWarning)}</div>`:''}<div class="sep"></div><h3>保存の限界</h3><p class="small muted">IndexedDBもブラウザ・端末内の保存です。ブラウザデータ削除や端末故障には対応できません。重要なセーブはJSONを別の場所へ保管してください。</p><p class="small muted">読み込んだJSONはその場のゲーム状態として検証します。保存枠に残すには手動セーブしてください。</p></section><section class="panel span12"><h2>史実基準データと対応機能</h2><div class="scroll"><table><thead><tr><th>機能</th><th>現段階</th><th>正式仕様との関係</th></tr></thead><tbody>${[['創業シナリオ・歴史モード・国','試作動作','歴史的国境・通貨制度の正確な再現は未完成'],['主要国の開始年人口基準値','参考統計を導入','推計人口の概数を内蔵。経済・需要・金融の係数は仮'],['自動車生産・販売・在庫・原価','試作動作','工程別仕掛品・取引詳細は一部未完成'],['国別市場・原材料調達・競合AI','試作動作','市場価格・契約割当・政策係数は仮'],['研究・設備・人員・標準借入','試作動作','労使交渉・設備保守の詳細は未実装'],['業態別子会社設立・株式取得','試作動作','高度な権限審査・M&A評価は未完成'],['連結三表・非支配株主持分・内部消去','試作動作','取得時帳簿スナップショット、確定月CF履歴、変動レートの換算ブリッジを追加。正式PPA・歴史通貨制度は未確定'],['IndexedDB・保護2世代＋候補・手動3枠・JSON','試作動作','端末データ消失は外部バックアップで備える'],['長期性能と正式数式の受入試験','未完了','正式な定量係数・性能基準は未決定']].map(([a,b,c])=>`<tr><td>${a}</td><td>${tag(b,b==='未実装'||b==='未完了'?'warn':'good')}</td><td>${c}</td></tr>`).join('')}</tbody></table></div><div class="note" style="margin-top:13px">人口基準値：<a href="${POP_SOURCE}" target="_blank" rel="noopener">Our World in Data / Gapminder / UN WPP</a> を参照した歴史推計の概数（2020年以前）。現在の国境に合わせた統計であり、1900年当時の国家領域を再現するものではありません。ゲーム実行中に外部データを取得しません。</div></section></div>`}
 function sectionPanel(){return sectionTabs();}
-function render(){if(!S){document.getElementById('content').innerHTML='';document.getElementById('modalHost').innerHTML=wizardHTML();document.getElementById('topCompany').textContent='ゲーム未開始';document.getElementById('topDate').textContent='開始シナリオを選択';document.getElementById('companySelect').innerHTML='';document.getElementById('regionSelect').innerHTML='';return}if(!current())VIEW_FIRM=S.playerId;const f=current();document.getElementById('topCompany').textContent=f.name;document.getElementById('topDate').textContent=`${dateKey()} ｜ ${NAMES[f.country]} ｜ ${industryName(f.industry)}`;document.getElementById('companySelect').innerHTML=S.firms.map(x=>`<option value="${esc(x.id)}" ${VIEW_FIRM===x.id?'selected':''}>${esc(x.name)}${controller(S,x.id)?'':' (参照)'}</option>`).join('');document.getElementById('regionSelect').innerHTML=Object.keys(S.world).map(c=>`<option value="${c}" ${VIEW_COUNTRY===c?'selected':''}>${NAMES[c]}</option>`).join('');document.querySelectorAll('[data-section]').forEach(x=>x.classList.toggle('active',x.dataset.section===sectionOf(PAGE)));const html={dashboard:dashboard,marketOverview:marketOverviewV025,marketRegion:marketRegionV025,marketRivals:marketRivalsV025,marketOwn:groupMarketPage,market:marketPage,distribution:distributionPages,product:productPage,factory:factoryPage,supply:supplyContractsPage,people:peoplePage,finance:financePage,group:groupPage,automation:automationPage,consolidated:consolidatedPage,ma:maPage,capital:capitalPage,reports:reportsPage,save:savePage}[PAGE];document.getElementById('content').innerHTML=sectionPanel()+monthDiagnosticBanner()+html();document.getElementById('modalHost').innerHTML=monthlyPreview?monthModal():(MONTH_DIAGNOSTIC_OPEN?monthDiagnosticDialog():'');if(PAGE==='product')designPreview();if(PAGE==='factory'){factorySitePreview();filterFactoryList();setupFactoryDetailsV026();}document.getElementById('nextMonthBtn').disabled=S.monthCommitted===ym(S.year,S.month)}
+function render(){if(!S){document.getElementById('content').innerHTML='';document.getElementById('modalHost').innerHTML=wizardHTML();document.getElementById('topCompany').textContent='ゲーム未開始';document.getElementById('topDate').textContent='開始シナリオを選択';document.getElementById('companySelect').innerHTML='';document.getElementById('regionSelect').innerHTML='';return}if(!current())VIEW_FIRM=S.playerId;const f=current();document.getElementById('topCompany').textContent=f.name;document.getElementById('topDate').textContent=`${dateKey()} ｜ ${NAMES[f.country]} ｜ ${industryName(f.industry)}`;document.getElementById('companySelect').innerHTML=S.firms.map(x=>`<option value="${esc(x.id)}" ${VIEW_FIRM===x.id?'selected':''}>${esc(x.name)}${controller(S,x.id)?'':' (参照)'}</option>`).join('');document.getElementById('regionSelect').innerHTML=Object.keys(S.world).map(c=>`<option value="${c}" ${VIEW_COUNTRY===c?'selected':''}>${NAMES[c]}</option>`).join('');document.querySelectorAll('[data-section]').forEach(x=>x.classList.toggle('active',x.dataset.section===sectionOf(PAGE)));const html={dashboard:dashboard,marketOverview:marketOverviewV025,marketRegion:marketRegionV025,marketRivals:marketRivalsV025,marketOwn:groupMarketPage,market:marketPage,distribution:distributionPages,product:productPage,factory:factoryPage,supply:supplyContractsPage,people:peoplePage,research:researchPageStep2,hr:hrPageStep2,finance:financePage,group:groupPage,automation:automationPage,consolidated:consolidatedPage,ma:maPage,capital:capitalPage,reports:reportsPage,save:savePage}[PAGE];document.getElementById('content').innerHTML=sectionPanel()+monthDiagnosticBanner()+html();document.getElementById('modalHost').innerHTML=monthlyPreview?monthModal():(MONTH_DIAGNOSTIC_OPEN?monthDiagnosticDialog():'');if(PAGE==='product')designPreview();if(PAGE==='factory'){factorySitePreview();filterFactoryList();setupFactoryDetailsV026();}document.getElementById('nextMonthBtn').disabled=S.monthCommitted===ym(S.year,S.month)}
 function monthModal(){const issues=checkMonthPreview(),f=current();return `<div class="modalwrap"><div class="modal" role="dialog" aria-modal="true"><div class="eyebrow">MONTH-END / PRE-FLIGHT</div><h1>${dateKey()}の月末処理</h1><p class="muted">処理前チェックは確定状態を変更しません。実行後は当月を固定順序で計算し、資源・会計の整合性を検証して結果を確定します。</p><div class="grid">${card('対象',esc(dateKey()),'月次一括処理','span4')}${card('支配下法人',controlled().length+'社','計算は全世界の企業を含む','span4')}${card('現金残高',fnum(f,financials(f).cash),'現在選択中の法人','span4')}</div><h2 style="margin-top:20px">事前確認・警告</h2>${issues.length?issues.map(v=>`<div class="notice">${tag('注意','warn')}　${esc(v)}</div>`).join(''):`<div class="note">現時点の計画に重大な資源警告は見つかりませんでした。価格変化や供給不足など、実際の月末処理で決定される結果もあります。</div>`}<div class="note warnbox" style="margin-top:15px">数値計算は試作係数に基づきます。正式SPEC-095以降の計算方式は未確定です。処理失敗時は計算前の状態を保護します。</div><div class="footer"><button class="btn" data-action="cancelMonth">計画に戻る</button><button class="btn primary" data-action="runMonth">この月を確定する</button></div></div></div>`}
 function wizardHTML(){const stepLabels=['開始年代','創業国','モードと難易度','創業条件確認'];return `<div class="modalwrap"><div class="modal" role="dialog" aria-modal="true"><div class="eyebrow">NEW GAME / STEP ${wizard+1} OF 4</div><h1>新しい企業経営を始める</h1>${saveWarning?`<div class="note warnbox"><b>保存・復元に関する注意</b><p>${esc(saveWarning)}</p><button class="btn" data-action="import">JSONバックアップを読み込んで復元する</button></div>`:''}<p class="muted small">自動車メーカーを創業する試作版です。人口は史実推計の基準値、その他の経済係数は仮設定です。</p><div class="steps">${stepLabels.map((x,i)=>`<span class="${i<=wizard?'on':''}" title="${x}"></span>`).join('')}</div>${wizard===0?`<h2>1. 開始年代</h2><div class="choices">${[1900,1920,1950,1980,2020].map(y=>`<label class="choice"><input type="radio" name="era" value="${y}" ${setup.era===y?'checked':''}><b>${y}年</b><span class="small muted">${y===1900?'工業化初期・自動車市場の草創期':y===1920?'自動車普及期':y===1950?'戦後産業復興期':y===1980?'世界市場拡大期':'現代のグローバル市場'}</span></label>`).join('')}</div>`:wizard===1?`<h2>2. 創業国</h2><div class="choices">${Object.keys(NAMES).map(c=>`<label class="choice"><input type="radio" name="country" value="${c}" ${setup.country===c?'checked':''}><b>${NAMES[c]}</b><span class="small muted">試作通貨：${COUNTRIES[c].currency} / 人口基準値 ${nfmt(anchorPopulation(c,setup.era))}百万人</span></label>`).join('')}</div>`:wizard===2?`<h2>3. 歴史モードと難易度</h2><div class="formgrid"><div class="field"><label>歴史モード</label><select id="wizardHistory"><option value="historical" ${setup.history==='historical'?'selected':''}>史実モード</option><option value="alternate" ${setup.history==='alternate'?'selected':''}>仮想歴史モード</option></select></div><div class="field"><label>難易度</label><select id="wizardDifficulty"><option value="easy" ${setup.difficulty==='easy'?'selected':''}>易しい（資本1.6倍）</option><option value="normal" ${setup.difficulty==='normal'?'selected':''}>標準</option><option value="hard" ${setup.difficulty==='hard'?'selected':''}>難しい（資本0.7倍）</option></select></div><div class="field"><label>会社名</label><input id="wizardName" maxlength="38" value="${esc(setup.name)}"></div></div><div class="note" style="margin-top:20px">史実モードは主要な歴史イベントを扱い、景気循環は固定日付では発生しません。現段階ではイベントや歴史的国境・通貨の厳密再現は未完成です。</div>`:`<h2>4. 創業条件の確認</h2><div class="statrow">${[['会社名',esc(setup.name)],['開始年月',setup.era+'年1月'],['創業国',NAMES[setup.country]],['歴史モード',setup.history==='historical'?'史実':'仮想'],['難易度',setup.difficulty==='easy'?'易しい':setup.difficulty==='hard'?'難しい':'標準'],['初期資本（円相当）',nfmt((setup.era<1930?2400000:setup.era<1960?4200000:setup.era<1990?7000000:12000000)*(setup.difficulty==='easy'?1.6:setup.difficulty==='hard'?.7:1))]].map(([k,v])=>`<div><div class="label">${k}</div><strong>${v}</strong></div>`).join('')}</div><div class="note warnbox" style="margin-top:20px">人口は史実推計の概数を基準値に採用（${nfmt(anchorPopulation(setup.country,setup.era))}百万人）。現在の国境に対応した人口推計であり、当時の国境・通貨を再現するものではありません。為替・価格・需要は試作値です。</div>`}<div class="footer"><button class="btn" data-action="wizardBack" ${wizard===0?'disabled':''}>戻る</button><button class="btn primary" data-action="wizardNext">${wizard===3?'この条件で創業する':'次へ進む ▸'}</button></div></div></div>`}
 async function wizardNext(){if(S)return;if(wizard===0)setup.era=Number(document.querySelector('input[name="era"]:checked')?.value||1900);if(wizard===1)setup.country=document.querySelector('input[name="country"]:checked')?.value||'JP';if(wizard===2){setup.history=inputValue('wizardHistory')||'historical';setup.difficulty=inputValue('wizardDifficulty')||'normal';setup.name=(inputValue('wizardName')||'').trim().slice(0,38)||'新規自動車メーカー'}if(wizard<3){wizard++;render();return}try{S=newGame(setup);LAST_MONTH_DIAGNOSTIC=null;MONTH_DIAGNOSTIC_OPEN=false;VIEW_FIRM=S.playerId;VIEW_COUNTRY=setup.country;PAGE='dashboard';render();const saved=await saveAuto();render();toast(saved?'創業しました。IndexedDBに自動保存しました。':'創業しましたが、自動保存に失敗しました。JSONバックアップを保存してください。')}catch(e){S=null;toast('創業設定エラー：'+e.message);console.error(e)}}
@@ -7477,6 +7559,1618 @@ document.addEventListener('click',e=>{
 window.addEventListener('pagehide',flushSafetySnapshotV037);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushSafetySnapshotV037()});
 document.addEventListener('click',e=>{const b=e.target.closest('[data-action="saveFactoryStaffV026"]');if(b&&PAGE==='factory')saveFactoryStaffV026(b.dataset.plantId);if(e.target.closest('[data-action="activateSupportV026"]')&&PAGE==='factory')activateSupportV026();const start=e.target.closest('[data-action="startSupportProductionV026"]');if(start&&PAGE==='factory')startSupportProductionV026(start.dataset.plantId);if(e.target.closest('[data-action="buySpotV026"]')&&PAGE==='supply')buySpotV026();});
+
+/* CONGLOMERATE STEP 2 — navigation/UI-only overlay.
+ * Does not change research, production, finance, staff ledgers, or save schema.
+ * Inserted immediately before the existing boot() invocation.
+ */
+const STEP2_HR_TABS = [
+  ['org', '組織・部門'], ['staff', '採用・人員配置'],
+  ['training', '教育・技能'], ['labor', '給与・労務']
+];
+const STEP2_PRODUCT_TABS = [
+  ['planning', '商品企画・車種管理'], ['design', '車両・部品設計'],
+  ['production', '生産計画・原価'], ['sales', '販売・品質']
+];
+const STEP2_DEPARTMENTS = [
+  ['動力・機械設計','design',1900], ['材料評価','research',1900],
+  ['品質検証','production',1910], ['工程標準化','production',1915],
+  ['電装技術設計','design',1930], ['商品企画','sales',1930],
+  ['車両試作・信頼性','design',1935], ['原価・工程管理','production',1940],
+  ['制御ソフト開発','design',1960], ['量産自動化','production',1960],
+  ['生産品質統括','production',1960], ['電子制御設計','design',1970],
+  ['電動化・蓄電研究','research',1990], ['環境・循環技術','research',1990],
+  ['車載ソフトウェア設計','design',1998], ['先進安全・ADAS設計','design',2010],
+  ['市場データ分析','sales',2010], ['電池安全・寿命評価','research',2014],
+  ['AI運転技術研究','research',2018], ['デジタル生産推進','production',2020],
+  ['自律運転検証','design',2032], ['次世代電池・循環研究','research',2040]
+];
+const STEP2_CATEGORY_NAMES = {production:'製造',research:'研究開発',design:'製品設計',sales:'営業・管理'};
+const STEP2_PRODUCT_KEY = 'conglomerate.ui.step2.productTab';
+const STEP2_HR_KEY = 'conglomerate.ui.step2.hrTab';
+let STEP2_HR_VIEW = 'org';
+try {
+  const p = storageGet(STEP2_PRODUCT_KEY), h = storageGet(STEP2_HR_KEY);
+  PRODUCT_VIEW = STEP2_PRODUCT_TABS.some(x => x[0] === p) ? p : 'planning';
+  STEP2_HR_VIEW = STEP2_HR_TABS.some(x => x[0] === h) ? h : 'org';
+} catch (_ignored) { PRODUCT_VIEW = 'planning'; }
+Object.assign(PAGES, {product:'車両設計',people:'研究・人事（旧経路）',research:'研究開発',hr:'人事'});
+SECTIONS.vehicles.pages = [['product','車両設計'],['research','研究開発'],['hr','人事']];
+
+/* Navigation is served by the original sectionTabs(), with new page keys. */
+peopleTabs = function () { return ''; };
+productTabs = function () {
+  return `<nav class="product-tabs" aria-label="車両設計の4タブ">${STEP2_PRODUCT_TABS.map(([key,name]) =>
+    `<button type="button" class="btn ${PRODUCT_VIEW===key?'active':''}" data-product-view="${key}" aria-pressed="${PRODUCT_VIEW===key}">${name}</button>`
+  ).join('')}</nav>`;
+};
+
+function step2ProjectSummary(f) {
+  const active = (f.projects||[]).filter(p => p.status === 'developing');
+  const engineering = (f.partOperations?.engineering?.projects||[]).filter(p => p.status==='APPROVED'||p.status==='ACTIVE');
+  const rows = active.slice(0,3).map(p => `<span class="step2-project-item">${esc(p.name)}：残り${Math.max(0,p.left||0)}か月</span>`).join('');
+  return `<section class="step2-project-strip" aria-label="全タブ共通の開発進捗">
+    <div><b>開発進捗</b>　新型車 ${active.length}件／設計案件 ${engineering.length}件</div>
+    <div class="step2-project-info">${rows || '<span>新型車の進行案件なし</span>'}</div>
+    <button class="btn sm" data-product-view="design">設計案件の詳細へ</button>
+  </section>`;
+}
+function step2PlanningOverview(f) {
+  const rows = (f.models||[]).map(m => `<tr><td>${esc(m.name)}</td><td>${esc(m.status)}</td>
+    <td class="num">${m.generation||1}</td><td class="num">${Math.round(m.months||0)}か月</td></tr>`).join('');
+  return `<section class="panel span12 product-pane current" data-product-pane="planning">
+    <h2>商品企画・現行車種一覧</h2><div class="scroll"><table><thead><tr><th>車種</th><th>状態</th><th>世代</th><th>発売後</th></tr></thead>
+    <tbody>${rows||'<tr><td colspan="4">登録車種はありません。新型車設計から開発を開始できます。</td></tr>'}</tbody></table></div>
+    <p class="hint">新型車の仕様と部品開発は「車両・部品設計」で編集します。モデル改良・グレード設定はこのタブの下にあります。</p></section>`;
+}
+function step2RemapPane(html, heading) {
+  const start = '<section class="panel span12 product-pane '; 
+  const marker = `"><h2>${heading}`;
+  const head = html.indexOf(marker);
+  if(head<0)return html;
+  const from=html.lastIndexOf(start,head);
+  if(from<0)return html;
+  const cut=html.indexOf('data-product-pane="design"',from);
+  if(cut<0||cut>head)return html;
+  return html.slice(0,cut)+ 'data-product-pane="planning"' + html.slice(cut+'data-product-pane="design"'.length);
+}
+function step2CorrectActivePanes(html) {
+  return html.replace(/class="([^"]*\bproduct-pane\b[^"]*)"(\s+data-product-pane="(planning|design|production|sales)")/g,
+    (all,cls,attribute,pane) => `class="${cls.split(/\s+/).filter(x=>x&&x!=='current').join(' ')}${pane===PRODUCT_VIEW?' current':''}"${attribute}`);
+}
+const step2OriginalProductPage = productPage;
+productPage = function () {
+  const f=current();
+  let html=step2OriginalProductPage();
+  html=html.replace('<h1>製品・開発</h1>','<h1>車両設計</h1>');
+  html=step2RemapPane(html,'モデルチェンジ・製品ライフサイクル');
+  html=html.replace(/(<div class="product-pane product-group [^"]*" data-product-pane=")design("\s*>)/,
+                    '$1planning$2'); // First product-group is the existing grade panel.
+  html=html.replace('</nav>','</nav>'+step2ProjectSummary(f));
+  html=html.replace('<div class="grid product-grid">','<div class="grid product-grid">'+step2PlanningOverview(f));
+  html=step2CorrectActivePanes(html);
+  return html;
+};
+
+function researchPageStep2() {
+  PEOPLE_VIEW='research';
+  return peoplePage(); // preserve 800-node research tree and existing controls
+}
+function step2HRNav() {
+  return `<nav class="step2-hr-tabs" aria-label="人事の4タブ">${STEP2_HR_TABS.map(([id,name]) =>
+    `<button type="button" class="btn ${STEP2_HR_VIEW===id?'active':''}" data-step2-hr-tab="${id}" aria-pressed="${STEP2_HR_VIEW===id}">${name}</button>`
+  ).join('')}</nav>`;
+}
+function step2DepartmentTable() {
+  const rows=STEP2_DEPARTMENTS.map(([name,base,year])=>`<tr data-step2-dept="${base}" data-step2-year="${year}"><td>${esc(name)}</td><td>${STEP2_CATEGORY_NAMES[base]}</td><td>${year}年</td><td>未設立（STEP 4以降）</td></tr>`).join('');
+  return `<section class="panel span12"><div class="row between"><h2>専門部門のカタログ（22部門）</h2>${tag('設計準備中')}</div>
+    <p class="hint">STEP 2では一覧のみ表示します。設立・解禁・費用・技能の実処理は後続STEPで追加します。</p>
+    <div class="formgrid"><div class="field"><label for="step2DeptCategory">基本部門</label><select id="step2DeptCategory">
+    <option value="all">すべて</option>${Object.entries(STEP2_CATEGORY_NAMES).map(([id,name])=>`<option value="${id}">${name}</option>`).join('')}</select></div>
+    <div class="field"><label for="step2DeptEra">通常解禁年代</label><select id="step2DeptEra"><option value="all">すべて</option><option value="pre1960">〜1959年</option><option value="1960to2009">1960〜2009年</option><option value="post2010">2010年以降</option></select></div></div>
+    <div class="scroll"><table><thead><tr><th>専門部門</th><th>基本部門</th><th>年代目安</th><th>状態</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p id="step2DeptCounter" class="hint">22部門を表示</p></section>`;
+}
+function step2HROrganization(f) {
+  const groups=[['製造',f.staff.production||0],['研究開発',f.staff.research||0],['製品設計',engineers(f)],['営業・管理',f.staff.sales||0]];
+  return `<div class="grid">${groups.map(([name,n])=>card(name,nfmt(n)+'人','基本部門の人数を表示','span3')).join('')}
+    <section class="panel span12"><h2>企業規模と専門部門の発展</h2><p class="hint">今回の画面構成は準備済みです。企業規模6か月平均、専門室・専門課・専門部、解禁判定と昇格提案はSTEP 4以降で実装します。</p></section>
+    ${step2DepartmentTable()}</div>`;
+}
+function step2HRStaff(f,edit) {
+  const w=S.world[f.country];
+  return `<div class="grid">${staffingSummaryV023(f)}
+   <section class="panel span12 hr-actions"><h2>基本4職種の採用</h2>
+     <div class="formgrid"><div class="field"><label for="hireArea">採用先</label><select id="hireArea" ${edit?'':'disabled'}>
+     <option value="production">製造</option><option value="research">研究開発</option><option value="sales">営業・管理</option>
+     ${engineeringEligible(f)?'<option value="designEngineers">製品設計</option>':''}</select></div>
+     <div class="field"><label for="hireCount">採用人数</label><input id="hireCount" type="number" min="1" max="1000" value="5" ${edit?'':'disabled'}></div>
+     <button class="btn primary" data-action="hireStaff" ${edit?'':'disabled'}>採用を実行</button></div>
+     <p class="hint">国別標準賃金：${nfmt(w.wage*eraCostFactor(S.year))}円相当／月。工場固定配置は引き続き工場画面の設定を優先します。</p></section>
+     ${engineeringStaffPanel(f,edit)}
+     <section class="panel span12"><h2>専門部門への専任配置</h2><p class="hint">希望人数・実配置人数・自動配分の詳細はSTEP 5で追加します。</p></section></div>`;
+}
+function step2HRTraining(f,edit) {
+  ensureV09Firm(f,S);
+  const h=f.hr, t=f.partOperations?.engineering?.policy?.skill??50;
+  return `<div class="grid">${card('製造技能',nfmt(h.skill)+'/100','既存の部門技能','span4')}
+     ${card('設計技術者技能',nfmt(t)+'/100','既存の設計技能','span4')}
+     ${card('専門部門技能','STEP 5','部門別の技能育成','span4')}
+    <section class="panel span12"><h2>教育・技能管理</h2><div class="formgrid">
+      <div class="field"><label for="hrTraining">月次技能教育予算（円相当）</label><input id="hrTraining" type="number" min="0" max="200000" value="${h.trainingBudgetBase}" ${edit?'':'disabled'}></div>
+      <input type="hidden" id="hrPremium" value="${Math.round(h.payPremium*100)}">
+      <button class="btn primary" data-action="hrSave" ${edit?'':'disabled'}>教育方針を保存</button></div>
+      <p class="hint">製造技能は既存の教育効果を維持します。専門部門の技能0〜100と経験値はSTEP 5で実装します。</p></section>
+     ${h.history.length?`<section class="panel span12"><h2>直近の技能履歴</h2><div class="scroll"><table><thead><tr><th>年月</th><th>技能</th><th>研修費</th></tr></thead><tbody>${h.history.slice(-6).reverse().map(x=>`<tr><td>${Math.floor(x.month/12)}年${x.month%12+1}月</td><td>${nfmt(x.skill)}</td><td>${fnum(f,x.training)}</td></tr>`).join('')}</tbody></table></div></section>`:''}</div>`;
+}
+function step2HRLabor(f,edit) {
+  ensureV09Firm(f,S);const h=f.hr;
+  const total=(f.staff.production||0)+(f.staff.research||0)+(f.staff.sales||0)+engineers(f);
+  return `<div class="grid">${card('基本職種の総人数',nfmt(total)+'人','専門部門は内数','span3')}
+   ${card('労使関係',nfmt(h.relations)+'/100','労使交渉と賃金に連動','span3')}
+   ${card('組織化率',nfmt(h.unionLevel*100)+'%','既存の労務計算','span3')}
+   ${card('ストライキ',h.strikeActive?'発生中':'なし','生産への影響を維持','span3')}
+   <section class="panel span12"><h2>給与・労務管理</h2><div class="formgrid">
+     <div class="field"><label for="hrPremium">標準賃金への上乗せ率（%）</label><input id="hrPremium" type="number" min="0" max="50" value="${Math.round(h.payPremium*100)}" ${edit?'':'disabled'}></div>
+     <input type="hidden" id="hrTraining" value="${h.trainingBudgetBase}">
+     <button class="btn primary" data-action="hrSave" ${edit?'':'disabled'}>賃金方針を保存</button>
+     <div class="field"><label for="hrOffer">労使交渉案</label><select id="hrOffer" ${edit?'':'disabled'}>
+       <option value="raise">賃上げ＋5ポイント</option><option value="training">教育・労働環境改善</option><option value="dialogue">労使協議</option></select></div>
+     <button class="btn" data-action="hrNegotiate" ${edit?'':'disabled'}>労使交渉を実行</button></div>
+     <p class="hint">給与仕訳・労使交渉・ストライキは従来のゲーム処理を使用します。専門部門の維持費はSTEP 5で追加します。</p></section></div>`;
+}
+function hrPageStep2() {
+  PEOPLE_VIEW='hr';
+  const f=current(),edit=canEdit(f);
+  ensureFirmGameplay(f);
+  const panel={org:step2HROrganization,staff:step2HRStaff,training:step2HRTraining,labor:step2HRLabor}[STEP2_HR_VIEW];
+  return titlePage('人事','組織・採用・教育・給与を管理します。専門部門の経済効果は後続STEPで導入します。')+
+    (!edit?noaccess():'')+step2HRNav()+panel(f,edit);
+}
+const step2PriorRender=render;
+render=function () {
+  // All links in legacy saved UI remain usable. New page keys are canonical.
+  if(PAGE==='people')PAGE=PEOPLE_VIEW==='hr'?'hr':'research';
+  return step2PriorRender();
+};
+function step2RefreshDeptFilter() {
+  const category=document.getElementById('step2DeptCategory')?.value||'all';
+  const era=document.getElementById('step2DeptEra')?.value||'all';
+  let displayed=0;
+  document.querySelectorAll('[data-step2-dept]').forEach(tr=>{
+    const y=Number(tr.dataset.step2Year), cat=tr.dataset.step2Dept;
+    const allowed=(category==='all'||category===cat)&&(
+      era==='all'||(era==='pre1960'&&y<1960)||(era==='1960to2009'&&y>=1960&&y<2010)||(era==='post2010'&&y>=2010)
+    );
+    tr.hidden=!allowed;if(allowed)displayed++;
+  });
+  const count=document.getElementById('step2DeptCounter');
+  if(count)count.textContent=displayed+' / 22部門を表示';
+}
+document.addEventListener('click', e=>{
+  const p=e.target.closest('[data-product-view]');
+  if(p)try{localStorage.setItem(STEP2_PRODUCT_KEY,p.dataset.productView)}catch(_ignored){}
+  const h=e.target.closest('[data-step2-hr-tab]');
+  if(h&&S){STEP2_HR_VIEW=h.dataset.step2HrTab;try{localStorage.setItem(STEP2_HR_KEY,STEP2_HR_VIEW)}catch(_ignored){}
+    render();window.scrollTo({top:0,behavior:'instant'});}
+}, true);
+document.addEventListener('change', e=>{
+  if(e.target?.id==='step2DeptCategory'||e.target?.id==='step2DeptEra')step2RefreshDeptFilter();
+});
+
+/* CONGLOMERATE STEP 3 — additive vehicle-design UI.
+ * This overlay is inserted AFTER STEP 2 and BEFORE the original boot().
+ * No changes to develop(), product accounting, research, BOM, factory, AI or save schema.
+ * The ORIGINAL #modelName/#modelPrice/#design_* inputs and [data-action=develop]
+ * remain the only authoritative values / commit path in both UI modes.
+ */
+const STEP3_MARKER = 'STEP3_VEHICLE_DRAFT_V1';
+const STEP3_DRAFT_PREFIX = 'conglomerate.step3.draft.v1.';
+const STEP3_WIZARD_STEPS = [
+  ['planning','① 商品企画','モデル名と価格を決めます'],
+  ['vehicle','② 車両仕様','既存の10項目から選びます'],
+  ['parts','③ 部品構成（任意）','従来の部品管理へ移動できます。詳細BOMは必須ではありません'],
+  ['confirm','④ 最終確認','共通の開発開始ボタンを使用します']
+];
+const STEP3_DRAFTS = new Map();
+const STEP3_STATES = new Map();
+function step3ContextKey(f = current()) {
+  if (!S || !f) return null;
+  // Bind the UI-only draft to this firm and the selected game.
+  // Do not persist draft data in the simulation save schema.
+  const game = [S.playerId,S.startYear,S.config?.name||'',S.config?.country||'',S.history?.[0]?.date||''].join('|');
+  return game+'|'+f.id;
+}
+function step3SafeGet(key) {
+  try { return sessionStorage.getItem(STEP3_DRAFT_PREFIX+key); } catch (_) { return null; }
+}
+function step3SafePut(key,payload) {
+  try { sessionStorage.setItem(STEP3_DRAFT_PREFIX+key,JSON.stringify(payload)); } catch (_) {}
+}
+function step3SafeRemove(key) {
+  try { sessionStorage.removeItem(STEP3_DRAFT_PREFIX+key); } catch (_) {}
+}
+function step3State(f=current()) {
+  const key=step3ContextKey(f);
+  if(!key) return {mode:'full',step:0};
+  if(STEP3_STATES.has(key))return STEP3_STATES.get(key);
+  let saved=null;
+  try { saved=JSON.parse(step3SafeGet(key)||'null'); } catch (_) {}
+  const state={mode:saved?.mode==='guided'?'guided':'full',step:Number.isInteger(saved?.step)?Math.min(3,Math.max(0,saved.step)):0};
+  if(saved?.values && typeof saved.values==='object') STEP3_DRAFTS.set(key,saved.values);
+  STEP3_STATES.set(key,state);return state;
+}
+function step3Controls() {
+  return [...document.querySelectorAll('#modelName,#modelPrice,[data-design-field]')];
+}
+function step3CaptureDraft(ownerKey=null) {
+  if(!S||PAGE!=='product'||!document.getElementById('modelName'))return;
+  const key=ownerKey||step3ContextKey();if(!key)return;
+  const values=STEP3_DRAFTS.get(key)||{};
+  for(const el of step3Controls())if(el.id)values[el.id]=el.value;
+  STEP3_DRAFTS.set(key,values);
+  step3Persist(key);
+}
+function step3Persist(key=step3ContextKey()) {
+  if(!key)return;
+  const state=key===step3ContextKey()?step3State():(STEP3_STATES.get(key)||{mode:'full',step:0});
+  step3SafePut(key,{mode:state.mode,step:state.step,values:STEP3_DRAFTS.get(key)||{}});
+}
+function step3HydrateDraft() {
+  const key=step3ContextKey();if(!key)return;
+  step3State();
+  // Bind DOM inputs to the firm whose form was rendered. The browser can fire
+  // a delayed change-on-blur event after the selected firm has already changed.
+  for(const el of step3Controls())el.dataset.step3Owner=key;
+  const values=STEP3_DRAFTS.get(key);if(!values)return;
+  for(const el of step3Controls()) {
+    if(!Object.prototype.hasOwnProperty.call(values,el.id))continue;
+    const value=values[el.id];
+    if(el.tagName==='SELECT') {
+      const option=[...el.options].find(x=>x.value===value&&!x.disabled);
+      if(option)el.value=value; // Never restore a research-/era-locked option.
+    } else el.value=String(value);
+  }
+  // A rerender normally computes the preview before the draft is restored.
+  if(document.getElementById('designPreview'))try{designPreview()}catch(_ignored){}
+}
+function step3ClearDraft(f=current()) {
+  const key=step3ContextKey(f);if(!key)return;
+  STEP3_DRAFTS.delete(key);step3SafeRemove(key);
+  const state=STEP3_STATES.get(key);
+  if(state){state.step=0;state.mode='full';}
+}
+function step3ProjectRow(p) {
+  const left=Math.max(0,Number(p.left)||0),total=5;
+  const progress=Math.round(100*Math.max(0,Math.min(1,(total-left)/total)));
+  const finished=p.status!=='developing';
+  return `<tr><td>${esc(p.name)}</td><td>${finished?esc(p.status||'完了'):left+'か月'}</td><td>${finished?'―':progress+'%（期間目安）'}</td><td>${Number.isFinite(Number(p.priceBase))?nfmt(p.priceBase)+'円相当':'―'}</td></tr>`;
+}
+// The native project data is displayed in all four vehicle tabs.
+// An earlier STEP 2 strip is replaced with a more detailed, reality-based view.
+step2ProjectSummary=function(f) {
+  const projects=f.projects||[];
+  const active=projects.filter(p=>p.status==='developing');
+  const eng=(f.partOperations?.engineering?.projects||[]);
+  const working=eng.filter(p=>p.status==='APPROVED'||p.status==='ACTIVE');
+  return `<section class="step2-project-strip step3-project-summary" aria-label="全タブ共通の開発進捗">
+    <div class="step3-project-head"><b>開発案件の概要</b><span>開発中の新型車 ${active.length}件 ／ 設計案件 ${working.length}件</span>
+    <button class="btn sm" type="button" data-product-view="design">車両・部品設計へ</button></div>
+    <details class="step3-project-detail"><summary>開発案件の詳細を表示 (${projects.length}件)</summary>
+    <div class="scroll"><table><thead><tr><th>車種・案件</th><th>状態</th><th>進捗の目安</th><th>予定価格</th></tr></thead><tbody>
+    ${projects.length?projects.map(step3ProjectRow).join(''):'<tr><td colspan="4">車両の開発案件はありません。</td></tr>'}
+    </tbody></table></div><p class="hint">進捗率は既存の5か月開発期間から求めた目安です。研究・設計案件の詳細操作は車両・部品設計タブで行います。</p></details>
+  </section>`;
+};
+function step3WizardHTML() {
+  return `<section class="step3-wizard panel" id="step3Wizard" aria-label="新型車設計の入力方法">
+    <div class="step3-mode-row"><strong>新型車設計の入力方法</strong><div role="group" aria-label="入力方法切替">
+      <button type="button" class="btn sm" data-step3-mode="full">一括入力</button>
+      <button type="button" class="btn sm" data-step3-mode="guided">ステップ方式</button></div></div>
+    <div class="step3-guide"><p class="hint">入力値は両モードで共通です。画面を移動してもこのタブ内の下書きを保持します。下書きはゲームの保存データとは別です。</p>
+      <div class="step3-step-list">${STEP3_WIZARD_STEPS.map(([id,name],i)=>`<button type="button" class="btn sm" data-step3-go="${i}" aria-current="false">${name}</button>`).join('')}</div>
+      <p class="step3-step-description" id="step3StepDescription" aria-live="polite"></p>
+      <div class="step3-step-nav"><button class="btn sm" type="button" data-step3-nav="prev">戻る</button>
+      <button class="btn primary" type="button" data-step3-nav="next">次へ</button></div>
+    </div>
+    <div class="step3-confirm" id="step3Confirm" aria-live="polite"></div>
+    <div class="step3-draft-bar"><span id="step3DraftStatus" class="hint">設計値はゲーム本体に未確定</span>
+      <button type="button" class="btn sm" data-step3-clear="1">下書きを初期化</button></div>
+  </section>`;
+}
+const step3PriorProductPage=productPage;
+productPage=function(){
+  let html=step3PriorProductPage();
+  const marker='<h2>新型車設計 — 10の意思決定</h2>';
+  if(!html.includes(marker))return html;
+  // Keep the original form and original develop button in place. Mark only its section.
+  const sectionStart=html.lastIndexOf('<section ',html.indexOf(marker));
+  if(sectionStart>=0){
+    const end=html.indexOf('>',sectionStart);
+    if(end>=0){
+      html=html.slice(0,end)+` data-step3-design-form="true"`+html.slice(end);
+    }
+  }
+  // STEP 2 has exactly one shared product grid container.
+  const gridMarker='<div class="grid product-grid">';
+  if(html.includes(gridMarker))html=html.replace(gridMarker,step3WizardHTML()+gridMarker);
+  return html;
+};
+function step3Form() {return document.querySelector('[data-step3-design-form]');}
+function step3ValidateDraft() {
+  const name=(document.getElementById('modelName')?.value||'').trim();
+  const price=Number(document.getElementById('modelPrice')?.value);
+  const problems=[];
+  if(!name)problems.push('モデル名が未入力です');
+  if(name.length>30)problems.push('モデル名は30文字以内です');
+  if(S&&current()&&[...(current().models||[]),...(current().projects||[])].some(p=>p.name===name))problems.push('同名の製品があります');
+  if(!Number.isInteger(price)||price<1000||price>900000)problems.push('予定価格は1,000〜900,000の整数を指定してください');
+  for(const el of document.querySelectorAll('[data-design-field]')){
+    const valid=[...el.options].some(x=>x.value===el.value&&!x.disabled);
+    if(!valid)problems.push('研究・年代条件を満たさない設計項目があります');
+  }
+  return problems;
+}
+function step3Confirmation() {
+  const name=document.getElementById('modelName')?.value||'（未入力）';
+  const price=document.getElementById('modelPrice')?.value||'―';
+  const fields=[...document.querySelectorAll('[data-design-field]')];
+  const problems=step3ValidateDraft();
+  return `<div class="step3-confirm-content"><h3>開発開始前の確認</h3>
+    <p><b>モデル：</b>${esc(name)}　／　<b>予定価格：</b>${esc(price)}円相当</p>
+    <div class="step3-spec-grid">${fields.map(el=>{
+      const label=el.closest('.field')?.querySelector('label')?.textContent||el.id;
+      const selected=el.selectedOptions?.[0]?.textContent||el.value;
+      return `<div><small>${esc(label)}</small><strong>${esc(selected)}</strong></div>`;
+    }).join('')}</div>
+    <p class="hint">部品管理は任意です。開発費・工数・前提研究の正式検査と支出は、下にある従来の「設計を確定・開発開始」ボタンで実行します。</p>
+    ${problems.length?`<p class="step3-warning">確認事項：${problems.map(esc).join(' ／ ')}</p>`:'<p class="hint">入力項目の基本検査は通過しました。確定時には従来の開発条件・資金検査が実施されます。</p>'}</div>`;
+}
+function step3SyncUI() {
+  if(!S||PAGE!=='product')return;
+  const ui=document.getElementById('step3Wizard');
+  if(!ui)return;
+  ui.hidden=PRODUCT_VIEW!=='design';
+  const state=step3State(),guided=state.mode==='guided';
+  const root=document.getElementById('content');
+  root.dataset.step3Mode=state.mode;
+  root.dataset.step3Step=String(state.step);
+  for(const b of ui.querySelectorAll('[data-step3-mode]')){
+    const active=b.dataset.step3Mode===state.mode;
+    b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));
+  }
+  for(const b of ui.querySelectorAll('[data-step3-go]')){
+    const active=Number(b.dataset.step3Go)===state.step;
+    b.classList.toggle('active',active);b.setAttribute('aria-current',active?'step':'false');
+  }
+  const desc=document.getElementById('step3StepDescription');
+  if(desc)desc.textContent=STEP3_WIZARD_STEPS[state.step][2];
+  const previous=ui.querySelector('[data-step3-nav="prev"]');
+  const next=ui.querySelector('[data-step3-nav="next"]');
+  if(previous)previous.disabled=state.step===0;
+  if(next)next.disabled=state.step===3;
+  const confirm=document.getElementById('step3Confirm');
+  if(confirm)confirm.innerHTML=guided&&state.step===3?step3Confirmation():'';
+  const status=document.getElementById('step3DraftStatus');
+  if(status)status.textContent=STEP3_DRAFTS.has(step3ContextKey())?'編集中の下書きあり（未確定）':'未確定の新型車設計';
+  const form=step3Form();
+  if(form)form.setAttribute('aria-label','共通の新型車設計フォーム');
+  // Existing preview uses the original form values. Do not compute a second design model.
+  if(guided&&state.step===3&&form)try{designPreview()}catch(_ignored){}
+}
+const step3PriorRender=render;
+render=function(){
+  const result=step3PriorRender();
+  if(S&&PAGE==='product'){
+    step3HydrateDraft();
+    step3SyncUI();
+  }
+  return result;
+};
+function step3ChangeMode(mode) {
+  if(mode!=='full'&&mode!=='guided')return;
+  step3CaptureDraft();
+  step3State().mode=mode;
+  step3Persist();step3SyncUI();
+}
+function step3ChangeStep(step) {
+  if(!Number.isInteger(step)||step<0||step>3)return;
+  step3CaptureDraft();
+  step3State().step=step;
+  step3Persist();step3SyncUI();
+}
+// A successful native develop() is the only place where the draft is cleared.
+// The native action validates funds, era, research, name uniqueness, and spends only once.
+const step3PriorDevelop=develop;
+develop=function(){
+  const firm=current(),before=firm?.projects?.length||0;
+  const result=step3PriorDevelop();
+  if(firm&&(firm.projects||[]).length>before){
+    step3ClearDraft(firm);
+    if(S&&PAGE==='product')render();
+  }
+  return result;
+};
+// Capture phase also handles tab/company navigation before the native event handlers rerender.
+document.addEventListener('input',e=>{
+  if(e.target?.id==='modelName'||e.target?.id==='modelPrice'||e.target?.matches?.('[data-design-field]'))step3CaptureDraft(e.target.dataset.step3Owner||null);
+},true);
+document.addEventListener('change',e=>{
+  if(e.target?.id==='modelName'||e.target?.id==='modelPrice'||e.target?.matches?.('[data-design-field]'))step3CaptureDraft(e.target.dataset.step3Owner||null);
+},true);
+document.addEventListener('click',e=>{
+  const b=e.target?.closest?.('[data-step3-mode],[data-step3-go],[data-step3-nav],[data-step3-clear]');
+  if(b&&S&&PAGE==='product'){
+    if(b.hasAttribute('data-step3-mode'))step3ChangeMode(b.dataset.step3Mode);
+    else if(b.hasAttribute('data-step3-go'))step3ChangeStep(Number(b.dataset.step3Go));
+    else if(b.hasAttribute('data-step3-nav'))step3ChangeStep(step3State().step+(b.dataset.step3Nav==='next'?1:-1));
+    else if(b.hasAttribute('data-step3-clear')){
+      if(typeof confirm==='function'&&!confirm('新型車設計の未確定の下書きを初期化しますか？'))return;
+      step3ClearDraft();render();
+    }
+    return;
+  }
+  // Tab and page changes are handled by the original application; save only our draft.
+  if(S&&PAGE==='product'&&e.target?.closest?.('[data-page],[data-section],[data-product-view]'))step3CaptureDraft();
+},true);
+
+/* CONGLOMERATE STEP 4: metadata, company-size observations, and unlock evaluator.
+ * Requires STEP 2 + STEP 3; injected BEFORE the original boot().
+ * Economic effects, creation/upgrade operations, payroll, staff assignment and
+ * AI department creation are deliberately NOT implemented in this phase.
+ * Never rewrite the 800-technology tree or its research progress formulas.
+ */
+const STEP4_MARKER = 'STEP4_SPECIALIST_ORG_V1';
+const STEP4_CATALOG = Object.freeze([{"id":"powertrain_design","name":"動力・機械設計","base":"design","normalYear":1900,"feeClass":"A","minimumScale":0,"scaleClass":"S","techIds":["powertrain-1"],"businessRequirement":"","effect":{"label":"専門試作工数","levels":[-3,-6,-9],"unit":"percent"},"cost":{"openingBase":5000,"monthlyBase":120,"minPeople":[3,10,28]}},{"id":"materials_evaluation","name":"材料評価","base":"research","normalYear":1900,"feeClass":"A","minimumScale":0,"scaleClass":"S","techIds":["materials-1"],"businessRequirement":"","effect":{"label":"高度材料評価費","levels":[-4,-7,-10],"unit":"percent"},"cost":{"openingBase":5000,"monthlyBase":120,"minPeople":[3,10,28]}},{"id":"quality_inspection","name":"品質検証","base":"production","normalYear":1910,"feeClass":"A","minimumScale":0,"scaleClass":"S","techIds":["safety-1"],"businessRequirement":"","effect":{"label":"高度品質検証の検出精度","levels":[5,9,13],"unit":"relative_percent"},"cost":{"openingBase":5000,"monthlyBase":120,"minPeople":[3,10,28]}},{"id":"process_standard","name":"工程標準化","base":"production","normalYear":1915,"feeClass":"B","minimumScale":0,"scaleClass":"S","techIds":["production-2"],"businessRequirement":"","effect":{"label":"追加工程診断精度","levels":[5,9,12],"unit":"relative_percent"},"cost":{"openingBase":9000,"monthlyBase":240,"minPeople":[4,14,40]}},{"id":"electrical_design","name":"電装技術設計","base":"design","normalYear":1930,"feeClass":"A","minimumScale":0,"scaleClass":"S","techIds":["electronics-1"],"businessRequirement":"","effect":{"label":"電装試作工数","levels":[-4,-7,-10],"unit":"percent"},"cost":{"openingBase":5000,"monthlyBase":120,"minPeople":[3,10,28]}},{"id":"product_planning","name":"商品企画","base":"sales","normalYear":1930,"feeClass":"B","minimumScale":35,"scaleClass":"M","techIds":[],"businessRequirement":"models2","effect":{"label":"新商品需要予測誤差","levels":[-6,-11,-16],"unit":"percent"},"cost":{"openingBase":9000,"monthlyBase":240,"minPeople":[4,14,40]}},{"id":"prototype_reliability","name":"車両試作・信頼性","base":"design","normalYear":1935,"feeClass":"B","minimumScale":0,"scaleClass":"S","techIds":["safety-3"],"businessRequirement":"","effect":{"label":"専門耐久試験工数","levels":[-4,-8,-12],"unit":"percent"},"cost":{"openingBase":9000,"monthlyBase":240,"minPeople":[4,14,40]}},{"id":"cost_process","name":"原価・工程管理","base":"production","normalYear":1940,"feeClass":"B","minimumScale":35,"scaleClass":"M","techIds":["production-4"],"businessRequirement":"","effect":{"label":"詳細原価予測誤差","levels":[-6,-11,-16],"unit":"percent"},"cost":{"openingBase":9000,"monthlyBase":240,"minPeople":[4,14,40]}},{"id":"control_software","name":"制御ソフト開発","base":"design","normalYear":1960,"feeClass":"A","minimumScale":0,"scaleClass":"S","techIds":["software-1"],"businessRequirement":"","effect":{"label":"制御試験工数","levels":[-3,-6,-9],"unit":"percent"},"cost":{"openingBase":5000,"monthlyBase":120,"minPeople":[3,10,28]}},{"id":"factory_automation","name":"量産自動化","base":"production","normalYear":1960,"feeClass":"B","minimumScale":35,"scaleClass":"M","techIds":["production-6"],"businessRequirement":"","effect":{"label":"専門工程改善試験費","levels":[-3,-6,-9],"unit":"percent"},"cost":{"openingBase":9000,"monthlyBase":240,"minPeople":[4,14,40]}},{"id":"quality_governance","name":"生産品質統括","base":"production","normalYear":1960,"feeClass":"C","minimumScale":35,"scaleClass":"M","techIds":[],"businessRequirement":"plants2","effect":{"label":"拠点横断品質監査精度","levels":[5,9,13],"unit":"relative_percent"},"cost":{"openingBase":16000,"monthlyBase":420,"minPeople":[5,18,50]}},{"id":"electronic_control","name":"電子制御設計","base":"design","normalYear":1970,"feeClass":"B","minimumScale":35,"scaleClass":"M","techIds":["electronics-5"],"businessRequirement":"","effect":{"label":"電子制御統合試験工数","levels":[-4,-8,-12],"unit":"percent"},"cost":{"openingBase":9000,"monthlyBase":240,"minPeople":[4,14,40]}},{"id":"energy_storage_research","name":"電動化・蓄電研究","base":"research","normalYear":1990,"feeClass":"A","minimumScale":0,"scaleClass":"S","techIds":["energy-5"],"businessRequirement":"","effect":{"label":"蓄電関連の専門試験費","levels":[-4,-7,-10],"unit":"percent"},"cost":{"openingBase":5000,"monthlyBase":120,"minPeople":[3,10,28]}},{"id":"recycling_technology","name":"環境・循環技術","base":"research","normalYear":1990,"feeClass":"A","minimumScale":0,"scaleClass":"S","techIds":["environment-10"],"businessRequirement":"","effect":{"label":"循環工程評価費","levels":[-4,-7,-10],"unit":"percent"},"cost":{"openingBase":5000,"monthlyBase":120,"minPeople":[3,10,28]}},{"id":"automotive_software","name":"車載ソフトウェア設計","base":"design","normalYear":1998,"feeClass":"B","minimumScale":35,"scaleClass":"M","techIds":["software-8"],"businessRequirement":"","effect":{"label":"高度ソフト検証工数","levels":[-4,-8,-12],"unit":"percent"},"cost":{"openingBase":9000,"monthlyBase":240,"minPeople":[4,14,40]}},{"id":"adas_design","name":"先進安全・ADAS設計","base":"design","normalYear":2010,"feeClass":"B","minimumScale":35,"scaleClass":"M","techIds":["software-10","safety-8"],"businessRequirement":"","effect":{"label":"高度ADAS検証工数","levels":[-4,-8,-12],"unit":"percent"},"cost":{"openingBase":9000,"monthlyBase":240,"minPeople":[4,14,40]}},{"id":"market_analytics","name":"市場データ分析","base":"sales","normalYear":2010,"feeClass":"B","minimumScale":35,"scaleClass":"M","techIds":["software-12"],"businessRequirement":"","effect":{"label":"需要予測誤差","levels":[-8,-14,-20],"unit":"percent"},"cost":{"openingBase":9000,"monthlyBase":240,"minPeople":[4,14,40]}},{"id":"battery_safety","name":"電池安全・寿命評価","base":"research","normalYear":2014,"feeClass":"B","minimumScale":35,"scaleClass":"M","techIds":["energy-11"],"businessRequirement":"","effect":{"label":"電池異常検証精度","levels":[5,9,13],"unit":"relative_percent"},"cost":{"openingBase":9000,"monthlyBase":240,"minPeople":[4,14,40]}},{"id":"ai_driving_research","name":"AI運転技術研究","base":"research","normalYear":2018,"feeClass":"C","minimumScale":0,"scaleClass":"S","techIds":["software-16"],"businessRequirement":"","effect":{"label":"高度AI試験工数","levels":[-4,-8,-12],"unit":"percent"},"cost":{"openingBase":16000,"monthlyBase":420,"minPeople":[5,18,50]}},{"id":"digital_manufacturing","name":"デジタル生産推進","base":"production","normalYear":2020,"feeClass":"C","minimumScale":35,"scaleClass":"M","techIds":["production-11"],"businessRequirement":"","effect":{"label":"高度設備診断の予測誤差","levels":[-6,-10,-15],"unit":"percent"},"cost":{"openingBase":16000,"monthlyBase":420,"minPeople":[5,18,50]}},{"id":"autonomous_validation","name":"自律運転検証","base":"design","normalYear":2032,"feeClass":"C","minimumScale":35,"scaleClass":"M","techIds":["software-23"],"businessRequirement":"","effect":{"label":"自律運転安全試験工数","levels":[-4,-8,-12],"unit":"percent"},"cost":{"openingBase":16000,"monthlyBase":420,"minPeople":[5,18,50]}},{"id":"nextgen_battery_recycling","name":"次世代電池・循環研究","base":"research","normalYear":2040,"feeClass":"B","minimumScale":35,"scaleClass":"M","techIds":["energy-23","environment-23"],"businessRequirement":"","effect":{"label":"次世代電池評価費","levels":[-4,-8,-12],"unit":"percent"},"cost":{"openingBase":9000,"monthlyBase":240,"minPeople":[4,14,40]}}]);
+const STEP4_CATALOG_BY_ID = Object.freeze(Object.fromEntries(STEP4_CATALOG.map(d => [d.id,d])));
+const STEP4_VERSION = 1;
+const STEP4_COST = Object.freeze({levelMultipliers:[1,2.4,5],upgrades:[1,2.5,5],maintenancePerPersonBase:12,
+  dormantBaseFraction:0.40,earlyYears:15,earlyPremiumPerYear:0.06,excessCostPerUnit:0.04,excessEfficiencyPerUnit:0.015,
+  excessEfficiencyCap:0.15,departmentWeights:[1,1.5,2.25]});
+const STEP4_INDUSTRY_SCALE = Object.freeze({auto:1,manufacturing:0.80,resource:0.70,trade:0.55,service:0.45,sales:0.50});
+function step4Clamp(value,lo,hi){return Math.min(hi,Math.max(lo,Number.isFinite(value)?value:lo));}
+function step4Num(value){return Number.isFinite(Number(value))?Math.max(0,Number(value)):0;}
+function step4Month(s){return s.year*12+(s.month-1);}
+function step4ScaleScore(value,softFloor,wideRange){
+  const x=Math.max(0,value);
+  return step4Clamp(100*Math.log1p(x/softFloor)/Math.log1p(wideRange/softFloor),0,100);
+}
+function step4FirmSizeSnapshot(f,s){
+  // A single company's operational score. Consolidated scoring is deliberately
+  // reserved for later group-oversight departments (none among the initial 22).
+  const kind=STEP4_INDUSTRY_SCALE[f.industry]||1;
+  const employees=step4Num(f.staff?.production)+step4Num(f.staff?.research)
+    +step4Num(f.staff?.sales)+(typeof engineers==='function'?step4Num(engineers(f)):step4Num(f.staff?.designEngineers));
+  const yearFactor=typeof eraCostFactor==='function'?Math.max(1,eraCostFactor(s.year)):1;
+  const salesLocal=step4Num(f.monthly?.sales),assetsLocal=step4Num(typeof financials==='function'?financials(f).assets:f.assets);
+  const base=x=>typeof baseFromLocal==='function'?step4Num(baseFromLocal(x,f.country)):x;
+  const sales=base(salesLocal)/yearFactor,assets=base(assetsLocal)/yearFactor;
+  const activePlants=(f.plants||[]).filter(p=>!p.construction&&!p.paused&&!p.renovation).length;
+  const activeModels=(f.models||[]).filter(m=>m.status==='active').length;
+  const markets=(f.marketPresence||[]).length;
+  const partLines=(f.partOperations?.productionPlans||[]).length;
+  const suppliers=(f.supply?.contracts||[]).length;
+  const complexityPoints=activePlants*2.5+activeModels*2+Math.max(0,markets-1)*1.5+Math.min(5,partLines)*1.2+Math.min(6,suppliers)*0.5;
+  const parts={employees:step4ScaleScore(employees,20*kind,2500*kind),
+    sales:step4ScaleScore(sales,150000*kind,15000000*kind),
+    assets:step4ScaleScore(assets,300000*kind,60000000*kind),
+    complexity:step4Clamp(100*complexityPoints/40,0,100)};
+  const score=step4Clamp(parts.employees*.30+parts.sales*.25+parts.assets*.25+parts.complexity*.20,0,100);
+  return {period:step4Month(s),score:Number(score.toFixed(4)),parts,employees,sales,assets,
+    complexityPoints,activePlants,activeModels,markets,industry:f.industry};
+}
+function step4EnsureOrg(f){
+  // Additive v1 fields. Missing (older) saves get empty departments and history.
+  // This is a schema extension ONLY. No spending, staffing or skill effects.
+  if(f.step4OrgV1===undefined)
+    f.step4OrgV1={version:STEP4_VERSION,departments:[],scaleHistory:[]};
+  const o=f.step4OrgV1;
+  if(!o||typeof o!=='object'||Array.isArray(o)||o.version!==STEP4_VERSION)
+    throw Error('未対応または破損した専門部門データ形式');
+  if(!Array.isArray(o.departments)||!Array.isArray(o.scaleHistory))
+    throw Error('専門部門台帳の配列形式が不正です');
+  // Reject invalid stored IDs/duplicates rather than silently granting branches.
+  const seen=new Set();
+  for(const d of o.departments){
+    if(!d||typeof d.id!=='string'||!STEP4_CATALOG_BY_ID[d.id]||seen.has(d.id))
+      throw Error('専門部門のIDが不正または重複しています');
+    seen.add(d.id);
+  }
+  const uniqueMonths=new Map();
+  for(const x of o.scaleHistory){
+    if(x&&Number.isSafeInteger(x.period)&&Number.isFinite(x.score)&&x.score>=0&&x.score<=100)
+      uniqueMonths.set(x.period,x);
+  }
+  o.scaleHistory=[...uniqueMonths.values()].sort((a,b)=>a.period-b.period).slice(-6);
+  return o;
+}
+function step4RecordMonthlySize(f,s){
+  const o=step4EnsureOrg(f),newSnapshot=step4FirmSizeSnapshot(f,s);
+  const old=o.scaleHistory.find(x=>x.period===newSnapshot.period);
+  if(old)return old; // idempotent; no repeat sample in a re-tried month
+  if(o.scaleHistory.length&&o.scaleHistory.at(-1).period>newSnapshot.period)
+    throw Error('組織規模履歴が未来月を参照しています');
+  o.scaleHistory.push(newSnapshot);o.scaleHistory=o.scaleHistory.slice(-6);
+  return newSnapshot;
+}
+function step4ScaleAssessment(f,s){
+  const o=step4EnsureOrg(f),now=step4Month(s);
+  // Count only the current or six preceding calendar months; old snapshots
+  // cannot substitute for an unobserved recent month after a date jump.
+  const samples=o.scaleHistory.filter(x=>x.period<=now&&x.period>=now-6).slice(-6);
+  const live=step4FirmSizeSnapshot(f,s);
+  const all=samples.length?samples:[live];
+  const avg=all.reduce((sum,x)=>sum+x.score,0)/all.length;
+  // The current month is not counted until it has entered the month-close
+  // pipeline. For new companies, the currently observed month is provisional.
+  return {score:Number(avg.toFixed(2)),observations:all.length,provisional:all.length<6,
+    source:samples.length?'monthly-recorded':'current-provisional',samplePeriods:all.map(x=>x.period),latest:all.at(-1)};
+}
+function step4UnlockedDepartment(f,s,d,scale=step4ScaleAssessment(f,s)){
+  if(!d||!STEP4_CATALOG_BY_ID[d.id])throw Error('未知の専門部門です');
+  const completed=new Set(f.research?.tree?.done||[]);
+  const missingTech=d.techIds.filter(id=>!completed.has(id));
+  const remainingYears=Math.max(0,d.normalYear-s.year),inEarlyWindow=remainingYears>0&&remainingYears<=STEP4_COST.earlyYears;
+  const techGate=d.techIds.length>0;
+  const scaleShortage=Math.max(0,d.minimumScale-scale.score);
+  const activeModels=(f.models||[]).filter(m=>m.status==='active').length;
+  const activePlants=(f.plants||[]).filter(p=>!p.construction&&!p.paused&&!p.renovation).length;
+  const businessProblem=d.businessRequirement==='models2'&&activeModels<2?'稼働車種が2種類未満':
+    d.businessRequirement==='plants2'&&activePlants<2?'稼働工場が2拠点未満':'';
+  // Scale-only departments cannot skip a historical threshold via unrelated tech.
+  const yearReady=s.year>=d.normalYear || (techGate&&inEarlyWindow&&missingTech.length===0);
+  const canUnlock=yearReady&&missingTech.length===0&&scaleShortage===0&&!businessProblem;
+  const early=canUnlock&&s.year<d.normalYear;
+  const estimateBase=Math.round(d.cost.openingBase*Math.max(1,eraCostFactor(s.year))*
+    (early?1+STEP4_COST.earlyPremiumPerYear*remainingYears:1));
+  const reasons=[];
+  if(!yearReady)reasons.push(techGate&&remainingYears>STEP4_COST.earlyYears?`通常解禁まで${remainingYears}年（早期解禁上限15年）`:`通常解禁${d.normalYear}年`);
+  if(missingTech.length)reasons.push('研究未完了：'+missingTech.join('、'));
+  if(scaleShortage>0)reasons.push(`企業規模スコア${d.minimumScale}以上が必要（現在${scale.score.toFixed(1)}）`);
+  if(businessProblem)reasons.push(businessProblem);
+  return {id:d.id,ready:canUnlock,early,status:canUnlock?(early?'early':'unlocked'):'locked',
+    reasons,missingTech,scaleRequired:d.minimumScale,scaleNow:scale.score,remainingYears,
+    openingEstimateBase:estimateBase,openingBase:d.cost.openingBase,
+    yearLimit:d.normalYear,earlyPremium:early?STEP4_COST.earlyPremiumPerYear*remainingYears:0};
+}
+function step4CatalogAssessment(f,s){const scale=step4ScaleAssessment(f,s);
+ return {scale,items:STEP4_CATALOG.map(d=>({...d,unlock:step4UnlockedDepartment(f,s,d,scale)}))};
+}
+function step4DeptStatusText(unlock){
+  if(unlock.ready)return unlock.early?'先行解禁（設立機能はSTEP 5）':'解禁済み（設立機能はSTEP 5）';
+  return '条件未達';
+}
+function step4ScalePanel(f){const a=step4ScaleAssessment(f,S),q=a.latest;
+ const capacity=2+Math.floor(a.score/8);
+ return `<section class="panel span12" id="step4ScalePanel"><h2>企業規模・組織発展の判定（STEP 4）</h2>
+ <div class="grid">${card('企業規模スコア',a.score.toFixed(1)+'/100',a.provisional?'暫定：記録'+a.observations+'か月 / 6か月':'過去6か月平均','span4')}
+ ${card('適正専門部門数',nfmt(capacity)+'換算部門','管理負荷の緩やかな目安','span4')}
+ ${card('経過月数',nfmt(a.observations)+'/6','新設法人は観測済み期間で仮判定','span4')}</div>
+ <p class="hint">構成比：従業員30%・売上25%・資産25%・事業複雑度20%。法人単体・年代と業態で正規化。規模判定は月次の観測履歴を記録しますが、経済・研究・採用への影響はまだありません。</p>
+ <p class="hint">最新観測：従業員${nfmt(q.employees)}人、稼働工場${nfmt(q.activePlants)}拠点、現行車種${nfmt(q.activeModels)}種類。</p></section>`;
+}
+function step4DepartmentTable(){const f=current(),data=step4CatalogAssessment(f,S);
+ const rows=data.items.map(d=>{
+   const u=d.unlock,brief=u.ready?'条件達成':u.reasons.join(' / ');
+   const status=u.status;
+   return `<tr data-step2-dept="${d.base}" data-step2-year="${d.normalYear}" data-step4-status="${status}">
+     <td><b>${esc(d.name)}</b><div class="tiny muted">${esc(d.id)}</div></td>
+     <td>${STEP2_CATEGORY_NAMES[d.base]}</td><td>${d.normalYear}年</td><td>${esc(d.feeClass)}型</td>
+     <td>${step4DeptStatusText(u)}<div class="tiny muted">${esc(brief)}</div></td>
+     <td>${nfmt(u.openingEstimateBase)}円相当（参考）</td></tr>`;
+ }).join('');
+ return `<section class="panel span12" id="step4CatalogPanel"><div class="row between"><h2>22専門部門・解禁状況</h2>${tag('読み取り専用・STEP 4')}</div>
+ <p class="hint">研究完了、企業規模、年代、事業条件を判定します。研究による早期解禁は最大15年前・設立費は先行1年ごとに6%割増。設立・昇格・人員配分・維持費の支出はSTEP 5以降です。</p>
+ <div class="formgrid"><div class="field"><label for="step2DeptCategory">基本部門</label><select id="step2DeptCategory">
+ <option value="all">すべて</option>${Object.entries(STEP2_CATEGORY_NAMES).map(([key,label])=>`<option value="${key}">${label}</option>`).join('')}</select></div>
+ <div class="field"><label for="step2DeptEra">通常解禁年代</label><select id="step2DeptEra"><option value="all">すべて</option>
+ <option value="pre1960">〜1959年</option><option value="1960to2009">1960〜2009年</option><option value="post2010">2010年以降</option></select></div>
+ <div class="field"><label for="step4DeptStatus">解禁状態</label><select id="step4DeptStatus"><option value="all">すべて</option><option value="unlocked">通常解禁</option>
+ <option value="early">先行解禁</option><option value="locked">条件未達</option></select></div></div>
+ <div class="scroll"><table><thead><tr><th>専門部門</th><th>所属</th><th>通常年代</th><th>区分</th><th>解禁状態・理由</th><th>設立費（参考）</th></tr></thead>
+ <tbody>${rows}</tbody></table></div><p id="step2DeptCounter" class="hint">22部門を表示</p>
+ <p class="hint">表示金額は現行年の概算基準額であり、会計支出ではありません。企業の設立実績は次のSTEPで管理します。</p></section>`;
+}
+step2DepartmentTable=step4DepartmentTable;
+step2HROrganization=function(f){
+ const groups=[['製造',f.staff.production||0],['研究開発',f.staff.research||0],['製品設計',engineers(f)],['営業・管理',f.staff.sales||0]];
+ return `<div class="grid">${groups.map(([name,n])=>card(name,nfmt(n)+'人','既存の基本部門','span3')).join('')}
+ ${step4ScalePanel(f)}${step4DepartmentTable()}</div>`;
+};
+function step4RefreshDeptFilter(){
+ const category=document.getElementById('step2DeptCategory')?.value||'all',era=document.getElementById('step2DeptEra')?.value||'all',
+ status=document.getElementById('step4DeptStatus')?.value||'all';let visible=0;
+ for(const tr of document.querySelectorAll('#step4CatalogPanel [data-step2-dept]')){
+  const year=Number(tr.dataset.step2Year),cat=tr.dataset.step2Dept,st=tr.dataset.step4Status;
+  const include=(category==='all'||cat===category)&&
+   (era==='all'||(era==='pre1960'&&year<1960)||(era==='1960to2009'&&year>=1960&&year<2010)||(era==='post2010'&&year>=2010))&&
+   (status==='all'||st===status);
+  tr.hidden=!include;if(include)visible++;
+ }
+ const out=document.getElementById('step2DeptCounter');if(out)out.textContent=visible+' / 22部門を表示';
+}
+document.addEventListener('change',e=>{
+ if(['step2DeptCategory','step2DeptEra','step4DeptStatus'].includes(e.target?.id)){
+  // Step2's original handler still runs, so our final status-aware filter
+  // runs in a microtask after Step2 has finished applying its old filter.
+  queueMicrotask(step4RefreshDeptFilter);
+ }
+});
+// Record one snapshot per simulated month in the existing transactional month
+// pipeline: the input S is the cloned trial, not the committed live S.
+const step4PriorHumanResources=processHumanResources;
+processHumanResources=function(s,events){
+ for(const f of s.firms||[])step4RecordMonthlySize(f,s);
+ return step4PriorHumanResources(s,events);
+};
+
+/* CONGLOMERATE STEP 5 — specialist operations / workforce / accounting.
+ * Requires STEP 2 + STEP 3 + STEP 4. Append before boot() without replacing
+ * the 800-node research progress or general payroll formulas.
+ * All effects on vehicle quality/performance, manufacturing multipliers and
+ * AI organization policy are deferred to STEP 6.
+ */
+const STEP5_MARKER='STEP5_SPECIALIST_OPERATIONS_V1';
+const STEP5_LEVELS=Object.freeze(['専門室','専門課','専門部']);
+const STEP5_PROMOTION_SKILLS=Object.freeze([0,45,65]);
+const STEP5_MAX_HEADCOUNT=100000;
+const STEP5_MAINTENANCE_ACCT='maintenance';
+function step5Int(x,low=0,high=STEP5_MAX_HEADCOUNT){return Number.isSafeInteger(x)&&x>=low&&x<=high;}
+function step5Dept(f,id){return step5EnsureOrg(f).departments.find(d=>d.id===id)||null;}
+function step5EnsureOrg(f){
+  const o=step4EnsureOrg(f);
+  if(o.archived!==undefined&&(!Array.isArray(o.archived)||o.archived.length>1000))
+    throw Error('専門部門の廃止履歴が不正です');
+  for(const record of o.departments){
+    if(!step5Int(record.level,1,3)||!step5Int(record.desiredHeadcount)||!step5Int(record.actualHeadcount)||
+       !Number.isFinite(record.skill)||record.skill<0||record.skill>100||
+       !['active','understaffed','dormant'].includes(record.state)||
+       !step5Int(record.foundedMonth,0,999999)||
+       !['manual','auto'].includes(record.assignment)||
+       !step5Int(record.trainingBudgetBase,0,200000)||
+       !(record.lastChargeMonth===null||step5Int(record.lastChargeMonth,0,999999)))
+      throw Error('専門部門の人員・技能・保存値が不正です：'+record.id);
+  }
+  if(o.archived===undefined)o.archived=[];
+  return o;
+}
+function step5ParentCount(f,base){return Math.max(0,Math.floor(base==='production'?(f.staff?.production||0):
+  base==='research'?(f.staff?.research||0):base==='design'?engineers(f):(f.staff?.sales||0)));}
+function step5FixedFactoryStaff(f){
+  const active=(f.plants||[]).filter(p=>!p.construction&&!p.renovation&&!p.paused),
+        saved=f.factoryOps?.staffAssignments||{};
+  let remaining=step5ParentCount(f,'production'),reserved=0;
+  for(const p of active){
+    const head=saved[p.id];
+    if(Number.isSafeInteger(head)&&head>=0){const got=Math.min(remaining,head);reserved+=got;remaining-=got;}
+  }
+  return reserved;
+}
+function step5FixedEngineeringStaff(f){
+  const e=f.partOperations?.engineering;
+  return Math.min(step5ParentCount(f,'design'),
+    (e?.projects||[]).filter(p=>['APPROVED','ACTIVE'].includes(p.status)).reduce((n,p)=>n+Math.max(0,p.fixed||0),0));
+}
+function step5Capacity(f,base){
+  let total=step5ParentCount(f,base);
+  if(base==='production')total=Math.max(0,total-step5FixedFactoryStaff(f));
+  if(base==='design')total=Math.max(0,total-step5FixedEngineeringStaff(f));
+  return total;
+}
+function step5AutoTarget(f,d,dept){
+  const min=d.cost.minPeople[dept.level-1];
+  const workload=d.base==='production'?(f.plants||[]).filter(p=>!p.paused&&!p.construction).length:
+    d.base==='research'?(f.research?.tree?.active||[]).length:
+    d.base==='design'?(f.partOperations?.engineering?.projects||[]).filter(p=>['APPROVED','ACTIVE'].includes(p.status)).length:
+    (f.models||[]).filter(m=>m.status==='active').length;
+  return Math.min(3*min,min+Math.max(0,workload-1)*Math.max(1,Math.floor(min/4)));
+}
+function step5Desired(f,dept){const d=STEP4_CATALOG_BY_ID[dept.id];
+ return dept.assignment==='auto'?step5AutoTarget(f,d,dept):dept.desiredHeadcount;
+}
+function step5Allocation(f,{write=false}={}){
+  const o=step5EnsureOrg(f),capacities=Object.fromEntries(['production','research','design','sales'].map(k=>[k,step5Capacity(f,k)]));
+  const remaining={...capacities},list=o.departments.map((dept,i)=>({dept,idx:i,base:STEP4_CATALOG_BY_ID[dept.id].base,desired:step5Desired(f,dept),actual:0}));
+  // Deterministic manual priority then automatic, stable within category.
+  const ordered=[...list].sort((a,b)=>(a.dept.assignment==='manual'?0:1)-(b.dept.assignment==='manual'?0:1)||
+      a.dept.foundedMonth-b.dept.foundedMonth||a.idx-b.idx);
+  for(const x of ordered){x.actual=Math.min(x.desired,remaining[x.base]);remaining[x.base]-=x.actual;}
+  const byId={};
+  for(const x of list){
+    const d=STEP4_CATALOG_BY_ID[x.dept.id],min=d.cost.minPeople[x.dept.level-1],ratio=x.actual/min;
+    const state=ratio<.4?'dormant':ratio<1?'understaffed':'active';
+    const effectiveSkill=(.7+.003*x.dept.skill),staffFactor=state==='dormant'?0:Math.min(1,ratio);
+    const result={id:x.dept.id,base:x.base,desired:x.desired,actual:x.actual,minimum:min,ratio,state,
+      staffFactor,effectiveSkill,missing:Math.max(0,x.desired-x.actual)};
+    byId[result.id]=result;
+    if(write){x.dept.actualHeadcount=x.actual;x.dept.desiredHeadcount=x.desired;x.dept.state=state;}
+  }
+  return {capacities,remaining,byId,list:list.map(x=>byId[x.dept.id]),
+    reservedFactory:step5FixedFactoryStaff(f),reservedEngineering:step5FixedEngineeringStaff(f)};
+}
+function step5ValidateIncrease(f,dept,value,mode){
+  if(!step5Int(value))throw Error('希望人数は0〜100,000人の整数で指定してください');
+  const d=STEP4_CATALOG_BY_ID[dept.id],current=step5Desired(f,dept);
+  // After attrition an existing excess desired target is retained. A reduction
+  // is permitted; any new increase must fit the available base workforce.
+  if(mode==='manual'&&value>current){
+    const other=step5EnsureOrg(f).departments.filter(x=>x.id!==dept.id&&STEP4_CATALOG_BY_ID[x.id].base===d.base)
+      .reduce((n,x)=>n+step5Desired(f,x),0);
+    if(other+value>step5Capacity(f,d.base))throw Error('希望人数の追加に必要な従業員が不足しています');
+  }
+}
+function step5InitialSkill(f,base){
+  const x=base==='production'?Number(f.hr?.skill??50):
+    base==='design'?Number(engineeringSkill(f)):50;
+  return step4Clamp(20+.4*step4Clamp(x,0,100),20,60);
+}
+function step5Record(o,kind,id,month,detail){
+  if(!Array.isArray(o.history))o.history=[];
+  o.history.push({kind,id,month,detail:String(detail).slice(0,160)});
+  if(o.history.length>120)o.history.splice(0,o.history.length-120);
+}
+function step5OpenDepartment(f,s,id){
+  const def=STEP4_CATALOG_BY_ID[id];if(!def)throw Error('未知の専門部門です');
+  const o=step5EnsureOrg(f);if(o.departments.some(x=>x.id===id))throw Error('すでに設立済みです');
+  const unlock=step4UnlockedDepartment(f,s,def);if(!unlock.ready)throw Error('設立条件が未達です：'+unlock.reasons.join(' / '));
+  const minimum=def.cost.minPeople[0];const plan=step5Allocation(f);
+  if(plan.remaining[def.base]<minimum)throw Error('専任配置に必要な人員が不足しています');
+  // spendImmediate checks cash and posts the exact established amount.
+  spendImmediate(f,unlock.openingEstimateBase,'otherExpense',`専門部門設立：${def.name}`);
+  const dept={id,level:1,desiredHeadcount:minimum,actualHeadcount:minimum,assignment:'manual',
+    skill:step5InitialSkill(f,def.base),state:'active',foundedMonth:step4Month(s),
+    trainingBudgetBase:0,lastChargeMonth:null};
+  o.departments.push(dept);step5Allocation(f,{write:true});
+  step5Record(o,'founded',id,step4Month(s),`設立費${unlock.openingEstimateBase}円相当`);
+  return dept;
+}
+function step5UpgradeQuote(f,s,id){
+  const o=step5EnsureOrg(f),dept=o.departments.find(x=>x.id===id);
+  if(!dept)throw Error('専門部門が見つかりません');
+  if(dept.level>=3)return {ready:false,reasons:['最高段階です'],base:0};
+  const def=STEP4_CATALOG_BY_ID[id],next=dept.level+1;
+  const requiredPeople=def.cost.minPeople[next-1],requiredSkill=STEP5_PROMOTION_SKILLS[next-1];
+  const actual=step5Allocation(f).byId[id].actual;
+  const base=Math.round(def.cost.openingBase*STEP4_COST.upgrades[next-1]*eraCostFactor(s.year));
+  const localCost=localFromBase(base,f.country);
+  const reasons=[];
+  if(actual<requiredPeople)reasons.push(`実配置${requiredPeople}人以上が必要`);
+  if(dept.skill<requiredSkill)reasons.push(`技能${requiredSkill}以上が必要`);
+  if(acc(f,'cash')<localCost)reasons.push('昇格費用の現金が不足');
+  return {ready:reasons.length===0,reasons,base,next,requiredPeople,requiredSkill,actual};
+}
+function step5UpgradeDepartment(f,s,id){
+  const quote=step5UpgradeQuote(f,s,id);if(!quote.ready)throw Error('昇格条件未達：'+quote.reasons.join(' / '));
+  const o=step5EnsureOrg(f),dept=o.departments.find(x=>x.id===id);
+  spendImmediate(f,quote.base,'otherExpense',`専門部門昇格：${STEP4_CATALOG_BY_ID[id].name} Lv.${quote.next}`);
+  dept.level=quote.next;step5Allocation(f,{write:true});
+  step5Record(o,'upgraded',id,step4Month(s),`Lv.${quote.next}に昇格`);
+  return dept;
+}
+function step5SetDesired(f,id,count,assignment='manual'){
+  const dept=step5Dept(f,id);if(!dept)throw Error('専門部門が見つかりません');
+  if(!['manual','auto'].includes(assignment))throw Error('配置モードが不正です');
+  if(assignment==='manual')step5ValidateIncrease(f,dept,count,assignment);
+  dept.assignment=assignment;
+  dept.desiredHeadcount=assignment==='auto'?step5AutoTarget(f,STEP4_CATALOG_BY_ID[id],dept):count;
+  step5Allocation(f,{write:true});
+  return dept;
+}
+function step5SetTraining(f,id,base){
+  const dept=step5Dept(f,id);if(!dept)throw Error('専門部門が見つかりません');
+  if(!step5Int(base,0,200000))throw Error('教育予算は0〜200,000円相当の整数です');
+  dept.trainingBudgetBase=base;return dept;
+}
+function step5Dissolve(f,s,id){
+  const o=step5EnsureOrg(f),i=o.departments.findIndex(x=>x.id===id);
+  if(i<0)throw Error('専門部門が見つかりません');
+  const dept=o.departments[i];
+  o.archived.push({...dept,dissolvedMonth:step4Month(s)});
+  if(o.archived.length>1000)o.archived.splice(0,o.archived.length-1000);
+  o.departments.splice(i,1);step5Allocation(f,{write:true});
+  step5Record(o,'dissolved',id,step4Month(s),'正式廃止・将来維持費停止');
+  return dept;
+}
+function step5Overhead(f,s){
+  const o=step5EnsureOrg(f),scale=step4ScaleAssessment(f,s).score;
+  const allowed=2+Math.floor(scale/8);
+  const weight=o.departments.reduce((n,d)=>n+STEP4_COST.departmentWeights[d.level-1],0);
+  const excess=Math.max(0,weight-allowed);
+  return {allowed,weight,excess,costFactor:1+.04*excess,efficiencyPenalty:Math.min(.15,.015*excess)};
+}
+function step5MonthlyQuote(f,s){
+  const alloc=step5Allocation(f),overhead=step5Overhead(f,s),factor=eraCostFactor(s.year);
+  const detail=step5EnsureOrg(f).departments.map(dep=>{
+    const d=STEP4_CATALOG_BY_ID[dep.id],r=alloc.byId[dep.id];
+    const fixed=d.cost.monthlyBase*STEP4_COST.levelMultipliers[dep.level-1]
+      *(r.state==='dormant'?.4:1);
+    const variable=12*r.actual;
+    const maintenanceBase=Math.round((fixed+variable)*factor*overhead.costFactor);
+    const educationBase=r.state==='dormant'?0:dep.trainingBudgetBase;
+    return {...r,name:d.name,level:dep.level,skill:dep.skill,maintenanceBase,educationBase,
+      // Display-only. Do not modify the native R&D, production or model bonuses.
+      effectScale:r.staffFactor*(.7+.003*dep.skill)*(1-overhead.efficiencyPenalty)};
+  });
+  return {overhead,detail,totalMaintenanceBase:detail.reduce((n,d)=>n+d.maintenanceBase,0),
+    totalEducationBase:detail.reduce((n,d)=>n+d.educationBase,0),allocation:alloc};
+}
+function step5Month(s,events){
+  for(const f of s.firms||[]){
+    const o=step5EnsureOrg(f),period=step4Month(s);
+    if(o.lastSpecialistProcessedMonth===period)continue;
+    // Do not operate withdrawn or absorbed entities; keep archive and targets.
+    if(f.lifecycle?.phase==='withdrawn'||f.reorgStatus==='integrated'){
+      o.lastSpecialistProcessedMonth=period;continue;
+    }
+    const quote=step5MonthlyQuote(f,s);
+    for(const row of quote.detail){
+      const dept=o.departments.find(d=>d.id===row.id);if(!dept)continue;
+      const amount=localFromBase(row.maintenanceBase,f.country);
+      if(amount>0)spendExpense(f,STEP5_MAINTENANCE_ACCT,amount,
+        '専門部門月次維持費：'+row.name,'operating',s);
+      if(row.educationBase>0){
+        const trainAmount=localFromBase(row.educationBase,f.country);
+        if(trainAmount>0)spendExpense(f,'labor',trainAmount,
+          '専門部門技能研修：'+row.name,'operating',s);
+      }
+      if(row.state!=='dormant'&&row.actual>0){
+        const spending=row.educationBase;
+        const growth=Math.min(1.2,.18+(spending>0?.5*Math.sqrt(spending/(20*row.actual*eraCostFactor(s.year))):0));
+        dept.skill=Number(Math.min(100,dept.skill+growth).toFixed(4));
+      }
+      if(dept.state!==row.state&&Array.isArray(events))events.push(row.name+'：'+row.state);
+      dept.actualHeadcount=row.actual;dept.desiredHeadcount=row.desired;dept.state=row.state;
+    }
+    o.lastSpecialistProcessedMonth=period;
+    o.lastMaintenanceBase=quote.totalMaintenanceBase;
+    o.lastEducationBase=quote.totalEducationBase;
+  }
+}
+// STEP4's wrapper observes scale first, native HR processes turnover, then STEP5
+// observes the post-turnover staff pool and posts the additional department fees.
+const step5PriorHumanResources=processHumanResources;
+processHumanResources=function(s,events){
+  const value=step5PriorHumanResources(s,events);
+  step5Month(s,events);
+  return value;
+};
+// Existing payroll still sees the full original 4-category employee totals.
+// Factory's manual fixed assignments are protected; remaining workers are
+// reserved for specialists, leaving the rest to original auto factory planning.
+const step5PriorFactoryLaborPlan=factoryLaborPlanV026;
+factoryLaborPlanV026=function(f){
+  if(!f?.step4OrgV1?.departments?.length)return step5PriorFactoryLaborPlan(f);
+  const allocated=step5Allocation(f).list.filter(x=>x.base==='production').reduce((n,x)=>n+x.actual,0);
+  return step5PriorFactoryLaborPlan({...f,staff:{...f.staff,production:Math.max(0,step5ParentCount(f,'production')-allocated)}});
+};
+// Design specialists cannot additionally spend hours on ordinary engineering.
+// Protect already committed fixed engineering project staff before specialist
+// allocation. All state mutations are restored even if native processing fails.
+const step5PriorProcessEngineering=processEngineering;
+processEngineering=function(s,f){
+  if(!f?.step4OrgV1?.departments?.length)return step5PriorProcessEngineering(s,f);
+  const allocated=step5Allocation(f).list.filter(x=>x.base==='design').reduce((n,x)=>n+x.actual,0);
+  const full=step5ParentCount(f,'design');
+  if(!allocated)return step5PriorProcessEngineering(s,f);
+  f.staff.designEngineers=full-allocated;
+  try{return step5PriorProcessEngineering(s,f)}
+  finally{f.staff.designEngineers=full;}
+};
+function step5DepartmentTable(){
+  const f=current(),o=step5EnsureOrg(f),quote=step5MonthlyQuote(f,S),can=canEdit(f),data=step4CatalogAssessment(f,S);
+  const rows=data.items.map(d=>{
+    const stored=o.departments.find(x=>x.id===d.id),r=quote.allocation.byId[d.id];
+    const unlock=d.unlock,promote=stored?step5UpgradeQuote(f,S,d.id):null;
+    const status=stored?(r.state==='active'?'稼働中':r.state==='understaffed'?'人員不足':'休眠'):
+      unlock.ready?(unlock.early?'先行解禁':'解禁済み'):'条件未達';
+    const action=!stored?`<button type="button" class="btn sm" data-step5-action="open" data-id="${esc(d.id)}" ${can&&unlock.ready?'':'disabled'}>設立</button>`:
+      `<button type="button" class="btn sm" data-step5-action="upgrade" data-id="${esc(d.id)}" ${can&&promote.ready?'':'disabled'}>昇格</button>
+       <button type="button" class="btn sm" data-step5-action="dissolve" data-id="${esc(d.id)}" ${can?'':'disabled'}>廃止</button>`;
+    const stage=stored?STEP5_LEVELS[stored.level-1]+` / 技能${stored.skill.toFixed(1)}`:'未設立';
+    const reason=stored?(promote?.ready?'昇格提案あり':(promote?.reasons||[]).join(' / ')):
+      unlock.ready?'設立可能':unlock.reasons.join(' / ');
+    return `<tr data-step2-dept="${d.base}" data-step2-year="${d.normalYear}" data-step4-status="${unlock.status}" data-step5-state="${stored?r.state:'none'}">
+      <td><b>${esc(d.name)}</b><small class="muted"> ${d.normalYear}年〜</small></td><td>${STEP2_CATEGORY_NAMES[d.base]}</td>
+      <td>${d.feeClass}型 / ${esc(stage)}</td><td>${esc(status)}<div class="tiny muted">${esc(reason)}</div></td>
+      <td>${stored?`${r.actual}/${r.desired}人`:`${nfmt(unlock.openingEstimateBase)}円相当`}</td><td>${action}</td></tr>`;
+  }).join('');
+  return `<section class="panel span12" id="step4CatalogPanel"><h2>22専門部門・組織運営（STEP 5）</h2>
+   <p class="hint">設立・昇格は現金支出を伴い、確認後に実行します。昇格には次段階の実配置人数と技能45/65が必要です。休眠中は部門を保持します。</p>
+   <div class="formgrid"><div class="field"><label>基本部門</label><select id="step2DeptCategory"><option value="all">すべて</option>${Object.entries(STEP2_CATEGORY_NAMES).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select></div>
+   <div class="field"><label>通常年代</label><select id="step2DeptEra"><option value="all">すべて</option><option value="pre1960">〜1959年</option><option value="1960to2009">1960〜2009年</option><option value="post2010">2010年以降</option></select></div>
+   <div class="field"><label>状態</label><select id="step4DeptStatus"><option value="all">すべて</option><option value="unlocked">解禁済み</option><option value="early">先行解禁</option><option value="locked">未解禁</option><option value="active">稼働中</option><option value="understaffed">人員不足</option><option value="dormant">休眠</option></select></div></div>
+   <div class="scroll"><table><thead><tr><th>専門部門</th><th>所属</th><th>組織段階</th><th>状態・条件</th><th>人数または設立費</th><th>操作</th></tr></thead><tbody>${rows}</tbody></table></div>
+   <p id="step2DeptCounter" class="hint">22部門を表示</p></section>`;
+}
+step4DepartmentTable=step5DepartmentTable;
+const step5PriorHROrganization=step2HROrganization;
+step2HROrganization=function(f){
+  const quoted=step5MonthlyQuote(f,S),o=step5EnsureOrg(f);
+  const live=quoted.detail.filter(x=>x.state==='active').length,dormant=quoted.detail.filter(x=>x.state==='dormant').length;
+  return `<div class="grid">${card('設立済み専門部門',nfmt(o.departments.length)+' / 22','稼働中'+live+'・休眠'+dormant,'span4')}
+  ${card('月次維持費（予定）',nfmt(quoted.totalMaintenanceBase)+'円相当','給与・教育費は別','span4')}
+  ${card('組織管理負荷',nfmt(quoted.overhead.weight)+' / '+nfmt(quoted.overhead.allowed),'超過量'+nfmt(quoted.overhead.excess),'span4')}
+  ${step4ScalePanel(f)}${step5DepartmentTable()}</div>`;
+};
+function step5StaffPanel(f,edit){
+  const quote=step5MonthlyQuote(f,S),o=step5EnsureOrg(f),rows=quote.detail.map(r=>{
+   const dep=o.departments.find(x=>x.id===r.id),cat=STEP4_CATALOG_BY_ID[r.id];
+   return `<tr><td>${esc(r.name)}<div class="tiny muted">${STEP2_CATEGORY_NAMES[cat.base]}</div></td>
+     <td>${r.actual} / ${r.desired}人<br><small>最低${r.minimum}人</small></td>
+     <td><select id="step5Mode_${esc(r.id)}" ${edit?'':'disabled'}><option value="manual" ${dep.assignment==='manual'?'selected':''}>手動固定</option><option value="auto" ${dep.assignment==='auto'?'selected':''}>自動</option></select>
+     <input id="step5Desired_${esc(r.id)}" type="number" min="0" max="100000" value="${r.desired}" ${edit?'':'disabled'}></td>
+     <td>${r.state==='active'?'稼働':r.state==='dormant'?'休眠':'人員不足'}</td>
+     <td><button type="button" class="btn sm" data-step5-action="staff" data-id="${esc(r.id)}" ${edit?'':'disabled'}>配属を保存</button></td></tr>`;
+  }).join('');
+  return `<section class="panel span12" id="step5StaffPanel"><h2>専門部門の専任配置</h2>
+   <p class="hint">工場の手動固定配置を最優先します。設計案件の固定配属も保護します。研究者総数は既存の800技術の研究速度計算に引き続き含まれます。</p>
+   <div class="scroll"><table><thead><tr><th>部門</th><th>実配置 / 希望</th><th>方式・人数</th><th>状態</th><th>操作</th></tr></thead><tbody>
+   ${rows||'<tr><td colspan="5">専門部門はまだ設立されていません。</td></tr>'}</tbody></table></div>
+   <p class="hint">製造工場の固定配置は${quote.allocation.reservedFactory}人、設計案件の固定配属は${quote.allocation.reservedEngineering}人を確保済みです。</p></section>`;
+}
+const step5PriorHRStaff=step2HRStaff;
+step2HRStaff=function(f,edit){return step5PriorHRStaff(f,edit).replace(
+  '<section class="panel span12"><h2>専門部門への専任配置</h2><p class="hint">希望人数・実配置人数・自動配分の詳細はSTEP 5で追加します。</p></section>',step5StaffPanel(f,edit));};
+const step5PriorHRTraining=step2HRTraining;
+step2HRTraining=function(f,edit){
+  const o=step5EnsureOrg(f);
+  const rows=o.departments.map(dep=>{
+    const cat=STEP4_CATALOG_BY_ID[dep.id];
+    return `<tr><td>${esc(cat.name)}</td><td>${dep.skill.toFixed(2)}/100</td><td>${dep.state}</td>
+      <td><input id="step5Training_${esc(dep.id)}" type="number" min="0" max="200000" value="${dep.trainingBudgetBase}" ${edit?'':'disabled'}></td>
+      <td><button class="btn sm" data-step5-action="training" data-id="${esc(dep.id)}" ${edit?'':'disabled'}>保存</button></td></tr>`;
+  }).join('');
+  return step5PriorHRTraining(f,edit).replace('STEP 5','専任技能')+
+    `<section class="panel span12" id="step5TrainingPanel"><h2>専門部門ごとの教育・技能</h2>
+    <p class="hint">初期技能は元の基本部門から一部継承。稼働時は月0.18ポイントの経験成長と教育予算による追加成長があります。休眠中は成長しません。</p>
+    <div class="scroll"><table><thead><tr><th>専門部門</th><th>技能</th><th>状態</th><th>月次教育予算（円相当）</th><th>操作</th></tr></thead><tbody>
+    ${rows||'<tr><td colspan="5">設立済み部門はありません。</td></tr>'}</tbody></table></div></section>`;
+};
+const step5PriorHRLabor=step2HRLabor;
+step2HRLabor=function(f,edit){
+  const q=step5MonthlyQuote(f,S);
+  return step5PriorHRLabor(f,edit)+`<section class="panel span12" id="step5LaborPanel"><h2>専門部門費用（給与とは別）</h2>
+    <div class="grid">${card('次月専門維持費',nfmt(q.totalMaintenanceBase)+'円相当','年代・組織管理負荷を含む','span6')}
+    ${card('専門教育費',nfmt(q.totalEducationBase)+'円相当','稼働中の部門のみ','span6')}</div>
+    <p class="hint">給与は従来の基本4職種の賃金仕訳に含まれます。専門部門人数の給与を追加で計上しません。</p></section>`;
+};
+// Preserve the original STEP4 status filter while allowing established-state filters.
+step4RefreshDeptFilter=function(){
+ const cat=document.getElementById('step2DeptCategory')?.value||'all',era=document.getElementById('step2DeptEra')?.value||'all',st=document.getElementById('step4DeptStatus')?.value||'all';
+ let visible=0;
+ for(const tr of document.querySelectorAll('#step4CatalogPanel [data-step2-dept]')){
+   const y=Number(tr.dataset.step2Year);
+   const matches=(cat==='all'||tr.dataset.step2Dept===cat)&&
+     (era==='all'||(era==='pre1960'&&y<1960)||(era==='1960to2009'&&y>=1960&&y<2010)||(era==='post2010'&&y>=2010))&&
+     (st==='all'||(st==='unlocked'&&tr.dataset.step4Status==='unlocked')||(st==='early'&&tr.dataset.step4Status==='early')||
+      (st==='locked'&&tr.dataset.step4Status==='locked')||tr.dataset.step5State===st);
+   tr.hidden=!matches;if(matches)visible++;
+ }
+ const counter=document.getElementById('step2DeptCounter');if(counter)counter.textContent=`${visible} / 22部門を表示`;
+};
+function step5Action(action,id){
+ try{
+  const f=current();if(!f||!canEdit(f))throw Error('この法人への操作権限がありません');
+  let message='';
+  if(action==='open'){
+    const def=STEP4_CATALOG_BY_ID[id],u=step4UnlockedDepartment(f,S,def);
+    if(typeof confirm==='function'&&!confirm(`${def.name}を${nfmt(u.openingEstimateBase)}円相当で設立しますか？`))return;
+    step5OpenDepartment(f,S,id);message='専門部門を設立しました';
+  }else if(action==='upgrade'){
+    const u=step5UpgradeQuote(f,S,id);
+    if(typeof confirm==='function'&&!confirm(`Lv.${u.next}へ昇格し、${nfmt(u.base)}円相当を支出しますか？`))return;
+    step5UpgradeDepartment(f,S,id);message='専門部門を昇格しました';
+  }else if(action==='dissolve'){
+    if(typeof confirm==='function'&&!confirm('部門を廃止しますか？関連する組織履歴は保存されます。'))return;
+    step5Dissolve(f,S,id);message='部門を廃止しました';
+  }else if(action==='staff'){
+    const mode=document.getElementById('step5Mode_'+id)?.value||'manual',v=Number(document.getElementById('step5Desired_'+id)?.value);
+    step5SetDesired(f,id,v,mode);message='希望人数を更新しました';
+  }else if(action==='training'){
+    const v=Number(document.getElementById('step5Training_'+id)?.value);
+    step5SetTraining(f,id,v);message='専門教育予算を更新しました';
+  }else throw Error('未対応の専門部門操作です');
+  render();
+  // These controls use data-step5-action rather than native data-action.
+  // Explicitly request the existing protected autosave; otherwise a reload
+  // would silently lose valid department/finance mutations before month close.
+  if(typeof requestOperationSaveV037==='function')requestOperationSaveV037();
+  toast(message);
+ }catch(e){toast('専門部門：'+e.message);}
+}
+document.addEventListener('click',event=>{
+  const b=event.target?.closest?.('[data-step5-action]');
+  if(b&&S&&!b.disabled){event.preventDefault();step5Action(b.dataset.step5Action,b.dataset.id);}
+});
+
+/* CONGLOMERATE STEP 6 — opt-in advanced services and AI specialist management.
+ * Requires STEP2→STEP5, injected before boot(). Never replaces legacy research,
+ * manufacturing, model attributes, payroll or existing product unlocks.
+ * Advanced reports are newly introduced services; they are not evidence of
+ * real-world forecasting accuracy or actual laboratory certification.
+ */
+const STEP6_MARKER='STEP6_ADVANCED_SERVICES_AI_V1';
+const STEP6_VERSION=1;
+const STEP6_MAX_REPORTS=72;
+const STEP6_SERVICE_FEES=Object.freeze({A:1000,B:1800,C:3000});
+const STEP6_SERVICE_HOURS=Object.freeze({A:80,B:160,C:240});
+const STEP6_STRATEGY_BIAS=Object.freeze({
+  tech:{research:4,design:3,production:1,sales:1},quality:{research:2,design:2,production:4,sales:1},
+  growth:{research:2,design:2,production:2,sales:4},profit:{research:2,design:1,production:4,sales:3},
+  balanced:{research:2,design:2,production:2,sales:2}
+});
+function step6ServiceGroup(def){
+  if(def.id==='product_planning'||def.id==='market_analytics')return 'market_demand';
+  if(def.id==='quality_inspection'||def.id==='quality_governance')return 'factory_quality';
+  return def.id; // No unrelated service effects are stacked.
+}
+function step6EffectKind(def){
+  const name=def.effect.label;
+  if(name.includes('誤差'))return 'uncertainty';
+  if(name.includes('精度'))return 'detection';
+  if(name.includes('工数'))return 'hours';
+  if(name.includes('費'))return 'fee';
+  throw Error('未知の高度業務効果：'+def.id);
+}
+function step6AvailableEffects(f,s){
+  const alloc=step5MonthlyQuote(f,s);
+  const byGroup={};
+  for(const row of alloc.detail){
+    if(row.state==='dormant'||row.actual<1)continue;
+    const def=STEP4_CATALOG_BY_ID[row.id];
+    const amount=Math.abs(def.effect.levels[row.level-1])/100*row.effectScale;
+    const group=step6ServiceGroup(def);
+    if(!byGroup[group]||amount>byGroup[group].amount){
+      byGroup[group]={group,id:row.id,department:def.name,amount,kind:step6EffectKind(def),level:row.level,
+        effectScale:row.effectScale,staff:row.actual,skill:row.skill};
+    }
+  }
+  return byGroup;
+}
+function step6EnsureState(f){
+  const o=step5EnsureOrg(f);
+  // Validate before installing any new v1 fields. Old saves gain additive defaults.
+  if(o.step6!==undefined){
+    const x=o.step6;
+    if(!x||typeof x!=='object'||Array.isArray(x)||x.version!==STEP6_VERSION||
+       !Array.isArray(x.reports)||x.reports.length>STEP6_MAX_REPORTS||
+       !(x.ai===undefined||x.ai&&typeof x.ai==='object'&&!Array.isArray(x.ai)))
+      throw Error('高度専門業務の保存形式が不正です');
+    for(const report of x.reports){
+      if(!report||!STEP4_CATALOG_BY_ID[report.departmentId]||
+         !Number.isSafeInteger(report.month)||report.month<0||
+         !Number.isFinite(report.feeBase)||report.feeBase<0||
+         typeof report.group!=='string'||typeof report.summary!=='string')
+        throw Error('高度専門業務の実施履歴が不正です');
+    }
+    if(x.ai){
+      const m=x.ai.lastActionMonth;
+      if(m!==undefined&&m!==null&&(!Number.isSafeInteger(m)||m<0))
+        throw Error('AI組織運営の年月情報が不正です');
+      const dormant=x.ai.dormantSince;
+      if(dormant!==undefined&&(!dormant||typeof dormant!=='object'||Array.isArray(dormant)||
+        Object.keys(dormant).some(id=>!STEP4_CATALOG_BY_ID[id]||
+          !Number.isSafeInteger(dormant[id])||dormant[id]<0)))
+        throw Error('AI休眠履歴が不正です');
+    }
+    return x;
+  }
+  o.step6={version:STEP6_VERSION,reports:[],ai:{lastActionMonth:null,lastAction:'',lastAuditMonth:null}};
+  return o.step6;
+}
+function step6CostQuote(f,s,id){
+  const def=STEP4_CATALOG_BY_ID[id];if(!def)throw Error('専門業務の種類が不正です');
+  const state=step6EnsureState(f),group=step6ServiceGroup(def),best=step6AvailableEffects(f,s)[group];
+  if(!best)return {ready:false,group,reasons:['該当専門部門が稼働していません'],departmentId:id};
+  const month=step4Month(s);
+  if(state.reports.some(r=>r.month===month&&r.group===group))
+    return {ready:false,group,reasons:['この業務は今月すでに実施済みです'],departmentId:best.id};
+  const primary=STEP4_CATALOG_BY_ID[best.id];
+  const family=primary.feeClass,scope=1+Math.min(.30,Math.max(0,(f.models||[]).length-1)*.03+
+    Math.max(0,(f.plants||[]).length-1)*.02);
+  const baseFee=Math.round(STEP6_SERVICE_FEES[family]*eraCostFactor(s.year)*scope);
+  const originalHours=STEP6_SERVICE_HOURS[family];
+  const effect=best.amount,kind=best.kind;
+  // Trial hours are explicitly new tasks, not the existing engineering hours.
+  const hours=kind==='hours'?Math.max(1,Math.ceil(originalHours*(1-effect))):originalHours;
+  const feeBase=(kind==='fee'||kind==='hours')?Math.max(1,Math.round(baseFee*(1-effect))):baseFee;
+  const uncertainty=kind==='uncertainty'?Number((.20*(1-effect)).toFixed(5)):.20;
+  const detection=kind==='detection'?Math.min(1,Number((.55*(1+effect)).toFixed(5))):.55;
+  const cashNeeded=localFromBase(feeBase,f.country);
+  return {ready:acc(f,'cash')>=cashNeeded,departmentId:best.id,group,
+    name:primary.name,kind,effect,baseFee,feeBase,originalHours,hours,
+    uncertainty,detection,localCost:cashNeeded,
+    reasons:acc(f,'cash')>=cashNeeded?[]:['専門業務の実施費用が不足しています']};
+}
+function step6Evidence(f,s){
+  // Input is existing company information; the following are scenario proxies,
+  // NOT measured error bars, scientifically validated detection rates or guarantees.
+  const plants=(f.plants||[]),models=(f.models||[]),active=models.filter(m=>m.status==='active');
+  const fstats=financials(f);
+  const planned=Object.values(f.plans||{}).reduce((v,n)=>v+(Number(n)||0),0);
+  return {year:s.year,month:s.month,employeeTotal:step5ParentCount(f,'production')+
+    step5ParentCount(f,'research')+step5ParentCount(f,'design')+step5ParentCount(f,'sales'),
+    activePlants:plants.filter(p=>!p.paused&&!p.construction&&!p.renovation).length,
+    activeModels:active.length,modelProjects:(f.projects||[]).filter(p=>p.status==='developing').length,
+    engineeringProjects:(f.partOperations?.engineering?.projects||[]).filter(p=>['APPROVED','ACTIVE'].includes(p.status)).length,plannedUnits:planned,
+    researchProjects:f.research?.tree?.active?.length||0,
+    cashLocal:Number.isFinite(fstats.cash)?fstats.cash:acc(f,'cash'),assetsLocal:Number(fstats.assets)||0,
+    monthlySalesLocal:f.monthly?.sales||0};
+}
+
+// Each of the 22 departments has a domain-specific observation drawn from the
+// existing company ledger. The simulated gain is an estimate, never an actual
+// manufacturing or R&D bonus. A report is immutable after its creation.
+const STEP6_REPORT_PROBES=Object.freeze({
+  powertrain_design:['modelProjects','開発中の車種'],
+  materials_evaluation:['activePlants','稼働工場'],
+  quality_inspection:['activeModels','販売中の車種'],
+  process_standard:['plannedUnits','月間計画生産'],
+  electrical_design:['engineeringProjects','設計試験案件'],
+  product_planning:['activeModels','販売中の車種'],
+  prototype_reliability:['modelProjects','開発中の車種'],
+  cost_process:['plannedUnits','月間計画生産'],
+  control_software:['researchProjects','研究中の技術'],
+  factory_automation:['activePlants','稼働工場'],
+  quality_governance:['activePlants','監査対象工場'],
+  electronic_control:['engineeringProjects','設計試験案件'],
+  energy_storage_research:['researchProjects','研究中の技術'],
+  recycling_technology:['activePlants','評価対象工場'],
+  automotive_software:['engineeringProjects','設計試験案件'],
+  adas_design:['activeModels','対象車種'],
+  market_analytics:['activeModels','分析対象車種'],
+  battery_safety:['activeModels','試験候補車種'],
+  ai_driving_research:['researchProjects','研究中の技術'],
+  digital_manufacturing:['activePlants','設備分析対象工場'],
+  autonomous_validation:['modelProjects','開発中の車種'],
+  nextgen_battery_recycling:['researchProjects','研究中の技術']
+});
+function step6DiagnosticFinding(def,metrics){
+  const [field,label]=STEP6_REPORT_PROBES[def.id]||[];
+  if(!field)throw Error('高度診断の対象が未設定です：'+def.id);
+  const amount=metrics[field];
+  return `${label}：${Number(amount)||0}。研究・工程データに基づくゲーム内参考値であり、既存の販売・品質・研究計算は変更しません。`;
+}
+function step6PerformService(f,s,id){
+  const quote=step6CostQuote(f,s,id);
+  if(!quote.ready)throw Error('高度専門業務は利用できません：'+quote.reasons.join(' / '));
+  // Native spendImmediate already checks cash and posts ONE accounting entry.
+  spendImmediate(f,quote.feeBase,'rndExpense',`高度専門業務：${quote.name}`);
+  const snapshot=step6Evidence(f,s),state=step6EnsureState(f);
+  const summary=quote.kind==='uncertainty'?
+    `診断用の仮定上の不確実性幅を${(quote.uncertainty*100).toFixed(1)}%と評価`:
+    quote.kind==='detection'?`仮定上の検出感度指標${(quote.detection*100).toFixed(1)}%`:
+    quote.kind==='hours'?`追加試験の推定工数${quote.hours}時間`:
+      `高度評価の実施費用${quote.feeBase}円相当`;
+  const record={month:step4Month(s),departmentId:quote.departmentId,group:quote.group,
+    kind:quote.kind,effect:Number(quote.effect.toFixed(6)),feeBase:quote.feeBase,
+    baseFee:quote.baseFee,originalHours:quote.originalHours,hours:quote.hours,
+    uncertainty:quote.uncertainty,detection:quote.detection,summary,
+    finding:step6DiagnosticFinding(STEP4_CATALOG_BY_ID[quote.departmentId],snapshot),metrics:snapshot};
+  state.reports.unshift(record);
+  if(state.reports.length>STEP6_MAX_REPORTS)state.reports.length=STEP6_MAX_REPORTS;
+  return record;
+}
+function step6ReserveLocal(f,s){
+  const wage=Math.max(0,Number(s.world?.[f.country]?.wage)||145);
+  const headcount=step5ParentCount(f,'production')+step5ParentCount(f,'research')+
+    step5ParentCount(f,'design')+step5ParentCount(f,'sales');
+  const monthlyWage=localFromBase(wage*eraCostFactor(s.year)*(1+(f.hr?.payPremium||0))*headcount,f.country);
+  const specialist=localFromBase(step5MonthlyQuote(f,s).totalMaintenanceBase,f.country);
+  return Math.max(localFromBase(50000*eraCostFactor(s.year),f.country),
+    6*(monthlyWage+specialist));
+}
+function step6AIScore(def,f,policy){
+  const bias=(STEP6_STRATEGY_BIAS[policy]||STEP6_STRATEGY_BIAS.balanced)[def.base];
+  const spending=(def.cost.openingBase/10000);
+  const workload=def.base==='design'?Math.min(4,(f.partOperations?.engineering?.projects||[]).length):
+    def.base==='production'?Math.min(4,(f.plants||[]).length):
+    def.base==='research'?Math.min(4,(f.research?.tree?.active||[]).length):
+    Math.min(4,(f.models||[]).length);
+  return bias*10+workload*2-spending;
+}
+function step6AIFreeProduction(f,s){
+  // In contrast to STEP5's general maximum, the AI must NOT poach factory
+  // workers needed to achieve the existing plan or fixed assignments.
+  const allocations=step5Allocation(f),used=allocations.list.filter(r=>r.base==='production').reduce((n,r)=>n+r.actual,0);
+  const needed=step5PriorFactoryLaborPlan(f).records.reduce((n,r)=>n+(r.required||0),0);
+  return Math.max(0,step5ParentCount(f,'production')-used-Math.max(needed,allocations.reservedFactory));
+}
+function step6AIManage(f,s){
+  if(!f?.auto||f.player||f.lifecycle?.phase==='withdrawn'||f.reorgStatus==='integrated'||
+     (typeof controller==='function'&&controller(s,f.id)))return null;
+  if(!['auto','manufacturing','resource','trade','service','sales'].includes(f.industry))return null;
+  const state=step6EnsureState(f),ai=state.ai??(state.ai={lastActionMonth:null,lastAction:'',lastAuditMonth:null}),now=step4Month(s);
+  const o=step5EnsureOrg(f);
+  if(ai.dormantSince===undefined)ai.dormantSince={};
+  // Track prolonged dormancy independently of the native employment ledger.
+  // Never silently delete a player's department: this path is AI-only.
+  const allocation=step5Allocation(f);
+  for(const dep of o.departments){
+    const isDormant=allocation.byId[dep.id]?.state==='dormant';
+    if(isDormant){if(ai.dormantSince[dep.id]===undefined)ai.dormantSince[dep.id]=now;}
+    else delete ai.dormantSince[dep.id];
+  }
+  for(const key of Object.keys(ai.dormantSince))if(!o.departments.some(d=>d.id===key))delete ai.dormantSince[key];
+  if(ai.lastActionMonth!==null&&now-ai.lastActionMonth<3)return null;
+  const sustained=o.departments.filter(dep=>ai.dormantSince[dep.id]!==undefined&&
+    now-ai.dormantSince[dep.id]>=6).sort((a,b)=>a.foundedMonth-b.foundedMonth);
+  if(sustained.length){
+    const dep=sustained[0];step5Dissolve(f,s,dep.id);
+    delete ai.dormantSince[dep.id];
+    ai.lastActionMonth=now;ai.lastAction='長期休眠により廃止 '+STEP4_CATALOG_BY_ID[dep.id].name;
+    return {kind:'dissolved',id:dep.id};
+  }
+  const scale=step4ScaleAssessment(f,s);
+  const threshold=Math.min(8,Math.max(1,Math.floor(scale.score/12)));
+  const quote=step5MonthlyQuote(f,s);
+  const cash=acc(f,'cash'),reserve=step6ReserveLocal(f,s);
+  if(cash<=reserve)return null;
+  const policy=f.strategy||'balanced';
+  // An AI can approve its own eligible promotion, but may perform no more
+  // than one organizational change per three months.
+  const promotes=o.departments.filter(dep=>dep.level<3).map(dep=>({dep,
+    quote:step5UpgradeQuote(f,s,dep.id),def:STEP4_CATALOG_BY_ID[dep.id]}))
+    .filter(x=>x.quote.ready&&x.quote.base>0&&cash-localFromBase(x.quote.base,f.country)>reserve)
+    .sort((a,b)=>step6AIScore(b.def,f,policy)-step6AIScore(a.def,f,policy)||a.def.id.localeCompare(b.def.id));
+  if(promotes.length&&o.departments.length>=Math.max(1,threshold-1)){
+    const item=promotes[0];step5UpgradeDepartment(f,s,item.dep.id);
+    ai.lastActionMonth=now;ai.lastAction='昇格 '+item.def.name;return {kind:'upgraded',id:item.def.id};
+  }
+  if(o.departments.length>=threshold||quote.overhead.excess>0)return null;
+  const candidates=STEP4_CATALOG.filter(def=>!o.departments.some(dep=>dep.id===def.id))
+    .map(def=>({def,unlock:step4UnlockedDepartment(f,s,def)}))
+    .filter(x=>x.unlock.ready)
+    .sort((a,b)=>step6AIScore(b.def,f,policy)-step6AIScore(a.def,f,policy)||a.def.id.localeCompare(b.def.id));
+  for(const c of candidates){
+    const def=c.def,required=def.cost.minPeople[0],available=step5Allocation(f).remaining[def.base];
+    if(available<required)continue;
+    if(def.base==='production'&&step6AIFreeProduction(f,s)<required)continue;
+    const postCash=cash-localFromBase(c.unlock.openingEstimateBase,f.country);
+    const nextMaintenance=localFromBase(Math.round((def.cost.monthlyBase+required*12)*eraCostFactor(s.year)),f.country);
+    if(postCash<reserve+6*nextMaintenance)continue;
+    step5OpenDepartment(f,s,def.id); // identical actual cost/requirements to player
+    ai.lastActionMonth=now;ai.lastAction='設立 '+def.name;
+    return {kind:'founded',id:def.id};
+  }
+  return null;
+}
+function step6AIReviewTraining(f,s){
+  if(!f?.auto||f.player||(typeof controller==='function'&&controller(s,f.id)))return;
+  const o=step5EnsureOrg(f),ai=step6EnsureState(f).ai;
+  const freeCash=acc(f,'cash')-step6ReserveLocal(f,s);
+  if(freeCash<=0){
+    // Stop elective specialist training before it can create an avoidable
+    // payable in financial distress. Existing employees remain employed.
+    for(const d of o.departments)if(d.trainingBudgetBase>0)d.trainingBudgetBase=0;
+    return;
+  }
+  const allocation=step5Allocation(f);
+  for(const d of o.departments){
+    const r=allocation.byId[d.id];
+    if(!r||r.state==='dormant'||d.skill>=72)continue;
+    if(d.trainingBudgetBase>0)continue; // Never override an existing policy.
+    const affordableBase=Math.floor(baseFromLocal(freeCash,f.country)/100/Math.max(1,eraCostFactor(s.year))*.002);
+    const training=Math.max(0,Math.min(2000,affordableBase));
+    if(training>=100)step5SetTraining(f,d.id,training);
+  }
+  if(ai&&o.departments.length)ai.lastTrainingReviewMonth=step4Month(s);
+}
+// AI choices are evaluated inside the same cloned transactional monthly state
+// before the native personnel, STEP4 size observation and STEP5 expense stages.
+const step6PriorHumanResources=processHumanResources;
+processHumanResources=function(s,events){
+  for(const f of s.firms||[]){
+    const change=step6AIManage(f,s);step6AIReviewTraining(f,s);
+    if(change&&Array.isArray(events)&&typeof controller==='function'&&controller(s,f.id))
+      events.push(f.name+'：専門部門 '+change.kind);
+  }
+  return step6PriorHumanResources(s,events);
+};
+function step6AdvancedPanel(f){
+  const state=step6EnsureState(f),effect=step6AvailableEffects(f,S),edit=canEdit(f);
+  const rows=Object.values(effect).map(x=>{
+    const q=step6CostQuote(f,S,x.id);
+    return `<tr><td><b>${esc(x.department)}</b><small class="muted"> ${STEP5_LEVELS[x.level-1]}</small></td>
+      <td>${x.staff}人 / 技能${nfmt(x.skill)}</td><td>${esc(STEP4_CATALOG_BY_ID[x.id].effect.label)}</td>
+      <td>${(x.amount*100).toFixed(2)}%</td><td>${q.ready?nfmt(q.feeBase)+'円相当':esc(q.reasons.join(' / '))}</td>
+      <td><button class="btn sm" type="button" data-step6-action="audit" data-id="${esc(x.id)}" ${edit&&q.ready?'':'disabled'}>高度業務を実施</button></td></tr>`;
+  }).join('');
+  const history=state.reports.slice(0,12).map(r=>`<tr><td>${Math.floor(r.month/12)}年${r.month%12+1}月</td>
+    <td>${esc(STEP4_CATALOG_BY_ID[r.departmentId]?.name||'')}</td><td>${esc(r.summary)}<div class="tiny muted">${esc(r.finding||'')}</div></td>
+    <td>${nfmt(r.feeBase)}円相当</td></tr>`).join('');
+  return `<section class="panel span12" id="step6AdvancedPanel"><h2>専門部門の高度診断・検証（STEP 6）</h2>
+    <p class="hint">稼働中の専門部門が追加の高度業務を実行できます。工数・費用・予測誤差・検知感度への効果は対象業務にのみ適用します。既存の研究速度、車両性能、生産能力には直接加算しません。同種の効果は最大の1部門のみ採用します。</p>
+    <p class="hint">予測誤差・検知感度はゲーム内の試算指標であり、現実の計測精度・性能保証ではありません。高度業務の実施時だけ研究開発費が発生します。</p>
+    <div class="scroll"><table><thead><tr><th>専門部門</th><th>実配置/技能</th><th>高度機能</th><th>適用効果</th><th>実施費用</th><th>操作</th></tr></thead>
+    <tbody>${rows||'<tr><td colspan="6">稼働中の高度専門部門がありません。</td></tr>'}</tbody></table></div>
+    <h3>最近の高度診断・検証履歴</h3><div class="scroll"><table><thead><tr><th>年月</th><th>実施部門</th><th>成果</th><th>費用</th></tr></thead>
+    <tbody>${history||'<tr><td colspan="4">実施記録はありません。</td></tr>'}</tbody></table></div>
+    ${f.auto?`<p class="hint">AI組織方針：${esc(state.ai?.lastAction||'未実施')}</p>`:''}
+  </section>`;
+}
+const step6PriorOrgPanel=step2HROrganization;
+step2HROrganization=function(f){return step6PriorOrgPanel(f)+step6AdvancedPanel(f);};
+function step6Action(action,id){
+  try{
+    const f=current();if(!f||!canEdit(f))throw Error('法人への操作権限がありません');
+    if(action!=='audit')throw Error('未対応の操作です');
+    const q=step6CostQuote(f,S,id);
+    if(!q.ready)throw Error(q.reasons.join(' / '));
+    if(typeof confirm==='function'&&!confirm(`${q.name}の高度業務を${nfmt(q.feeBase)}円相当で実施しますか？`))return;
+    const report=step6PerformService(f,S,id);
+    render();if(typeof requestOperationSaveV037==='function')requestOperationSaveV037();
+    toast('高度診断・検証を実施しました：'+report.summary);
+  }catch(e){toast('高度専門業務：'+e.message);}
+}
+document.addEventListener('click',event=>{
+  const b=event.target?.closest?.('[data-step6-action]');
+  if(b&&S&&!b.disabled){event.preventDefault();step6Action(b.dataset.step6Action,b.dataset.id);}
+});
+
+/* CONGLOMERATE STEP 7 — notification links, additive save compatibility.
+ * Requires STEP2→STEP6. Insert before boot(), never replace native save/restore.
+ * New notifications are recorded in the cloned trial state BEFORE the month
+ * advances, so the native saveAuto() persists them with the committed month.
+ * No changes to the 800 R&D nodes, vehicle design, payroll or factory math.
+ */
+const STEP7_MARKER='STEP7_LINKS_SAVE_V1';
+const STEP7_VERSION=1;
+const STEP7_MAX_NOTICES=96;
+const STEP7_MAX_PROJECTS=250;
+const STEP7_KINDS=Object.freeze({
+  research:'研究完了',unlock:'専門部門の解禁',promotion:'専門部門の昇格提案',
+  shortage:'専門部門の人員不足',dormant:'専門部門の休眠',recovered:'専門部門の稼働回復',
+  vehicle:'車両開発の完了',upcoming:'車両開発の完成予定'
+});
+function step7IsManaged(f,s){
+  return !!f&&(f.id===s.playerId||typeof controller==='function'&&!!controller(s,f.id));
+}
+function step7ProjectKey(p){return String(p.kind||'new')+'|'+String(p.fromModel||'')+'|'+String(p.name||'');}
+function step7ProjectSnapshot(f){
+  return (f.projects||[]).filter(p=>p.status==='developing')
+    .slice(0,STEP7_MAX_PROJECTS).map(p=>({
+      key:step7ProjectKey(p),name:String(p.name||'').slice(0,80),left:Math.max(0,Math.floor(p.left||0))
+    }));
+}
+function step7Observation(f,s){
+  const o=step5EnsureOrg(f),allocation=step5Allocation(f);
+  const unlockReady=[],promotionReady=[],departmentStates=Object.create(null);
+  const scale=step4ScaleAssessment(f,s);
+  for(const def of STEP4_CATALOG){
+    if(step4UnlockedDepartment(f,s,def,scale).ready)unlockReady.push(def.id);
+  }
+  for(const dep of o.departments){
+    const q=dep.level<3?step5UpgradeQuote(f,s,dep.id):null;
+    if(q?.ready)promotionReady.push(dep.id+':'+(dep.level+1));
+    departmentStates[dep.id]=allocation.byId[dep.id]?.state||'dormant';
+  }
+  return {technologies:[...new Set(f.research?.tree?.done||[])].filter(id=>!!TECH_BY_ID[id]),
+    unlockReady,promotionReady,departmentStates,activeProjects:step7ProjectSnapshot(f)};
+}
+function step7NewRoot(s){
+  const observations=Object.create(null);
+  for(const f of s.firms||[])if(step7IsManaged(f,s))observations[f.id]=step7Observation(f,s);
+  return {version:STEP7_VERSION,nextId:1,entries:[],observations};
+}
+function step7ValidArrayOfStrings(list,max=800){return Array.isArray(list)&&list.length<=max&&
+  list.every(x=>typeof x==='string'&&x.length>0&&x.length<=140);}
+function step7ValidateRoot(s,r){
+  if(!r||typeof r!=='object'||Array.isArray(r)||r.version!==STEP7_VERSION||
+    !Number.isSafeInteger(r.nextId)||r.nextId<1||!Array.isArray(r.entries)||
+    r.entries.length>STEP7_MAX_NOTICES||!r.observations||typeof r.observations!=='object'||
+    Array.isArray(r.observations))throw Error('STEP 7：通知保存形式が不正です');
+  const ids=new Set();
+  for(const notice of r.entries){
+    if(!notice||!Number.isSafeInteger(notice.id)||notice.id<1||notice.id>=r.nextId||ids.has(notice.id)||
+      !Object.hasOwn(STEP7_KINDS,notice.kind)||!Number.isSafeInteger(notice.period)||notice.period<0||
+      typeof notice.firmId!=='string'||notice.firmId.length>80||
+      typeof notice.ref!=='string'||notice.ref.length>140||
+      typeof notice.label!=='string'||notice.label.length>240||typeof notice.read!=='boolean')
+      throw Error('STEP 7：通知履歴が破損しています');
+    ids.add(notice.id);
+  }
+  if(Object.keys(r.observations).length>Math.max(1500,(s.firms||[]).length+10))
+    throw Error('STEP 7：観測法人が上限を超えています');
+  for(const [firmId,o] of Object.entries(r.observations)){
+    if(!firmId||firmId.length>80||!o||typeof o!=='object'||Array.isArray(o)||
+      !step7ValidArrayOfStrings(o.technologies)||!step7ValidArrayOfStrings(o.unlockReady,22)||
+      !step7ValidArrayOfStrings(o.promotionReady,22)||!o.departmentStates||
+      typeof o.departmentStates!=='object'||Array.isArray(o.departmentStates)||
+      Object.keys(o.departmentStates).length>22||
+      Object.entries(o.departmentStates).some(([id,st])=>!STEP4_CATALOG_BY_ID[id]||
+        !['active','understaffed','dormant'].includes(st))||
+      !Array.isArray(o.activeProjects)||o.activeProjects.length>STEP7_MAX_PROJECTS||
+      o.activeProjects.some(p=>!p||typeof p.key!=='string'||p.key.length>240||
+        typeof p.name!=='string'||p.name.length>80||!Number.isSafeInteger(p.left)||p.left<0))
+      throw Error('STEP 7：法人別の通知観測情報が破損しています');
+    if(o.technologies.some(id=>!TECH_BY_ID[id])||o.unlockReady.some(id=>!STEP4_CATALOG_BY_ID[id])||
+      o.promotionReady.some(id=>!/^(.+):[23]$/.test(id)||!STEP4_CATALOG_BY_ID[id.slice(0,-2)]))
+      throw Error('STEP 7：技術または部門の参照が不正です');
+  }
+  return r;
+}
+function step7EnsureRoot(s){
+  if(s.step7LinksV1===undefined){
+    // Baseline historical data rather than notifying every old research node.
+    const initial=step7NewRoot(s);s.step7LinksV1=initial;return initial;
+  }
+  return step7ValidateRoot(s,s.step7LinksV1);
+}
+function step7AddNotice(s,r,firmId,kind,ref,label){
+  if(!Object.hasOwn(STEP7_KINDS,kind))throw Error('通知区分が不正です');
+  const notice={id:r.nextId++,period:step4Month(s),firmId,kind,
+    ref:String(ref||'').slice(0,140),label:String(label||'').slice(0,240),read:false};
+  r.entries.unshift(notice);
+  if(r.entries.length>STEP7_MAX_NOTICES)r.entries.length=STEP7_MAX_NOTICES;
+  return notice;
+}
+function step7ScanMonth(s){
+  const state=step7EnsureRoot(s);
+  for(const f of s.firms||[]){
+    if(!step7IsManaged(f,s))continue;
+    const now=step7Observation(f,s),prev=state.observations[f.id];
+    if(!prev){state.observations[f.id]=now;continue;}
+    const priorTech=new Set(prev.technologies),priorUnlock=new Set(prev.unlockReady),priorProm=new Set(prev.promotionReady);
+    for(const id of now.technologies)if(!priorTech.has(id))
+      step7AddNotice(s,state,f.id,'research',id,'研究完了：'+(TECH_BY_ID[id]?.name||id));
+    for(const id of now.unlockReady)if(!priorUnlock.has(id))
+      step7AddNotice(s,state,f.id,'unlock',id,'専門部門を設立可能：'+STEP4_CATALOG_BY_ID[id].name);
+    for(const code of now.promotionReady)if(!priorProm.has(code)){
+      const id=code.slice(0,-2),lv=Number(code.slice(-1));
+      step7AddNotice(s,state,f.id,'promotion',id,'昇格を承認できます：'+STEP4_CATALOG_BY_ID[id].name+' → '+STEP5_LEVELS[lv-1]);
+    }
+    for(const [id,status] of Object.entries(now.departmentStates)){
+      const old=prev.departmentStates[id];if(!old||old===status)continue;
+      const kind=status==='dormant'?'dormant':status==='understaffed'?'shortage':'recovered';
+      const desc=kind==='dormant'?'休眠中':kind==='shortage'?'人員不足':'稼働回復';
+      step7AddNotice(s,state,f.id,kind,id,'専門部門：'+STEP4_CATALOG_BY_ID[id].name+'／'+desc);
+    }
+    const activeKeys=new Set(now.activeProjects.map(p=>p.key));
+    for(const project of prev.activeProjects){
+      const current=now.activeProjects.find(p=>p.key===project.key);
+      if(current){
+        if(project.left>1&&current.left===1)
+          step7AddNotice(s,state,f.id,'upcoming',project.key,'開発完了が近づいています：'+project.name+'（残り1か月）');
+      }else if(!activeKeys.has(project.key)&&
+        (f.models||[]).some(m=>m.name===project.name&&m.status==='active')){
+        step7AddNotice(s,state,f.id,'vehicle',project.key,'車両開発が完了：'+project.name);
+      }
+    }
+    state.observations[f.id]=now;
+  }
+}
+// Next-month date advancement is invoked exactly once from native runMonth's
+// CLOSE stage. Capture notifications on its trial clone before CHECK_AFTER and
+// native saveAuto. Do not use another asynchronous write or mutate global S.
+const step7NativeNextMonthDate=nextMonthDate;
+nextMonthDate=function(s){step7ScanMonth(s);return step7NativeNextMonthDate(s);};
+// Existing parsePayload validates checksum, native data, AI/factory compatibility.
+// Only after its success do we add/validate the STEP7 root on the parsed copy.
+const step7NativeParsePayload=parsePayload;
+parsePayload=function(raw){
+  const parsed=step7NativeParsePayload(raw);
+  step7EnsureRoot(parsed);return parsed;
+};
+const step7NativeNewGame=newGame;
+newGame=function(cfg){
+  const created=step7NativeNewGame(cfg);
+  step7EnsureRoot(created);return created;
+};
+const step7NativeSavePayload=savePayload;
+savePayload=function(s){
+  if(s?.step7LinksV1!==undefined)step7ValidateRoot(s,s.step7LinksV1);
+  return step7NativeSavePayload(s); // Do not change VERSION, checksum or slots.
+};
+function step7EventRoute(event){
+  switch(event.kind){
+    case 'research':return {page:'research',tech:event.ref};
+    case 'unlock':case 'promotion':case 'dormant':return {page:'hr',tab:'org',dept:event.ref};
+    case 'shortage':case 'recovered':return {page:'hr',tab:'staff',dept:event.ref};
+    case 'vehicle':case 'upcoming':return {page:'product',tab:'planning'};
+    default:return null;
+  }
+}
+function step7OpenRoute(route,firmId){
+  if(!S||!route||!['research','hr','product'].includes(route.page))return false;
+  const firm=(S.firms||[]).find(f=>f.id===firmId);
+  if(!firm)return false;
+  VIEW_FIRM=firm.id;
+  if(route.page==='research'){
+    PEOPLE_VIEW='research';
+    if(route.tech&&TECH_BY_ID[route.tech]){
+      TECH_SELECTED=route.tech;
+      TECH_DOMAIN=TECH_BY_ID[route.tech].domain;
+      TECH_FAMILY=TECH_FAMILY_OF[TECH_DOMAIN];
+    }
+  }
+  if(route.page==='hr'){
+    STEP2_HR_VIEW=['org','staff','training','labor'].includes(route.tab)?route.tab:'org';
+    try{localStorage.setItem(STEP2_HR_KEY,STEP2_HR_VIEW)}catch(_ignored){}
+  }
+  if(route.page==='product'){
+    PRODUCT_VIEW=['planning','design','production','sales'].includes(route.tab)?route.tab:'planning';
+    try{localStorage.setItem(STEP2_PRODUCT_KEY,PRODUCT_VIEW)}catch(_ignored){}
+  }
+  PAGE=route.page;
+  render();
+  const target=route.page==='research'?'#researchTreePanel':
+    route.page==='product'?'.step2-project-strip':
+      route.tab==='staff'?'#step5StaffPanel':'#step4CatalogPanel';
+  const el=document.querySelector(target);
+  if(el?.scrollIntoView)try{el.scrollIntoView({block:'start'});}catch(_ignored){}
+  return true;
+}
+function step7MarkRead(id){
+  if(!S||!Number.isSafeInteger(id))return false;
+  const root=step7EnsureRoot(S),entry=root.entries.find(x=>x.id===id);
+  if(!entry||entry.read||entry.firmId!==current()?.id)return false;
+  entry.read=true;
+  if(typeof requestOperationSaveV037==='function')requestOperationSaveV037();
+  return true;
+}
+function step7ReadAll(){
+  if(!S)return 0;
+  const root=step7EnsureRoot(S),firmId=current()?.id,
+    before=root.entries.filter(x=>!x.read&&x.firmId===firmId).length;
+  for(const x of root.entries)if(x.firmId===firmId)x.read=true;
+  if(before&&typeof requestOperationSaveV037==='function')requestOperationSaveV037();
+  return before;
+}
+function step7NotificationPanel(){
+  const root=step7EnsureRoot(S),visible=root.entries.filter(x=>x.firmId===current()?.id);
+  const unread=visible.filter(x=>!x.read).length;
+  const lines=visible.slice(0,8).map(x=>`<div class="step7-notice ${x.read?'step7-read':'step7-unread'}" data-step7-notice="${x.id}">
+    <div class="step7-notice-main"><span class="step7-notice-kind">${esc(STEP7_KINDS[x.kind])}</span>
+    <b>${esc(x.label)}</b><small>${Math.floor(x.period/12)}年${x.period%12+1}月</small></div>
+    <div class="step7-notice-actions"><button type="button" class="btn sm" data-step7-go="${x.id}">開く</button>
+    ${x.read?'':`<button type="button" class="btn sm" data-step7-read="${x.id}">既読</button>`}</div></div>`).join('');
+  return `<section class="step7-notifications" id="step7Notifications" aria-label="研究・人事・車両設計の通知">
+    <details ${unread?'open':''}><summary><strong>研究・人事・車両設計の連携通知</strong>
+      <span class="step7-counter">未読 ${unread}件 / 履歴 ${visible.length}件</span></summary>
+      <div class="step7-notice-list">${lines||'<p class="hint">現在表示する連携通知はありません。</p>'}</div>
+      <div class="step7-notice-footer"><button type="button" class="btn sm" data-step7-read-all="1" ${unread?'':'disabled'}>すべて既読</button>
+      <span class="hint">通知は最大${STEP7_MAX_NOTICES}件。既存のゲーム計算や研究速度には影響しません。</span></div>
+    </details></section>`;
+}
+function step7Shortcuts(){
+  const arr=PAGE==='research'?[['hr','org','関連する専門部門'],['product','design','車両設計へ']]:
+    PAGE==='hr'?[['research','','関連研究を確認'],['product','planning','車種管理へ']]:
+      [['research','','研究ツリーへ'],['hr','staff','人員配置へ']];
+  return `<nav class="step7-shortcuts" aria-label="関連ページへ直接移動">${arr.map(([page,tab,label])=>
+    `<button type="button" class="btn sm" data-step7-shortcut="${page}" data-step7-tab="${tab}">${esc(label)}</button>`).join('')}</nav>`;
+}
+const step7NativeRender=render;
+render=function(){
+  const out=step7NativeRender();
+  if(S&&['research','hr','product'].includes(PAGE)){
+    const holder=document.getElementById('content');
+    if(holder){
+      const anchor=holder.querySelector('.section-tabbar')||holder.querySelector('.section-tabs');
+      const ui=step7Shortcuts()+step7NotificationPanel();
+      if(anchor)anchor.insertAdjacentHTML('afterend',ui);
+      else holder.insertAdjacentHTML('afterbegin',ui);
+    }
+  }
+  return out;
+};
+document.addEventListener('click',event=>{
+  const el=event.target?.closest?.('[data-step7-go],[data-step7-read],[data-step7-read-all],[data-step7-shortcut]');
+  if(!el||!S||el.disabled)return;
+  event.preventDefault();
+  if(el.hasAttribute('data-step7-shortcut')){
+    step7OpenRoute({page:el.dataset.step7Shortcut,tab:el.dataset.step7Tab},current()?.id);return;
+  }
+  if(el.hasAttribute('data-step7-read-all')){step7ReadAll();render();return;}
+  const id=Number(el.dataset.step7Go||el.dataset.step7Read);
+  if(!Number.isSafeInteger(id))return;
+  if(el.hasAttribute('data-step7-read')){step7MarkRead(id);render();return;}
+  const root=step7EnsureRoot(S),notice=root.entries.find(x=>x.id===id);
+  if(notice){
+    step7MarkRead(id);
+    step7OpenRoute(step7EventRoute(notice),notice.firmId);
+  }
+});
 
 boot();
 </script>
