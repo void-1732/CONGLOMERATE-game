@@ -7730,7 +7730,12 @@ function hrPageStep2() {
 const step2PriorRender=render;
 render=function () {
   // All links in legacy saved UI remain usable. New page keys are canonical.
-  if(PAGE==='people')PAGE=PEOPLE_VIEW==='hr'?'hr':'research';
+  if(PAGE==='people'){
+    const legacyHr=PEOPLE_VIEW==='hr';
+    PAGE=legacyHr?'hr':'research';
+    // A legacy HR deep link must open the basic hiring controls, not the new organization tab.
+    if(legacyHr)STEP2_HR_VIEW='staff';
+  }
   return step2PriorRender();
 };
 function step2RefreshDeptFilter() {
