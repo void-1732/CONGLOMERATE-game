@@ -1,0 +1,33 @@
+name: STEP 10 Final 37-Page and Accounting Regression
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - index.html
+      - tests/test_step10_37_pages.py
+      - .github/workflows/step10-final-regression.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  final-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout game source
+        uses: actions/checkout@v4
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Playwright and Chromium
+        run: |
+          python -m pip install --upgrade pip
+          pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Verify all 37 pages, accounting, browser save and reload
+        run: python tests/test_step10_37_pages.py
