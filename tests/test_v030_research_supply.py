@@ -153,6 +153,8 @@ with sync_playwright() as p:
     assert page.evaluate("current().partOperations.engineering.projects[0].work") == fixed_work
     assert page.evaluate("!!current().partOperations.productionPlans[0].last")
     screen("product")
+    # STEP 2 separates vehicle planning from the existing part design editor.
+    page.get_by_role("button", name="車両・部品設計", exact=True).click()
     page.get_by_text("部品を設計・改訂する", exact=True).click()
     assert page.get_by_text("完了済み研究の効果", exact=False).is_visible()
     page.set_viewport_size({"width": 1440, "height": 900})
