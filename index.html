@@ -5631,7 +5631,7 @@ function registerEquityLink(s,rec){
 }
 function registerInterco(s,rec){s.intercompanyTx??=[];s.intercompanyTx.push({id:'I'+s.seq++,...rec});}
 function legacyLinks(s){
- const links=[...(s.equityLinks||[])],seen=new Set(links.map(l=>l.parentId+'|'+l.childId));const warnings=[];
+ const links=[...(s.equityLinks||[])].map(l=>({...l,ratio:l.remainingRatio??l.ratio,considerationLocal:l.remainingConsiderationLocal??l.considerationLocal})).filter(l=>l.ratio>0),seen=new Set(links.map(l=>l.parentId+'|'+l.childId));const warnings=[];
  const used=new Set(links.map(l=>l.buyerJournal));
  for(const child of s.firms){for(const owner of child.owners.filter(o=>o.id!=='PUBLIC')){
   const key=owner.id+'|'+child.id;if(seen.has(key))continue;
@@ -5697,7 +5697,8 @@ function consolidate(s,rootId=s.playerId){
  let internalInvest=0,bargain=0,goodwill=0,nciGoodwill=0;
  const acquired=[];
  for(const l of activeLinks){const par=company(l.parentId,s),child=company(l.childId,s),pay=baseFromLocal(l.considerationLocal,par.country);internalInvest+=pay;
-  const delta=pay-(l.bookEquityBase||0)*l.ratio;if(delta>=0){goodwill+=delta;nciGoodwill+=(1-(ownership.shares[l.parentId]||0))*delta;}
+  const goodwillBasis=(l.internalSellerId&&ids.has(l.internalSellerId)&&l.consolidationCostLocal!==undefined)?baseFromLocal(l.consolidationCostLocal,par.country):pay;
+  const delta=goodwillBasis-(l.consolidationBookEquityBase??l.bookEquityBase??0)*l.ratio;if(delta>=0){goodwill+=delta;nciGoodwill+=(1-(ownership.shares[l.parentId]||0))*delta;}
   else bargain+=-delta;
   acquired.push({parent:par.name,child:child.name,kind:l.kind,ratio:l.ratio,paid:pay,bookEquity:l.bookEquityBase||0,residual:Math.round(delta),month:l.month});
  }
@@ -5705,7 +5706,8 @@ function consolidate(s,rootId=s.playerId){
  bs.goodwill=Math.round(goodwill);bs.investmentEliminated=internalInvest;
  bs.assets=bs.assets-internalInvest+bs.goodwill;
  // Intra-group goods: track the actual remaining quantity, eliminate only unsold markup.
- const opens=consolidatedMonths(s,activeLinks,members);
+ const scopeHistory=[...activeLinks,...(s.equityLinks||[]).filter(l=>(l.remainingRatio??l.ratio)<=0&&ids.has(l.parentId)&&ids.has(l.childId))].map(l=>({...l,ratio:l.originalRatio??l.ratio}));
+ const opens=consolidatedMonths(s,scopeHistory,members);
  const parts=partConsolidation(s,members,activeLinks,opens,s.monthCommitted,ownership.shares);
  const insidePeriod=t=>{if(t.yearMonth<Math.max(opens[t.seller]||0,opens[t.buyer]||0))return false;
   if(t.yearMonth===Math.max(opens[t.seller]||0,opens[t.buyer]||0)){
@@ -5743,7 +5745,7 @@ function consolidate(s,rootId=s.playerId){
  if(loanRecEliminated!==loanDebtEliminated||interestRecEliminated!==interestDueEliminated)
   notes.push('内部貸付債権債務の換算差額は外貨換算ルール未確定のため要確認');
  const cashTx=[...(s.intercompanyTx||[]),...developmentCashPairs(s),...partCashPairs(s)].filter(t=>ids.has(t.seller)&&ids.has(t.buyer)&&insidePeriod(t));
- const cashJournals=new Set();for(const t of cashTx)if(['loan','loanCash','interestCash','goods','developmentCash','partTradeCash'].includes(t.kind))for(const id of [t.fromJournal,t.toJournal])if(id!==undefined)cashJournals.add(id);
+ const cashJournals=new Set();for(const t of cashTx)if(['loan','loanCash','interestCash','goods','developmentCash','partTradeCash','equityCash'].includes(t.kind))for(const id of [t.fromJournal,t.toJournal])if(id!==undefined)cashJournals.add(id);
  for(const l of activeLinks)if(l.kind==='foundation')for(const id of [l.buyerJournal,l.childJournal])if(id!==undefined)cashJournals.add(id);
  // Group assets minus group debts determine consolidated net equity. Subsidiary net
  // assets (not gross balance sheet items) are allocated to NCI by effective ownership.
@@ -5759,24 +5761,27 @@ function consolidate(s,rootId=s.playerId){
  // finite set of tracked in-group transfers is eliminated from cumulative income.
  let rev=0,exp=0;
  for(const f of members){const fin=financials(f);let preRevenue=0,preExpense=0;
-  if(f.id!==rootId){const entry=opens[f.id]??0;const relevant=activeLinks.filter(l=>l.childId===f.id&&l.month===entry).sort((a,b)=>a.buyerJournal-b.buyerJournal)[0];
+  if(f.id!==rootId){const entry=opens[f.id]??0;const relevant=scopeHistory.filter(l=>l.childId===f.id&&l.month===entry).sort((a,b)=>a.buyerJournal-b.buyerJournal)[0];
     const baseline=groupEntryIncomeBaseline(f,entry,relevant?.buyerJournal??Number.MAX_SAFE_INTEGER,s);
     preRevenue=baseline.revenue;preExpense=baseline.expenses;
    }
   rev+=baseFromLocal(fin.revenue-preRevenue,f.country);
   exp+=baseFromLocal(fin.expenses-preExpense,f.country);
  }
+ const internalEquity=(s.equityTransfers||[]).filter(t=>ids.has(t.seller)&&ids.has(t.buyer)&&t.month>=Math.max(opens[t.seller]||0,opens[t.buyer]||0));
+ const equityRevenueEliminated=internalEquity.reduce((n,t)=>n+Math.max(0,t.gainBase||0),0),equityExpenseEliminated=internalEquity.reduce((n,t)=>n+Math.max(0,-(t.gainBase||0)),0);
  const netElimination=internalSales-internalSellerCost-internalCostSold;
  // For a period with internal stock still in inventory: netElimination=remaining markup.
- rev-=internalSales+interestRev+parts.sales;exp-=internalSellerCost+internalCostSold+interestExp+parts.sales-parts.deferred;
+ rev-=internalSales+interestRev+parts.sales+equityRevenueEliminated;exp-=internalSellerCost+internalCostSold+interestExp+parts.sales-parts.deferred+equityExpenseEliminated;
  const rawProfit=rev-exp;
  const pl={revenue:Math.round(rev),expenses:Math.round(exp),profit:Math.round(rawProfit+bargain),bargainGain:Math.round(bargain),intercompanySales:internalSales+parts.sales,internalInterest:interestRev,unrealizedProfit:inventoryProfit+parts.deferred,nciProfit:0,parentProfit:0};
  let minorProfit=0;
- for(const f of members){if(f.id===rootId)continue;const entry=opens[f.id]??0,l=activeLinks.filter(l=>l.childId===f.id&&l.month===entry).sort((a,b)=>a.buyerJournal-b.buyerJournal)[0];
+ for(const f of members){if(f.id===rootId)continue;const entry=opens[f.id]??0,l=scopeHistory.filter(l=>l.childId===f.id&&l.month===entry).sort((a,b)=>a.buyerJournal-b.buyerJournal)[0];
   const fin=financials(f),baseline=groupEntryIncomeBaseline(f,entry,l?.buyerJournal??Number.MAX_SAFE_INTEGER,s);
   const p=fin.profit-baseline.profit;minorProfit+=(1-(ownership.shares[f.id]||0))*baseFromLocal(p,f.country);}
  minorProfit-=stockTx.reduce((a,t)=>{const it=company(t.buyer,s).goods[t.stockKey],ratio=t.q?Math.min(1,(it?.q||0)/t.q):0;return a+t.marginBase*ratio*(1-(ownership.shares[t.seller]||0));},0);
  minorProfit-=accrued.reduce((a,t)=>a+(1-(ownership.shares[t.seller]||0))*t.revenueBase-(1-(ownership.shares[t.buyer]||0))*t.expenseBase,0);
+ minorProfit-=internalEquity.reduce((n,t)=>n+(t.gainBase||0)*(1-(ownership.shares[t.seller]||0)),0);
  pl.nciProfit=Math.round(minorProfit-parts.nci);pl.parentProfit=pl.profit-pl.nciProfit;
  // Cash-flow classification for most recently committed month. Each legal entity's
  // cash journal is summed once, then linked internal cash legs are removed by ID.
@@ -5820,10 +5825,11 @@ function computePeriodCF(s,rootId,g,bridge){
  if(saved?.cf?.revision===4)return {...saved.cf,fromCommittedSnapshot:true};
  const memberIds=new Set(g.members),members=g.members.map(id=>company(id,s));
  const {links}=legacyLinks(s),active=links.filter(l=>memberIds.has(l.parentId)&&memberIds.has(l.childId));
- const opens=consolidatedMonths(s,active,members);
+ const scopeHistory=[...active,...(s.equityLinks||[]).filter(l=>(l.remainingRatio??l.ratio)<=0&&memberIds.has(l.parentId)&&memberIds.has(l.childId))].map(l=>({...l,ratio:l.originalRatio??l.ratio}));
+ const opens=consolidatedMonths(s,scopeHistory,members);
  const linksEntering=new Map();for(const f of members){
   if(f.id===rootId)continue;
-  const entering=active.filter(l=>l.childId===f.id&&l.month===opens[f.id]);
+  const entering=scopeHistory.filter(l=>l.childId===f.id&&l.month===opens[f.id]);
   if(entering.length)linksEntering.set(f.id,entering.sort((a,b)=>a.buyerJournal-b.buyerJournal)[0]);
  }
  const ignored=new Set();let loanPairs=0;
@@ -5837,7 +5843,7 @@ function computePeriodCF(s,rootId,g,bridge){
    };
    if([[t.seller,t.fromJournal],[t.buyer,t.toJournal]].some(beforeEntry))continue;
   }
-  if(['loan','loanCash','interestCash','goods','developmentCash','partTradeCash'].includes(t.kind)){
+  if(['loan','loanCash','interestCash','goods','developmentCash','partTradeCash','equityCash'].includes(t.kind)){
    if(Number.isInteger(t.fromJournal))ignored.add(t.fromJournal);
    if(Number.isInteger(t.toJournal))ignored.add(t.toJournal);loanPairs++;
   }
@@ -5942,7 +5948,8 @@ function journalIncome(j){
 function accountingFxReview(s,rootId,g){
  const ids=new Set(g.members),members=g.members.map(id=>company(id,s));
  const historical=legacyLinks(s).links.filter(l=>ids.has(l.parentId)&&ids.has(l.childId));
- const starts=consolidatedMonths(s,historical,members);
+ const scopeHistory=[...historical,...(s.equityLinks||[]).filter(l=>(l.remainingRatio??l.ratio)<=0&&ids.has(l.parentId)&&ids.has(l.childId))].map(l=>({...l,ratio:l.originalRatio??l.ratio}));
+ const starts=consolidatedMonths(s,scopeHistory,members);
  const parts=partConsolidation(s,members,historical,starts,s.monthCommitted,g.shares);
  const byId=new Map();let grossAssets=0,grossLiabilities=0,grossCash=0;
  for(const f of members){
@@ -5962,10 +5969,11 @@ function accountingFxReview(s,rootId,g){
   // Parent investment remains a non-monetary historical carrying amount in its
   // local ledger, translated when parent balance sheet is consolidated.
   const bookedLocal=Number(l.considerationLocal||0),historicalConsideration=Math.round(bookedLocal*acqBuyerRate);
-  const snapshotEquity=Number(l.acquisitionSnapshot?.equity??l.bookEquityLocal??
+  const goodwillConsideration=l.internalSellerId&&ids.has(l.internalSellerId)&&l.consolidationCostLocal!==undefined?Math.round(l.consolidationCostLocal*acqBuyerRate):historicalConsideration;
+  const snapshotEquity=Number(l.consolidationSnapshotEquityLocal??l.acquisitionSnapshot?.equity??l.bookEquityLocal??
     ((l.bookEquityBase||0)/COUNTRIES[child.country].fx));
   const historicalBookNet=Math.round(snapshotEquity*acqChildRate);
-  const difference=historicalConsideration-Math.round(historicalBookNet*l.ratio);
+  const difference=goodwillConsideration-Math.round(historicalBookNet*l.ratio);
   const goodwillClose=difference>0?Math.round(difference*targetRate/acqChildRate):0;
   const discounted=difference<0?-difference:0;
   investment+=Math.round(bookedLocal*buyerRate);
@@ -6059,6 +6067,10 @@ function accountingFxReview(s,rootId,g){
  rev-=internalSalesPeriod+interestRevenuePeriod+parts.periodSales;
  exp-=internalSalesPeriod+interestExpensePeriod+parts.periodSales;
  exp+=deltaDeferred;
+ const insideEquity=(s.equityTransfers||[]).filter(t=>t.month===period&&ids.has(t.seller)&&ids.has(t.buyer));
+ const shareGain=insideEquity.map(t=>{const f=company(t.seller,s);const j=f.journals.find(j=>j.id===t.sellerJournal);return Math.round((t.gainLocal||0)*Number(j?.fxAtPost??COUNTRIES[f.country].fx));});
+ rev-=shareGain.reduce((n,v)=>n+Math.max(0,v),0);exp-=shareGain.reduce((n,v)=>n+Math.max(0,-v),0);
+ nciProfit-=Math.round(insideEquity.reduce((n,t)=>n+(t.gainBase||0)*(1-(g.shares[t.seller]??0)),0));
  const bargainCurrent=acquisition.filter(x=>x.month===period).reduce((v,x)=>v+Math.max(0,-x.historicalDifference),0);
  const profit=rev-exp+bargainCurrent;
  // For internal transfers, the selling entity's minority holders bear any
@@ -6209,9 +6221,9 @@ function render(){if(!S){document.getElementById('content').innerHTML='';documen
 function monthModal(){const issues=checkMonthPreview(),f=current();return `<div class="modalwrap"><div class="modal" role="dialog" aria-modal="true"><div class="eyebrow">MONTH-END / PRE-FLIGHT</div><h1>${dateKey()}の月末処理</h1><p class="muted">処理前チェックは確定状態を変更しません。実行後は当月を固定順序で計算し、資源・会計の整合性を検証して結果を確定します。</p><div class="grid">${card('対象',esc(dateKey()),'月次一括処理','span4')}${card('支配下法人',controlled().length+'社','計算は全世界の企業を含む','span4')}${card('現金残高',fnum(f,financials(f).cash),'現在選択中の法人','span4')}</div><h2 style="margin-top:20px">事前確認・警告</h2>${issues.length?issues.map(v=>`<div class="notice">${tag('注意','warn')}　${esc(v)}</div>`).join(''):`<div class="note">現時点の計画に重大な資源警告は見つかりませんでした。価格変化や供給不足など、実際の月末処理で決定される結果もあります。</div>`}<div class="note warnbox" style="margin-top:15px">数値計算は試作係数に基づきます。正式SPEC-095以降の計算方式は未確定です。処理失敗時は計算前の状態を保護します。</div><div class="footer"><button class="btn" data-action="cancelMonth">計画に戻る</button><button class="btn primary" data-action="runMonth">この月を確定する</button></div></div></div>`}
 function wizardHTML(){const stepLabels=['開始年代','創業国','モードと難易度','創業条件確認'];return `<div class="modalwrap"><div class="modal" role="dialog" aria-modal="true"><div class="eyebrow">NEW GAME / STEP ${wizard+1} OF 4</div><h1>新しい企業経営を始める</h1>${saveWarning?`<div class="note warnbox"><b>保存・復元に関する注意</b><p>${esc(saveWarning)}</p><button class="btn" data-action="import">JSONバックアップを読み込んで復元する</button></div>`:''}<p class="muted small">自動車メーカーを創業する試作版です。人口は史実推計の基準値、その他の経済係数は仮設定です。</p><div class="steps">${stepLabels.map((x,i)=>`<span class="${i<=wizard?'on':''}" title="${x}"></span>`).join('')}</div>${wizard===0?`<h2>1. 開始年代</h2><div class="choices">${[1900,1920,1950,1980,2020].map(y=>`<label class="choice"><input type="radio" name="era" value="${y}" ${setup.era===y?'checked':''}><b>${y}年</b><span class="small muted">${y===1900?'工業化初期・自動車市場の草創期':y===1920?'自動車普及期':y===1950?'戦後産業復興期':y===1980?'世界市場拡大期':'現代のグローバル市場'}</span></label>`).join('')}</div>`:wizard===1?`<h2>2. 創業国</h2><div class="choices">${Object.keys(NAMES).map(c=>`<label class="choice"><input type="radio" name="country" value="${c}" ${setup.country===c?'checked':''}><b>${NAMES[c]}</b><span class="small muted">試作通貨：${COUNTRIES[c].currency} / 人口基準値 ${nfmt(anchorPopulation(c,setup.era))}百万人</span></label>`).join('')}</div>`:wizard===2?`<h2>3. 歴史モードと難易度</h2><div class="formgrid"><div class="field"><label>歴史モード</label><select id="wizardHistory"><option value="historical" ${setup.history==='historical'?'selected':''}>史実モード</option><option value="alternate" ${setup.history==='alternate'?'selected':''}>仮想歴史モード</option></select></div><div class="field"><label>難易度</label><select id="wizardDifficulty"><option value="easy" ${setup.difficulty==='easy'?'selected':''}>易しい（資本1.6倍）</option><option value="normal" ${setup.difficulty==='normal'?'selected':''}>標準</option><option value="hard" ${setup.difficulty==='hard'?'selected':''}>難しい（資本0.7倍）</option></select></div><div class="field"><label>会社名</label><input id="wizardName" maxlength="38" value="${esc(setup.name)}"></div></div><div class="note" style="margin-top:20px">史実モードは主要な歴史イベントを扱い、景気循環は固定日付では発生しません。現段階ではイベントや歴史的国境・通貨の厳密再現は未完成です。</div>`:`<h2>4. 創業条件の確認</h2><div class="statrow">${[['会社名',esc(setup.name)],['開始年月',setup.era+'年1月'],['創業国',NAMES[setup.country]],['歴史モード',setup.history==='historical'?'史実':'仮想'],['難易度',setup.difficulty==='easy'?'易しい':setup.difficulty==='hard'?'難しい':'標準'],['初期資本（円相当）',nfmt((setup.era<1930?2400000:setup.era<1960?4200000:setup.era<1990?7000000:12000000)*(setup.difficulty==='easy'?1.6:setup.difficulty==='hard'?.7:1))]].map(([k,v])=>`<div><div class="label">${k}</div><strong>${v}</strong></div>`).join('')}</div><div class="note warnbox" style="margin-top:20px">人口は史実推計の概数を基準値に採用（${nfmt(anchorPopulation(setup.country,setup.era))}百万人）。現在の国境に対応した人口推計であり、当時の国境・通貨を再現するものではありません。為替・価格・需要は試作値です。</div>`}<div class="footer"><button class="btn" data-action="wizardBack" ${wizard===0?'disabled':''}>戻る</button><button class="btn primary" data-action="wizardNext">${wizard===3?'この条件で創業する':'次へ進む ▸'}</button></div></div></div>`}
 async function wizardNext(){if(S)return;if(wizard===0)setup.era=Number(document.querySelector('input[name="era"]:checked')?.value||1900);if(wizard===1)setup.country=document.querySelector('input[name="country"]:checked')?.value||'JP';if(wizard===2){setup.history=inputValue('wizardHistory')||'historical';setup.difficulty=inputValue('wizardDifficulty')||'normal';setup.name=(inputValue('wizardName')||'').trim().slice(0,38)||'新規自動車メーカー'}if(wizard<3){wizard++;render();return}try{S=newGame(setup);LAST_MONTH_DIAGNOSTIC=null;MONTH_DIAGNOSTIC_OPEN=false;VIEW_FIRM=S.playerId;VIEW_COUNTRY=setup.country;PAGE='dashboard';render();const saved=await saveAuto();render();toast(saved?'創業しました。IndexedDBに自動保存しました。':'創業しましたが、自動保存に失敗しました。JSONバックアップを保存してください。')}catch(e){S=null;toast('創業設定エラー：'+e.message);console.error(e)}}
-function actions(action,elem){if(MONTH_RUNNING){toast('月次処理中です。保存・計算の確定を進めています。');return;}if(action==='wizardNext')return wizardNext();if(action==='wizardBack'){wizard=Math.max(0,wizard-1);return render()}if(action==='import'){document.getElementById('importFile').click();return;}if(!S)return;switch(action){case 'previewMonth':monthlyPreview=true;return render();case 'cancelMonth':monthlyPreview=false;return render();case 'runMonth':return runMonth();case 'monthDiagnosticShow':case 'monthDiagnosticDismiss':case 'monthDiagnosticCopy':case 'monthDiagnosticDownload':case 'monthDiagnosticJump':return monthlyDiagAction(action);case 'staffToHrV023':PEOPLE_VIEW='hr';PAGE='people';render();return;case 'goProductionV023':PRODUCT_VIEW='production';PAGE='product';render();return;case 'setPlan':return setPlan();case 'createGrade':return createGrade();case 'saveQualityPolicy':return saveQualityPolicy();case 'recallModel':return recallModel(elem.dataset.modelId);case 'changeBudget':return changeBudget();case 'researchFocusSave':return researchFocusSave();case 'roadmapAdd':return roadmapAdd(elem.dataset.techId);case 'roadmapRemove':return roadmapRemove(elem.dataset.techId);case 'roadmapToggle':return roadmapToggle();case 'hireStaff':return hireStaff();case 'partOrderPlace':case 'partOrderDispatch':case 'partOrderCancel':return partTradeAction(action,elem.dataset.id);case 'bomAssemblySave':case 'bomLineSave':case 'bomShipment':return bomFactoryAction(action,elem.dataset.id);case 'lineReview':case 'linePropose':case 'lineApprove':case 'lineCancel':return lineUIAction(action,elem);case 'partLicensePropose':case 'partLicenseApprove':case 'partLicenseEnd':case 'partDevelopmentPropose':case 'partDevelopmentApprove':case 'partDevelopmentEnd':return partContractsAction(action,elem.dataset.id);case 'partFamily':case 'partRevise':case 'partSubmit':case 'partBomCreate':case 'partBomOpen':case 'partBomSave':case 'partBomApprove':return partDesignAction(action,elem.dataset.id);case 'partRepair':return partRepairAction(elem.dataset.id,Number(elem.dataset.index));case 'engineeringTraining':case 'engineeringPropose':case 'engineeringApprove':case 'engineeringAllocate':case 'engineeringPause':case 'engineeringCancel':return engineeringAction(action,elem.dataset.id);case 'hrSave':return saveHRPolicy();case 'hrNegotiate':return negotiateLabor();case 'maintain':return maintain();case 'expand':return expand();case 'develop':return develop();case 'renewModel':return startModelRevision();case 'maFilter':return maFilter();case 'maSelect':return maSelect(elem.dataset.id);case 'maQuote':return maPreview();case 'maFillAvailable':return maFillAvailable();case 'maBuy':return maBuy();case 'maIntegrate':return maStartIntegration();case 'issueShares':return issueSharesUI();case 'buyBackSharesV0271':return buyBackSharesUI();case 'cancelTreasurySharesV0271':return cancelTreasurySharesUI();case 'negPreview':return negotiationPreview();case 'buyStake':return buyNegotiatedStake();case 'saveDelegate':return saveDelegationPolicy();case 'designPreview':return designPreview();case 'openSupplyContracts':return openSupplyContracts();case 'saveSupply':return saveSupply();case 'saveDistribution':return saveDistribution();case 'establishSalesCorp':return establishSalesCorporation();case 'factoryBuild':return factoryBuild();case 'factoryManageV21':return manageFactoryV21(elem.dataset.plantId);case 'factoryModeV21':return saveFactoryModeV21();case 'moduleShipV21':return shipModuleV21();case 'v21RouteSave':return saveRoutesV21();case 'partsPlan':try{return partPlanning()}catch(e){toast(e.message);return}case 'shipParts':return shipInterplant();case 'reorgTransfer':return transferBusinessUI();case 'reorgIntegrate':return integrateBusinessUI();case 'mergeSibling':return mergeWhollyOwnedSubsidiariesUI();case 'mergeParentSub':return mergeParentSubsidiaryUI();case 'cancelGroupMerger':return cancelGroupMergerUI(elem.dataset.id);case 'plantSettings':return plantSettings();case 'maintainPlant':return maintainPlant();case 'researchChoose':return researchChoose();case 'startTech':return startTech(elem.dataset.techId);case 'cancelTech':return cancelTech(elem.dataset.techId);case 'borrow':return borrow();case 'spendAd':return spendAd();case 'createSub':return createSub();case 'renameCompany':return renameCompany();case 'renamePlant':return renamePlant(elem.dataset.plantId);case 'factoryRouteSaveOne':return saveFactoryRouteOne(elem.dataset.plantId);case 'factoryManageSelected':return manageFactoryV21(elem.dataset.plantId,document.getElementById('factoryOneAction')?.value);case 'acquire':return acquire(elem.dataset.id);case 'groupLoan':return groupLoan();case 'groupSale':return groupSale();case 'diagnoseStorage':return diagnoseStorage();case 'saveManual':return saveManual(Number(elem.dataset.slot));case 'loadManual':{const i=Number(elem.dataset.slot);if(confirm('現在の未保存変更を破棄し、手動保存'+(i+1)+'を読み込みますか？'))return restore(SAVE_INDEX.manual[i]?.serialized);return}case 'loadAutoSlot':{const i=Number(elem.dataset.slot);if(confirm('自動保存世代'+(i+1)+'を読み込みますか？'))return restore(SAVE_INDEX.auto[i]?.serialized);return}case 'export':try{fileDownload(`conglomerate_${S.year}_${S.month}.json`,savePayload(S));toast('JSONバックアップを書き出しました')}catch(e){toast('書き出しに失敗：'+e.message)}return;case 'import':document.getElementById('importFile').click();return;case 'newGame':if(confirm('現在のセッションを終了し、新しいゲームを開始しますか？ 保存済みデータは削除しません。')){S=null;wizard=0;monthlyPreview=false;PAGE='dashboard';render()}return;}}
+function actions(action,elem){if(MONTH_RUNNING){toast('月次処理中です。保存・計算の確定を進めています。');return;}if(action==='wizardNext')return wizardNext();if(action==='wizardBack'){wizard=Math.max(0,wizard-1);return render()}if(action==='import'){document.getElementById('importFile').click();return;}if(!S)return;switch(action){case 'previewMonth':monthlyPreview=true;return render();case 'cancelMonth':monthlyPreview=false;return render();case 'runMonth':return runMonth();case 'monthDiagnosticShow':case 'monthDiagnosticDismiss':case 'monthDiagnosticCopy':case 'monthDiagnosticDownload':case 'monthDiagnosticJump':return monthlyDiagAction(action);case 'staffToHrV023':PEOPLE_VIEW='hr';PAGE='people';render();return;case 'goProductionV023':PRODUCT_VIEW='production';PAGE='product';render();return;case 'setPlan':return setPlan();case 'createGrade':return createGrade();case 'saveQualityPolicy':return saveQualityPolicy();case 'recallModel':return recallModel(elem.dataset.modelId);case 'changeBudget':return changeBudget();case 'researchFocusSave':return researchFocusSave();case 'roadmapAdd':return roadmapAdd(elem.dataset.techId);case 'roadmapRemove':return roadmapRemove(elem.dataset.techId);case 'roadmapToggle':return roadmapToggle();case 'hireStaff':return hireStaff();case 'partOrderPlace':case 'partOrderDispatch':case 'partOrderCancel':return partTradeAction(action,elem.dataset.id);case 'bomAssemblySave':case 'bomLineSave':case 'bomShipment':return bomFactoryAction(action,elem.dataset.id);case 'lineReview':case 'linePropose':case 'lineApprove':case 'lineCancel':return lineUIAction(action,elem);case 'partLicensePropose':case 'partLicenseApprove':case 'partLicenseEnd':case 'partDevelopmentPropose':case 'partDevelopmentApprove':case 'partDevelopmentEnd':return partContractsAction(action,elem.dataset.id);case 'partFamily':case 'partRevise':case 'partSubmit':case 'partBomCreate':case 'partBomOpen':case 'partBomSave':case 'partBomApprove':return partDesignAction(action,elem.dataset.id);case 'partRepair':return partRepairAction(elem.dataset.id,Number(elem.dataset.index));case 'engineeringTraining':case 'engineeringPropose':case 'engineeringApprove':case 'engineeringAllocate':case 'engineeringPause':case 'engineeringCancel':return engineeringAction(action,elem.dataset.id);case 'hrSave':return saveHRPolicy();case 'hrNegotiate':return negotiateLabor();case 'maintain':return maintain();case 'expand':return expand();case 'develop':return develop();case 'renewModel':return startModelRevision();case 'maFilter':return maFilter();case 'maSelect':return maSelect(elem.dataset.id);case 'maQuote':return maPreview();case 'maCorpFill':return corpShareFill();case 'maCorpQuote':return corpSharePreview();case 'maCorpBuy':return corpShareBuy();case 'maFillAvailable':return maFillAvailable();case 'maBuy':return maBuy();case 'maIntegrate':return maStartIntegration();case 'issueShares':return issueSharesUI();case 'buyBackSharesV0271':return buyBackSharesUI();case 'cancelTreasurySharesV0271':return cancelTreasurySharesUI();case 'negPreview':return negotiationPreview();case 'buyStake':return buyNegotiatedStake();case 'saveDelegate':return saveDelegationPolicy();case 'designPreview':return designPreview();case 'openSupplyContracts':return openSupplyContracts();case 'saveSupply':return saveSupply();case 'saveDistribution':return saveDistribution();case 'establishSalesCorp':return establishSalesCorporation();case 'factoryBuild':return factoryBuild();case 'factoryManageV21':return manageFactoryV21(elem.dataset.plantId);case 'factoryModeV21':return saveFactoryModeV21();case 'moduleShipV21':return shipModuleV21();case 'v21RouteSave':return saveRoutesV21();case 'partsPlan':try{return partPlanning()}catch(e){toast(e.message);return}case 'shipParts':return shipInterplant();case 'reorgTransfer':return transferBusinessUI();case 'reorgIntegrate':return integrateBusinessUI();case 'mergeSibling':return mergeWhollyOwnedSubsidiariesUI();case 'mergeParentSub':return mergeParentSubsidiaryUI();case 'cancelGroupMerger':return cancelGroupMergerUI(elem.dataset.id);case 'plantSettings':return plantSettings();case 'maintainPlant':return maintainPlant();case 'researchChoose':return researchChoose();case 'startTech':return startTech(elem.dataset.techId);case 'cancelTech':return cancelTech(elem.dataset.techId);case 'borrow':return borrow();case 'spendAd':return spendAd();case 'createSub':return createSub();case 'renameCompany':return renameCompany();case 'renamePlant':return renamePlant(elem.dataset.plantId);case 'factoryRouteSaveOne':return saveFactoryRouteOne(elem.dataset.plantId);case 'factoryManageSelected':return manageFactoryV21(elem.dataset.plantId,document.getElementById('factoryOneAction')?.value);case 'acquire':return acquire(elem.dataset.id);case 'groupLoan':return groupLoan();case 'groupSale':return groupSale();case 'diagnoseStorage':return diagnoseStorage();case 'saveManual':return saveManual(Number(elem.dataset.slot));case 'loadManual':{const i=Number(elem.dataset.slot);if(confirm('現在の未保存変更を破棄し、手動保存'+(i+1)+'を読み込みますか？'))return restore(SAVE_INDEX.manual[i]?.serialized);return}case 'loadAutoSlot':{const i=Number(elem.dataset.slot);if(confirm('自動保存世代'+(i+1)+'を読み込みますか？'))return restore(SAVE_INDEX.auto[i]?.serialized);return}case 'export':try{fileDownload(`conglomerate_${S.year}_${S.month}.json`,savePayload(S));toast('JSONバックアップを書き出しました')}catch(e){toast('書き出しに失敗：'+e.message)}return;case 'import':document.getElementById('importFile').click();return;case 'newGame':if(confirm('現在のセッションを終了し、新しいゲームを開始しますか？ 保存済みデータは削除しません。')){S=null;wizard=0;monthlyPreview=false;PAGE='dashboard';render()}return;}}
 document.addEventListener('click',e=>{const product=e.target.closest('[data-product-view]');if(product&&S){PRODUCT_VIEW=product.dataset.productView;render();window.scrollTo({top:0,behavior:'instant'});return;}const people=e.target.closest('[data-people-view]');if(people&&S){PEOPLE_VIEW=people.dataset.peopleView;render();window.scrollTo({top:0,behavior:'instant'});return;}const group=e.target.closest('[data-tech-family]');if(group&&S){TECH_FAMILY=group.dataset.techFamily;TECH_DOMAIN=TECH_FAMILIES[TECH_FAMILY].domains[0];TECH_SELECTED=TECH_DOMAIN+'-1';return redrawResearchPanel({centerSelected:false})}const field=e.target.closest('[data-tech-domain]');if(field&&S){TECH_DOMAIN=field.dataset.techDomain;techScrollDomain(TECH_DOMAIN);document.querySelectorAll('[data-tech-domain]').forEach(x=>x.classList.toggle('active',x.dataset.techDomain===TECH_DOMAIN));return}const tech=e.target.closest('[data-tech-select]');if(tech&&S){chooseTech(tech.dataset.techSelect);return}const section=e.target.closest('[data-section]');if(section&&S){PAGE=SECTIONS[section.dataset.section].pages[0][0];monthlyPreview=false;render();window.scrollTo({top:0,behavior:'instant'});return}const nav=e.target.closest('[data-page]');if(nav&&S){PAGE=nav.dataset.page;monthlyPreview=false;render();window.scrollTo({top:0,behavior:'instant'});return}const el=e.target.closest('[data-action]');if(el&&!el.disabled)actions(el.dataset.action,el)});
-document.addEventListener('change',e=>{if(e.target.matches('[data-design-field]')||e.target.id==='modelPrice')designPreview();if(['factorySite','factoryScale','factoryKind'].includes(e.target.id))factorySitePreview()});document.addEventListener('input',e=>{if(e.target.id==='modelPrice')designPreview();if(e.target.id==='maPercent'){delete e.target.dataset.exactUnits;delete e.target.dataset.exactTarget;}});document.getElementById('companySelect').addEventListener('change',e=>{VIEW_FIRM=e.target.value;render()});document.getElementById('regionSelect').addEventListener('change',e=>{VIEW_COUNTRY=e.target.value;render()});document.getElementById('importFile').addEventListener('change',async e=>{const file=e.target.files[0];if(!file)return;try{const raw=await file.text();if(confirm('読み込み中のゲーム状態をJSONバックアップで置き換えますか？'))restore(raw)}catch(err){toast('ファイルを読み込めません：'+err.message)}e.target.value=''});
+document.addEventListener('change',e=>{if(e.target.matches('[data-design-field]')||e.target.id==='modelPrice')designPreview();if(['factorySite','factoryScale','factoryKind'].includes(e.target.id))factorySitePreview();if(e.target.id==='maCorpMode'){const v=document.getElementById('maCorpFactor');if(v)v.value={normal:130,hostile:160,turnaround:70,group:100}[e.target.value]||130;}});document.addEventListener('input',e=>{if(e.target.id==='modelPrice')designPreview();if(e.target.id==='maPercent'){delete e.target.dataset.exactUnits;delete e.target.dataset.exactTarget;}if(e.target.id==='maCorpPercent'){delete e.target.dataset.fullUnits;delete e.target.dataset.fullTarget;delete e.target.dataset.fullSeller;}});document.getElementById('companySelect').addEventListener('change',e=>{VIEW_FIRM=e.target.value;render()});document.getElementById('regionSelect').addEventListener('change',e=>{VIEW_COUNTRY=e.target.value;render()});document.getElementById('importFile').addEventListener('change',async e=>{const file=e.target.files[0];if(!file)return;try{const raw=await file.text();if(confirm('読み込み中のゲーム状態をJSONバックアップで置き換えますか？'))restore(raw)}catch(err){toast('ファイルを読み込めません：'+err.message)}e.target.value=''});
 
 /* v0.22 — render the research and HR subviews independently (no HTML slicing). */
 let PEOPLE_VIEW='research';
@@ -6234,7 +6246,7 @@ const MA_EXTERNAL_CLASSES={
  institutional:'投資信託・保険',individual:'一般個人・分散株主',freefloat:'一般個人・分散株主'
 };
 function ensureMAState(s){
- s.maDeals??=[];s.maPlans??=[];s.maAIHistory??=[];
+ s.maDeals??=[];s.maPlans??=[];s.maAIHistory??=[];s.equityTransfers??=[];
  for(const f of s.firms||[]){
   ensureGameplayV07(f);
   // Preserve the six-digit external share total exactly on migration from v0.17.
@@ -6330,6 +6342,108 @@ function executeMADeal(s,buyerId,targetId,percent,multiplier,actor='player'){
  }
  return entry;
 }
+
+/* Corporate-secondary share purchase: one company sells its existing equity,
+   distinct from public-holder deals and primary issuance. */
+const CORP_SHARE_RULES={normal:['通常の買収',1.2,1.4],hostile:['高額・敵対的買収',1.5,4],turnaround:['再生案件',.5,.8],group:['70%支配子会社からの時価譲受',1,1]};
+function corporateGroupSeller(s,buyer,seller){return (seller.owners.find(o=>o.id===buyer.id)?.econ||0)>=.7-1e-9&&controller(s,seller.id,buyer.id);}
+function corporateSellerDemand(s,buyer,seller,target,stake,mode){
+ if(mode==='group')return {factor:1,reasons:['買い手の直接保有比率70%以上']};
+ if(mode==='turnaround')return {factor:Math.min(.8,Math.round((.55+(seller.strategy==='profit'?.05:0)+(target.distress?.stage||0)*.02)*100)/100),reasons:['赤字・経営難を考慮した売却']};
+ const v=maValuation(s,target),current=target.owners.find(x=>x.id===seller.id)?.econ||0;
+ let factor=1.2;const reasons=[];
+ if(['tech','growth'].includes(seller.strategy)){factor+=.23;reasons.push('長期成長・技術保有方針')}
+ if(seller.industry===target.industry){factor+=.16;reasons.push('戦略子会社の売却拒否')}
+ if(current>.5&&current-stake<=.5){factor+=.43;reasons.push('経営支配権の喪失')}
+ if(v.profit>Math.max(100000,v.book)*.12){factor+=.18;reasons.push('高収益企業')}
+ if(acc(seller,'cash')>localFromBase(2000000,seller.country)){factor+=.12;reasons.push('親会社の資金余力')}
+ return {factor:Math.min(3.8,Math.round(factor*100)/100),reasons:reasons.length?reasons:['一般株式売却審査']};
+}
+function corporateShareQuote(s,buyerId,targetId,sellerId,percent,mode,offerFactor){
+ const buyer=company(buyerId,s),target=company(targetId,s),seller=company(sellerId,s),rule=CORP_SHARE_RULES[mode];
+ if(!buyer||!target||!seller||!rule)throw Error('対象・売り手・買い手・買収方式が不正です');
+ if(buyer.id===seller.id||buyer.id===target.id||seller.id===target.id)throw Error('売り手・買い手・対象は別法人を選んでください');
+ if(!controller(s,buyer.id)||controller(s,buyer.id,target.id))throw Error('管理権限がないか、循環持分を生じる取引です');
+ if([buyer,target,seller].some(f=>f.reorgStatus==='integrated'||f.lifecycle?.phase==='withdrawn'))throw Error('事業統合済み・撤退済みの法人は対象外です');
+ const stake=target.owners.find(o=>o.id===seller.id)?.econ||0;
+ const stakeUnits=Math.round(stake*1000000),units=Math.round(percent*10000);
+ if(!Number.isFinite(percent)||units<1||units>1000000||Math.abs(percent*10000-units)>1e-6)throw Error('取得割合は0.0001〜100%（手入力は0.01%刻み）で指定してください');
+ if(units>stakeUnits)throw Error('売却可能な企業保有株式は'+maPct(stake)+'です');
+ if(!Number.isFinite(offerFactor)||offerFactor<rule[1]-1e-9||offerFactor>rule[2]+1e-9)throw Error(rule[0]+'の提示額は時価の'+Math.round(rule[1]*100)+'〜'+Math.round(rule[2]*100)+'%で指定してください');
+ const discounted=corporateGroupSeller(s,buyer,seller);
+ if(mode==='group'&&!discounted)throw Error('時価100%の内部譲渡は買い手が売り手を70%以上直接保有する場合に限ります');
+ const value=maValuation(s,target);
+ if(mode==='turnaround'&&value.profit>=0&&!(target.distress?.stage>0))throw Error('再生案件は赤字・経営難の子会社に限定します');
+ if((s.groupMergerPlans||[]).some(p=>(p.status==='pending'||p.status==='blocked')&&[buyer.id,target.id,seller.id].some(id=>p.fromId===id||p.toId===id)))throw Error('合併手続き中の法人は株式を譲渡できません');
+ const fraction=units/1000000,reserve=corporateSellerDemand(s,buyer,seller,target,fraction,mode);
+ const total=Math.max(1,Math.round(value.reference*fraction*offerFactor));
+ const buyerPay=localFromBase(total,buyer.country),sellerReceive=localFromBase(total,seller.country);
+ const consent=offerFactor+1e-9>=reserve.factor;
+ const affordable=buyerPay>0&&sellerReceive>0&&buyerPay<=acc(buyer,'cash');
+ return {buyer,target,seller,units,percent:units/10000,fraction,mode,offerFactor,reserve:reserve.factor,
+  reasons:reserve.reasons,available:stake,reference:value.reference,total,buyerPay,sellerReceive,consent,affordable,accepted:consent&&affordable,discounted};
+}
+function executeCorporateShareTransfer(s,buyerId,targetId,sellerId,percent,mode,offerFactor){
+ ensureMAState(s);
+ const q=corporateShareQuote(s,buyerId,targetId,sellerId,percent,mode,offerFactor);
+ if(!q.consent)throw Error('親会社が売却を拒否しました。必要な提示倍率は時価の約'+Math.round(q.reserve*100)+'%（'+q.reasons.join('・')+'）。条件を上げて再交渉してください');
+ if(!q.affordable)throw Error('必要な買収資金が不足しています：'+maMoney(q.total));
+ const {buyer,target,seller}=q,sellerOwner=target.owners.find(o=>o.id===seller.id);
+ const priorUnits=Math.round(sellerOwner.econ*1000000);
+ const links=(s.equityLinks||[]).filter(l=>l.parentId===seller.id&&l.childId===target.id&&(l.remainingConsiderationLocal??l.considerationLocal)>0);
+ if(!links.length)throw Error('売却元の株式取得原価を特定できません。旧保存データの取得履歴を確認してください');
+ const totalBasis=links.reduce((a,l)=>a+(l.remainingConsiderationLocal??l.considerationLocal),0);
+ if(totalBasis>acc(seller,'investment')+2)throw Error('売り手企業の投資簿価が不足しています');
+ const bookCost=Math.round(totalBasis*q.units/priorUnits),gain=q.sellerReceive-bookCost;
+ const hadControl=controller(s,target.id,buyer.id);
+ post(buyer,{investment:q.buyerPay},{cash:q.buyerPay},'子会社株式譲受：'+target.name,'investing',s);
+ const buyerJournal=buyer.journals.at(-1).id;
+ post(seller,{cash:q.sellerReceive,...(gain<0?{otherExpense:-gain}:{})},
+  {investment:bookCost,...(gain>0?{otherRevenue:gain}:{})},'保有子会社株式譲渡：'+target.name,'investing',s);
+ const sellerJournal=seller.journals.at(-1).id;
+ // Retain original link ratio/time as history; only live ratio & carrying basis shrink.
+ const liveTotal=links.reduce((a,l)=>a+(l.remainingRatio??l.ratio),0);
+ const heldRatio=priorUnits/1000000;
+ const inheritedNet=Math.round(links.reduce((a,l)=>a+(l.consolidationBookEquityBase??l.bookEquityBase??0)*(l.remainingRatio??l.ratio),0)/heldRatio);
+ const weightedLocalEquity=links.reduce((a,l)=>a+(l.consolidationSnapshotEquityLocal??l.acquisitionSnapshot?.equity??l.bookEquityLocal??0)*(l.remainingRatio??l.ratio),0)/heldRatio;
+ const remaining=priorUnits-q.units;let liveAssigned=0,costAssigned=0;
+ for(let i=0;i<links.length;i++){
+  const l=links[i],ratio=l.remainingRatio??l.ratio,cost=l.remainingConsiderationLocal??l.considerationLocal;
+  l.originalRatio??=l.ratio;l.originalConsiderationLocal??=l.considerationLocal;
+  const dilutionFactor=liveTotal/heldRatio;
+  l.consolidationBookEquityBase=Math.round((l.consolidationBookEquityBase??l.bookEquityBase??0)*dilutionFactor);
+  l.consolidationSnapshotEquityLocal=Math.round((l.consolidationSnapshotEquityLocal??l.acquisitionSnapshot?.equity??l.bookEquityLocal??0)*dilutionFactor);
+  l.remainingRatio=roundShare(i===links.length-1?remaining/1000000-liveAssigned:(remaining/1000000)*ratio/liveTotal);
+  l.remainingConsiderationLocal=i===links.length-1?totalBasis-bookCost-costAssigned:Math.round((totalBasis-bookCost)*cost/totalBasis);
+  liveAssigned+=l.remainingRatio;costAssigned+=l.remainingConsiderationLocal;
+ }
+ // Preserve the old acquisition valuation for book-value intra-group transfers.
+ sellerOwner.econ=roundShare(sellerOwner.econ-q.fraction);sellerOwner.vote=roundShare(sellerOwner.vote-q.fraction);
+ if(sellerOwner.econ<.000001)target.owners=target.owners.filter(o=>o.id!==seller.id);
+ let owner=target.owners.find(o=>o.id===buyer.id);
+ if(!owner){owner={id:buyer.id,econ:0,vote:0};target.owners.push(owner)}
+ owner.econ=roundShare(owner.econ+q.fraction);owner.vote=roundShare(owner.vote+q.fraction);
+ const nowControl=controller(s,target.id,buyer.id),isInternal=controller(s,seller.id,s.playerId)&&controller(s,buyer.id,s.playerId);
+ registerEquityLink(s,{parentId:buyer.id,childId:target.id,ratio:q.fraction,kind:nowControl&&!hadControl?'acquisition':'secondaryTransfer',considerationLocal:q.buyerPay,buyerJournal,
+  bookEquityBase:isInternal?inheritedNet:baseFromLocal(netWorth(target),target.country),
+  cashAcquiredBase:baseFromLocal(acc(target,'cash'),target.country),controlEstablished:nowControl&&!hadControl,
+  sellerId:seller.id,...(isInternal?{internalSellerId:seller.id,consolidationCostLocal:localFromBase(baseFromLocal(bookCost,seller.country)/100,buyer.country)}:{})});
+ if(isInternal){const historical=links[0],newLink=s.equityLinks.at(-1);const fx=historical?.targetFxOnAcq??newLink.targetFxOnAcq;newLink.acquisitionSnapshot={...newLink.acquisitionSnapshot,...(historical?.acquisitionSnapshot||{}),equity:Math.round(weightedLocalEquity)};newLink.bookEquityLocal=Math.round(weightedLocalEquity);newLink.consolidationBookEquityBase=inheritedNet;newLink.consolidationSnapshotEquityLocal=Math.round(weightedLocalEquity);newLink.targetFxOnAcq=fx;}
+ const rec={id:'ET'+s.seq++,month:ym(s.year,s.month),buyer:buyer.id,seller:seller.id,target:target.id,percent:q.percent,
+  ratio:q.fraction,priceBase:q.total,multiplier:offerFactor,mode,required:q.reserve,bookCostLocal:bookCost,gainLocal:gain,
+  gainBase:baseFromLocal(gain,seller.country),buyerJournal,sellerJournal,internal:isInternal};
+ s.equityTransfers.push(rec); // Keep all accounting events needed for cumulative intra-group profit eliminations.
+ if(isInternal)registerInterco(s,{kind:'equityCash',seller:seller.id,buyer:buyer.id,yearMonth:rec.month,fromJournal:sellerJournal,toJournal:buyerJournal});
+ const entry={id:'MA'+s.seq++,month:rec.month,buyer:buyer.id,seller:seller.id,target:target.id,percent:q.percent,priceBase:q.total,
+  multiplier:offerFactor,actor:'player',holders:[{name:seller.name,percent:q.percent}],control:nowControl,reference:q.reference,mode,kind:'corporate-share'};
+ s.maDeals.unshift(entry);if(s.maDeals.length>150)s.maDeals.pop();
+ s.negotiationHistory??=[];s.negotiationHistory.unshift({month:entry.month,buyer:buyer.id,target:target.id,percent:q.percent,priceBase:q.total,multiplier:offerFactor,holders:[seller.name],control:nowControl});
+ if(s.negotiationHistory.length>80)s.negotiationHistory.pop();
+ buyer.maCooldown=ym(s.year,s.month);
+ if(nowControl&&!hadControl)s.maPlans.push({id:'PMI'+s.seq++,buyer:buyer.id,target:target.id,start:rec.month,months:0,duration:6,progress:0,mode:'pending',costBase:Math.max(800,Math.round(q.total*.016/6)),actor:'player',done:false});
+ return entry;
+}
+
 function maBeginPlan(s,id){const p=s.maPlans.find(x=>x.id===id);if(!p||p.mode!=='pending')throw Error('統合待ちの案件が見つかりません');if(!controller(s,p.target,p.buyer))throw Error('統合開始には対象企業の議決権支配が必要です');p.mode='active';return p;}
 function processMAMonth(s,events){
  ensureMAState(s);const month=ym(s.year,s.month);
@@ -6376,7 +6490,7 @@ function maFiltered(){ensureMAState(S);return S.firms.filter(f=>{
  if(MA_VIEW.industry!=='all'&&f.industry!==MA_VIEW.industry)return false;
  if(MA_VIEW.status==='independent'&&(owned||o.public<.01))return false;
  if(MA_VIEW.status==='group'&&!owned)return false;
- if(MA_VIEW.status==='available'&&(owned||o.public<.01||f.lifecycle?.phase==='withdrawn'||f.reorgStatus==='integrated'))return false;
+ if(MA_VIEW.status==='available'&&((o.public<.01&&!f.owners.some(x=>x.id!=='PUBLIC'))||f.lifecycle?.phase==='withdrawn'||f.reorgStatus==='integrated'))return false;
  if(MA_VIEW.maxPrice>0&&maValuation(S,f).reference>MA_VIEW.maxPrice)return false;
  return true;
  }).sort((a,b)=>{
@@ -6410,12 +6524,76 @@ function maBuy(){const before=S;try{
  S=trial;render();toast('M&A成立：'+target.name+' '+percent+'%、'+maMoney(entry.priceBase)+'。株式台帳と投資勘定を更新しました。');
  }catch(e){S=before;toast('M&A不成立：'+e.message);}}
 function maStartIntegration(){try{const buyer=current(),target=company(MA_VIEW.target),p=S.maPlans.find(x=>x.buyer===buyer.id&&x.target===target?.id&&x.mode==='pending');if(!canEdit(buyer)||!p)throw Error('開始可能な支配取得後の統合案件がありません');const clone=structuredClone(S);maBeginPlan(clone,p.id);S=clone;render();toast('統合計画を開始。6か月間、管理費と改善効果を計上します。');}catch(e){toast(e.message)}}
+
+function corpSharePercent(){
+ const el=document.getElementById('maCorpPercent'),target=company(MA_VIEW.target),sellerId=inputValue('maCorpSeller');
+ const units=Math.round((target?.owners.find(x=>x.id===sellerId)?.econ||0)*1000000);
+ if(el?.dataset.fullSeller===sellerId&&el.dataset.fullTarget===target?.id&&Number(el.dataset.fullUnits)===units)return units/10000;
+ const num=Number(inputValue('maCorpPercent'));
+ if(!Number.isFinite(num)||num<.01||num>100||Math.abs(num*100-Math.round(num*100))>1e-7)throw Error('手動取得比率は0.01〜100%で0.01%刻みで入力してください');
+ return Math.round(num*100)/100;
+}
+function corpShareFill(){
+ const el=document.getElementById('maCorpPercent'),target=company(MA_VIEW.target),sellerId=inputValue('maCorpSeller');
+ if(!el||!target||!sellerId)return;
+ const units=Math.round((target.owners.find(o=>o.id===sellerId)?.econ||0)*1000000);
+ if(units<1){toast('売却可能な企業株式はありません');return}
+ el.value=(units/10000).toFixed(2);el.dataset.fullUnits=String(units);el.dataset.fullTarget=target.id;el.dataset.fullSeller=sellerId;
+ corpSharePreview();
+}
+function corpSharePreview(){
+ const out=document.getElementById('maCorpQuoteResult');if(!out)return;
+ try{
+  const buyer=current(),sellerId=inputValue('maCorpSeller'),target=company(MA_VIEW.target),pct=corpSharePercent(),
+  mode=inputValue('maCorpMode'),factor=Number(inputValue('maCorpFactor'))/100;
+  const q=corporateShareQuote(S,buyer.id,target.id,sellerId,pct,mode,factor);
+  out.innerHTML='<strong>'+esc(target.name)+'：'+(q.consent?'売り手の承諾水準に到達':'親会社が売却を拒否')+'</strong>'+
+  rowstat('売り手企業',esc(q.seller.name))+rowstat('取得比率',maPct(q.fraction))+
+  rowstat('提示倍率',Math.round(q.offerFactor*100)+'%')+rowstat('親会社の売却希望最低倍率（目安）',Math.round(q.reserve*100)+'%')+
+  rowstat('売りたがらない理由',esc(q.reasons.join('、')))+rowstat('株式取得代金',maMoney(q.total))+
+  rowstat('買い手現金',fnum(q.buyer,acc(q.buyer,'cash')))+rowstat('売り手受取現金',fnum(q.seller,q.sellerReceive))+
+  (q.consent?tag('条件承諾','good'):tag('条件不足','warn'))+(q.affordable?tag('資金充足','good'):tag('資金不足','warn'))+
+  '<div class="hint">代金は売り手企業に支払われます。対象の子会社に直接入金される新株発行ではありません。</div>';
+ }catch(e){out.textContent=e.message}
+}
+function corpShareBuy(){
+ const previous=S;
+ try{
+  const buyer=current(),target=company(MA_VIEW.target);
+  if(!canEdit(buyer))throw Error('買い手法人の操作権限がありません');
+  const sellerId=inputValue('maCorpSeller'),percent=corpSharePercent(),mode=inputValue('maCorpMode'),factor=Number(inputValue('maCorpFactor'))/100;
+  const trial=structuredClone(S),deal=executeCorporateShareTransfer(trial,buyer.id,target.id,sellerId,percent,mode,factor);
+  const errors=check(trial),cons=consolidate(trial,trial.playerId);
+  if(errors.length||cons.errors.length)throw Error([...errors,...cons.errors].slice(0,3).join('／'));
+  S=trial;render();toast('企業株主から株式を譲受：'+target.name+' '+maPct(percent/100)+'、代金'+maMoney(deal.priceBase)+'。');
+ }catch(e){S=previous;toast('企業株式の買収不成立：'+e.message)}
+}
+function corporateSharesPanel(buyer,target,edit){
+ const sellers=target.owners.filter(o=>o.id!=='PUBLIC'&&o.id!==buyer.id&&o.econ>0).map(o=>({o,f:company(o.id)})).filter(x=>x.f);
+ const sellerOptions=sellers.map(({o,f})=>'<option value="'+esc(f.id)+'">'+esc(f.name)+'（保有'+maPct(o.econ)+'）</option>').join('');
+ const active=edit&&buyer.id!==target.id&&sellers.length>0;
+ return '<section class="panel span12"><h2>企業株主から子会社株式を譲受（親会社との株式売買）</h2>'+
+ '<p class="hint">既に発行済みの株式を「保有している企業」から購入します。子会社の工場・借入や資金はそのまま。親会社は売却代金を受け取り、提示倍率が希望水準より低ければ売却を拒否します。</p>'+
+ '<div class="formgrid">'+
+ '<div class="field"><label>売り手企業（対象会社の株主）</label><select id="maCorpSeller" '+(active?'':'disabled')+'>'+sellerOptions+'</select></div>'+
+ '<div class="field"><label>取得比率（発行済株式に対する%、0.01%刻み）</label><input id="maCorpPercent" type="number" min="0.01" max="100" step="0.01" value="50" '+(active?'':'disabled')+'></div>'+
+ '<div class="field"><label>交渉方式</label><select id="maCorpMode" '+(active?'':'disabled')+'>'+
+ '<option value="normal">通常：時価120〜140%</option><option value="hostile">強気・敵対的：150〜400%</option>'+
+ '<option value="turnaround">赤字・再生案件：50〜80%</option><option value="group">70%以上保有子会社から時価100%で譲受</option></select></div>'+
+ '<div class="field"><label>提示額（企業価値に対する%）</label><input id="maCorpFactor" type="number" min="50" max="400" step="1" value="130" '+(active?'':'disabled')+'></div>'+
+ '<button class="btn" data-action="maCorpFill" '+(active?'':'disabled')+'>売り手保有分を全取得</button>'+
+ '<button class="btn" data-action="maCorpQuote" '+(active?'':'disabled')+'>価格・承諾条件を試算</button>'+
+ '<button class="btn primary" data-action="maCorpBuy" '+(active?'':'disabled')+'>企業株主から株式を取得</button></div>'+
+ '<div class="note" id="maCorpQuoteResult" style="margin-top:10px">'+(sellers.length?'売却希望倍率は売り手企業の戦略・支配権・利益・資金余力をもとにゲーム内で決定します。交渉方式変更時は提示倍率が自動的に初期化されます。':'この企業に譲渡可能な企業株主はいません。')+'</div>'+
+ '<p class="footnote">70%以上の子会社が保有する孫会社の株式は、選択した買い手企業がその子会社の株式を直接70%以上保有している場合、時価100%で譲受できます。全取得ボタンは表示上の小数第2位以下の端数も保全します。条件不足・投資元帳不明・循環出資では売買を実行しません。</p></section>';
+}
+
 function maPage(){const buyer=current(),edit=canEdit(buyer);ensureMAState(S);const firms=maFiltered();
  if(!MA_VIEW.target||!company(MA_VIEW.target))MA_VIEW.target=firms.find(f=>f.id!==buyer.id)?.id||buyer.id;
  const target=company(MA_VIEW.target),v=maValuation(S,target),share=maOwnership(target),ff=financials(target);
  const opt=(value,selected)=>value===selected?'selected':'';
  const candidates=firms.map(f=>{const m=maValuation(S,f),o=maOwnership(f),a=financials(f);return `<tr><td><b>${esc(f.name)}</b><div class="tiny muted">${esc(f.id)} / ${esc(strategyName(f.strategy))}</div></td><td>${NAMES[f.country]} / ${industryName(f.industry)}</td><td class="num">${maMoney(m.reference)}</td><td class="num">${maMoney(m.book)}</td><td class="num ${m.profit<0?'negative':'positive'}">${maMoney(m.profit)}</td><td class="num">${maMoney(m.debt)}</td><td class="num">${maPct(o.public)}</td><td>${f.reorgStatus==='integrated'?'事業統合済':f.lifecycle?.phase==='withdrawn'?'市場退出':controller(S,f.id)?'自社グループ':'稼働中'}</td><td><button class="btn ${MA_VIEW.target===f.id?'primary':''}" data-action="maSelect" data-id="${esc(f.id)}">詳細</button></td></tr>`;}).join('');
- const owners=target.owners.filter(x=>x.id!=='PUBLIC').map(x=>`<tr><td>企業株主</td><td>${esc(company(x.id)?.name||x.id)}</td><td>${maPct(x.econ)}</td><td>${maPct(x.vote)}</td><td>他社保有株式（外部への一括売却は不可）</td></tr>`).join('')+
+ const owners=target.owners.filter(x=>x.id!=='PUBLIC').map(x=>`<tr><td>企業株主</td><td>${esc(company(x.id)?.name||x.id)}</td><td>${maPct(x.econ)}</td><td>${maPct(x.vote)}</td><td>企業株主との個別譲渡交渉に対応</td></tr>`).join('')+
  target.shareBlocks.filter(h=>h.holding>.0000001).map(h=>`<tr><td>外部株主</td><td>${esc(MA_EXTERNAL_CLASSES[h.id]||h.name)}</td><td>${maPct(h.holding)}</td><td>${maPct(h.holding)}</td><td>留保価格：企業価値の${Math.round(h.reserve*100)}%相当</td></tr>`).join('');
  const plan=S.maPlans.find(x=>x.buyer===buyer.id&&x.target===target.id&&x.mode!=='completed');
  const deals=(S.maDeals||[]).slice(0,16);
@@ -6438,10 +6616,11 @@ function maPage(){const buyer=current(),edit=canEdit(buyer);ensureMAState(S);con
  <div class="formgrid"><div class="field"><label>取得比率（%、0.01%刻み）</label><input id="maPercent" type="number" min="0.01" max="100" step="0.01" value="55" ${edit?'':'disabled'}></div><div class="field"><label>企業評価額に対する提示倍率（%）</label><input id="maMultiplier" type="number" min="75" max="250" step="1" value="126" ${edit?'':'disabled'}></div>
  <button class="btn" data-action="maFillAvailable" ${edit?'':'disabled'}>外部株式を全取得</button><button class="btn" data-action="maQuote" ${edit?'':'disabled'}>取得額・承諾株主を試算</button><button class="btn primary" data-action="maBuy" ${edit&&target.id!==buyer.id?'':'disabled'}>確認した条件で株式を取得</button></div>
  <div class="note" id="maQuoteResult" style="margin-top:10px">見積りボタンで取得対価・売却同意・不足資金を表示します。未見積りでも取得時には全条件を再検証します。手入力は0.01%刻み。外部株式を全取得する場合は端数も正確に取得します。</div></section>
- <section class="panel span5"><h2>買収後のPMI経営統合</h2><p class="hint">議決権過半数の取得後、法人を残したまま業務・販路・管理の経営統合を6か月で実行します。費用は毎月仕訳計上し、ブランド・販路・工場状態が少しずつ改善します。法的合併や負債の自動移管ではありません。</p>
+ ${corporateSharesPanel(buyer,target,edit)}
+  <section class="panel span5"><h2>買収後のPMI経営統合</h2><p class="hint">議決権過半数の取得後、法人を残したまま業務・販路・管理の経営統合を6か月で実行します。費用は毎月仕訳計上し、ブランド・販路・工場状態が少しずつ改善します。法的合併や負債の自動移管ではありません。</p>
  ${plan?`${rowstat('進捗',nfmt(plan.progress)+'%')}${rowstat('状態',({pending:'開始待ち',active:'実行中',paused:'資金不足停止',halted:'支配喪失'})[plan.mode]||plan.mode)}${rowstat('月次予定費',maMoney(plan.costBase))}<button class="btn primary" data-action="maIntegrate" ${edit&&plan.mode==='pending'?'':'disabled'}>経営統合を開始</button>`:'<div class="hint">この買い手から対象企業への経営統合待ち案件はありません。買収で議決権過半数を確保すると計画が生成されます。</div>'}
  <div class="footnote">既存の「事業移管・企業統合」機能は、条件を満たす同一国の完全子会社について別途利用できます。</div></section>
- <section class="panel span12"><h2>世界のM&A履歴（AIによる買収も掲載）</h2><div class="scroll"><table><thead><tr><th>年月</th><th>買い手</th><th>買収先</th><th>取得比率</th><th>対価</th><th>実行者</th><th>支配獲得</th></tr></thead><tbody>${deals.map(d=>`<tr><td>${Math.floor(d.month/12)}年${d.month%12+1}月</td><td>${esc(company(d.buyer)?.name||d.buyer)}</td><td>${esc(company(d.target)?.name||d.target)}</td><td>${d.percent}%</td><td>${maMoney(d.priceBase)}</td><td>${d.actor==='ai'?'AI競合':'プレイヤー'}</td><td>${d.control?'支配あり':'少数持分'}</td></tr>`).join('')||'<tr><td colspan="7">買収記録なし</td></tr>'}</tbody></table></div>
+ <section class="panel span12"><h2>世界のM&A履歴（AIによる買収も掲載）</h2><div class="scroll"><table><thead><tr><th>年月</th><th>買い手</th><th>買収先</th><th>取得比率</th><th>対価</th><th>実行者</th><th>支配獲得</th></tr></thead><tbody>${deals.map(d=>`<tr><td>${Math.floor(d.month/12)}年${d.month%12+1}月</td><td>${esc(company(d.buyer)?.name||d.buyer)}</td><td>${esc(company(d.target)?.name||d.target)}</td><td>${d.percent}%</td><td>${maMoney(d.priceBase)}</td><td>${d.kind==='corporate-share'?'企業株主から譲受':d.actor==='ai'?'AI競合':'プレイヤー'}</td><td>${d.control?'支配あり':'少数持分'}</td></tr>`).join('')||'<tr><td colspan="7">買収記録なし</td></tr>'}</tbody></table></div>
  <h3>統合進捗（全企業）</h3><div class="scroll"><table><thead><tr><th>買収元</th><th>対象企業</th><th>状態</th><th>統合進捗</th><th>費用／月</th></tr></thead><tbody>${(S.maPlans||[]).slice(-20).reverse().map(p=>`<tr><td>${esc(company(p.buyer)?.name||p.buyer)}</td><td>${esc(company(p.target)?.name||p.target)}</td><td>${esc(({pending:'待機',active:'実行中',completed:'完了',paused:'資金不足',halted:'中断'})[p.mode]||p.mode)}</td><td>${p.progress}%</td><td>${maMoney(p.costBase)}</td></tr>`).join('')||'<tr><td colspan="5">案件なし</td></tr>'}</tbody></table></div>
  <p class="footnote">AI企業は半年ごとに資金余力・戦略適合を調べ、株主承諾と支払能力が成立する場合のみ買収します。発生保証はありません。企業価値・AI評価・留保倍率はすべて試作係数であり、現実の上場市場、株価、実在会社の評価ではありません。</p></section></div>`;
 }
