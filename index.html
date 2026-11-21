@@ -427,10 +427,21 @@
 .step7-notice-footer{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:10px}
 @media(max-width:600px){.step7-notice{align-items:flex-start;flex-direction:column}.step7-notice-actions{align-self:flex-end}}
 
+/* STEP 2: eight side categories remain reachable in shorter viewport heights. */
+.nav{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;align-content:start;grid-auto-rows:minmax(40px,auto);scrollbar-width:thin}
+.nav button{line-height:1.35;min-height:40px}
+.sidemeta{flex:0 0 auto}
 </style>
 </head>
 <body><div class="shell"><aside class="side"><div class="logo">CONGLOMERATE<br><small>企業経営シミュレーション</small></div><div class="prototype">機能検証用・開発版 v0.34-dev.3</div><nav class="nav" id="nav">
-<button data-section="management">▣　会社経営</button><button data-section="vehicles">◇　製品・研究</button><button data-section="operations">▤　工場・調達</button><button data-section="markets">◎　市場・販売網</button><button data-section="corporate">⌘　企業グループ</button><button data-section="finance">¥　財務・保存</button></nav>
+<button type="button" data-section="management">▣　経営本部</button>
+<button type="button" data-section="vehicles">◇　製品・研究</button>
+<button type="button" data-section="facilities">▤　事業・施設</button>
+<button type="button" data-section="logistics">⇄　物流・インフラ</button>
+<button type="button" data-section="markets">◎　市場・販売</button>
+<button type="button" data-section="world">◉　世界・地域</button>
+<button type="button" data-section="corporate">⌘　企業グループ</button>
+<button type="button" data-section="finance">¥　財務・管理</button></nav>
 <div class="sidemeta">オフライン動作・外部通信なし<br>既存 SPEC-001〜094 は変更なし<br>未確定数値は試作パラメータ<br>正式な会計監査・史実検証は未実装</div></aside>
 <main class="main"><header class="topbar"><div><strong id="topCompany">未開始</strong><div class="small muted" id="topDate">開始条件を設定してください</div></div><div class="topright"><select class="topselect" id="companySelect" aria-label="表示会社"></select><select class="topselect" id="regionSelect" aria-label="表示国"></select><button class="btn primary" id="nextMonthBtn" data-action="previewMonth">月末処理 ▸</button></div></header><div class="wrap" id="content"></div></main></div>
 <div id="modalHost"></div><div class="toast" id="toast"></div><input id="importFile" type="file" accept="application/json,.json">
@@ -472,8 +483,20 @@ const COUNTRIES={
 };
 const ACCTYPE={cash:'asset',materials:'asset',materialsTransit:'asset',componentStock:'asset',componentTransit:'asset',wip:'asset',goods:'asset',goodsTransit:'asset',constructionAssets:'asset',ppe:'asset',accdep:'contra',investment:'asset',ar:'asset',loanrec:'asset',resourceRights:'asset',partReceivable:'asset',partPayable:'liability',payable:'liability',wagesDue:'liability',debt:'liability',interestDue:'liability',taxDue:'liability',capital:'equity',treasuryStock:'contraEquity',sales:'revenue',serviceRevenue:'revenue',otherRevenue:'revenue',cogs:'expense',labor:'expense',rndExpense:'expense',advert:'expense',maintenance:'expense',interestExpense:'expense',depreciation:'expense',taxExpense:'expense',fxLoss:'expense',otherExpense:'expense'};
 const PAGES={dashboard:'経営概況',marketOwn:'自社グループ市場分析',market:'世界市場分析',product:'製品・開発',factory:'工場・調達',people:'研究・人事',finance:'財務・資金',group:'企業グループ',consolidated:'連結財務三表',reports:'月次レポート',save:'保存・設定'};
-const SECTIONS={management:{name:'会社経営',pages:[['dashboard','経営概況'],['reports','月次報告']]},vehicles:{name:'製品・研究',pages:[['product','車両設計・開発'],['people','研究・人事']]},operations:{name:'工場・調達',pages:[['factory','工場'],['supply','供給網・輸入']]},markets:{name:'市場・販売網',pages:[['marketOverview','分析センター'],['marketRegion','地域別市場'],['marketRivals','競合インテリジェンス'],['distribution','販売店・輸出'],['marketOwn','自社グループ'],['market','世界マクロ・詳細']]},corporate:{name:'企業グループ',pages:[['group','企業・買収'],['ma','M&A分析・交渉'],['capital','株主・資本政策'],['automation','自動運営・AI設定'],['consolidated','連結財務']]},finance:{name:'財務・保存',pages:[['finance','単体財務'],['save','保存・設定']]}};
-const sectionOf=page=>Object.keys(SECTIONS).find(k=>SECTIONS[k].pages.some(row=>row[0]===page))||'management';
+/* STEP 2: navigation only. Every tab points to a current, fully functional PAGE.
+   New specialized pages are created in STEP 3+, not silently replaced with placeholders.
+   Keep product as ONE vehicle-design page (its existing internal tabs are unchanged). */
+const SECTIONS={
+ management:{name:'経営本部',pages:[['dashboard','経営概況'],['reports','月次報告'],['automation','経営AI']]},
+ vehicles:{name:'製品・研究',pages:[['product','車両設計'],['research','研究開発'],['hr','人事・組織']]},
+ facilities:{name:'事業・施設',pages:[['factory','工場・拠点管理']]},
+ logistics:{name:'物流・インフラ',pages:[['supply','供給網・輸入']]},
+ markets:{name:'市場・販売',pages:[['marketOverview','市場分析'],['marketRivals','競合企業'],['marketOwn','販売実績'],['distribution','販売網・輸出']]},
+ world:{name:'世界・地域',pages:[['marketRegion','地域別市場'],['market','世界経済・人口']]},
+ corporate:{name:'企業グループ',pages:[['group','グループ一覧・再編'],['ma','M&A']]},
+ finance:{name:'財務・管理',pages:[['finance','単体財務'],['consolidated','連結財務'],['capital','資本政策'],['save','保存・設定']]}
+};
+const sectionOf=page=>page==='people'?'vehicles':(Object.keys(SECTIONS).find(k=>SECTIONS[k].pages.some(row=>row[0]===page))||'management');
 function sectionTabs(){const group=SECTIONS[sectionOf(PAGE)];const loc=group.pages.find(([key])=>key===PAGE)?.[1]||group.name;return `<div class="section-tabbar"><div class="tab-title"><span>${esc(group.name)}</span><small>${esc(loc)}</small></div><div class="section-tabs" role="navigation" aria-label="${group.name}のタブ">${group.pages.map(([page,name])=>`<button type="button" data-page="${page}" class="${PAGE===page?'active':''}" ${PAGE===page?'aria-current="page"':''}>${name}</button>`).join('')}</div><span class="tab-tip">表示項目を切り替え</span></div>`}
 let S=null,PAGE='dashboard',VIEW_FIRM='',VIEW_COUNTRY='JP',wizard=0,setup={era:1900,country:'JP',history:'historical',difficulty:'normal',name:'東亜自動車工業'},monthlyPreview=false,saveWarning='';
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
