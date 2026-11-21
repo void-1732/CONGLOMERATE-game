@@ -1,0 +1,27 @@
+name: Rival AI 10-year factory and supply audit
+on:
+  push:
+    branches:
+      - test/competitor-ai-audit-20261121
+jobs:
+  rival-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Playwright and Chromium
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Audit independent rival firms for 120 months
+        run: python tests/test_competitor_ai_10yr_20261121.py
+      - name: Upload independent AI report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rival-ai-10year-report
+          path: rival_ai_10year_report.json
+          if-no-files-found: ignore
