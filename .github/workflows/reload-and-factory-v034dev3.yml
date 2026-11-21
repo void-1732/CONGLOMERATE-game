@@ -21,12 +21,18 @@ jobs:
         run: |
           python -m pip install playwright
           python -m playwright install --with-deps chromium
+      - name: Test startup eras and safe recovery across game identities
+        run: python tests/test_startup_recovery_v034dev3.py
       - name: Test persistence through real HTTP reload and IndexedDB failure
         run: python tests/test_reload_autosave_v034dev3.py
       - name: Test physical engine/body/electronic production after real hiring and construction
         run: python tests/test_real_specialist_factory_v034dev2.py
       - name: Test factory bulk settings, month-end utilization, and in-transit stocks
         run: python tests/test_specialist_bulk_ui_v034dev2.py
+      - name: Test five factory manufacturing and logistics chain (real HTTP Playwright)
+        run: python tests/test_five_factory_chain_v039.py
+      - name: Test factory diagnostics, legacy component production and material shortages
+        run: python tests/test_factory_diagnostic_constraints_v034dev3.py
       - name: Test zero-plan old factories recover even without an assembler
         run: python tests/test_factory_idle_recovery_v034dev3.py
       - name: Test old-save factory recovery and BOM production
