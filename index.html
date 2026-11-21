@@ -2245,16 +2245,56 @@ function integrateBusinessUI(){try{const f=current(),to=company(inputValue('reor
  const err=check(trial),g=consolidate(trial);if(err.length||g.errors.length||!g.cf.reconciled)throw Error('統合検算失敗：'+err.concat(g.errors).join('、')+(g.cf.reconciled?'':'／CF不一致'));
  S=trial;VIEW_FIRM=to.id;render();toast('事業を統合しました。旧法人の債務・取得履歴・会計台帳は保持しています。');}catch(e){toast(e.message)}}
 
-/* Parent-directed consolidation of two directly and wholly owned sister firms.
-   Old firm identity and ownership links remain for the existing consolidation model. */
+/* Same-industry and same-country mergers retain historical legal entities and journals. */
+function mergerHeldShares(s,from,to){
+ const holdings=s.firms.filter(child=>child.id!==from.id&&(child.owners||[]).some(o=>o.id===from.id&&(o.econ>0||o.vote>0)));
+ const links=legacyLinks(s).links,transfers=[],seen=new Set();let totalCost=0;
+ for(const child of holdings){
+  if(child.id===to.id)throw Error('存続法人の自己株式保有になるため承継できません');
+  const owner=child.owners.find(o=>o.id===from.id);
+  const records=links.filter(l=>l.parentId===from.id&&l.childId===child.id&&l.ratio>0);
+  const ratio=records.reduce((n,l)=>n+l.ratio,0);
+  if(!records.length||Math.abs(ratio-owner.econ)>0.000002)
+   throw Error('承継する'+child.name+'の株式取得元帳・保有比率が一致しません');
+  const cost=records.reduce((n,l)=>n+Number(l.considerationLocal||0),0);
+  if(!Number.isSafeInteger(cost)||cost<0)throw Error('承継する株式の投資簿価が不正です');
+  const already=child.owners.find(o=>o.id===to.id);
+  if(already&&(already.econ+owner.econ>1.0000001||already.vote+owner.vote>1.0000001))
+   throw Error(child.name+'：承継後の保有比率が100%を超えます');
+  for(const rec of records){if(seen.has(rec.id))throw Error('取得履歴が重複しています');seen.add(rec.id);}
+  totalCost+=cost;transfers.push({child,owner,records,cost});
+ }
+ if(Math.abs(totalCost-acc(from,'investment'))>2)
+  throw Error('統合元の投資勘定と承継対象株式の取得元帳が一致しません。株式台帳を確認してください');
+ return transfers;
+}
+function mergerTransferHeldShares(s,from,to,transfers){
+ s.equityLinks??=[];
+ for(const {child,owner,records} of transfers){
+  const existing=child.owners.find(o=>o.id===to.id);
+  if(existing){
+   existing.econ=roundShare(existing.econ+owner.econ);
+   existing.vote=roundShare(existing.vote+owner.vote);
+   child.owners=child.owners.filter(o=>o.id!==from.id);
+  }else owner.id=to.id;
+  for(const record of records){
+   let link=s.equityLinks.find(l=>l.id===record.id);
+   if(!link){link={...record};s.equityLinks.push(link);}
+   if(link.parentId!==from.id)throw Error('株式承継中に取得履歴の保有者が変化しました');
+   link.mergerTransfers??=[];
+   link.mergerTransfers.push({fromId:from.id,toId:to.id,month:ym(s.year,s.month)});
+   link.parentId=to.id; // The parties use the same currency; retain old purchase cost/date/journal.
+  }
+ }
+}
 function siblingMergerEligibility(s,parent,from,to){
  if(!parent||!from||!to||!controller(s,parent.id)||parent.reorgStatus==='integrated'||parent.lifecycle?.phase==='withdrawn')throw Error('経営支配下で営業中の親会社から実行してください');
  if(from.id===to.id||from.id===parent.id)throw Error('別々の子会社を2社選択してください');
  if(![from,...(to.id===parent.id?[]:[to])].every(f=>f.owners.length===1&&f.owners[0].id===parent.id&&Math.abs(f.owners[0].econ-1)<1e-9&&Math.abs(f.owners[0].vote-1)<1e-9))throw Error('両社は親会社が直接100%保有する完全子会社である必要があります');
- if(!['auto','manufacturing'].includes(from.industry)||!['auto','manufacturing'].includes(to.industry))throw Error('現段階では自動車・製造業同士の吸収統合に対応しています');
+ if(from.industry!==to.industry)throw Error('合併する2社は同じ業種である必要があります');
  if(from.country!==to.country)throw Error('同一国・通貨の法人同士に限定しています');
  if(from.reorgStatus==='integrated'||to.reorgStatus==='integrated'||from.lifecycle?.phase==='withdrawn'||to.lifecycle?.phase==='withdrawn')throw Error('統合済み・撤退済み法人は対象外です');
- if(s.firms.some(f=>f.id!==from.id&&f.owners.some(o=>o.id===from.id)))throw Error('統合元に孫会社があるため統合できません');
+ mergerHeldShares(s,from,to);
  if(from.plants.some(p=>p.construction||p.renovation||lineSiteJobs(s,p).some(lineUnderConstruction)))throw Error('統合元の工場工事を完了してください');
  if(from.projects?.length||from.partOperations?.engineering?.projects?.length)throw Error('統合元の開発・研究案件を完了してください');
  if(from.partOperations?.inventoryLots?.length||from.partOperations?.productionPlans?.length||from.partOperations?.approvedModels?.length||from.models.some(m=>m.componentMode==='detailed'))throw Error('BOM・部品の取引や在庫を解消してください');
@@ -2262,8 +2302,12 @@ function siblingMergerEligibility(s,parent,from,to){
  if(from.distribution?.outbound?.length||from.supply?.inbound?.length||from.interplant?.shipments?.length||from.factoryOps?.shipments?.length)throw Error('未到着の輸送・調達を検収してください');
  if(from.loans?.some(l=>l.parent)||to.loans?.some(l=>l.parent))throw Error('会社間貸付を先に清算してください');
  if(from.treasuryShares||from.treasuryCostLocal)throw Error('統合元の自己株式を消却してください');
- if(from.models.some(m=>!(m.id in from.goods))||Object.keys(from.goods).some(k=>!from.models.some(m=>m.id===k)))throw Error('完成品と車種台帳の対応が不正です');
- const allowed=new Set(['cash','materials','goods','ppe','accdep','debt','ar','payable','wagesDue','taxDue','interestDue']);
+ if(['auto','manufacturing'].includes(from.industry)&&
+   (from.models.some(m=>!(m.id in from.goods))||Object.keys(from.goods).some(k=>!from.models.some(m=>m.id===k))))
+   throw Error('完成品と車種台帳の対応が不正です');
+ if(Object.keys(from.goods).some(k=>k.startsWith('IT')&&(from.goods[k]?.q||0)>0))
+   throw Error('グループ内売買の未販売在庫を先に精算してください');
+ const allowed=new Set(['cash','materials','goods','ppe','accdep','debt','ar','payable','wagesDue','taxDue','interestDue','resourceRights','investment']);
  for(const [k,t] of Object.entries(ACCTYPE))if(['asset','liability','contra','contraEquity'].includes(t)&&!allowed.has(k)&&acc(from,k))throw Error('統合元の未対応勘定 '+k+' を精算してください');
  if(from.loans?.some(l=>!Number.isSafeInteger(l.outstanding)||l.outstanding<0)||Math.abs((from.loans||[]).reduce((n,l)=>n+l.outstanding,0)+acc(from,'debt'))>1)throw Error('借入契約の元本残高が一致しません');
  if(Object.values(from.stock).reduce((a,l)=>a+(l.v||0),0)!==acc(from,'materials')||Object.values(from.goods).reduce((a,l)=>a+(l.v||0),0)!==acc(from,'goods'))throw Error('在庫数量・原価台帳に差異があります');
@@ -2275,9 +2319,10 @@ function siblingMergerEligibility(s,parent,from,to){
 function mergeWhollyOwnedSubsidiaries(s,parentId,fromId,toId){
  const parent=company(parentId,s),from=company(fromId,s),to=company(toId,s);
  const transferredEquity=siblingMergerEligibility(s,parent,from,to);
+ const sharesToTransfer=mergerHeldShares(s,from,to); // Capture original cost before journal transfer.
  ensureV09Firm(from,s);ensureV09Firm(to,s);ensureV11Firm(from);ensureV11Firm(to);ensureFactoryV21(from);ensureFactoryV21(to);
  const fDr={},fCr={},tDr={},tCr={};
- for(const k of ['cash','materials','goods','ppe','accdep','debt','ar','payable','wagesDue','taxDue','interestDue']){
+ for(const k of ['cash','materials','goods','ppe','accdep','debt','ar','payable','wagesDue','taxDue','interestDue','resourceRights','investment']){
   const n=acc(from,k);if(n>0){fCr[k]=n;tDr[k]=n;}else if(n<0){fDr[k]=-n;tCr[k]=-n;}
  }
  if(transferredEquity>0){fDr.capital=transferredEquity;tCr.capital=transferredEquity;}
@@ -2286,12 +2331,18 @@ function mergeWhollyOwnedSubsidiaries(s,parentId,fromId,toId){
  post(to,tDr,tCr,'完全子会社間吸収統合・資産負債承継','investing',s);
  to.plants.push(...from.plants);from.plants=[];
  to.models.push(...from.models);from.models=[];
- for(const [key,g] of Object.entries(from.goods))to.goods[key]={...g};from.goods={};
+ for(const [key,g] of Object.entries(from.goods)){
+  if(!from.models.some(m=>m.id===key)&&to.goods[key]){
+   to.goods[key].q+=g.q;to.goods[key].v+=g.v;
+  }else to.goods[key]={...g};
+ }
+ from.goods={};
  for(const [key,g] of Object.entries(from.stock)){to.stock[key]??={q:0,v:0};to.stock[key].q+=g.q;to.stock[key].v+=g.v;from.stock[key]={q:0,v:0};}
  Object.assign(to.plans,from.plans);from.plans={};
  for(const k of ['partPlans','siteComponents']){Object.assign(to.interplant[k],from.interplant[k]);from.interplant[k]={};}
  for(const k of ['plans','siteModules','routes','staffAssignments']){Object.assign(to.factoryOps[k],from.factoryOps[k]);from.factoryOps[k]={};}
  to.loans.push(...from.loans);from.loans=[];
+ mergerTransferHeldShares(s,from,to,sharesToTransfer);
  to.payables.push(...from.payables);from.payables=[];to.receivables.push(...from.receivables);from.receivables=[];
  for(const k of ['production','research','sales','designEngineers']){to.staff[k]=(to.staff[k]||0)+(from.staff[k]||0);from.staff[k]=0;}
  to.tech=Math.max(to.tech,from.tech);
@@ -2404,7 +2455,7 @@ function syncSiblingMergerTarget(){
  if(!source||!targetSelect)return;
  for(const opt of targetSelect.options){
   const target=company(opt.value);
-  opt.disabled=!target||target.id===source.id||target.country!==source.country;
+  opt.disabled=!target||target.id===source.id||target.country!==source.country||target.industry!==source.industry;
  }
  if(!targetSelect.selectedOptions.length||targetSelect.selectedOptions[0].disabled){
   const first=[...targetSelect.options].find(opt=>!opt.disabled);
@@ -2421,15 +2472,15 @@ function siblingMergerPanel(f,edit){
  const parents=mergerManagedParents(S);
  const root=parents.find(x=>x.id===GROUP_MERGER_SELECTED_PARENT)||parents.find(x=>x.id===S.playerId)||parents[0]||company(S.playerId);
  const owned=S.firms.filter(x=>isDirectWhollyOwnedChild(root,x)&&x.reorgStatus!=='integrated'&&x.lifecycle?.phase!=='withdrawn');
- const subs=owned.filter(x=>['auto','manufacturing'].includes(x.industry));
- const siblingSources=subs.filter(x=>subs.some(y=>y.id!==x.id&&y.country===x.country));
- const initialSource=siblingSources[0],initialTarget=subs.find(x=>x.id!==initialSource?.id&&x.country===initialSource?.country);
+ const subs=owned;
+ const siblingSources=subs.filter(x=>subs.some(y=>y.id!==x.id&&y.country===x.country&&y.industry===x.industry));
+ const initialSource=siblingSources[0],initialTarget=subs.find(x=>x.id!==initialSource?.id&&x.country===initialSource?.country&&x.industry===initialSource?.industry);
  const siblingOk=edit&&!!initialTarget;
- const parentCandidates=['auto','manufacturing'].includes(root.industry)?subs.filter(x=>x.country===root.country):[];
+ const parentCandidates=subs.filter(x=>x.country===root.country&&x.industry===root.industry);
  const parentOk=edit&&parentCandidates.length>0;
  const option=(list,selected='',source=null)=>list.map(x=>
    '<option value="'+esc(x.id)+'"'+(x.id===selected?' selected':'')+
-   (source&&(x.id===source.id||x.country!==source.country)?' disabled':'')+
+   (source&&(x.id===source.id||x.country!==source.country||x.industry!==source.industry)?' disabled':'')+
    '>'+esc(x.name)+'（'+NAMES[x.country]+'）</option>').join('');
  const status={pending:'進行中',blocked:'完了条件待ち',completed:'完了'};
  const rows=groupMergerPlans(S).filter(x=>x.status!=='cancelled').slice(-12).reverse().map(p=>{
@@ -2438,12 +2489,12 @@ function siblingMergerPanel(f,edit){
   return '<tr><td>'+esc(source?.name||p.fromId)+' → '+esc(target?.name||p.toId)+'</td><td>'+esc(p.scale)+'</td><td>'+p.progress+'/'+p.duration+'（残り'+remain+'）</td><td>'+esc(status[p.status]||p.status)+(p.issue?'<div class="hint">'+esc(p.issue)+'</div>':'')+'</td><td>'+(mergerPlanActive(p)&&edit&&controller(S,p.parentId)?'<button class="btn" data-action="cancelGroupMerger" data-id="'+esc(p.id)+'">取消</button>':'—')+'</td></tr>';
  }).join('');
  const note=owned.length===0?'この親会社が直接100%保有する子会社はありません。':
-  subs.length===0?'100%子会社はありますが、現在の合併処理は自動車・製造業だけに対応しています。':
-  !siblingOk?'子会社同士の合併には、同じ国の自動車・製造業の100%子会社が2社必要です。':'';
+  subs.length===0?'現在、対象となる営業中の100%子会社はありません。':
+  !siblingOk?'子会社同士の合併には、同一国・同一業種の100%子会社が2社必要です。':'';
  return '<section class="panel span12"><h2>100%子会社の合併・手続き管理</h2>'+
  '<p class="hint">親会社が100%保有する子会社同士の合併、または親会社が子会社を吸収する合併を申請できます。合併申請時点では会社は統合されず、月末処理を進めることで完了します。</p>'+
  '<div class="note"><b>規模・所要期間</b>：小規模は2ターン（従業員合計150人未満・工場合計3未満・総資産1,000万円未満）。中規模は5ターン（従業員合計500人未満・工場合計8未満・総資産1億円未満）。いずれかが中規模上限以上なら大規模で12ターンです。条件は合併する両社の合計で判定し、申請時に固定します。</div>'+
- '<div class="field" style="margin:12px 0"><label>合併を申請する親会社</label><select id="mergeGroupParent" '+(edit?'':'disabled')+'>'+option(parents,root.id)+'</select><p class="hint">支配下の親会社から申請できます。子会社の画面を閲覧中でも選択可能です。対象は親会社が直接100%保有する法人で、現行の統合処理は同一国の自動車・製造業に限ります。</p></div>'+
+ '<div class="field" style="margin:12px 0"><label>合併を申請する親会社</label><select id="mergeGroupParent" '+(edit?'':'disabled')+'>'+option(parents,root.id)+'</select><p class="hint">支配下の親会社から申請できます。子会社の画面を閲覧中でも選択可能です。対象は親会社が直接100%保有する法人で、合併する2社は同一国・同一業種である必要があります。統合元が保有する子会社株式も存続法人へ引き継ぎます。</p></div>'+
  (note?'<p class="hint">'+esc(note)+'</p>':'')+
  '<h3>子会社同士の合併</h3><div class="formgrid">'+
  '<div class="field"><label>統合元（営業停止）</label><select id="mergeSiblingSource" '+(siblingOk?'':'disabled')+'>'+option(siblingSources,initialSource?.id)+'</select></div>'+
@@ -2455,7 +2506,7 @@ function siblingMergerPanel(f,edit){
  '<button class="btn primary" data-action="mergeParentSub" '+(parentOk?'':'disabled')+'>親子合併を申請</button></div>'+
  '<h3>合併手続きの進捗</h3><div class="scroll"><table><thead><tr><th>統合元 → 存続会社</th><th>規模</th><th>進捗</th><th>状態</th><th>操作</th></tr></thead><tbody>'+
  (rows||'<tr><td colspan="5">対象の合併案件はありません。</td></tr>')+'</tbody></table></div>'+
- '<p class="footnote">資産・負債・工場・製品・従業員は最終ターンで簿価承継します。通常の売掛・買掛、未払税金、研究進捗も移管します。BOM契約、会社間貸付、未着荷の物流などがあれば最終処理を保留し、翌月以降に再判定します。合併完了後も旧法人ID・株主・取引履歴は保存し、法的消滅登記や株式消却は行いません。</p></section>';
+ '<p class="footnote">資産・負債・工場・製品・従業員・保有子会社株式は最終ターンで簿価承継します。通常の売掛・買掛、未払税金、研究進捗も移管します。BOM契約、会社間貸付、未着荷の物流などがあれば最終処理を保留し、翌月以降に再判定します。合併完了後も旧法人ID・株主・取引履歴は保存し、法的消滅登記や株式消却は行いません。</p></section>';
 }
 function reorganizationPanel(f,edit){ensureV11Firm(f);
  const options=S.firms.filter(t=>t.id!==f.id&&controller(S,t.id)&&t.country===f.country&&t.reorgStatus!=='integrated');
