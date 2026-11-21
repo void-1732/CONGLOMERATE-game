@@ -443,6 +443,11 @@
 .management-notices-list{max-height:min(68vh,720px);min-height:70px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;padding:2px 7px 2px 0}
 .management-notices-list .notice{margin-bottom:8px}
 @media(max-width:700px){.management-notices-list{max-height:60vh}}
+/* STEP 5 / existing Research & HR screens: compact scroll areas, no new game feature. */
+#step4CatalogPanel .scroll{max-height:min(62vh,620px);overflow:auto;overscroll-behavior:contain;scrollbar-width:thin}
+#step5StaffPanel .scroll,#step5TrainingPanel .scroll{max-height:min(55vh,500px);overflow:auto;overscroll-behavior:contain;scrollbar-width:thin}
+.product-tabs,.step2-hr-tabs{position:sticky;top:124px;z-index:15;background:#f1f5fa;border:1px solid #dbe5ef;border-radius:12px;padding:7px;box-shadow:0 2px 9px #20364a12}
+@media(max-width:900px){.product-tabs,.step2-hr-tabs{position:static}}
 </style>
 </head>
 <body><div class="shell"><aside class="side"><div class="logo">CONGLOMERATE<br><small>企業経営シミュレーション</small></div><div class="prototype">機能検証用・開発版 v0.34-dev.3</div><nav class="nav" id="nav">
@@ -849,7 +854,7 @@ function cancelTech(id){try{const f=current();if(!canEdit(f))throw Error('この
  }catch(e){toast(e.message)}}
 /* Research tree updates must not replace the full page or reset the user's vertical reading position. */
 function redrawResearchPanel({detailOnly=false,centerSelected=false}={}){
- const panel=document.getElementById('researchTreePanel');if(!panel||PAGE!=='people'){render();return;}
+ const panel=document.getElementById('researchTreePanel');if(!panel||!['people','research'].includes(PAGE)){render();return;}
  const originalY=window.scrollY,board=document.getElementById('techBoard');const left=board?.scrollLeft||0,top=board?.scrollTop||0,detailTop=panel.querySelector('.tech-detail')?.scrollTop||0;
  const buffer=document.createElement('div');buffer.innerHTML=researchTreePanel(current(),canEdit(current()));const newer=buffer.firstElementChild;
  if(detailOnly){const oldDetail=panel.querySelector('.tech-detail'),newDetail=newer.querySelector('.tech-detail');if(oldDetail&&newDetail){oldDetail.replaceWith(newDetail);newDetail.scrollTop=detailTop;panel.querySelectorAll('.tech-node').forEach(b=>b.classList.toggle('selected',b.dataset.techSelect===TECH_SELECTED));panel.querySelectorAll('[data-tech-domain]').forEach(b=>b.classList.toggle('active',b.dataset.techDomain===TECH_DOMAIN));return;}}
@@ -8241,9 +8246,24 @@ productPage = function () {
   return html;
 };
 
+/* STEP 5: render research alone, without duplicating hiring and labor controls.
+   Existing 800-technology tree, roadmap, budget, research history and actions are unchanged.
+   Personnel actions stay in the four HR tabs; legacy people links remain compatible. */
 function researchPageStep2() {
   PEOPLE_VIEW='research';
-  return peoplePage(); // preserve 800-node research tree and existing controls
+  const f=current(),edit=canEdit(f);
+  ensureFirmGameplay(f);
+  ensureResearchTree(f);
+  const tree=f.research.tree;
+  const slots=techSlotLimit(f,S);
+  return titlePage('研究開発','技術ツリー・研究計画・研究予算・進捗を管理します。採用・教育・労務は「人事・組織」から操作できます。',tag('10分野・800技術'))+
+    (!edit?noaccess():'')+`<div class="grid">
+      ${card('研究者',nfmt(f.staff.research)+'人','研究速度と研究枠を制約','span3')}
+      ${card('研究中の技術',nfmt(tree.active.length)+' / '+nfmt(slots),'同時進行する研究テーマ','span3')}
+      ${card('研究の完成度',nfmt(f.rnd.progress)+'%','研究中テーマの進捗','span3')}
+      ${card('月次研究予算',nfmt(f.rnd.budgetBase)+'円相当','既存の研究予算','span3')}
+      ${researchTreePanel(f,edit)}
+    </div>`;
 }
 function step2HRNav() {
   return `<nav class="step2-hr-tabs" aria-label="人事の4タブ">${STEP2_HR_TABS.map(([id,name]) =>
