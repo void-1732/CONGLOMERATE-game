@@ -2248,7 +2248,7 @@ function integrateBusinessUI(){try{const f=current(),to=company(inputValue('reor
 /* Parent-directed consolidation of two directly and wholly owned sister firms.
    Old firm identity and ownership links remain for the existing consolidation model. */
 function siblingMergerEligibility(s,parent,from,to){
- if(!parent||!from||!to||parent.id!==s.playerId)throw Error('親会社から実行してください');
+ if(!parent||!from||!to||!controller(s,parent.id)||parent.reorgStatus==='integrated'||parent.lifecycle?.phase==='withdrawn')throw Error('経営支配下で営業中の親会社から実行してください');
  if(from.id===to.id||from.id===parent.id)throw Error('別々の子会社を2社選択してください');
  if(![from,...(to.id===parent.id?[]:[to])].every(f=>f.owners.length===1&&f.owners[0].id===parent.id&&Math.abs(f.owners[0].econ-1)<1e-9&&Math.abs(f.owners[0].vote-1)<1e-9))throw Error('両社は親会社が直接100%保有する完全子会社である必要があります');
  if(!['auto','manufacturing'].includes(from.industry)||!['auto','manufacturing'].includes(to.industry))throw Error('現段階では自動車・製造業同士の吸収統合に対応しています');
@@ -2370,7 +2370,7 @@ function processGroupMergers(s,events){
 }
 function beginGroupMergerUI(kind){
  try{
-  const parent=current();if(parent.id!==S.playerId||!canEdit(parent))throw Error('親会社を選択してください');
+  const parent=company(inputValue('mergeGroupParent'));if(!parent||!canEdit(current())||!controller(S,parent.id))throw Error('経営支配下の親会社を選択してください');
   const fromId=inputValue(kind==='parent'?'mergeParentSource':'mergeSiblingSource'),toId=kind==='parent'?parent.id:inputValue('mergeSiblingTarget');
   const trial=structuredClone(S),plan=startGroupMerger(trial,parent.id,fromId,toId);
   const issues=check(trial);if(issues.length)throw Error(issues.slice(0,2).join(' / '));
@@ -2381,36 +2381,77 @@ function mergeWhollyOwnedSubsidiariesUI(){return beginGroupMergerUI('sibling')}
 function mergeParentSubsidiaryUI(){return beginGroupMergerUI('parent')}
 function cancelGroupMergerUI(id){
  try{
-  if(current()?.id!==S.playerId)throw Error('親会社から操作してください');
+  if(!canEdit(current()))throw Error('管理権限がありません');
   const trial=structuredClone(S),p=groupMergerPlans(trial).find(x=>x.id===id&&mergerPlanActive(x));
-  if(!p)throw Error('申請中の計画がありません');
+  if(!p||!controller(S,p.parentId))throw Error('経営支配下の申請中計画がありません');
   p.status='cancelled';p.issue='申請者が取消';const errs=check(trial);if(errs.length)throw Error(errs[0]);
   S=trial;render();toast('合併計画を取り消しました。資産・株式は変更していません。');
  }catch(e){toast(e.message)}
 }
 
 
+let GROUP_MERGER_SELECTED_PARENT=null;
+function isDirectWhollyOwnedChild(parent,child){
+ return !!parent&&!!child&&child.id!==parent.id&&child.owners?.length===1&&
+   child.owners[0].id===parent.id&&Math.abs(child.owners[0].econ-1)<1e-9&&Math.abs(child.owners[0].vote-1)<1e-9;
+}
+function mergerManagedParents(s){
+ return s.firms.filter(f=>controller(s,f.id)&&
+   (f.id===s.playerId||s.firms.some(child=>isDirectWhollyOwnedChild(f,child))));
+}
+function syncSiblingMergerTarget(){
+ const source=company(inputValue('mergeSiblingSource')),targetSelect=document.getElementById('mergeSiblingTarget');
+ if(!source||!targetSelect)return;
+ for(const opt of targetSelect.options){
+  const target=company(opt.value);
+  opt.disabled=!target||target.id===source.id||target.country!==source.country;
+ }
+ if(!targetSelect.selectedOptions.length||targetSelect.selectedOptions[0].disabled){
+  const first=[...targetSelect.options].find(opt=>!opt.disabled);
+  targetSelect.value=first?.value||'';
+ }
+}
+document.addEventListener('change',event=>{
+ if(event.target?.id==='mergeGroupParent'){
+  GROUP_MERGER_SELECTED_PARENT=event.target.value;
+  render();
+ }else if(event.target?.id==='mergeSiblingSource')syncSiblingMergerTarget();
+});
 function siblingMergerPanel(f,edit){
- const root=company(S.playerId),subs=S.firms.filter(x=>x.id!==root.id&&x.reorgStatus!=='integrated'&&['auto','manufacturing'].includes(x.industry)&&x.owners.length===1&&x.owners[0].id===root.id&&Math.abs(x.owners[0].econ-1)<1e-9&&Math.abs(x.owners[0].vote-1)<1e-9);
- const siblingOk=edit&&f.id===root.id&&subs.length>=2;
- const parentCandidates=subs.filter(x=>x.country===root.country),parentOk=edit&&f.id===root.id&&parentCandidates.length>0;
- const option=(list,selectSecond=false)=>list.map((x,i)=>'<option value="'+esc(x.id)+'" '+(selectSecond&&i===1?'selected':'')+'>'+esc(x.name)+'（'+NAMES[x.country]+'）</option>').join('');
+ const parents=mergerManagedParents(S);
+ const root=parents.find(x=>x.id===GROUP_MERGER_SELECTED_PARENT)||parents.find(x=>x.id===S.playerId)||parents[0]||company(S.playerId);
+ const owned=S.firms.filter(x=>isDirectWhollyOwnedChild(root,x)&&x.reorgStatus!=='integrated'&&x.lifecycle?.phase!=='withdrawn');
+ const subs=owned.filter(x=>['auto','manufacturing'].includes(x.industry));
+ const siblingSources=subs.filter(x=>subs.some(y=>y.id!==x.id&&y.country===x.country));
+ const initialSource=siblingSources[0],initialTarget=subs.find(x=>x.id!==initialSource?.id&&x.country===initialSource?.country);
+ const siblingOk=edit&&!!initialTarget;
+ const parentCandidates=['auto','manufacturing'].includes(root.industry)?subs.filter(x=>x.country===root.country):[];
+ const parentOk=edit&&parentCandidates.length>0;
+ const option=(list,selected='',source=null)=>list.map(x=>
+   '<option value="'+esc(x.id)+'"'+(x.id===selected?' selected':'')+
+   (source&&(x.id===source.id||x.country!==source.country)?' disabled':'')+
+   '>'+esc(x.name)+'（'+NAMES[x.country]+'）</option>').join('');
  const status={pending:'進行中',blocked:'完了条件待ち',completed:'完了'};
  const rows=groupMergerPlans(S).filter(x=>x.status!=='cancelled').slice(-12).reverse().map(p=>{
   const source=company(p.fromId),target=company(p.toId);
   const remain=Math.max(0,p.duration-p.progress);
-  return '<tr><td>'+esc(source?.name||p.fromId)+' → '+esc(target?.name||p.toId)+'</td><td>'+esc(p.scale)+'</td><td>'+p.progress+'/'+p.duration+'（残り'+remain+'）</td><td>'+esc(status[p.status]||p.status)+(p.issue?'<div class="hint">'+esc(p.issue)+'</div>':'')+'</td><td>'+(mergerPlanActive(p)&&f.id===root.id?'<button class="btn" data-action="cancelGroupMerger" data-id="'+esc(p.id)+'">取消</button>':'—')+'</td></tr>';
+  return '<tr><td>'+esc(source?.name||p.fromId)+' → '+esc(target?.name||p.toId)+'</td><td>'+esc(p.scale)+'</td><td>'+p.progress+'/'+p.duration+'（残り'+remain+'）</td><td>'+esc(status[p.status]||p.status)+(p.issue?'<div class="hint">'+esc(p.issue)+'</div>':'')+'</td><td>'+(mergerPlanActive(p)&&edit&&controller(S,p.parentId)?'<button class="btn" data-action="cancelGroupMerger" data-id="'+esc(p.id)+'">取消</button>':'—')+'</td></tr>';
  }).join('');
+ const note=owned.length===0?'この親会社が直接100%保有する子会社はありません。':
+  subs.length===0?'100%子会社はありますが、現在の合併処理は自動車・製造業だけに対応しています。':
+  !siblingOk?'子会社同士の合併には、同じ国の自動車・製造業の100%子会社が2社必要です。':'';
  return '<section class="panel span12"><h2>100%子会社の合併・手続き管理</h2>'+
  '<p class="hint">親会社が100%保有する子会社同士の合併、または親会社が子会社を吸収する合併を申請できます。合併申請時点では会社は統合されず、月末処理を進めることで完了します。</p>'+
  '<div class="note"><b>規模・所要期間</b>：小規模は2ターン（従業員合計150人未満・工場合計3未満・総資産1,000万円未満）。中規模は5ターン（従業員合計500人未満・工場合計8未満・総資産1億円未満）。いずれかが中規模上限以上なら大規模で12ターンです。条件は合併する両社の合計で判定し、申請時に固定します。</div>'+
+ '<div class="field" style="margin:12px 0"><label>合併を申請する親会社</label><select id="mergeGroupParent" '+(edit?'':'disabled')+'>'+option(parents,root.id)+'</select><p class="hint">支配下の親会社から申請できます。子会社の画面を閲覧中でも選択可能です。対象は親会社が直接100%保有する法人で、現行の統合処理は同一国の自動車・製造業に限ります。</p></div>'+
+ (note?'<p class="hint">'+esc(note)+'</p>':'')+
  '<h3>子会社同士の合併</h3><div class="formgrid">'+
- '<div class="field"><label>統合元（営業停止）</label><select id="mergeSiblingSource" '+(siblingOk?'':'disabled')+'>'+option(subs)+'</select></div>'+
- '<div class="field"><label>存続子会社</label><select id="mergeSiblingTarget" '+(siblingOk?'':'disabled')+'>'+option(subs,true)+'</select></div>'+
+ '<div class="field"><label>統合元（営業停止）</label><select id="mergeSiblingSource" '+(siblingOk?'':'disabled')+'>'+option(siblingSources,initialSource?.id)+'</select></div>'+
+ '<div class="field"><label>存続子会社</label><select id="mergeSiblingTarget" '+(siblingOk?'':'disabled')+'>'+option(subs,initialTarget?.id,initialSource)+'</select></div>'+
  '<button class="btn primary" data-action="mergeSibling" '+(siblingOk?'':'disabled')+'>合併手続きを申請</button></div>'+
  '<h3>親会社が子会社を吸収</h3><div class="formgrid">'+
  '<div class="field"><label>吸収する100%子会社</label><select id="mergeParentSource" '+(parentOk?'':'disabled')+'>'+option(parentCandidates)+'</select></div>'+
- '<div class="field"><label>合併後の存続法人</label><input value="'+esc(root.name)+'（親会社）" disabled></div>'+
+ '<div class="field"><label>合併後の存続法人</label><input value="'+esc(root.name)+'（親会社・固定）" readonly></div>'+
  '<button class="btn primary" data-action="mergeParentSub" '+(parentOk?'':'disabled')+'>親子合併を申請</button></div>'+
  '<h3>合併手続きの進捗</h3><div class="scroll"><table><thead><tr><th>統合元 → 存続会社</th><th>規模</th><th>進捗</th><th>状態</th><th>操作</th></tr></thead><tbody>'+
  (rows||'<tr><td colspan="5">対象の合併案件はありません。</td></tr>')+'</tbody></table></div>'+
