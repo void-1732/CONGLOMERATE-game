@@ -11,13 +11,14 @@ permissions:
 
 jobs:
   century-simulation:
-    name: "1200 monthly closes (${{ matrix.era }} start)"
+    name: "1200 closes (${{ matrix.era }} / ${{ matrix.scenario }})"
     runs-on: ubuntu-latest
     timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
         era: [1900, 2020]
+        scenario: [baseline, specialists]
     steps:
       - name: Check out commit under test
         uses: actions/checkout@v4
@@ -33,4 +34,4 @@ jobs:
       - name: Long run with 100-month reports and 300-month save checks
         env:
           PYTHONUNBUFFERED: "1"
-        run: python tests/test_step9_1200_months.py --era ${{ matrix.era }}
+        run: python tests/test_step9_1200_months.py --era ${{ matrix.era }} --scenario ${{ matrix.scenario }}
