@@ -1,0 +1,30 @@
+name: STEP 9 Real IndexedDB Long Save
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-browser-large-save:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out test branch
+        uses: actions/checkout@v4
+      - name: Configure Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Chromium and Playwright
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Test genuine IndexedDB saves and fallback after 300 months
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python tests/test_step9_real_indexeddb_longsave.py
