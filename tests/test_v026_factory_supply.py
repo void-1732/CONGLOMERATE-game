@@ -1,16 +1,25 @@
 """CONGLOMERATE v0.26 current release smoke: factory labor + procurement."""
 from pathlib import Path
+from functools import partial
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from threading import Thread
 from playwright.sync_api import sync_playwright
 import os, shutil
 
-html=(Path(__file__).resolve().parents[1]/'index.html').read_text(encoding='utf-8')
+ROOT=Path(__file__).resolve().parents[1]
+class Quiet(SimpleHTTPRequestHandler):
+    def log_message(self,*args): pass
+server=ThreadingHTTPServer(('127.0.0.1',0),partial(Quiet,directory=str(ROOT)))
+Thread(target=server.serve_forever,daemon=True).start()
+URL=f'http://127.0.0.1:{server.server_port}/index.html'
 with sync_playwright() as pw:
     browser=pw.chromium.launch(headless=True,executable_path=os.getenv('CHROMIUM_EXECUTABLE') or shutil.which('chromium') or None,args=['--no-sandbox'])
     page=browser.new_page(viewport={'width':1440,'height':900})
     errors=[]
     page.on('pageerror',lambda e:errors.append(str(e)))
     page.on('dialog',lambda d:d.accept())
-    page.set_content(html,wait_until='domcontentloaded')
+    page.goto(URL)
+    page.wait_for_function('STORAGE_READY')
     for _ in range(4):page.locator('[data-action="wizardNext"]').click()
     assert page.evaluate('TECH_NODES.length')==800
     page.locator('[data-section="operations"]').click()
@@ -49,4 +58,5 @@ with sync_playwright() as pw:
         assert not check['diag'] and not check['errors'] and not check['group'] and check['cf'],(month,check)
     assert not errors,errors
     browser.close()
+server.shutdown()
 print('PASS: 800 research nodes, staffing, procurement, 24 months and accounting')
