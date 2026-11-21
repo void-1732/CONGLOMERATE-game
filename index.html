@@ -9500,6 +9500,12 @@ function step7ReadAll(){
   if(before&&typeof requestOperationSaveV037==='function')requestOperationSaveV037();
   return before;
 }
+const STEP7_NOTIFICATION_OPEN_KEY='conglomerate.step7.notification.open.v1';
+let step7NotificationExpanded=storageGet(STEP7_NOTIFICATION_OPEN_KEY);
+function step7RememberNotificationOpen(open){
+  step7NotificationExpanded=open?'1':'0';
+  try{localStorage.setItem(STEP7_NOTIFICATION_OPEN_KEY,step7NotificationExpanded);}catch(_ignored){}
+}
 function step7NotificationPanel(){
   const root=step7EnsureRoot(S),visible=root.entries.filter(x=>x.firmId===current()?.id);
   const unread=visible.filter(x=>!x.read).length;
@@ -9509,7 +9515,7 @@ function step7NotificationPanel(){
     <div class="step7-notice-actions"><button type="button" class="btn sm" data-step7-go="${x.id}">開く</button>
     ${x.read?'':`<button type="button" class="btn sm" data-step7-read="${x.id}">既読</button>`}</div></div>`).join('');
   return `<section class="step7-notifications" id="step7Notifications" aria-label="研究・人事・車両設計の通知">
-    <details ${unread?'open':''}><summary><strong>研究・人事・車両設計の連携通知</strong>
+    <details ${step7NotificationExpanded==='0'?'':(step7NotificationExpanded==='1'||unread?'open':'')}><summary><strong>研究・人事・車両設計の連携通知</strong>
       <span class="step7-counter">未読 ${unread}件 / 履歴 ${visible.length}件</span></summary>
       <div class="step7-notice-list">${lines||'<p class="hint">現在表示する連携通知はありません。</p>'}</div>
       <div class="step7-notice-footer"><button type="button" class="btn sm" data-step7-read-all="1" ${unread?'':'disabled'}>すべて既読</button>
@@ -9537,6 +9543,10 @@ render=function(){
   }
   return out;
 };
+document.addEventListener('toggle',event=>{
+  const details=event.target;
+  if(details?.matches?.('#step7Notifications > details'))step7RememberNotificationOpen(details.open);
+},true);
 document.addEventListener('click',event=>{
   const el=event.target?.closest?.('[data-step7-go],[data-step7-read],[data-step7-read-all],[data-step7-shortcut]');
   if(!el||!S||el.disabled)return;
