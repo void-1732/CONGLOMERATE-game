@@ -154,6 +154,12 @@ def main():
                       await idbWrite('snapshots',record);
                     }"""
                 )
+                # Disable the emergency copy only for the recovery reload:
+                # pagehide would otherwise regenerate it from the current live
+                # state and mask whether IDB previous-generation works.
+                page.add_init_script(
+                    "localStorage.removeItem('conglomerate.emergency.latest')"
+                )
                 page.reload()
                 page.wait_for_function("STORAGE_READY", timeout=120_000)
                 recovered = page.evaluate(
