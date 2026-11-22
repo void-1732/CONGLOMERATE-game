@@ -155,8 +155,19 @@ def run(browser, start_year):
     assert page.evaluate("id => company(id).name", child) == "STEP11新社名"
     assert page.evaluate("id => company(id).owners[0].id", child) == parent
     assert page.evaluate("check(S)") == []
+    # Before the first month close, there is no prior consolidated cash snapshot.
+    # Validate closing balance, then use the genuine month-close process for CF.
     consolidated = page.evaluate("consolidate(S)")
-    assert consolidated["errors"] == [] and consolidated["cf"]["reconciled"], consolidated
+    assert consolidated["errors"] == [], consolidated["errors"]
+    assert consolidated["spot"]["checkDifference"] == 0, consolidated["spot"]
+    committed = page.evaluate("S.monthCommitted")
+    page.evaluate("async()=>await runMonth()")
+    assert page.evaluate("S.monthCommitted") == committed + 1
+    assert page.evaluate("check(S)") == []
+    consolidated = page.evaluate("consolidate(S)")
+    assert consolidated["errors"] == [] and consolidated["cf"]["reconciled"], {
+        "errors": consolidated["errors"], "cf": consolidated["cf"]
+    }
     assert not errors, errors
     page.close()
     print(f"PASS STEP 11: {start_year}; 37 UI tabs, loan, subsidiary, rename, "
