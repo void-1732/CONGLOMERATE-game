@@ -10741,7 +10741,7 @@ function makeWorldExpansion(){
   catalogVersion:WORLD_CATALOG_VERSION,
   territoryJurisdictions:Object.fromEntries([...WORLD_TERRITORIES.keys()].map(id=>[id,WORLD_INITIAL_JURISDICTIONS[id]??null])),
   openMarkets:Object.fromEntries(WORLD_MARKETS.map(m=>[m.id,INITIAL_ENGINE_COUNTRIES.includes(WORLD_ENGINE_BY_MARKET[m.id])?WORLD_START_MONTH:null])),
-  appliedEvents:[],companies:{},facilities:{}
+  appliedEvents:[],companies:{},facilities:{},resourceDeposits:{}
  };
 }
 
@@ -10905,6 +10905,9 @@ function validateWorldProductCatalog(){
  }
  for(const [key,count] of Object.entries(WORLD_PRODUCT_CATEGORY_COUNTS))
   if(actual[key]!==count)throw Error('世界商品カテゴリの件数不一致：'+key);
+ if(Object.keys(WORLD_SERVICE_EXECUTION_CLASS).length!==15
+  ||[...WORLD_PRODUCT_SERVICE_IDS].some(id=>!WORLD_SERVICE_EXECUTION_CLASS[id]))
+  throw Error('非物理サービス15分類が不正');
  return true;
 }
 
@@ -11109,8 +11112,82 @@ function validateWorldRecipeGraph(){
  return true;
 }
 
+
+// Phase 2-B: resource deposit operations are disabled until actual deposit
+// records are supplied. Never synthesize reserves from the product catalog.
+const WORLD_RESOURCE_DEPOSIT_STATUS=new Set(['PROVISIONAL','VERIFIED','TEST_FIXTURE']);
+const WORLD_SERVICE_EXECUTION_CLASS=Object.freeze(Object.fromEntries(
+ WORLD_PRODUCTS.filter(p=>p.category==='service').map(p=>[
+  p.id,
+  ['PRD-S05','PRD-S06','PRD-S07'].includes(p.id)?'FINANCIAL'
+  :['PRD-S01','PRD-S02','PRD-S03','PRD-S04'].includes(p.id)?'TRANSPORT_AND_STORAGE'
+  :p.id==='PRD-S10'?'NETWORK'
+  :p.id==='PRD-S11'?'CONSTRUCTION'
+  :p.id==='PRD-S12'?'PROPERTY':'LABOR'
+ ])
+));
+function worldServiceTerms(productId){
+ if(!WORLD_PRODUCT_SERVICE_IDS.has(productId))throw Error('サービス商品IDではありません：'+productId);
+ return {productId,executionClass:WORLD_SERVICE_EXECUTION_CLASS[productId],
+  physicalInventory:false,requiresVerifiedCompletion:true,
+  revenueState:'NOT_IMPLEMENTED',settlementState:'NOT_IMPLEMENTED'};
+}
+function validateWorldResourceDeposits(s){
+ const rows=s.worldExpansion?.resourceDeposits;
+ if(rows===undefined)return true; // V2 saves created before resource ledger
+ if(!rows||typeof rows!=='object'||Array.isArray(rows))throw Error('鉱床台帳の形式が不正');
+ for(const [key,d] of Object.entries(rows)){
+  const firm=company(d?.ownerCompanyId,s),plant=firm?.plants?.find(p=>p.id===d.plantId);
+  if(!/^DEP-[A-Za-z0-9-]+$/.test(key)||d.id!==key
+   ||WORLD_PRODUCT_BY_ID.get(d.productId)?.category!=='resource'
+   ||!WORLD_RESOURCE_DEPOSIT_STATUS.has(d.status)
+   ||!plant||!WORLD_LOCATIONS.has('LOC-'+plant.siteId)
+   ||d.locationId!=='LOC-'+plant.siteId
+   ||s.worldExpansion.facilities['FAC-'+plant.id]?.ownerCompanyId!==firm.id
+   ||!Number.isSafeInteger(d.initialReserve)||d.initialReserve<=0
+   ||!Number.isSafeInteger(d.remaining)||d.remaining<0
+   ||!Number.isSafeInteger(d.extracted)||d.extracted<0
+   ||d.initialReserve!==d.remaining+d.extracted
+   ||!Number.isSafeInteger(d.availableFromYear)||d.availableFromYear<1900
+   ||(d.requiredTech!==null&&!TECH_BY_ID[d.requiredTech])
+   ||(d.lastExtractedAt!==null&&!Number.isSafeInteger(d.lastExtractedAt)))
+   throw Error('鉱床の所有・所在地・埋蔵量が不正：'+key);
+ }
+ return true;
+}
+// Explicit extraction API for verified or fixture deposits only. No deposit
+// is created by this API; no income, sales or stock can arise without cash and
+// a real reserve decrement. Phase 6 will provide approved locations/licenses.
+function worldExtractFromDeposit(s,firmId,plantId,depositId,wanted,unitCost,events=[]){
+ if(!s.worldExpansion||!Number.isSafeInteger(wanted)||wanted<1||wanted>100000
+  ||!Number.isSafeInteger(unitCost)||unitCost<1||unitCost>1000000)
+  throw Error('鉱床採掘数量または採掘原価が不正');
+ validateWorldResourceDeposits(s);
+ const f=company(firmId,s),p=f?.plants?.find(v=>v.id===plantId),d=s.worldExpansion.resourceDeposits?.[depositId];
+ if(!f||!p||!d||f.industry!=='resource'
+  ||d.ownerCompanyId!==firmId||d.plantId!==plantId
+  ||p.construction||p.paused||p.renovation||f.reorgStatus==='integrated')
+  throw Error('採掘権・稼働施設の条件を満たしません');
+ const month=ym(s.year,s.month);
+ if(s.year<d.availableFromYear||d.requiredTech&&!f.research?.tree?.done?.includes(d.requiredTech)
+  ||d.lastExtractedAt===month||d.remaining<=0)return 0;
+ const workforce=factoryLaborPlanV026(f).byId[plantId]?.assigned??0;
+ const capacity=Math.floor(p.capacity*p.condition/100);
+ const quantity=Math.min(wanted,d.remaining,capacity,workforce,Math.floor(acc(f,'cash')/unitCost));
+ if(quantity<=0)return 0;
+ const cost=quantity*unitCost;
+ if(!Number.isSafeInteger(cost))throw Error('採掘原価の整数上限を超えました');
+ post(f,{materials:cost},{cash:cost},'有限鉱床からの採掘 '+d.id,'operating',s);
+ const stock=f.stock[d.productId]??={q:0,v:0};
+ stock.q+=quantity;stock.v+=cost;
+ d.remaining-=quantity;d.extracted+=quantity;d.lastExtractedAt=month;
+ events.push(WORLD_PRODUCT_BY_ID.get(d.productId).name+'を採掘：'+quantity);
+ return quantity;
+}
+
 function validateWorldSupplemental(state){
  validateWorldProductCatalog();
+ validateWorldResourceDeposits(state);
  validateWorldRecipeGraph();
  for(const recipe of WORLD_SUPPLEMENTAL_RECIPES){
   if(!WORLD_PRODUCT_BY_ID.has(recipe.id)||!TECH_BY_ID[recipe.tech]
