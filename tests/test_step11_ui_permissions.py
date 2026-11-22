@@ -86,7 +86,8 @@ def run(browser, start_year):
     })""", child)
     assert after["parentCash"] < before["parentCash"], (before, after)
     assert after["childCash"] > before["childCash"], (before, after)
-    assert after["debt"] > before["debt"], (before, after)
+    # Debt is stored as a negative credit balance in the double-entry ledger.
+    assert after["debt"] < before["debt"], (before, after)
     assert page.evaluate("check(S)") == []
 
     # Current controlled firm may rename a member by ID; the data model keeps ownership.
