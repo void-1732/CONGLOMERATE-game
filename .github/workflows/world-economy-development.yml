@@ -10,6 +10,8 @@ on:
       - tests/test_world_production.py
       - tests/test_world_recipe_chains.py
       - .github/workflows/world-economy-development.yml
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
