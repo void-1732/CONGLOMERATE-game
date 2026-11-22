@@ -215,6 +215,15 @@ def test_corporate_transfer_and_merger(browser):
     page, errors = new_page(browser, 1900)
     parent = page.evaluate("S.playerId")
     seller = add_subsidiary(page, parent, "STEP12株式売り手")
+    # A newly incorporated subsidiary spends its seed capital on equipment;
+    # fund the second-tier incorporation with an actual intercompany loan.
+    show(page, "corporateSubsidiaries", parent)
+    page.locator("#loanSubs").select_option(seller)
+    page.locator("#loanAmount").fill("1000000")
+    cash_before = page.evaluate("id=>acc(company(id),'cash')", seller)
+    page.locator('[data-action="groupLoan"]').click()
+    assert page.evaluate("id=>acc(company(id),'cash')",seller) > cash_before
+    clean(page)
     grandson = add_subsidiary(page, seller, "STEP12孫会社")
     # Parent is direct 100% owner of seller, qualifying for 100%-valuation
     # transfer under the game's 70%-direct-ownership rule.
