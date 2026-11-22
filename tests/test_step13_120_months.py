@@ -44,6 +44,7 @@ def run(era):
             }""")
             assert extra["plants"]==first["plants"]+1 and extra["construction"]>0
             assert extra["cash"]<first["cash"] and extra["errors"]==[]
+            initial_month=page.evaluate("S.monthCommitted")
             page.evaluate("()=>{render=()=>{};saveAuto=async()=>true;}")
             max_batch=0
             checkpoint=None
@@ -63,7 +64,7 @@ def run(era):
                 }""")
                 elapsed=time.monotonic()-tick
                 max_batch=max(max_batch,elapsed)
-                assert progress["month"]==month,progress
+                assert progress["month"]==initial_month+month,progress
                 checkpoint=page.evaluate("""()=>{
                     const c=consolidate(S),raw=savePayload(S);
                     const parsed=parsePayload(raw),cp=consolidate(parsed);
@@ -86,7 +87,7 @@ def run(era):
                     return out;
                 }""")
                 assert checkpoint["ok"],checkpoint
-                assert checkpoint["committed"]==month
+                assert checkpoint["committed"]==initial_month+month
                 assert checkpoint["year"]==era+month//12
                 assert checkpoint["month"]==1+month%12
                 assert not errors,errors
