@@ -6330,12 +6330,12 @@ function financeFundingPage(){
  const f=current(),edit=canEdit(f),x=financials(f),w=S.world[f.country];
  return titlePage('資金調達','銀行借入と既存契約を管理します。',tag('既存の借入処理'))+(!edit?noaccess():'')+`<div class="grid">
  <section class="panel span6"><h2>借入・資金繰り</h2>${rowstat('現金',fnum(f,x.cash))}${rowstat('借入残高',fnum(f,x.debt))}${rowstat('未払金',fnum(f,-acc(f,'payable')))}${rowstat('未払給与',fnum(f,-acc(f,'wagesDue')))}${rowstat('法人税未払',fnum(f,-acc(f,'taxDue')))}${rowstat('市場金利（仮）',(w.rate*100).toFixed(2)+'%')}${rowstat('新規借入金利（仮）',((w.rate+.03)*100).toFixed(2)+'%')}<div class="formgrid" style="margin-top:17px"><div class="field"><label for="borrowBase">借入金額（円相当）</label><input type="number" id="borrowBase" min="50000" max="50000000" value="100000" ${edit?'':'disabled'}></div><button class="btn primary" data-action="borrow" ${edit?'':'disabled'}>銀行借入（36か月）</button></div><div class="sep"></div><h3>既存借入</h3>${f.loans.length?f.loans.map(l=>`<div class="itemstat"><span>残元本 ${fnum(f,l.outstanding)}</span><span class="muted">年率${(l.rate*100).toFixed(1)}%</span></div>`).join(''):'<div class="muted small">借入契約なし</div>'}<div class="footnote">借入・利息は実取引として仕訳に反映します。債権者別の再建交渉と詳細な税務処理は未実装です。</div></section>
- <section class="panel span6"><h2>その他の資金調達</h2><p class="hint">株式発行は「資本政策」、グループ内貸付は「企業グループ」で引き続き操作できます。</p><div class="vlist"><button type="button" class="btn" data-page="capital">株式発行・資本政策へ</button><button type="button" class="btn" data-page="group">グループ内貸付へ</button><button type="button" class="btn" data-page="finance">単体財務へ戻る</button></div></section>
+ <section class="panel span6"><h2>その他の資金調達</h2><p class="hint">株式発行は「資本政策」、グループ内貸付は「企業グループ」で引き続き操作できます。</p><div class="vlist"><button type="button" class="btn" data-page="capital">株式発行・資本政策へ</button><button type="button" class="btn" data-page="corporateSubsidiaries">グループ内貸付へ</button><button type="button" class="btn" data-page="finance">単体財務へ戻る</button></div></section>
  </div>`;
 }
 /* v0.19: renames operate on stable IDs. Foreign/uncontrolled firms remain read-only. */
 function renameCompany(){try{
- const target=company(inputValue('renameCompanyId'));if(!target||!controller(S,target.id))throw Error('他社の社名は変更できません');
+ const target=company(inputValue('renameCompanyId'));if(!canEdit(current())||!target||!controller(S,target.id))throw Error('他社の社名は変更できません');
  const raw=inputValue('renameCompanyName');const name=(raw||'').trim().replace(/\s+/g,' ');
  if(!name||name.length>38)throw Error('社名を1～38文字で入力してください');
  if(S.firms.some(f=>f.id!==target.id&&f.name.toLocaleLowerCase()===name.toLocaleLowerCase()))throw Error('同じ名前の法人が存在します');
@@ -6381,7 +6381,11 @@ function corporateSubsidiariesPage(){
  const f=current(),grp=controlled(),edit=canEdit(f),legacy=groupPageLegacyStep9();
  const summaries=grp.map(x=>`<tr><td><b>${esc(x.name)}</b></td><td>${esc(NAMES[x.country]||x.country)}</td><td>${esc(industryName(x.industry))}</td><td>${x.id===S.playerId?'親会社':x.reorgStatus==='integrated'?'事業移管済':'子会社'}</td><td class="num">${baseMoney(baseFromLocal(financials(x).cash,x.country))}</td><td><button type="button" class="btn sm" data-corp-open="${esc(x.id)}" data-corp-page="corporateSubsidiaries" ${x.id===f.id?'disabled':''}>この法人を選択</button></td></tr>`).join('');
  const panels=['自社・子会社の社名変更','子会社・新規事業の設立','グループ内貸付','グループ内商品売買・未実現利益テスト'].map(k=>corporateStep9LegacyPanel(legacy,k)).join('');
- return titlePage('子会社経営','法人の選択、名称変更、子会社設立、資本払込、グループ内貸付と商品売買を管理します。',tag('単体会計・内部取引を維持'))+(!edit?noaccess():'')+`<div class="grid"><section class="panel span12"><h2>支配下法人の選択</h2><p class="hint">表示法人：${esc(f.name)}。法人を切り替えると、以下の操作対象も切り替わります。非支配企業の参照は画面上部の法人切替で行えます。</p><div class="scroll"><table><thead><tr><th>法人</th><th>所在国</th><th>業態</th><th>区分</th><th class="num">現金（円相当）</th><th>操作</th></tr></thead><tbody>${summaries}</tbody></table></div></section>${panels}${groupSynergyPanel(f)}</div>`;
+  // Read-only company views must not expose editable legacy controls.
+  // Only the extracted four action panels are affected; owned companies are unchanged.
+  const safePanels=edit?panels:panels.replace(/<(?:button|input|select|textarea)\b[^>]*>/gi,tag=>
+    /\sdisabled(?:\s|=|>)/i.test(tag)?tag:tag.replace(/>$/,' disabled>'));
+ return titlePage('子会社経営','法人の選択、名称変更、子会社設立、資本払込、グループ内貸付と商品売買を管理します。',tag('単体会計・内部取引を維持'))+(!edit?noaccess():'')+`<div class="grid"><section class="panel span12"><h2>支配下法人の選択</h2><p class="hint">表示法人：${esc(f.name)}。法人を切り替えると、以下の操作対象も切り替わります。非支配企業の参照は画面上部の法人切替で行えます。</p><div class="scroll"><table><thead><tr><th>法人</th><th>所在国</th><th>業態</th><th>区分</th><th class="num">現金（円相当）</th><th>操作</th></tr></thead><tbody>${summaries}</tbody></table></div></section>${safePanels}${groupSynergyPanel(f)}</div>`;
 }
 
 function corporateMergerPage(){

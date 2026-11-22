@@ -7,6 +7,7 @@ on:
     paths:
       - index.html
       - tests/test_step10_37_pages.py
+      - tests/test_step11_ui_permissions.py
       - .github/workflows/step10-final-regression.yml
   workflow_dispatch:
 
@@ -31,3 +32,5 @@ jobs:
           python -m playwright install --with-deps chromium
       - name: Verify all 37 pages, accounting, browser save and reload
         run: python tests/test_step10_37_pages.py
+      - name: Verify STEP 11 navigation, firm permissions, loan and restore
+        run: python tests/test_step11_ui_permissions.py
