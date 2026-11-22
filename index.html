@@ -10872,6 +10872,42 @@ function worldMarketPanel(s){
 
 const WORLD_PRODUCTS=JSON.parse(document.getElementById('world-product-catalog').textContent);
 const WORLD_PRODUCT_BY_ID=new Map(WORLD_PRODUCTS.map(product=>[product.id,product]));
+const WORLD_PRODUCT_CATEGORY_COUNTS=Object.freeze({resource:30,material:45,equipment:30,consumer:30,service:15});
+const WORLD_PRODUCT_SERVICE_IDS=new Set(WORLD_PRODUCTS.filter(p=>p.category==='service').map(p=>p.id));
+const WORLD_PRODUCT_VOLUME_IDS=new Set(['PRD-M15','PRD-M16','PRD-M17','PRD-M18']);
+function worldProductUnitClass(productId){
+ const product=WORLD_PRODUCT_BY_ID.get(productId);
+ if(!product)throw Error('世界商品IDが不正：'+productId);
+ if(product.category==='service')return 'service';
+ if(WORLD_PRODUCT_VOLUME_IDS.has(productId))return 'volume';
+ if(product.category==='equipment'||product.category==='consumer')return 'piece';
+ return 'mass';
+}
+function worldProductImplementation(productId){
+ const product=WORLD_PRODUCT_BY_ID.get(productId);
+ if(!product)throw Error('世界商品IDが不正：'+productId);
+ return {id:product.id,category:product.category,unitClass:worldProductUnitClass(productId),
+  physical:product.category!=='service',
+  implementation:productId===WIRE_RECIPE.productId?'WIRE_PILOT':
+   WORLD_SUPPLEMENTAL_BY_ID.has(productId)?'RECIPE_PROTOTYPE':'DATA_CANDIDATE'};
+}
+function validateWorldProductCatalog(){
+ if(WORLD_PRODUCTS.length!==150||WORLD_PRODUCT_BY_ID.size!==150)
+  throw Error('世界商品候補の件数またはID重複が不正');
+ const actual=Object.fromEntries(Object.keys(WORLD_PRODUCT_CATEGORY_COUNTS).map(k=>[k,0]));
+ for(const p of WORLD_PRODUCTS){
+  if(!/^PRD-[RMECS]\d{2}$/.test(p.id)||!Object.hasOwn(actual,p.category)
+   ||!p.name||p.status!=='DATA_CANDIDATE')throw Error('世界商品候補の定義が不正：'+p.id);
+  actual[p.category]++;
+  if((p.category==='service')!==WORLD_PRODUCT_SERVICE_IDS.has(p.id)
+   ||(p.category==='service' && worldProductUnitClass(p.id)!=='service'))
+    throw Error('サービスの物理分類が不正：'+p.id);
+ }
+ for(const [key,count] of Object.entries(WORLD_PRODUCT_CATEGORY_COUNTS))
+  if(actual[key]!==count)throw Error('世界商品カテゴリの件数不一致：'+key);
+ return true;
+}
+
 // Pilot recipe only. The legacy copper stock unit and conversion cost are
 // provisional; this revision does not assign recipes or units to other candidates.
 const WIRE_RECIPE=Object.freeze({
@@ -10944,7 +10980,7 @@ function worldProductionPanel(firm,editable){
  const items=groups.map(([category,label])=>{
   const products=WORLD_PRODUCTS.filter(product=>product.category===category);
   return `<details><summary>${label}（${products.length}）</summary>
-   <ul>${products.map(product=>`<li data-product-id="${product.id}">${esc(product.name)}</li>`).join('')}</ul></details>`;
+   <ul>${products.map(product=>`<li data-product-id="${product.id}">${esc(product.name)} <small>(${esc(worldProductImplementation(product.id).implementation==='DATA_CANDIDATE'?'登録候補': '試作処理あり')})</small></li>`).join('')}</ul></details>`;
  }).join('');
  const plants=firm.plants.filter(canPlanWireProduction);
  const wire=firm.stock[WIRE_RECIPE.productId]||{q:0,v:0};
@@ -11074,6 +11110,7 @@ function validateWorldRecipeGraph(){
 }
 
 function validateWorldSupplemental(state){
+ validateWorldProductCatalog();
  validateWorldRecipeGraph();
  for(const recipe of WORLD_SUPPLEMENTAL_RECIPES){
   if(!WORLD_PRODUCT_BY_ID.has(recipe.id)||!TECH_BY_ID[recipe.tech]
@@ -11085,6 +11122,10 @@ function validateWorldSupplemental(state){
   }
  }
  for(const firm of state.firms){
+  for(const serviceId of WORLD_PRODUCT_SERVICE_IDS){
+   if(Object.hasOwn(firm.stock??{},serviceId))
+    throw Error('サービスを物理在庫に記帳できません：'+firm.id+'/'+serviceId);
+  }
   for(const recipe of WORLD_SUPPLEMENTAL_RECIPES){
    const stock=firm.stock?.[recipe.id];
    if(stock&&(!Number.isSafeInteger(stock.q)||stock.q<0||!Number.isSafeInteger(stock.v)||stock.v<0))
