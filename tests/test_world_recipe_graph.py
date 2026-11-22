@@ -31,6 +31,19 @@ def main():
             if(!firm.research.tree.done.includes(tech))firm.research.tree.done.push(tech);
           }
           const n=WORLD_SUPPLEMENTAL_RECIPES.length;
+          const productCatalog=validateWorldProductCatalog();
+          const implementations=WORLD_PRODUCTS.map(p=>worldProductImplementation(p.id));
+          const catalogStatus=implementations.filter(x=>x.implementation==='RECIPE_PROTOTYPE').length===35
+            &&implementations.filter(x=>x.implementation==='WIRE_PILOT').length===1
+            &&implementations.filter(x=>x.implementation==='DATA_CANDIDATE').length===114;
+          const services=implementations.filter(x=>!x.physical);
+          const serviceMetadata=services.length===15&&services.every(x=>x.unitClass==='service');
+          const volumeUnits=worldProductUnitClass('PRD-M15')==='volume';
+          let rejectsServiceStock=false;
+          const illegalState=structuredClone(S);
+          illegalState.firms[0].stock['PRD-S01']={q:1,v:0};
+          try{validateWorldSupplemental(illegalState)}
+          catch{rejectsServiceStock=true}
           const serviceSafe=WORLD_SUPPLEMENTAL_RECIPES.every(
             r=>WORLD_PRODUCT_BY_ID.get(r.id)?.category!=='service'
           );
@@ -73,7 +86,8 @@ def main():
           const allCandidateProducts=WORLD_PRODUCTS.length===150 &&
             WORLD_PRODUCTS.filter(x=>x.category==='service').length===15;
           return {
-            n,serviceSafe,treeGood,cycleRejected,radioIn1900,radioLater,
+            n,productCatalog,catalogStatus,serviceMetadata,volumeUnits,rejectsServiceStock,
+            serviceSafe,treeGood,cycleRejected,radioIn1900,radioLater,
             firstPass,secondPass,noDuplicate,saved,goodLedger,uiUpdated,allCandidateProducts
           };
         }""")
