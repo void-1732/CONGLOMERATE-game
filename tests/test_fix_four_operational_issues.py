@@ -101,7 +101,7 @@ with sync_playwright() as pw:
         ensureFactoryV21(f);f.factoryOps.mode='legacy';
         f.factoryOps.plans['REVIEW-PART']=0;
         f.interplant.partPlans['REVIEW-PART']=0;
-        PAGE='factory';render();
+        PAGE='facilityProduction';render();
         FACTORY_UI.selected='REVIEW-PART';renderFactorySelected();
         document.getElementById('factoryOnePlan').value='80';
         saveFactoryRouteOne('REVIEW-PART');
@@ -135,7 +135,7 @@ with sync_playwright() as pw:
     # must now use factoryOps, without altering legacy stock.
     page.evaluate("""()=>{
         const f=current();f.factoryOps.mode='detailed';
-        PAGE='factory';render();FACTORY_UI.selected='REVIEW-PART';renderFactorySelected();
+        PAGE='facilityProduction';render();FACTORY_UI.selected='REVIEW-PART';renderFactorySelected();
         document.getElementById('factoryOnePlan').value='50';
         saveFactoryRouteOne('REVIEW-PART');
     }""")
