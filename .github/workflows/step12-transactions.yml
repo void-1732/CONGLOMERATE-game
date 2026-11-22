@@ -1,0 +1,29 @@
+name: STEP 12 Transaction and Accounting Regression
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - index.html
+      - tests/test_step12_transactions.py
+      - .github/workflows/step12-transactions.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  transactions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Playwright and Chromium
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Run STEP 12 transaction scenarios
+        run: python tests/test_step12_transactions.py
