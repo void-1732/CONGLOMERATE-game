@@ -10648,7 +10648,88 @@ const WORLD_EVENTS=[
   source:'https://data.oireachtas.ie/ie/oireachtas/communications/other/2021/2021-12-16_centenary-of-the-treaty-debates_en.pdf'}
 ];
 
+
+// Phase 1: structural checks are deliberately distinct from historical
+// completeness. Provisional jurisdictions/dates remain explicitly provisional.
+function validateWorldCatalog(){
+ const fail=msg=>{throw Error('世界市場マスター不整合：'+msg)};
+ const regions={'欧州':13,'アジア太平洋':12,'米州':7,'アフリカ':5,'中東':3};
+ if(WORLD_MARKETS.length!==40||WORLD_MARKET_BY_ID.size!==40)fail('市場IDの件数');
+ const markets=new Set(),territories=new Set(),cities=new Set();
+ const counts=Object.fromEntries(Object.keys(regions).map(r=>[r,0]));
+ const composite=[];
+ for(const market of WORLD_MARKETS){
+  if(!/^MKT-\d{2}$/.test(market.id)||markets.has(market.id))fail('市場ID重複 '+market.id);
+  markets.add(market.id);
+  if(!Object.hasOwn(regions,market.region))fail('地域の所属 '+market.id);
+  counts[market.region]++;
+  if(!Array.isArray(market.territories)||!market.territories.length)fail('領域未登録 '+market.id);
+  if(!Array.isArray(market.cities)||market.cities.length<3||market.cities.length>5)fail('都市数 '+market.id);
+  if(market.territories.length>1)composite.push(market.id);
+  const local=new Set();
+  for(const territory of market.territories){
+   if(!/^TER-\d{2}-\d{2}$/.test(territory.id)||territories.has(territory.id))
+    fail('領域ID重複 '+territory.id);
+   territories.add(territory.id);local.add(territory.id);
+   if(WORLD_TERRITORIES.get(territory.id)?.marketId!==market.id)fail('領域の市場リンク '+territory.id);
+  }
+  for(const city of market.cities){
+   if(!/^CITY-\d{2}-\d{2}$/.test(city.id)||cities.has(city.id))fail('都市ID重複 '+city.id);
+   cities.add(city.id);
+   if(!local.has(city.territoryId))fail('都市の領域リンク '+city.id);
+   if(WORLD_CITIES.get(city.id)?.territoryId!==city.territoryId)fail('都市の索引 '+city.id);
+  }
+ }
+ for(const [r,expected] of Object.entries(regions))if(counts[r]!==expected)fail('地域別件数 '+r);
+ if(cities.size!==155||WORLD_CITIES.size!==cities.size||WORLD_TERRITORIES.size!==territories.size)
+  fail('都市・領域のマスター件数');
+ if(composite.sort().join(',')!==['MKT-01','MKT-05','MKT-08','MKT-13'].join(','))
+  fail('指定された複合市場');
+ if(WORLD_LOCATIONS.size!==SITE_CATALOG.length)fail('既存工業立地ID重複');
+ for(const site of SITE_CATALOG){
+  const location=WORLD_LOCATIONS.get('LOC-'+site.id);
+  if(!location||location.territoryId!==WORLD_ENGINE_TERRITORY[site.country])
+   fail('工業立地の領域リンク '+site.id);
+  if(location.cityId!==null){
+   const city=WORLD_CITIES.get(location.cityId);
+   if(!city||city.territoryId!==location.territoryId)fail('工業立地の都市リンク '+site.id);
+  }
+ }
+ for(const [code,territoryId] of Object.entries(WORLD_ENGINE_TERRITORY)){
+  const territory=WORLD_TERRITORIES.get(territoryId);
+  if(!territory||WORLD_ENGINE_BY_MARKET[territory.marketId]!==code)fail('旧経済市場リンク '+code);
+  const currencyId=WORLD_ENGINE_CURRENCIES[code];
+  if(!currencyId||!WORLD_CURRENCIES.has(currencyId))fail('旧経済市場の通貨 '+code);
+ }
+ for(const [id,jurisdictionId] of Object.entries(WORLD_INITIAL_JURISDICTIONS)){
+  if(!territories.has(id)||!WORLD_JURISDICTIONS.has(jurisdictionId))fail('初期管轄 '+id);
+ }
+ for(const [id,jurisdiction] of WORLD_JURISDICTIONS){
+  if(!WORLD_CURRENCIES.has(jurisdiction.currencyId))fail('歴史管轄の通貨 '+id);
+ }
+ const events=new Set();
+ for(const event of WORLD_EVENTS){
+  if(events.has(event.id)||!territories.has(event.territoryId)
+     ||!WORLD_JURISDICTIONS.has(event.jurisdictionId)||event.month<WORLD_START_MONTH
+     ||(event.openMarketId!==null
+        && WORLD_TERRITORIES.get(event.territoryId).marketId!==event.openMarketId)
+     ||!Number.isSafeInteger(event.month))fail('歴史イベント参照 '+event.id);
+  events.add(event.id);
+ }
+ return true;
+}
+function worldCityLocation(s,cityId){
+ const city=WORLD_CITIES.get(cityId);
+ if(!city||!s?.worldExpansion)throw Error('都市または世界状態がありません：'+cityId);
+ const territory=WORLD_TERRITORIES.get(city.territoryId);
+ const market=WORLD_MARKET_BY_ID.get(territory.marketId);
+ const jurisdictionId=s.worldExpansion.territoryJurisdictions[territory.id];
+ return {cityId,territoryId:territory.id,marketId:market.id,jurisdictionId,
+  marketOpen:s.worldExpansion.openMarkets[market.id]!==null};
+}
+
 function newWorldGame(setup){
+ validateWorldCatalog();
  const state=newGame({...setup,era:1900,difficulty:'normal',history:'historical',scenario:'world'});
  state.worldExpansion=makeWorldExpansion();
  applyWorldHistory(state);syncWorldIdentities(state);validateWorldExpansion(state);
@@ -10671,7 +10752,11 @@ function recordWorldEvent(world,event){
      ||(event.openMarketId!==null&&event.openMarketId!==territory.marketId)){
   throw Error('国家・市場イベントの参照または効力月が不正です');
  }
- if(world.appliedEvents.some(item=>item.id===event.id))return false;
+ const prior=world.appliedEvents.find(item=>item.id===event.id);
+ if(prior){
+  if(JSON.stringify(prior)!==JSON.stringify(event))throw Error('歴史イベントIDの内容衝突：'+event.id);
+  return false;
+ }
  world.territoryJurisdictions[event.territoryId]=event.jurisdictionId;
  if(event.openMarketId!==null)world.openMarkets[event.openMarketId]??=event.month;
  world.appliedEvents.push({...event});
@@ -10718,6 +10803,7 @@ function syncWorldIdentities(s){
 }
 
 function validateWorldExpansion(s){
+ validateWorldCatalog();
  if(s.config?.scenario!=='world'&&!Object.hasOwn(s,'worldExpansion'))return;
  const world=s.worldExpansion;
  if(s.config?.scenario!=='world'||s.startYear!==1900||world?.catalogVersion!==WORLD_CATALOG_VERSION
