@@ -1,0 +1,42 @@
+name: World Economy Expansion / Development CI
+
+on:
+  push:
+    branches:
+      - codex/world-economy-full
+    paths:
+      - index.html
+      - tests/test_world_foundation.py
+      - tests/test_world_production.py
+      - tests/test_world_recipe_chains.py
+      - .github/workflows/world-economy-development.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  world-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Playwright Chromium
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: World foundation and products
+        run: |
+          python -B tests/test_world_foundation.py
+          python -B tests/test_world_production.py
+          python -B tests/test_world_recipe_chains.py
+      - name: Existing UI, trade and save regression
+        run: |
+          python -B tests/test_step10_37_pages.py
+          python -B tests/test_v029_trade.py
+          python -B tests/test_autosave_retention.py
+      - name: 120 months world simulation
+        run: python -B tests/test_step13_120_months.py --era 1900 --world
