@@ -33,6 +33,7 @@ def main():
           f.stock.steel.q+=30;f.stock.steel.v+=600;
           worldPlanSave(f,p,'PRD-M03',10);
           const before={q:f.stock.steel.q,v:f.stock.steel.v,cash:acc(f,'cash')};
+          const expectedInputCost=Math.round(before.v*20/before.q);
           const events=[];
           produceWorldSupplemental(S,events);
           produceWorldSupplemental(S,events);
@@ -47,9 +48,9 @@ def main():
             count:WORLD_SUPPLEMENTAL_RECIPES.length,
             produced:out?.q===10,
             material:before.q-after.q===20,
-            materialValue:before.v-after.v===400,
+            materialValue:before.v-after.v===expectedInputCost,
             conversion:before.cash-after.cash>0,
-            value:out?.v===400+before.cash-after.cash,
+            value:out?.v===expectedInputCost+before.cash-after.cash,
             once:events.length===1,
             lockedFuture:!worldRecipeUnlocked(f,future,1900),
             unlockedNow:worldRecipeUnlocked(f,recipe,1900),
