@@ -6548,6 +6548,32 @@ const MA_EXTERNAL_CLASSES={
  founder:'創業者・個人',bank:'銀行・金融機関',government:'政府・公的機関',
  institutional:'投資信託・保険',individual:'一般個人・分散株主',freefloat:'一般個人・分散株主'
 };
+// Repeated capital issues must not create a second shareholder class.
+// The earlier v0.7 "freefloat" and the v0.20 "individual" represent the same group.
+// Keep founder shares separate, and keep all ledger / issue-history records intact.
+function canonicalExternalShareClassId(block){
+ const standard={founder:'founder',institutional:'institutional',freefloat:'freefloat',individual:'freefloat',bank:'bank',government:'government'};
+ if(standard[block.id])return standard[block.id];
+ const byName={'創業者・個人':'founder','創業株主':'founder','投資信託・保険':'institutional','機関投資家':'institutional','一般個人・分散株主':'freefloat','個人投資家':'freefloat','分散株主':'freefloat','銀行・金融機関':'bank','政府・公的機関':'government'};
+ return byName[block.name]||block.id;
+}
+function consolidateExternalShareClasses(f){
+ if(!Array.isArray(f.shareBlocks))return;
+ const consolidated=new Map();
+ for(const b of f.shareBlocks){
+  const id=canonicalExternalShareClassId(b);
+  const holding=roundShare(Number(b.holding)||0),reserve=Number.isFinite(b.reserve)?b.reserve:1.1;
+  if(!consolidated.has(id)){
+   consolidated.set(id,{...b,id,name:MA_EXTERNAL_CLASSES[id]||b.name||'その他外部株主',holding,reserve});
+  }else{
+   const old=consolidated.get(id),oldUnits=Math.round(old.holding*1000000),addUnits=Math.round(holding*1000000),units=oldUnits+addUnits;
+   // A single investor class gets a holding-weighted reservation rate. No shares vanish.
+   old.reserve=units>0?(old.reserve*oldUnits+reserve*addUnits)/units:old.reserve;
+   old.holding=roundShare(units/1000000);
+  }
+ }
+ f.shareBlocks=[...consolidated.values()];
+}
 function ensureMAState(s){
  s.maDeals??=[];s.maPlans??=[];s.maAIHistory??=[];s.equityTransfers??=[];
  for(const f of s.firms||[]){
@@ -6566,7 +6592,7 @@ function ensureMAState(s){
    // Existing freefloat is retained with its original ID, so all old saves remain readable.
    f.maShareClassesV18=true;
   }
-  for(const h of f.shareBlocks){h.name=MA_EXTERNAL_CLASSES[h.id]||h.name||'その他外部株主';h.reserve=Number.isFinite(h.reserve)?h.reserve:1.1;}
+  consolidateExternalShareClasses(f);
   f.maCooldown??=-200;f.maReputation??=50;
  }
 }
@@ -7060,8 +7086,9 @@ function executeCapitalIssuance(s,issuerId,percent,issueFactor,investor,actor='p
  else f.owners.push({id:'PUBLIC',econ:publicRatio,vote:roundShare(1-f.owners.reduce((a,o)=>a+o.vote,0))});
  for(const h of f.shareBlocks||[])h.holding=roundShare(h.holding*oldRatio);
  f.shareBlocks??=[];
- let block=f.shareBlocks.find(h=>h.id===investor);
- if(!block){block={id:investor,name:CAPITAL_INVESTORS[investor],holding:0,weight:.2,reserve:1.06};f.shareBlocks.push(block);}
+ const investorClass=canonicalExternalShareClassId({id:investor});
+ let block=f.shareBlocks.find(h=>h.id===investorClass);
+ if(!block){block={id:investorClass,name:MA_EXTERNAL_CLASSES[investorClass]||CAPITAL_INVESTORS[investor],holding:0,weight:.2,reserve:1.06};f.shareBlocks.push(block);}
  // Reconcile rounding to keep the external investor breakdown identical to PUBLIC.
  block.holding=roundShare(block.holding+roundShare(publicRatio-f.shareBlocks.reduce((a,b)=>a+b.holding,0)));
  if(block.holding<0)throw Error('株式の引受計算に失敗');
