@@ -1,0 +1,79 @@
+name: STEP 13 Long-Run and Recovery
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - index.html
+      - tests/test_step13_120_months.py
+      - tests/test_step9_1200_months.py
+      - tests/test_step9_real_indexeddb_longsave.py
+      - .github/workflows/step13-longrun.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ten-year:
+    name: "120 months / growth and UI / ${{ matrix.era }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        era: [1900, 2020]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Chromium
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Test 120 months and end-of-run UI
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python tests/test_step13_120_months.py --era ${{ matrix.era }}
+
+  century:
+    name: "1200 months / ${{ matrix.era }} / ${{ matrix.scenario }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        era: [1900, 2020]
+        scenario: [baseline, specialists]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Chromium
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Test 1200 month simulation and JSON roundtrip
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python tests/test_step9_1200_months.py --era ${{ matrix.era }} --scenario ${{ matrix.scenario }}
+
+  indexeddb:
+    name: "300 months / IndexedDB saved generations and recovery"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Chromium
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Test large real IndexedDB recovery
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python tests/test_step9_real_indexeddb_longsave.py

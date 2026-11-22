@@ -1,19 +1,28 @@
-# CONGLOMERATE テスト
+# CONGLOMERATE 回帰試験
 
-## STEP 10: 最終画面分割の統合回帰
+## STEP 13 — 長期耐久と保存復旧
 
-- 実行: `python tests/test_step10_37_pages.py`
-- GitHub Actions: `.github/workflows/step10-final-regression.yml` （`main` への `index.html` またはテストファイル更新で自動起動、手動実行も可）
-- 対象: 8大分類・37タブの画面描画、実際のタブ切替、子会社設立と会計検算、販売網／輸出画面の分離、調達契約・配送操作の接続、1900年と2020年から各12か月の月次計算、連結検算とCF整合、JSON保存・復元、HTTP上のIndexedDB保存と即時再読込。
-- 実行環境: Python + Playwright + Chromium。準備: `python -m pip install playwright`、`python -m playwright install chromium`。ローカルChromiumは `CHROMIUM_EXECUTABLE` で指定可。
-- 注意: テストコードが追加されたことは実ブラウザ試験の成功を意味しません。GitHub Actionsの結果（ログ・成否）を別途確認してください。全OS・複数ブラウザ・障害注入・1200か月の長期耐久試験は、STEP 10 テスト単体の対象外です。
+- ワークフロー: `.github/workflows/step13-longrun.yml`。現行の`main`で実行
+- 120か月: `python tests/test_step13_120_months.py --era 1900` と `--era 2020`。工場新設、月次計算・会計・JSON検証、経過後の16画面表示、セーブ容量と月次処理時間を確認
+- 1,200か月: `python tests/test_step9_1200_months.py --era 1900 --scenario baseline`。1900/2020、baseline/specialistsの4組み合わせ。月末処理、100か月区切り会計検算、300か月区切りJSON保存復元を実施
+- 実IndexedDB: `python tests/test_step9_real_indexeddb_longsave.py`。300か月後、2世代保存・再読込・最新スナップショット破損から前世代復旧を検証
+- 高速耐久区間では画面再描画と各月のIndexedDB自動保存のみ抑止し、実際の`runMonth()`と仕訳・連結処理を省略しません
+- テスト成功はブラウザ全種、実デバイス強制終了時の復旧、全画面の長期操作性能を保証しません
 
-## 既存の回帰試験
+## STEP 12 — 経営取引
 
-- 保存・再読込: `python tests/test_reload_autosave_v034dev3.py`
-- 工場停止・再開: `python tests/test_factory_idle_recovery_v034dev3.py`
-- 1200か月耐久: `python tests/test_step9_1200_months.py`
-- 長期保存: `python tests/test_step9_real_indexeddb_longsave.py`
-- 現行以前のバージョン名を冠したテストは、当時の画面構成・旧モデル件数等を前提とする場合があります。最新の37ページ構成の受入判定には STEP 10 の統合テストを使ってください。
+`python tests/test_step12_transactions.py`（`.github/workflows/step12-transactions.yml`）
 
-ゲーム本体は `index.html` の単一ファイルで、稼働中に外部マーケットデータを取得しません。
+## STEP 11 — 画面操作・権限
+
+`python tests/test_step11_ui_permissions.py`
+
+## STEP 10 — 37タブと基本会計
+
+`python tests/test_step10_37_pages.py`（`.github/workflows/step10-final-regression.yml`）
+
+## 旧版の補助回帰
+
+`tests/test_reload_autosave_v034dev3.py`、`tests/test_factory_idle_recovery_v034dev3.py`
+
+ゲーム本体は外部マーケットデータなしの単一`index.html`です。
