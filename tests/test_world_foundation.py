@@ -37,11 +37,11 @@ def test_catalog_and_history(page):
       const identityBefore = JSON.stringify([
         trial.firms.map(f=>[f.id,f.owners,f.loans]),trial.worldExpansion.companies,trial.worldExpansion.facilities
       ]);
-      trial.year=1905; trial.month=9; applyWorldHistory(trial);
+      trial.year=1905; trial.month=10; applyWorldHistory(trial);
       const closed=trial.worldExpansion.openMarkets['MKT-11']===null;
-      trial.month=10; applyWorldHistory(trial); applyWorldHistory(trial);
-      const opened=trial.worldExpansion.openMarkets['MKT-11']===ym(1905,10);
-      trial.year=1922; trial.month=12; applyWorldHistory(trial);
+      trial.month=11; applyWorldHistory(trial); applyWorldHistory(trial);
+      const opened=trial.worldExpansion.openMarkets['MKT-11']===ym(1905,11);
+      trial.year=1923; trial.month=1; applyWorldHistory(trial);
       syncWorldIdentities(trial); validateWorldExpansion(trial);
       return {
         closed,opened, events:trial.worldExpansion.appliedEvents.length,
@@ -57,6 +57,48 @@ def test_catalog_and_history(page):
         "closed": True, "opened": True, "events": 2, "oldTerritory": "JUR-UK",
         "newTerritory": "JUR-IE", "unchanged": True, "stillForty": True,
     }
+
+
+def test_market_opening(page):
+    result = page.evaluate("""async () => {
+      const original=S,persist=saveAuto,view=VIEW_FIRM,country=VIEW_COUNTRY,oldPage=PAGE;
+      try {
+        S=structuredClone(original);
+        S.year=1905; S.month=10; S.monthCommitted=ym(1905,10)-1;
+        saveAuto=async()=>true;
+        await runMonth();
+        if(S.month!==11||!S.world.NO)return {failure:LAST_MONTH_DIAGNOSTIC};
+        const seller=company(S.playerId,S);
+        const contract=exportChannel(seller,'NO',S);
+        PAGE='worldMap';render();
+        const hasLink=!!document.querySelector('[data-market-id="MKT-11"] [data-mk-region="NO"]');
+        PAGE='corporateSubsidiaries';render();
+        document.querySelector('#subName').value='ノルウェー試験子会社';
+        document.querySelector('#subCountry').value='NO';
+        document.querySelector('#subIndustry').value='manufacturing';
+        document.querySelector('#subCapital').value='750000';
+        createSub();
+        const child=S.firms.find(f=>f.name==='ノルウェー試験子会社');
+        await runMonth();
+        const replay=parsePayload(savePayload(S));
+        const registration=replay.worldExpansion.companies[child?.id];
+        return {
+           opened:S.month===12 && S.worldExpansion.openMarkets['MKT-11']===ym(1905,11),
+           market:S.world.NO.demand>0,
+           resourcePool:npcMarketV033(S,'NO','steel').producedTotal>0,
+           subsidiary:child?.country==='NO'&&registration?.jurisdictionId==='JUR-NO'&&
+             registration?.currencyId==='CUR-NOK',
+           contract:contract.capacity>0,
+           events:S.worldExpansion.appliedEvents.filter(e=>e.id==='HIST-NO-1905').length===1,
+           restored:replay.world.NO.demand===S.world.NO.demand,
+           hasLink, clean:check(S).length===0 && consolidate(S).errors.length===0
+        };
+      } finally {
+        S=original;saveAuto=persist;VIEW_FIRM=view;VIEW_COUNTRY=country;PAGE=oldPage;
+        LAST_MONTH_DIAGNOSTIC=null;MONTH_DIAGNOSTIC_OPEN=false;render();
+      }
+    }""")
+    assert all(value is True for value in result.values()), result
 
 
 def test_saves(page):
@@ -162,6 +204,7 @@ def main():
                 assert page.evaluate("""() => S.startYear===1900 && S.month===1 &&
                     S.config.difficulty==='normal' && check(S).length===0 && TECH_NODES.length===800""")
                 test_catalog_and_history(page)
+                test_market_opening(page)
                 page.evaluate("() => { PAGE='worldMap'; render(); }")
                 assert page.locator("[data-market-id]").count() == 40
                 page.locator('[data-market-id="MKT-01"] summary').click()

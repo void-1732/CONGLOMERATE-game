@@ -9,7 +9,7 @@ from playwright.sync_api import sync_playwright
 
 HTML=(Path(__file__).resolve().parents[1]/"index.html").read_text(encoding="utf-8")
 
-def run(era):
+def run(era, world=False):
     with sync_playwright() as pw:
         browser=pw.chromium.launch(
             executable_path=os.getenv("CHROMIUM_EXECUTABLE")
@@ -21,16 +21,16 @@ def run(era):
         started=time.monotonic()
         try:
             page.set_content(HTML,wait_until="domcontentloaded")
-            first=page.evaluate("""era=>{
+            first=page.evaluate("""([era,world])=>{
                 window.__longNativeRender=render;
                 saveAuto=async()=>true;
-                S=newGame({era,country:'JP',difficulty:'easy',
-                    history:'historical',name:'STEP13長期検証'});
+                const config={era,country:'JP',difficulty:'easy',history:'historical',name:'STEP13長期検証'};
+                S=world?newWorldGame(config):newGame(config);
                 VIEW_FIRM=S.playerId;PAGE='facilityExpansion';render();
                 return {firms:S.firms.length,plants:S.firms.reduce(
                   (n,f)=>n+(f.plants||[]).length,0),
                   cash:acc(current(),'cash'),errors:check(S)};
-            }""",era)
+            }""",[era,world])
             assert first["errors"] == []
             page.locator("#factoryName").fill("STEP13新工場")
             page.locator("#factoryKind").select_option("engine")
@@ -79,7 +79,7 @@ def run(era):
                       firms:S.firms.length,
                       plants:S.firms.reduce((n,f)=>n+(f.plants||[]).length,0),
                       journals:S.firms.reduce((n,f)=>n+(f.journals||[]).length,0),
-                      bytes:raw.length,ok,
+                      bytes:new Blob([raw]).size,ok,
                       checks:check(S).slice(0,3),
                       consolidation:c.errors.slice(0,3),cf:c.cf.reconciled
                     };
@@ -110,8 +110,10 @@ def run(era):
                 });
             }""")
             assert len(pages)==16 and not errors,(pages,errors)
+            if world:
+                assert page.evaluate("S.world.NO.demand>0 && S.worldExpansion.appliedEvents.length===1")
             print("PASS STEP13",json.dumps({
-                "era":era,"months":120,"firms":checkpoint["firms"],
+                "era":era,"world":world,"months":120,"firms":checkpoint["firms"],
                 "plants":checkpoint["plants"],"journals":checkpoint["journals"],
                 "saveBytes":checkpoint["bytes"],
                 "max12MonthBatchSeconds":round(max_batch,2),
@@ -124,4 +126,8 @@ def run(era):
 if __name__=="__main__":
     parser=argparse.ArgumentParser()
     parser.add_argument("--era",type=int,choices=(1900,2020),required=True)
-    run(parser.parse_args().era)
+    parser.add_argument("--world",action="store_true",help="Exercise the 1900 world expansion scenario")
+    args=parser.parse_args()
+    if args.world and args.era != 1900:
+        parser.error("--world requires --era 1900")
+    run(args.era,args.world)
