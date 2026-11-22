@@ -47,7 +47,7 @@ def main():
             f.stock['PRD-R19']?.q===stockBefore.q+4&&
             events.length===1;
           const noDuplicate=(() => {produceWorldSupplemental(S,events);return events.length===1})();
-          S.year=1930;S.month=3;
+          S.year=1930;S.month=3;applyWorldHistory(S);syncWorldIdentities(S);
           post(f,{materials:450},{cash:450},'電力製品の資材検証','operating',S);
           for(const [id,q,v] of [['PRD-M09',5,150],['PRD-R16',5,150],['PRD-R18',5,150]]){
             const stock=f.stock[id]??={q:0,v:0};stock.q+=q;stock.v+=v;

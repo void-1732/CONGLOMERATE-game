@@ -110,6 +110,8 @@ python -B tests/test_step13_120_months.py --era 1900 --world
 - サービス15件は依然物理在庫化・売上・決済を行わない。実体のない契約計上なし。実鉱床の埋蔵量初期配置もなし。
 - `tests/test_world_phase2c.py` と既存レシピ件数期待を更新。`World Economy Expansion / Development CI` に追加し、120か月と37画面・会計・保存の回帰を継続。
 - **CI合格確認は後続実行結果で確定すること。** 作業開始時はPhase 2-Bの専用CIがキャンセル/新規実行待ちの状態であった。完了済みのテストとして虚偽の記録をしない。
+- **追加の実エンジン検証（ブラウザ非使用）:** 実際のゲームJavaScriptをDOMの最小代替環境で評価。Phase 2-Bの有限資源・非物理サービス、Phase 2-Aの46レシピ検査、Phase 2-Cの11件/電力制約の評価がすべて真。1900年開始120か月を実行し、12か月ごとの10回の保存復元・仕訳・連結BS/CF検査をPASS（1910年1月、39社、保存文字列37,581,330文字）。この検査はPlaywright実行やGitHub ActionsのPASSを代替しない。
+- Phase 2-Cテストが1930年相当へ時点を変更する際に歴史イベント履歴を同期していなかったため、`applyWorldHistory`と`syncWorldIdentities`を追加し、実エンジン検証で保存時の歴史台帳整合を確認した。
 
 #### 次の開発ステップ：Phase 2-D
 
