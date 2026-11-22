@@ -10919,7 +10919,7 @@ function produceWorldWire(s,events){
   for(const plant of activeFactories(firm)){
    // Pilot takes an idle factory only. Component lines and vehicle manufacture
    // already draw from the same installed capacity and assigned labor.
-   if(!plant.wirePlan||plant.wireProductionMonth===month||plant.lastProduced>0||plant.componentLines?.length)continue;
+   if(!plant.wirePlan||plant.wireProductionMonth===month||plant.worldProductionMonth===month||plant.lastProduced>0||plant.componentLines?.length)continue;
    const capacity=Math.floor(plant.capacity*plant.condition/100);
    const people=labor[plant.id]?.assigned??0;
    const copper=firm.stock[recipe.inputStockKey]?.q??0;
@@ -10994,11 +10994,38 @@ const WORLD_SUPPLEMENTAL_RECIPES=Object.freeze([
  {id:'PRD-M44',year:1900,tech:'materials-2',cost:21,unit:'m',inputs:[['PRD-M06',1],['rubber',1]]},
  {id:'PRD-M45',year:1970,tech:'electronics-1',cost:48,unit:'個',inputs:[['PRD-M44',1],['PRD-M21',1]]},
  {id:'PRD-E03',year:1910,tech:'energy-1',cost:90,unit:'台',inputs:[['PRD-M31',2],['PRD-M32',1]]},
- {id:'PRD-E06',year:1900,tech:'production-1',cost:105,unit:'台',inputs:[['PRD-M03',3],['PRD-M33',2]]}
+ {id:'PRD-E06',year:1900,tech:'production-1',cost:105,unit:'台',inputs:[['PRD-M03',3],['PRD-M33',2]]},
+
+ // Additional provisional manufacturing branches. Values are test coefficients,
+ // NOT historically validated BOMs and must not be treated as approved data.
+ {id:'PRD-M11',year:1900,tech:'materials-1',cost:16,unit:'kg',inputs:[['glass',2]]},
+ {id:'PRD-M20',year:1900,tech:'materials-1',cost:20,unit:'kg',inputs:[['chemicals',2]]},
+ {id:'PRD-M35',year:1900,tech:'production-1',cost:13,unit:'kg',inputs:[['chemicals',2]]},
+ {id:'PRD-M37',year:1940,tech:'materials-6',cost:19,unit:'kg',inputs:[['PRD-M21',2]]},
+ {id:'PRD-E04',year:1915,tech:'energy-1',cost:110,unit:'台',inputs:[['PRD-M31',2],['steel',2]]},
+ {id:'PRD-E05',year:1910,tech:'energy-1',cost:90,unit:'台',inputs:[['PRD-M06',3],['PRD-M03',2]]},
+ {id:'PRD-E07',year:1905,tech:'production-1',cost:100,unit:'台',inputs:[['PRD-M03',3],['PRD-M33',2]]},
+ {id:'PRD-E08',year:1900,tech:'production-1',cost:75,unit:'台',inputs:[['PRD-M03',3],['PRD-M32',2]]},
+ {id:'PRD-E11',year:1900,tech:'production-1',cost:140,unit:'台',inputs:[['PRD-M03',4],['PRD-M33',2]]},
+ {id:'PRD-E17',year:1900,tech:'production-1',cost:150,unit:'台',inputs:[['PRD-M03',5],['PRD-M32',3]]},
+ {id:'PRD-E20',year:1900,tech:'production-1',cost:65,unit:'台',inputs:[['PRD-M03',2],['PRD-M33',1]]},
+ {id:'PRD-E21',year:1910,tech:'production-1',cost:180,unit:'台',inputs:[['PRD-M03',4],['PRD-M33',3]]},
+ {id:'PRD-E23',year:1910,tech:'electronics-1',cost:120,unit:'台',inputs:[['PRD-M44',2],['PRD-M06',1]]},
+ {id:'PRD-E28',year:1900,tech:'production-1',cost:90,unit:'台',inputs:[['PRD-M03',3],['PRD-M32',2]]},
+ {id:'PRD-E29',year:1905,tech:'energy-1',cost:100,unit:'台',inputs:[['PRD-M06',3],['PRD-M03',1]]},
+ {id:'PRD-C13',year:1900,tech:'materials-1',cost:7,unit:'個',inputs:[['chemicals',1]]},
+ {id:'PRD-C14',year:1940,tech:'materials-6',cost:10,unit:'個',inputs:[['PRD-M20',1]]},
+ {id:'PRD-C15',year:1900,tech:'materials-1',cost:16,unit:'個',inputs:[['PRD-M20',1]]},
+ {id:'PRD-C19',year:1900,tech:'production-1',cost:85,unit:'台',inputs:[['PRD-M03',2],['PRD-M32',2]]},
+ {id:'PRD-C22',year:1920,tech:'electronics-1',cost:75,unit:'台',inputs:[['PRD-M44',2],['PRD-M06',1]]},
+ {id:'PRD-C24',year:1930,tech:'energy-1',cost:150,unit:'台',inputs:[['PRD-M03',3],['PRD-E03',1]]},
+ {id:'PRD-C30',year:1900,tech:'energy-1',cost:20,unit:'個',inputs:[['copper',1],['chemicals',1]]}
 ]);
 const WORLD_SUPPLEMENTAL_BY_ID=new Map(WORLD_SUPPLEMENTAL_RECIPES.map(r=>[r.id,r]));
 function worldRecipeUnlocked(firm,recipe,year){
- return year>=recipe.year && !!TECH_BY_ID[recipe.tech]
+ const tech=TECH_BY_ID[recipe.tech];
+ return Number.isSafeInteger(year) && year>=recipe.year
+  && !!tech && year>=tech.year
   && !!firm.research?.tree?.done?.includes(recipe.tech);
 }
 function worldPlanSave(firm,plant,productId,quantity){
@@ -11007,7 +11034,47 @@ function worldPlanSave(firm,plant,productId,quantity){
   ||quantity<0||quantity>100000)throw Error('商品生産計画の参照・数量が不正です');
  plant.worldPlan={productId,quantity};
 }
+function validateWorldRecipeGraph(){
+ if(WORLD_SUPPLEMENTAL_RECIPES.length!==WORLD_SUPPLEMENTAL_BY_ID.size)
+  throw Error('世界商品レシピIDが重複しています');
+ const state=new Map();
+ function visit(id){
+  if(state.get(id)===1)throw Error('世界商品レシピの循環参照：'+id);
+  if(state.get(id)===2)return;
+  const recipe=WORLD_SUPPLEMENTAL_BY_ID.get(id);
+  if(!recipe)throw Error('世界商品レシピ参照が存在しません：'+id);
+  const product=WORLD_PRODUCT_BY_ID.get(id);
+  if(!product||product.category==='service'||!['material','equipment','consumer'].includes(product.category))
+   throw Error('物理製品レシピの分類が不正：'+id);
+  const technology=TECH_BY_ID[recipe.tech];
+  if(!technology||!Number.isSafeInteger(recipe.year)||recipe.year<1900
+     ||!Number.isSafeInteger(recipe.cost)||recipe.cost<=0
+     ||typeof recipe.unit!=='string'||!recipe.unit
+     ||!Array.isArray(recipe.inputs)||!recipe.inputs.length)
+    throw Error('世界商品レシピの年代・技術・原価が不正：'+id);
+  state.set(id,1);
+  const materialKeys=new Set();
+  for(const [input,amount] of recipe.inputs){
+   const item=WORLD_PRODUCT_BY_ID.get(input);
+   if(materialKeys.has(input)||!Number.isSafeInteger(amount)||amount<=0
+      ||(!SUPPLY_TYPES.includes(input)&&(!item||item.category==='service')))
+    throw Error('レシピ投入品と数量が不正：'+id+'/'+input);
+   materialKeys.add(input);
+   if(WORLD_SUPPLEMENTAL_BY_ID.has(input)){
+    visit(input);
+    const upstream=WORLD_SUPPLEMENTAL_BY_ID.get(input);
+    if(recipe.year<upstream.year)
+     throw Error('下流商品の年代が投入素材より早い：'+id+'/'+input);
+   }
+  }
+  state.set(id,2);
+ }
+ for(const recipe of WORLD_SUPPLEMENTAL_RECIPES)visit(recipe.id);
+ return true;
+}
+
 function validateWorldSupplemental(state){
+ validateWorldRecipeGraph();
  for(const recipe of WORLD_SUPPLEMENTAL_RECIPES){
   if(!WORLD_PRODUCT_BY_ID.has(recipe.id)||!TECH_BY_ID[recipe.tech]
    ||!Number.isSafeInteger(recipe.year)||recipe.year<1900
@@ -11081,7 +11148,7 @@ function worldSupplementalPanel(firm,editable){
    +'<small>'+(available?'研究・年代条件合格':'研究・年代条件の未達または未設定')+'</small></div>';
  }).join('');
  return '<section class="panel"><h3>追加商品・生産連鎖（検証中）</h3>'
-  +'<p>既存800研究の解禁と年代、原材料・人員・設備・加工資金を使う追加13レシピ。'
+  +'<p>既存800研究の解禁と年代、原材料・人員・設備・加工資金を使う追加'+WORLD_SUPPLEMENTAL_RECIPES.length+'レシピ。'
   +'工場では同月に車両・部品・銅線・追加商品を重複生産しません。他の品目は候補のままです。</p>'
   +rows+'</section>';
 }
