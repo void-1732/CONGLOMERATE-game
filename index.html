@@ -462,17 +462,62 @@
 <div class="sidemeta">オフライン動作・外部通信なし<br>既存 SPEC-001〜094 は変更なし<br>未確定数値は試作パラメータ<br>正式な会計監査・史実検証は未実装</div></aside>
 <main class="main"><header class="topbar"><div><strong id="topCompany">未開始</strong><div class="small muted" id="topDate">開始条件を設定してください</div></div><div class="topright"><select class="topselect" id="companySelect" aria-label="表示会社"></select><select class="topselect" id="regionSelect" aria-label="表示国"></select><button class="btn primary" id="nextMonthBtn" data-action="previewMonth">月末処理 ▸</button></div></header><div class="wrap" id="content"></div></main></div>
 <div id="modalHost"></div><div class="toast" id="toast"></div><input id="importFile" type="file" accept="application/json,.json">
+<script type="application/json" id="world-market-catalog">
+[
+ {"id":"MKT-01","region":"欧州","name":"英国・アイルランド","territories":[{"id":"TER-01-01","name":"イギリス"},{"id":"TER-01-02","name":"アイルランド"}],"cities":[{"id":"CITY-01-01","name":"ロンドン","territoryId":"TER-01-01"},{"id":"CITY-01-02","name":"マンチェスター","territoryId":"TER-01-01"},{"id":"CITY-01-03","name":"バーミンガム","territoryId":"TER-01-01"},{"id":"CITY-01-04","name":"ダブリン","territoryId":"TER-01-02"}]},
+ {"id":"MKT-02","region":"欧州","name":"フランス","territories":[{"id":"TER-02-01","name":"フランス"}],"cities":[{"id":"CITY-02-01","name":"パリ","territoryId":"TER-02-01"},{"id":"CITY-02-02","name":"リヨン","territoryId":"TER-02-01"},{"id":"CITY-02-03","name":"マルセイユ","territoryId":"TER-02-01"},{"id":"CITY-02-04","name":"リール","territoryId":"TER-02-01"}]},
+ {"id":"MKT-03","region":"欧州","name":"ドイツ","territories":[{"id":"TER-03-01","name":"ドイツ"}],"cities":[{"id":"CITY-03-01","name":"ベルリン","territoryId":"TER-03-01"},{"id":"CITY-03-02","name":"ハンブルク","territoryId":"TER-03-01"},{"id":"CITY-03-03","name":"ルール工業地域","territoryId":"TER-03-01"},{"id":"CITY-03-04","name":"ミュンヘン","territoryId":"TER-03-01"}]},
+ {"id":"MKT-04","region":"欧州","name":"イタリア","territories":[{"id":"TER-04-01","name":"イタリア"}],"cities":[{"id":"CITY-04-01","name":"ローマ","territoryId":"TER-04-01"},{"id":"CITY-04-02","name":"ミラノ","territoryId":"TER-04-01"},{"id":"CITY-04-03","name":"トリノ","territoryId":"TER-04-01"},{"id":"CITY-04-04","name":"ナポリ","territoryId":"TER-04-01"}]},
+ {"id":"MKT-05","region":"欧州","name":"イベリア（スペイン・ポルトガル）","territories":[{"id":"TER-05-01","name":"スペイン"},{"id":"TER-05-02","name":"ポルトガル"}],"cities":[{"id":"CITY-05-01","name":"マドリード","territoryId":"TER-05-01"},{"id":"CITY-05-02","name":"バルセロナ","territoryId":"TER-05-01"},{"id":"CITY-05-03","name":"リスボン","territoryId":"TER-05-02"},{"id":"CITY-05-04","name":"ポルト","territoryId":"TER-05-02"}]},
+ {"id":"MKT-06","region":"欧州","name":"ロシア","territories":[{"id":"TER-06-01","name":"ロシア"}],"cities":[{"id":"CITY-06-01","name":"モスクワ","territoryId":"TER-06-01"},{"id":"CITY-06-02","name":"サンクトペテルブルク","territoryId":"TER-06-01"},{"id":"CITY-06-03","name":"ノヴォシビルスク","territoryId":"TER-06-01"},{"id":"CITY-06-04","name":"ウラジオストク","territoryId":"TER-06-01"}]},
+ {"id":"MKT-07","region":"欧州","name":"ポーランド","territories":[{"id":"TER-07-01","name":"ポーランド"}],"cities":[{"id":"CITY-07-01","name":"ワルシャワ","territoryId":"TER-07-01"},{"id":"CITY-07-02","name":"クラクフ","territoryId":"TER-07-01"},{"id":"CITY-07-03","name":"ウッチ","territoryId":"TER-07-01"},{"id":"CITY-07-04","name":"グダニスク","territoryId":"TER-07-01"}]},
+ {"id":"MKT-08","region":"欧州","name":"ベネルクス","territories":[{"id":"TER-08-01","name":"オランダ"},{"id":"TER-08-02","name":"ベルギー"},{"id":"TER-08-03","name":"ルクセンブルク"}],"cities":[{"id":"CITY-08-01","name":"アムステルダム","territoryId":"TER-08-01"},{"id":"CITY-08-02","name":"ロッテルダム","territoryId":"TER-08-01"},{"id":"CITY-08-03","name":"ブリュッセル","territoryId":"TER-08-02"},{"id":"CITY-08-04","name":"ルクセンブルク市","territoryId":"TER-08-03"}]},
+ {"id":"MKT-09","region":"欧州","name":"スイス","territories":[{"id":"TER-09-01","name":"スイス"}],"cities":[{"id":"CITY-09-01","name":"ベルン","territoryId":"TER-09-01"},{"id":"CITY-09-02","name":"チューリッヒ","territoryId":"TER-09-01"},{"id":"CITY-09-03","name":"ジュネーヴ","territoryId":"TER-09-01"},{"id":"CITY-09-04","name":"バーゼル","territoryId":"TER-09-01"}]},
+ {"id":"MKT-10","region":"欧州","name":"スウェーデン","territories":[{"id":"TER-10-01","name":"スウェーデン"}],"cities":[{"id":"CITY-10-01","name":"ストックホルム","territoryId":"TER-10-01"},{"id":"CITY-10-02","name":"ヨーテボリ","territoryId":"TER-10-01"},{"id":"CITY-10-03","name":"マルメ","territoryId":"TER-10-01"}]},
+ {"id":"MKT-11","region":"欧州","name":"ノルウェー","territories":[{"id":"TER-11-01","name":"ノルウェー"}],"cities":[{"id":"CITY-11-01","name":"オスロ","territoryId":"TER-11-01"},{"id":"CITY-11-02","name":"ベルゲン","territoryId":"TER-11-01"},{"id":"CITY-11-03","name":"トロンハイム","territoryId":"TER-11-01"}]},
+ {"id":"MKT-12","region":"欧州","name":"オーストリア","territories":[{"id":"TER-12-01","name":"オーストリア"}],"cities":[{"id":"CITY-12-01","name":"ウィーン","territoryId":"TER-12-01"},{"id":"CITY-12-02","name":"グラーツ","territoryId":"TER-12-01"},{"id":"CITY-12-03","name":"リンツ","territoryId":"TER-12-01"}]},
+ {"id":"MKT-13","region":"欧州","name":"バルカン","territories":[{"id":"TER-13-01","name":"旧ユーゴスラヴィア地域"},{"id":"TER-13-02","name":"アルバニア"},{"id":"TER-13-03","name":"ギリシャ"}],"cities":[{"id":"CITY-13-01","name":"ベオグラード","territoryId":"TER-13-01"},{"id":"CITY-13-02","name":"アテネ","territoryId":"TER-13-03"},{"id":"CITY-13-03","name":"ザグレブ","territoryId":"TER-13-01"},{"id":"CITY-13-04","name":"ティラナ","territoryId":"TER-13-02"},{"id":"CITY-13-05","name":"サラエヴォ","territoryId":"TER-13-01"}]},
+ {"id":"MKT-14","region":"アジア太平洋","name":"日本","territories":[{"id":"TER-14-01","name":"日本"}],"cities":[{"id":"CITY-14-01","name":"東京","territoryId":"TER-14-01"},{"id":"CITY-14-02","name":"大阪","territoryId":"TER-14-01"},{"id":"CITY-14-03","name":"名古屋","territoryId":"TER-14-01"},{"id":"CITY-14-04","name":"神戸","territoryId":"TER-14-01"}]},
+ {"id":"MKT-15","region":"アジア太平洋","name":"中国","territories":[{"id":"TER-15-01","name":"中国"}],"cities":[{"id":"CITY-15-01","name":"北京","territoryId":"TER-15-01"},{"id":"CITY-15-02","name":"上海","territoryId":"TER-15-01"},{"id":"CITY-15-03","name":"広州","territoryId":"TER-15-01"},{"id":"CITY-15-04","name":"武漢","territoryId":"TER-15-01"}]},
+ {"id":"MKT-16","region":"アジア太平洋","name":"インド","territories":[{"id":"TER-16-01","name":"インド"}],"cities":[{"id":"CITY-16-01","name":"デリー","territoryId":"TER-16-01"},{"id":"CITY-16-02","name":"ムンバイ","territoryId":"TER-16-01"},{"id":"CITY-16-03","name":"コルカタ","territoryId":"TER-16-01"},{"id":"CITY-16-04","name":"チェンナイ","territoryId":"TER-16-01"}]},
+ {"id":"MKT-17","region":"アジア太平洋","name":"韓国","territories":[{"id":"TER-17-01","name":"韓国"}],"cities":[{"id":"CITY-17-01","name":"ソウル","territoryId":"TER-17-01"},{"id":"CITY-17-02","name":"釜山","territoryId":"TER-17-01"},{"id":"CITY-17-03","name":"仁川","territoryId":"TER-17-01"},{"id":"CITY-17-04","name":"大邱","territoryId":"TER-17-01"}]},
+ {"id":"MKT-18","region":"アジア太平洋","name":"インドネシア","territories":[{"id":"TER-18-01","name":"インドネシア"}],"cities":[{"id":"CITY-18-01","name":"ジャカルタ","territoryId":"TER-18-01"},{"id":"CITY-18-02","name":"スラバヤ","territoryId":"TER-18-01"},{"id":"CITY-18-03","name":"バンドン","territoryId":"TER-18-01"},{"id":"CITY-18-04","name":"メダン","territoryId":"TER-18-01"}]},
+ {"id":"MKT-19","region":"アジア太平洋","name":"ベトナム","territories":[{"id":"TER-19-01","name":"ベトナム"}],"cities":[{"id":"CITY-19-01","name":"ハノイ","territoryId":"TER-19-01"},{"id":"CITY-19-02","name":"サイゴン（現ホーチミン市）","territoryId":"TER-19-01"},{"id":"CITY-19-03","name":"ハイフォン","territoryId":"TER-19-01"},{"id":"CITY-19-04","name":"ダナン","territoryId":"TER-19-01"}]},
+ {"id":"MKT-20","region":"アジア太平洋","name":"タイ","territories":[{"id":"TER-20-01","name":"タイ"}],"cities":[{"id":"CITY-20-01","name":"バンコク","territoryId":"TER-20-01"},{"id":"CITY-20-02","name":"チェンマイ","territoryId":"TER-20-01"},{"id":"CITY-20-03","name":"ナコーンラーチャシーマー","territoryId":"TER-20-01"}]},
+ {"id":"MKT-21","region":"アジア太平洋","name":"マレーシア","territories":[{"id":"TER-21-01","name":"マレーシア"}],"cities":[{"id":"CITY-21-01","name":"クアラルンプール","territoryId":"TER-21-01"},{"id":"CITY-21-02","name":"ペナン","territoryId":"TER-21-01"},{"id":"CITY-21-03","name":"ジョホールバル","territoryId":"TER-21-01"}]},
+ {"id":"MKT-22","region":"アジア太平洋","name":"シンガポール","territories":[{"id":"TER-22-01","name":"シンガポール"}],"cities":[{"id":"CITY-22-01","name":"シンガポール中心部","territoryId":"TER-22-01"},{"id":"CITY-22-02","name":"ジュロン産業地域","territoryId":"TER-22-01"},{"id":"CITY-22-03","name":"ウッドランズ","territoryId":"TER-22-01"}]},
+ {"id":"MKT-23","region":"アジア太平洋","name":"フィリピン","territories":[{"id":"TER-23-01","name":"フィリピン"}],"cities":[{"id":"CITY-23-01","name":"マニラ","territoryId":"TER-23-01"},{"id":"CITY-23-02","name":"セブ","territoryId":"TER-23-01"},{"id":"CITY-23-03","name":"ダバオ","territoryId":"TER-23-01"},{"id":"CITY-23-04","name":"イロイロ","territoryId":"TER-23-01"}]},
+ {"id":"MKT-24","region":"アジア太平洋","name":"オーストラリア","territories":[{"id":"TER-24-01","name":"オーストラリア"}],"cities":[{"id":"CITY-24-01","name":"シドニー","territoryId":"TER-24-01"},{"id":"CITY-24-02","name":"メルボルン","territoryId":"TER-24-01"},{"id":"CITY-24-03","name":"ブリスベン","territoryId":"TER-24-01"},{"id":"CITY-24-04","name":"パース","territoryId":"TER-24-01"}]},
+ {"id":"MKT-25","region":"アジア太平洋","name":"ニュージーランド","territories":[{"id":"TER-25-01","name":"ニュージーランド"}],"cities":[{"id":"CITY-25-01","name":"オークランド","territoryId":"TER-25-01"},{"id":"CITY-25-02","name":"ウェリントン","territoryId":"TER-25-01"},{"id":"CITY-25-03","name":"クライストチャーチ","territoryId":"TER-25-01"}]},
+ {"id":"MKT-26","region":"米州","name":"アメリカ","territories":[{"id":"TER-26-01","name":"アメリカ"}],"cities":[{"id":"CITY-26-01","name":"ワシントンD.C.","territoryId":"TER-26-01"},{"id":"CITY-26-02","name":"ニューヨーク","territoryId":"TER-26-01"},{"id":"CITY-26-03","name":"シカゴ","territoryId":"TER-26-01"},{"id":"CITY-26-04","name":"ロサンゼルス","territoryId":"TER-26-01"},{"id":"CITY-26-05","name":"ヒューストン","territoryId":"TER-26-01"}]},
+ {"id":"MKT-27","region":"米州","name":"カナダ","territories":[{"id":"TER-27-01","name":"カナダ"}],"cities":[{"id":"CITY-27-01","name":"オタワ","territoryId":"TER-27-01"},{"id":"CITY-27-02","name":"トロント","territoryId":"TER-27-01"},{"id":"CITY-27-03","name":"モントリオール","territoryId":"TER-27-01"},{"id":"CITY-27-04","name":"バンクーバー","territoryId":"TER-27-01"}]},
+ {"id":"MKT-28","region":"米州","name":"メキシコ","territories":[{"id":"TER-28-01","name":"メキシコ"}],"cities":[{"id":"CITY-28-01","name":"メキシコシティ","territoryId":"TER-28-01"},{"id":"CITY-28-02","name":"モンテレイ","territoryId":"TER-28-01"},{"id":"CITY-28-03","name":"グアダラハラ","territoryId":"TER-28-01"},{"id":"CITY-28-04","name":"ベラクルス","territoryId":"TER-28-01"}]},
+ {"id":"MKT-29","region":"米州","name":"ブラジル","territories":[{"id":"TER-29-01","name":"ブラジル"}],"cities":[{"id":"CITY-29-01","name":"リオデジャネイロ","territoryId":"TER-29-01"},{"id":"CITY-29-02","name":"サンパウロ","territoryId":"TER-29-01"},{"id":"CITY-29-03","name":"サルヴァドール","territoryId":"TER-29-01"},{"id":"CITY-29-04","name":"ポルトアレグレ","territoryId":"TER-29-01"}]},
+ {"id":"MKT-30","region":"米州","name":"アルゼンチン","territories":[{"id":"TER-30-01","name":"アルゼンチン"}],"cities":[{"id":"CITY-30-01","name":"ブエノスアイレス","territoryId":"TER-30-01"},{"id":"CITY-30-02","name":"コルドバ","territoryId":"TER-30-01"},{"id":"CITY-30-03","name":"ロサリオ","territoryId":"TER-30-01"},{"id":"CITY-30-04","name":"メンドーサ","territoryId":"TER-30-01"}]},
+ {"id":"MKT-31","region":"米州","name":"チリ","territories":[{"id":"TER-31-01","name":"チリ"}],"cities":[{"id":"CITY-31-01","name":"サンティアゴ","territoryId":"TER-31-01"},{"id":"CITY-31-02","name":"バルパライソ","territoryId":"TER-31-01"},{"id":"CITY-31-03","name":"コンセプシオン","territoryId":"TER-31-01"},{"id":"CITY-31-04","name":"アントファガスタ","territoryId":"TER-31-01"}]},
+ {"id":"MKT-32","region":"米州","name":"コロンビア","territories":[{"id":"TER-32-01","name":"コロンビア"}],"cities":[{"id":"CITY-32-01","name":"ボゴタ","territoryId":"TER-32-01"},{"id":"CITY-32-02","name":"メデジン","territoryId":"TER-32-01"},{"id":"CITY-32-03","name":"カリ","territoryId":"TER-32-01"},{"id":"CITY-32-04","name":"カルタヘナ","territoryId":"TER-32-01"}]},
+ {"id":"MKT-33","region":"アフリカ","name":"南アフリカ","territories":[{"id":"TER-33-01","name":"南アフリカ"}],"cities":[{"id":"CITY-33-01","name":"プレトリア","territoryId":"TER-33-01"},{"id":"CITY-33-02","name":"ヨハネスブルク","territoryId":"TER-33-01"},{"id":"CITY-33-03","name":"ケープタウン","territoryId":"TER-33-01"},{"id":"CITY-33-04","name":"ダーバン","territoryId":"TER-33-01"}]},
+ {"id":"MKT-34","region":"アフリカ","name":"エジプト","territories":[{"id":"TER-34-01","name":"エジプト"}],"cities":[{"id":"CITY-34-01","name":"カイロ","territoryId":"TER-34-01"},{"id":"CITY-34-02","name":"アレクサンドリア","territoryId":"TER-34-01"},{"id":"CITY-34-03","name":"スエズ","territoryId":"TER-34-01"},{"id":"CITY-34-04","name":"ポートサイド","territoryId":"TER-34-01"}]},
+ {"id":"MKT-35","region":"アフリカ","name":"ナイジェリア","territories":[{"id":"TER-35-01","name":"ナイジェリア"}],"cities":[{"id":"CITY-35-01","name":"ラゴス","territoryId":"TER-35-01"},{"id":"CITY-35-02","name":"カノ","territoryId":"TER-35-01"},{"id":"CITY-35-03","name":"イバダン","territoryId":"TER-35-01"},{"id":"CITY-35-04","name":"ベニンシティ","territoryId":"TER-35-01"}]},
+ {"id":"MKT-36","region":"アフリカ","name":"ケニア","territories":[{"id":"TER-36-01","name":"ケニア"}],"cities":[{"id":"CITY-36-01","name":"ナイロビ","territoryId":"TER-36-01"},{"id":"CITY-36-02","name":"モンバサ","territoryId":"TER-36-01"},{"id":"CITY-36-03","name":"キスム","territoryId":"TER-36-01"},{"id":"CITY-36-04","name":"ナクル","territoryId":"TER-36-01"}]},
+ {"id":"MKT-37","region":"アフリカ","name":"モロッコ","territories":[{"id":"TER-37-01","name":"モロッコ"}],"cities":[{"id":"CITY-37-01","name":"ラバト","territoryId":"TER-37-01"},{"id":"CITY-37-02","name":"カサブランカ","territoryId":"TER-37-01"},{"id":"CITY-37-03","name":"フェズ","territoryId":"TER-37-01"},{"id":"CITY-37-04","name":"タンジェ","territoryId":"TER-37-01"}]},
+ {"id":"MKT-38","region":"中東","name":"トルコ","territories":[{"id":"TER-38-01","name":"トルコ"}],"cities":[{"id":"CITY-38-01","name":"イスタンブール","territoryId":"TER-38-01"},{"id":"CITY-38-02","name":"アンカラ","territoryId":"TER-38-01"},{"id":"CITY-38-03","name":"イズミル","territoryId":"TER-38-01"},{"id":"CITY-38-04","name":"ブルサ","territoryId":"TER-38-01"}]},
+ {"id":"MKT-39","region":"中東","name":"サウジアラビア","territories":[{"id":"TER-39-01","name":"サウジアラビア"}],"cities":[{"id":"CITY-39-01","name":"リヤド","territoryId":"TER-39-01"},{"id":"CITY-39-02","name":"ジッダ","territoryId":"TER-39-01"},{"id":"CITY-39-03","name":"ダンマーム","territoryId":"TER-39-01"},{"id":"CITY-39-04","name":"メッカ","territoryId":"TER-39-01"}]},
+ {"id":"MKT-40","region":"中東","name":"イラン","territories":[{"id":"TER-40-01","name":"イラン"}],"cities":[{"id":"CITY-40-01","name":"テヘラン","territoryId":"TER-40-01"},{"id":"CITY-40-02","name":"イスファハーン","territoryId":"TER-40-01"},{"id":"CITY-40-03","name":"タブリーズ","territoryId":"TER-40-01"},{"id":"CITY-40-04","name":"マシュハド","territoryId":"TER-40-01"}]}
+]
+</script>
 <script>
 'use strict';
 /* One-file offline prototype v0.21. The selected build direction is B/B/B.
    Historical population anchor estimates are clearly separate from synthetic economy parameters.
    Ratified design is SPEC-001..094; questions 91..93 and SPEC-095+ remain unanswered. */
-// Save format v1 is intentionally retained for compatibility with v0.1 exports.
-const VERSION=1, AUTOKEY='conglomerate.autosave.',MANKEY='conglomerate.manual.',POINTER='conglomerate.auto.active';
-const DB_NAME='CONGLOMERATE_LOCAL_V02', DB_VERSION=1, EMERGENCY_KEY='conglomerate.emergency.latest';
+// The economy layout keeps its revision; the world-aware save envelope is versioned separately.
+const VERSION=1;
+const SAVE_FORMAT_VERSION=2;
+const DB_NAME='CONGLOMERATE_WORLD_V02', DB_VERSION=1, EMERGENCY_KEY='conglomerate.world.emergency.v2';
 let IDB=null, STORAGE_READY=false, SAVE_BUSY=false, MONTH_RUNNING=false;
 let LAST_MONTH_DIAGNOSTIC=null, MONTH_DIAGNOSTIC_OPEN=false;
-const SAVE_INDEX={backend:'初期化中',active:null,previous:null,activeChecksum:null,previousChecksum:null,auto:[null,null,null],manual:[null,null,null],manualArchive:[],legacyImported:false};
+const SAVE_INDEX={backend:'初期化中',active:null,previous:null,activeChecksum:null,previousChecksum:null,auto:[null,null,null],manual:[null,null,null],manualArchive:[]};
 let MANUAL_SAVE_PAGE=0;
 const MANUAL_SAVE_PAGE_SIZE=20,AUTO_SAVE_MONTHS=3,MANUAL_ARCHIVE_PREFIX='manual:archive:',MANUAL_ARCHIVE_META='manual-archive-index';
 // Approximate population anchors (millions); other economic variables remain synthetic.
@@ -548,7 +593,9 @@ const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
 const cents=n=>Math.round(n*100);
 const moneyLocal=(v,cur='JPY')=>new Intl.NumberFormat('ja-JP',{maximumFractionDigits:2}).format((v||0)/100)+' '+cur;
 const nfmt=n=>new Intl.NumberFormat('ja-JP',{maximumFractionDigits:2}).format(n||0);
-const fnum=(f,v)=>moneyLocal(v,COUNTRIES[f.country]?.currency||'JPY');
+const firmCurrency=(f,s=S)=>s?.config?.scenario==='world'
+ ?WORLD_ENGINE_CURRENCIES[f.country].slice(4):COUNTRIES[f.country]?.currency||'JPY';
+const fnum=(f,v)=>moneyLocal(v,firmCurrency(f));
 const baseMoney=v=>moneyLocal(v,'円相当');
 const localFromBase=(base,code)=>cents(base/COUNTRIES[code].fx);
 const baseFromLocal=(c,code)=>Math.round(c*COUNTRIES[code].fx);
@@ -3215,7 +3262,7 @@ async function runMonth(){
  try{
   trial=structuredClone(prev);
   step('CHECK_BEFORE',()=>{const errs=check(trial);if(errs.length)throw Error('処理前検算：'+errs.slice(0,15).join(' / '))});
-  step('WORLD',()=>{maybeWar(trial);ensureV11(trial);ensureV20(trial);recoverLegacyFormalMergerShares(trial);refreshPartContracts(trial)});
+  step('WORLD',()=>{maybeWar(trial);ensureV11(trial);ensureV20(trial);if(!trial.worldExpansion)recoverLegacyFormalMergerShares(trial);refreshPartContracts(trial)});
   step('SUPPLY_RISK',()=>advanceSupplierRisks(trial,events));
   step('FACTORY_JOBS',()=>{advanceFactoryJobsV21(trial,events);advanceComponentLines(trial,events)});
   step('AI_PREPARE',()=>{for(const f of trial.firms){ensureFirmGameplay(f);f.marketThisMonth={};f._profitStart=financials(f).profit;rivalMonthlyStrategy(trial,f,events);planAI(f,trial);autoOperations(trial,f)}});
@@ -3253,7 +3300,7 @@ async function runMonth(){
    const snap={date:originalDate,cash:ffin.cash,assets:ffin.assets,equity:ffin.equity,netProfit:ff.monthly.profit,sales:ff.monthly.sales,units:ff.monthly.units,produced:ff._produced||0,events:events.slice(0,40),firms:controlled(trial).length};
    trial.lastReport=snap;trial.reports.unshift(snap);if(trial.reports.length>24)trial.reports.pop();
    trial.history.push({date:`${trial.year}/${trial.month}`,baseCash:baseFromLocal(ffin.cash,ff.country),baseEquity:baseFromLocal(ffin.equity,ff.country),profit:baseFromLocal(ff.monthly.profit,ff.country)});
-   if(trial.history.length>1200)trial.history.shift();nextMonthDate(trial);refreshPartContracts(trial);
+   if(trial.history.length>1200)trial.history.shift();nextMonthDate(trial);applyWorldHistory(trial);syncWorldIdentities(trial);validateWorldExpansion(trial);refreshPartContracts(trial);
   });
   step('CHECK_AFTER',()=>{const errs=check(trial);if(errs.length)throw Error('月末整合性検証失敗：'+errs.slice(0,15).join(' / '))});
   step('CONSOLIDATION',()=>{const reportConso=consolidate(trial,trial.playerId);
@@ -5791,7 +5838,7 @@ function partTradePanel(f,edit){
  </details>`;
 }
 
-function savePayload(s){const json=JSON.stringify(s);return JSON.stringify({format:'CONGLOMERATE',version:VERSION,checksum:hash(json),payload:json,savedAt:new Date().toISOString()})}
+function savePayload(s){const json=JSON.stringify(s);return JSON.stringify({format:'CONGLOMERATE',version:SAVE_FORMAT_VERSION,checksum:hash(json),payload:json,savedAt:new Date().toISOString()})}
 /* Same-origin, synchronous safety snapshot for refresh/browser close and when
    IndexedDB is unavailable. A failed localStorage write never deletes an IDB
    generation. Checksums are checked with the unchanged v1 save parser. */
@@ -5822,7 +5869,14 @@ function flushSafetySnapshotV037(){
  if(!S||MONTH_RUNNING)return;
  try{if(check(S).length===0)writeSafetySnapshotV037()}catch(e){console.warn('終了前保存に失敗',e)}
 }
-function parsePayload(raw){if(typeof raw!=='string')throw Error('保存データが存在しません');const obj=JSON.parse(raw);if(obj.format!=='CONGLOMERATE'||obj.version!==VERSION)throw Error('対応しない保存形式です');if(hash(obj.payload)!==obj.checksum)throw Error('チェックサム不一致');const s=JSON.parse(obj.payload);ensureV11(s);ensureMAState(s);ensureV20(s);ensureSupplyNetwork(s);for(const f of s.firms||[]){ensureFirmGameplay(f);ensureNetwork(f,s);}ensureV27(s);recoverIdleSupportSaveV0262(s);recoverSpecialistFactoriesV036(s);recoverLegacyFormalMergerShares(s);const errs=check(s);if(errs.length)throw Error(errs.slice(0,3).join(' / '));return s}
+function parsePayload(raw){if(typeof raw!=='string')throw Error('保存データが存在しません');const obj=JSON.parse(raw);if(obj.format!=='CONGLOMERATE'||obj.version!==SAVE_FORMAT_VERSION)throw Error('対応しない保存形式です');if(hash(obj.payload)!==obj.checksum)throw Error('チェックサム不一致');const s=JSON.parse(obj.payload);
+ validateWorldExpansion(s);
+ if(s.config?.scenario==='world'){
+  const errs=check(s);
+  if(errs.length)throw Error(errs.slice(0,3).join(' / '));
+  return s;
+ }
+ ensureV11(s);ensureMAState(s);ensureV20(s);ensureSupplyNetwork(s);for(const f of s.firms||[]){ensureFirmGameplay(f);ensureNetwork(f,s);}ensureV27(s);recoverIdleSupportSaveV0262(s);recoverSpecialistFactoriesV036(s);recoverLegacyFormalMergerShares(s);const errs=check(s);if(errs.length)throw Error(errs.slice(0,3).join(' / '));return s}
 function openDatabase(){return new Promise((resolve,reject)=>{if(!('indexedDB' in window))return reject(Error('IndexedDBに非対応の環境です'));const req=indexedDB.open(DB_NAME,DB_VERSION);req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains('snapshots'))db.createObjectStore('snapshots',{keyPath:'key'});if(!db.objectStoreNames.contains('meta'))db.createObjectStore('meta',{keyPath:'key'})};req.onsuccess=()=>{req.result.onversionchange=()=>req.result.close();resolve(req.result)};req.onerror=()=>reject(req.error||Error('保存領域の初期化失敗'));req.onblocked=()=>reject(Error('他のタブがデータベースを使用中です'))})}
 function idbRead(store,key){return new Promise((resolve,reject)=>{const tx=IDB.transaction(store,'readonly');const r=tx.objectStore(store).get(key);r.onsuccess=()=>resolve(r.result??null);r.onerror=()=>reject(r.error||Error('保存領域の読み出し失敗'))})}
 function idbWrite(store,record){return new Promise((resolve,reject)=>{const tx=IDB.transaction(store,'readwrite');tx.oncomplete=()=>resolve();tx.onabort=()=>reject(tx.error||Error('保存領域の書込み中断'));tx.onerror=()=>reject(tx.error||Error('保存領域の書込み失敗'));tx.objectStore(store).put(record)})}
@@ -5877,20 +5931,12 @@ async function loadManualArchiveV014(key){
 function slotRecord(key,raw){const s=parsePayload(raw),o=JSON.parse(raw);return {key,serialized:raw,savedAt:o.savedAt,year:s.year,month:s.month,name:company(s.playerId,s)?.name||'不明'}}
 function inspectRecord(rec){if(!rec)return null;try{const s=parsePayload(rec.serialized);return {date:`${s.year}年${s.month}月`,name:company(s.playerId,s)?.name||'不明',savedAt:rec.savedAt}}catch(e){return {error:String(e.message)}}}
 async function refreshSaveIndex(){if(!IDB)return;const meta=await idbRead('meta','active');SAVE_INDEX.active=meta?.slot??null;SAVE_INDEX.previous=meta?.previousSlot??null;SAVE_INDEX.activeChecksum=meta?.checksum??null;SAVE_INDEX.previousChecksum=meta?.previousChecksum??null;for(let i=0;i<3;i++)SAVE_INDEX.auto[i]=await idbRead('snapshots','auto:'+i);for(let i=0;i<3;i++)SAVE_INDEX.manual[i]=await idbRead('snapshots','manual:'+i);const archiveIndex=await idbRead('meta',MANUAL_ARCHIVE_META);SAVE_INDEX.manualArchive=Array.isArray(archiveIndex?.entries)?archiveIndex.entries:[]}
-async function importLegacyOnce(){// Migration only if the new database has no existing snapshots; original v0.1 localStorage is not altered.
- for(let i=0;i<3;i++)if(await idbRead('snapshots','auto:'+i))return;
- for(let i=0;i<3;i++)if(await idbRead('snapshots','manual:'+i))return;
- let copied=0;
- for(let i=0;i<2;i++){const raw=storageGet(AUTOKEY+i);if(!raw)continue;try{await idbWrite('snapshots',slotRecord('auto:'+i,raw));copied++}catch(e){console.warn('旧自動保存世代の移行をスキップ',i,e)}}
- for(let i=0;i<3;i++){const raw=storageGet(MANKEY+i);if(!raw)continue;try{await idbWrite('snapshots',slotRecord('manual:'+i,raw));copied++}catch(e){console.warn('旧手動保存の移行をスキップ',i,e)}}
- if(copied){const p=storageGet(POINTER);let active=p==='0'||p==='1'?Number(p):0;if(!await idbRead('snapshots','auto:'+active))active=1-active;if(await idbRead('snapshots','auto:'+active)){const old=1-active,oldRecord=await idbRead('snapshots','auto:'+old),activeRecord=await idbRead('snapshots','auto:'+active);await idbWrite('meta',{key:'active',slot:active,checksum:hash(activeRecord.serialized),previousSlot:oldRecord?old:null,previousChecksum:oldRecord?hash(oldRecord.serialized):null});}SAVE_INDEX.legacyImported=true;saveWarning='v0.1の保存データをIndexedDBへコピーしました。旧データは削除していません。';}
-}
 async function saveAuto(){if(!IDB){const ok=!!S&&writeSafetySnapshotV037();if(S)S.autosaveState=ok?'保存成功':'保存失敗';saveWarning=ok?'IndexedDBが利用できないため、同一ブラウザの簡易バックアップを利用しています。JSON保存も推奨します。':'IndexedDBと簡易バックアップを利用できません。JSONで保存してください。';return ok}if(SAVE_BUSY){saveWarning='保存処理が重複しています';return false}SAVE_BUSY=true;
  try{const meta=await idbRead('meta','active');const slot=[0,1,2].find(i=>i!==meta?.slot&&i!==meta?.previousSlot);if(slot===undefined)throw Error('保存用の予備世代がありません');
   const snapshot=structuredClone(S);snapshot.autosaveState='保存成功';const raw=savePayload(snapshot);const rec=slotRecord('auto:'+slot,raw);
-  // Phase 1: prepare the inactive generation, commit, then read it back and check its whole state.
+  // Prepare the inactive generation and verify its serialized state.
   await idbWrite('snapshots',rec);const reread=await idbRead('snapshots','auto:'+slot);if(!reread||reread.serialized!==raw)throw Error('保存内容の読み戻し照合に失敗');parsePayload(reread.serialized);
-  // Phase 2: only change the active-generation pointer after full validation.
+  // Publish the pointer only after validation.
   await idbWrite('meta',{key:'active',slot,checksum:hash(raw),previousSlot:meta?.slot??null,previousChecksum:meta?.checksum??null,updatedAt:new Date().toISOString()});S.autosaveState='保存成功';saveWarning='';try{await pruneExpiredAutosavesV014(ym(snapshot.year,snapshot.month));}catch(e){console.warn('期限超過の自動保存を整理できませんでした',e);saveWarning='自動保存は成功しましたが、旧世代の整理は未完了です：'+e.message;}await refreshSaveIndex();writeSafetySnapshotV037(raw);return true;
  }catch(e){S.autosaveState='保存失敗';saveWarning=String(e?.message||e);try{await refreshSaveIndex()}catch(_){}if(S&&writeSafetySnapshotV037()){S.autosaveState='保存成功';saveWarning='IndexedDBへの保存失敗。再読込用の簡易バックアップに保存しました。JSONバックアップも出力してください。';return true}return false}finally{SAVE_BUSY=false}}
 async function saveManual(){
@@ -5937,13 +5983,6 @@ async function restoreAuto(){
    catch(e){console.warn('追記式手動保存の照合に失敗',info.key,e)}
   }
  }
- if(!candidates.length){
-  for(const key of [AUTOKEY+'0',AUTOKEY+'1',MANKEY+'0',MANKEY+'1',MANKEY+'2']){
-   const raw=storageGet(key);if(!raw)continue;
-   try{const s=parsePayload(raw);candidates.push({raw,s,savedAt:JSON.parse(raw).savedAt||'',source:'従来保存領域'})}
-   catch(err){console.warn('旧ローカル保存も復元できません',key,err)}
-  }
- }
  if(!candidates.length)return false;
  // Pick newest *valid* user state. The safety snapshot captures changes
  // made between month closes; older IDB generations remain protected.
@@ -5957,7 +5996,7 @@ async function restoreAuto(){
 async function boot(){
  try{
   IDB=await openDatabase();SAVE_INDEX.backend='IndexedDB';
-  await importLegacyOnce();await refreshSaveIndex();
+  await refreshSaveIndex();
   if(!await restoreAuto()){if(SAVE_INDEX.auto.some(Boolean)||SAVE_INDEX.manual.some(Boolean)||SAVE_INDEX.manualArchive.length)saveWarning='保存データが見つかりましたが自動復元できませんでした。保存データは削除していません。JSONバックアップから復元できます。';S=null;wizard=0}
   STORAGE_READY=true;
  }catch(e){
@@ -6103,11 +6142,11 @@ function registerEquityLink(s,rec){
  const bFx=s.world[buyer.country]?.fx??COUNTRIES[buyer.country].fx;
  const tFx=s.world[child.country]?.fx??COUNTRIES[child.country].fx;
  const enriched={id:'E'+s.seq++,month:ym(s.year,s.month),...rec,
-  recognition:'book-value-provisional',buyerCurrency:COUNTRIES[buyer.country].currency,targetCurrency:COUNTRIES[child.country].currency,
+  recognition:'book-value-provisional',buyerCurrency:firmCurrency(buyer,s),targetCurrency:firmCurrency(child,s),
   buyerFxOnAcq:bFx,targetFxOnAcq:tFx,bookEquityLocal:net.equity,cashAcquiredLocal:net.cash,
   openingRevenueLocal:net.revenue,openingExpenseLocal:net.expenses,
   acquisitionSnapshot:{cash:net.cash,assets:net.assets,liabilities:net.liab,equity:net.equity,
-    revenue:net.revenue,expenses:net.expenses,currency:COUNTRIES[child.country].currency,fx:tFx}};
+    revenue:net.revenue,expenses:net.expenses,currency:firmCurrency(child,s),fx:tFx}};
  s.equityLinks??=[];s.equityLinks.push(enriched);
 }
 function registerInterco(s,rec){s.intercompanyTx??=[];s.intercompanyTx.push({id:'I'+s.seq++,...rec});}
@@ -6295,7 +6334,7 @@ function closingFxBridge(s,memberFirms,g){
  const cashByFirm={},items=[];let closingCash=0,localFxDelta=0;
  for(const f of memberFirms){const r=balanceFxRate(s,f),base=COUNTRIES[f.country].fx,local=acc(f,'cash');
   closingCash+=Math.round(local*r);localFxDelta+=Math.round(local*(r-base));
-  cashByFirm[f.id]={cashLocal:local,fx:r};items.push({firm:f.name,currency:COUNTRIES[f.country].currency,closingRate:r,referenceRate:base,
+  cashByFirm[f.id]={cashLocal:local,fx:r};items.push({firm:f.name,currency:firmCurrency(f,s),closingRate:r,referenceRate:base,
      cashLocal:local,cashSpot:Math.round(local*r),cashReference:baseFromLocal(local,f.country)});
  }
  return {cash:closingCash,deltaFromReference:closingCash-g.bs.cash,items,cashByFirm};
@@ -6437,7 +6476,7 @@ function accountingFxReview(s,rootId,g){
   const rate=balanceFxRate(s,f),fin=financials(f);
   const a=Math.round(fin.assets*rate),l=Math.round(fin.liab*rate),cash=Math.round(fin.cash*rate);
   grossAssets+=a;grossLiabilities+=l;grossCash+=cash;
-  byId.set(f.id,{name:f.name,currency:COUNTRIES[f.country].currency,closingRate:rate,assets:a,liabilities:l,cash,
+  byId.set(f.id,{name:f.name,currency:firmCurrency(f,s),closingRate:rate,assets:a,liabilities:l,cash,
    localEquity:fin.equity,openingMonth:starts[f.id]??null});
  }
  let investment=0,goodwill=0,bargain=0,goodwillMinority=0;
@@ -6844,12 +6883,12 @@ function manualSaveSectionV014(){
  <details><summary>旧形式の手動保存3スロット（削除せず保持・読み込み専用）</summary>${[0,1,2].map(i=>{const x=inspectRecord(SAVE_INDEX.manual[i]);return `<div class="savebox"><div class="grow"><b>旧手動保存 ${i+1}</b><div class="small muted">${!x?'空きスロット':x.error?'読込不能：'+esc(x.error):esc(x.date)+' / '+esc(x.name)}</div></div><button class="btn sm" data-action="loadManual" data-slot="${i}" ${x&&!x.error?'':'disabled'}>読込</button></div>`}).join('')}</details>`;
 }
 function savePage(){const active=SAVE_INDEX.active,gen=SAVE_INDEX.auto.map(inspectRecord);return titlePage('保存・設定','自動保存は直近3か月まで、手動保存は追記式で保護します。',tag('オフライン保存'))+`<div class="hint" style="margin:2px 0 10px">Ver.0.27：部品・権利・取引の保存基盤を準備済み。旧車種の製造計算は従来どおりです。新BOM量産・部品売買・ライセンス請求・設備投資は未実装です。</div><div class="grid"><section class="panel span7">${manualSaveSectionV014()}<h2 style="margin-top:22px">自動保存（直近3か月以内・最大3世代）</h2><p class="hint">同じ月の複数回保存では古い世代が更新されます。必ず各月1件ずつ残る方式ではありません。古い自動保存だけを整理し、手動保存は整理しません。</p><h2 style="margin-top:22px">自動保存・保護世代</h2>${gen.map((x,i)=>`<div class="savebox"><div class="grow"><b>自動保存世代 ${i+1}</b> ${active===i?tag('有効世代','good'):SAVE_INDEX.previous===i?tag('保護済み前世代'):tag('書込候補')}<div class="small muted">${!x?'未保存':x.error?'検証失敗：'+esc(x.error):esc(x.date)+' / '+esc(x.name)}</div></div><button class="btn sm" data-action="loadAutoSlot" data-slot="${i}" ${x&&!x.error?'':'disabled'}>読込</button></div>`).join('')}<p class="footnote">IndexedDBに3領域（有効世代・前回確定世代・書込候補）を設け、旧2世代を保持したまま候補を書込・検証し、成功後に参照を切り替えます。失敗時の未確定候補は復元対象にしません。</p></section>
- <section class="panel span5"><h2>バックアップと新しいゲーム</h2><div class="vlist"><button class="btn" data-action="diagnoseStorage">IndexedDB実機診断（既存セーブ非変更）</button><button class="btn primary" data-action="export">現在の状態をJSONで書き出す</button><button class="btn" data-action="import">JSONバックアップを読み込む</button><button class="btn danger" data-action="newGame">新しいゲームを開始する</button></div><div class="sep"></div><h3>現在の保存状態</h3>${rowstat('保存バックエンド',tag(SAVE_INDEX.backend,SAVE_INDEX.backend==='IndexedDB'?'good':'warn'))}${rowstat('計算状態',S.monthCommitted===ym(S.year,S.month)?'当月確定済み':'次月実行待ち')}${rowstat('自動保存',S.autosaveState==='保存成功'?tag('成功','good'):tag(S.autosaveState,'warn'))}${rowstat('検算',check(S).length?tag('異常','bad'):tag('合格','good'))}${SAVE_INDEX.legacyImported?`<div class="note">旧版v0.1から保存データをコピーしました。旧キーは保持しています。</div>`:''}${saveWarning?`<div class="note warnbox">${esc(saveWarning)}</div>`:''}<div class="sep"></div><h3>保存の限界</h3><p class="small muted">IndexedDBもブラウザ・端末内の保存です。ブラウザデータ削除や端末故障には対応できません。重要なセーブはJSONを別の場所へ保管してください。</p><p class="small muted">読み込んだJSONはその場のゲーム状態として検証します。保存枠に残すには手動セーブしてください。</p></section><section class="panel span12"><h2>史実基準データと対応機能</h2><div class="scroll"><table><thead><tr><th>機能</th><th>現段階</th><th>正式仕様との関係</th></tr></thead><tbody>${[['創業シナリオ・歴史モード・国','試作動作','歴史的国境・通貨制度の正確な再現は未完成'],['主要国の開始年人口基準値','参考統計を導入','推計人口の概数を内蔵。経済・需要・金融の係数は仮'],['自動車生産・販売・在庫・原価','試作動作','工程別仕掛品・取引詳細は一部未完成'],['国別市場・原材料調達・競合AI','試作動作','市場価格・契約割当・政策係数は仮'],['研究・設備・人員・標準借入','試作動作','労使交渉・設備保守の詳細は未実装'],['業態別子会社設立・株式取得','試作動作','高度な権限審査・M&A評価は未完成'],['連結三表・非支配株主持分・内部消去','試作動作','取得時帳簿スナップショット、確定月CF履歴、変動レートの換算ブリッジを追加。正式PPA・歴史通貨制度は未確定'],['IndexedDB・自動保存3か月・手動追記式・JSON','試作動作','端末データ消失は外部バックアップで備える'],['長期性能と正式数式の受入試験','未完了','正式な定量係数・性能基準は未決定']].map(([a,b,c])=>`<tr><td>${a}</td><td>${tag(b,b==='未実装'||b==='未完了'?'warn':'good')}</td><td>${c}</td></tr>`).join('')}</tbody></table></div><div class="note" style="margin-top:13px">人口基準値：<a href="${POP_SOURCE}" target="_blank" rel="noopener">Our World in Data / Gapminder / UN WPP</a> を参照した歴史推計の概数（2020年以前）。現在の国境に合わせた統計であり、1900年当時の国家領域を再現するものではありません。ゲーム実行中に外部データを取得しません。</div></section></div>`}
+ <section class="panel span5"><h2>バックアップと新しいゲーム</h2><div class="vlist"><button class="btn" data-action="diagnoseStorage">IndexedDB実機診断（既存セーブ非変更）</button><button class="btn primary" data-action="export">現在の状態をJSONで書き出す</button><button class="btn" data-action="import">JSONバックアップを読み込む</button><button class="btn danger" data-action="newGame">新しいゲームを開始する</button></div><div class="sep"></div><h3>現在の保存状態</h3>${rowstat('保存バックエンド',tag(SAVE_INDEX.backend,SAVE_INDEX.backend==='IndexedDB'?'good':'warn'))}${rowstat('計算状態',S.monthCommitted===ym(S.year,S.month)?'当月確定済み':'次月実行待ち')}${rowstat('自動保存',S.autosaveState==='保存成功'?tag('成功','good'):tag(S.autosaveState,'warn'))}${rowstat('検算',check(S).length?tag('異常','bad'):tag('合格','good'))}${saveWarning?`<div class="note warnbox">${esc(saveWarning)}</div>`:''}<div class="sep"></div><h3>保存の限界</h3><p class="small muted">IndexedDBもブラウザ・端末内の保存です。ブラウザデータ削除や端末故障には対応できません。重要なセーブはJSONを別の場所へ保管してください。</p><p class="small muted">読み込んだJSONはその場のゲーム状態として検証します。保存枠に残すには手動セーブしてください。</p></section><section class="panel span12"><h2>史実基準データと対応機能</h2><div class="scroll"><table><thead><tr><th>機能</th><th>現段階</th><th>正式仕様との関係</th></tr></thead><tbody>${[['創業シナリオ・歴史モード・国','試作動作','歴史的国境・通貨制度の正確な再現は未完成'],['主要国の開始年人口基準値','参考統計を導入','推計人口の概数を内蔵。経済・需要・金融の係数は仮'],['自動車生産・販売・在庫・原価','試作動作','工程別仕掛品・取引詳細は一部未完成'],['国別市場・原材料調達・競合AI','試作動作','市場価格・契約割当・政策係数は仮'],['研究・設備・人員・標準借入','試作動作','労使交渉・設備保守の詳細は未実装'],['業態別子会社設立・株式取得','試作動作','高度な権限審査・M&A評価は未完成'],['連結三表・非支配株主持分・内部消去','試作動作','取得時帳簿スナップショット、確定月CF履歴、変動レートの換算ブリッジを追加。正式PPA・歴史通貨制度は未確定'],['IndexedDB・自動保存3か月・手動追記式・JSON','試作動作','端末データ消失は外部バックアップで備える'],['長期性能と正式数式の受入試験','未完了','正式な定量係数・性能基準は未決定']].map(([a,b,c])=>`<tr><td>${a}</td><td>${tag(b,b==='未実装'||b==='未完了'?'warn':'good')}</td><td>${c}</td></tr>`).join('')}</tbody></table></div><div class="note" style="margin-top:13px">人口基準値：<a href="${POP_SOURCE}" target="_blank" rel="noopener">Our World in Data / Gapminder / UN WPP</a> を参照した歴史推計の概数（2020年以前）。現在の国境に合わせた統計であり、1900年当時の国家領域を再現するものではありません。ゲーム実行中に外部データを取得しません。</div></section></div>`}
 function sectionPanel(){return sectionTabs();}
 function render(){if(!S){document.getElementById('content').innerHTML='';document.getElementById('modalHost').innerHTML=wizardHTML();document.getElementById('topCompany').textContent='ゲーム未開始';document.getElementById('topDate').textContent='開始シナリオを選択';document.getElementById('companySelect').innerHTML='';document.getElementById('regionSelect').innerHTML='';return}if(!isActiveCorporateFirm(current()))VIEW_FIRM=S.playerId;const f=current();document.getElementById('topCompany').textContent=f.name;document.getElementById('topDate').textContent=`${dateKey()} ｜ ${NAMES[f.country]} ｜ ${industryName(f.industry)}`;document.getElementById('companySelect').innerHTML=S.firms.filter(isActiveCorporateFirm).map(x=>`<option value="${esc(x.id)}" ${VIEW_FIRM===x.id?'selected':''}>${esc(x.name)}${controller(S,x.id)?'':' (参照)'}</option>`).join('');document.getElementById('regionSelect').innerHTML=Object.keys(S.world).map(c=>`<option value="${c}" ${VIEW_COUNTRY===c?'selected':''}>${NAMES[c]}</option>`).join('');document.querySelectorAll('[data-section]').forEach(x=>x.classList.toggle('active',x.dataset.section===sectionOf(PAGE)));const html={dashboard:dashboard,marketOverview:marketOverviewV025,marketRegion:marketRegionV025,marketRivals:marketRivalsV025,marketOwn:groupMarketPage,marketExport:marketExportPage,market:worldPopulationPage,distribution:distributionPages,worldMap:worldMapPage,worldPolicy:worldPolicyPage,worldInfrastructure:worldInfrastructurePage,product:productPage,factory:factoryPage,facilityBusiness:facilityBusinessPage,facilityExpansion:facilityExpansionPage,facilityProduction:facilityProductionPage,facilityMaintenance:facilityMaintenancePage,supply:logisticsSupplyPage,supplyContracts:supplyContractsPage,transportNetwork:transportNetworkPage,logisticsHubs:logisticsHubsPage,logisticsDelivery:logisticsDeliveryPage,people:peoplePage,research:researchPageStep2,hr:hrPageStep2,finance:financePage,group:groupPage,corporateSubsidiaries:corporateSubsidiariesPage,corporateMerger:corporateMergerPage,corporateHoldings:corporateHoldingsPage,automation:automationPage,consolidated:consolidatedPage,ma:maPage,capital:capitalPage,reports:reportsPage,save:savePage,...STEP3_PAGE_RENDERERS,managementNotices:managementNoticesPage,financeFunding:financeFundingPage}[PAGE];document.getElementById('content').innerHTML=sectionPanel()+monthDiagnosticBanner()+html();document.getElementById('modalHost').innerHTML=monthlyPreview?monthModal():(MONTH_DIAGNOSTIC_OPEN?monthDiagnosticDialog():'');if(PAGE==='product')designPreview();if(FACILITY_DETAIL_PAGES.includes(PAGE)){if(PAGE==='facilityExpansion')factorySitePreview();filterFactoryList();if(PAGE==='facilityProduction')setupFactoryDetailsV026();}document.getElementById('nextMonthBtn').disabled=S.monthCommitted===ym(S.year,S.month)}
 function monthModal(){const issues=checkMonthPreview(),f=current();return `<div class="modalwrap"><div class="modal" role="dialog" aria-modal="true"><div class="eyebrow">MONTH-END / PRE-FLIGHT</div><h1>${dateKey()}の月末処理</h1><p class="muted">処理前チェックは確定状態を変更しません。実行後は当月を固定順序で計算し、資源・会計の整合性を検証して結果を確定します。</p><div class="grid">${card('対象',esc(dateKey()),'月次一括処理','span4')}${card('支配下法人',controlled().length+'社','計算は全世界の企業を含む','span4')}${card('現金残高',fnum(f,financials(f).cash),'現在選択中の法人','span4')}</div><h2 style="margin-top:20px">事前確認・警告</h2>${issues.length?issues.map(v=>`<div class="notice">${tag('注意','warn')}　${esc(v)}</div>`).join(''):`<div class="note">現時点の計画に重大な資源警告は見つかりませんでした。価格変化や供給不足など、実際の月末処理で決定される結果もあります。</div>`}<div class="note warnbox" style="margin-top:15px">数値計算は試作係数に基づきます。正式SPEC-095以降の計算方式は未確定です。処理失敗時は計算前の状態を保護します。</div><div class="footer"><button class="btn" data-action="cancelMonth">計画に戻る</button><button class="btn primary" data-action="runMonth">この月を確定する</button></div></div></div>`}
-function wizardHTML(){const stepLabels=['開始年代','創業国','モードと難易度','創業条件確認'];return `<div class="modalwrap"><div class="modal" role="dialog" aria-modal="true"><div class="eyebrow">NEW GAME / STEP ${wizard+1} OF 4</div><h1>新しい企業経営を始める</h1>${saveWarning?`<div class="note warnbox"><b>保存・復元に関する注意</b><p>${esc(saveWarning)}</p><button class="btn" data-action="import">JSONバックアップを読み込んで復元する</button></div>`:''}<p class="muted small">自動車メーカーを創業する試作版です。人口は史実推計の基準値、その他の経済係数は仮設定です。</p><div class="steps">${stepLabels.map((x,i)=>`<span class="${i<=wizard?'on':''}" title="${x}"></span>`).join('')}</div>${wizard===0?`<h2>1. 開始年代</h2><div class="choices">${[1900,1920,1950,1980,2020].map(y=>`<label class="choice"><input type="radio" name="era" value="${y}" ${setup.era===y?'checked':''}><b>${y}年</b><span class="small muted">${y===1900?'工業化初期・自動車市場の草創期':y===1920?'自動車普及期':y===1950?'戦後産業復興期':y===1980?'世界市場拡大期':'現代のグローバル市場'}</span></label>`).join('')}</div>`:wizard===1?`<h2>2. 創業国</h2><div class="choices">${Object.keys(NAMES).map(c=>`<label class="choice"><input type="radio" name="country" value="${c}" ${setup.country===c?'checked':''}><b>${NAMES[c]}</b><span class="small muted">試作通貨：${COUNTRIES[c].currency} / 人口基準値 ${nfmt(anchorPopulation(c,setup.era))}百万人</span></label>`).join('')}</div>`:wizard===2?`<h2>3. 歴史モードと難易度</h2><div class="formgrid"><div class="field"><label>歴史モード</label><select id="wizardHistory"><option value="historical" ${setup.history==='historical'?'selected':''}>史実モード</option><option value="alternate" ${setup.history==='alternate'?'selected':''}>仮想歴史モード</option></select></div><div class="field"><label>難易度</label><select id="wizardDifficulty"><option value="easy" ${setup.difficulty==='easy'?'selected':''}>易しい（資本1.6倍）</option><option value="normal" ${setup.difficulty==='normal'?'selected':''}>標準</option><option value="hard" ${setup.difficulty==='hard'?'selected':''}>難しい（資本0.7倍）</option></select></div><div class="field"><label>会社名</label><input id="wizardName" maxlength="38" value="${esc(setup.name)}"></div></div><div class="note" style="margin-top:20px">史実モードは主要な歴史イベントを扱い、景気循環は固定日付では発生しません。現段階ではイベントや歴史的国境・通貨の厳密再現は未完成です。</div>`:`<h2>4. 創業条件の確認</h2><div class="statrow">${[['会社名',esc(setup.name)],['開始年月',setup.era+'年1月'],['創業国',NAMES[setup.country]],['歴史モード',setup.history==='historical'?'史実':'仮想'],['難易度',setup.difficulty==='easy'?'易しい':setup.difficulty==='hard'?'難しい':'標準'],['初期資本（円相当）',nfmt((setup.era<1930?2400000:setup.era<1960?4200000:setup.era<1990?7000000:12000000)*(setup.difficulty==='easy'?1.6:setup.difficulty==='hard'?.7:1))]].map(([k,v])=>`<div><div class="label">${k}</div><strong>${v}</strong></div>`).join('')}</div><div class="note warnbox" style="margin-top:20px">人口は史実推計の概数を基準値に採用（${nfmt(anchorPopulation(setup.country,setup.era))}百万人）。現在の国境に対応した人口推計であり、当時の国境・通貨を再現するものではありません。為替・価格・需要は試作値です。</div>`}<div class="footer"><button class="btn" data-action="wizardBack" ${wizard===0?'disabled':''}>戻る</button><button class="btn primary" data-action="wizardNext">${wizard===3?'この条件で創業する':'次へ進む ▸'}</button></div></div></div>`}
-async function wizardNext(){if(S)return;if(wizard===0)setup.era=Number(document.querySelector('input[name="era"]:checked')?.value||1900);if(wizard===1)setup.country=document.querySelector('input[name="country"]:checked')?.value||'JP';if(wizard===2){setup.history=inputValue('wizardHistory')||'historical';setup.difficulty=inputValue('wizardDifficulty')||'normal';setup.name=(inputValue('wizardName')||'').trim().slice(0,38)||'新規自動車メーカー'}if(wizard<3){wizard++;render();return}try{S=newGame(setup);LAST_MONTH_DIAGNOSTIC=null;MONTH_DIAGNOSTIC_OPEN=false;VIEW_FIRM=S.playerId;VIEW_COUNTRY=setup.country;PAGE='dashboard';render();const saved=await saveAuto();render();toast(saved?'創業しました。IndexedDBに自動保存しました。':'創業しましたが、自動保存に失敗しました。JSONバックアップを保存してください。')}catch(e){S=null;toast('創業設定エラー：'+e.message);console.error(e)}}
+function wizardHTML(){const stepLabels=['開始年代','創業市場','会社名','創業条件確認'];return `<div class="modalwrap"><div class="modal" role="dialog" aria-modal="true"><div class="eyebrow">NEW GAME / STEP ${wizard+1} OF 4</div><h1>新しい企業経営を始める</h1>${saveWarning?`<div class="note warnbox"><b>保存・復元に関する注意</b><p>${esc(saveWarning)}</p><button class="btn" data-action="import">JSONバックアップを読み込んで復元する</button></div>`:''}<p class="muted small">自動車メーカーを創業する試作版です。利用できる市場は既存の試作経済を使用します。都市・初期経済値・開放データには検証中の項目があります。</p><div class="steps">${stepLabels.map((x,i)=>`<span class="${i<=wizard?'on':''}" title="${x}"></span>`).join('')}</div>${wizard===0?`<h2>1. 開始年代</h2><div class="choices">${[1900].map(y=>`<label class="choice"><input type="radio" name="era" value="${y}" ${setup.era===y?'checked':''}><b>${y}年</b><span class="small muted">${y===1900?'工業化初期・自動車市場の草創期':y===1920?'自動車普及期':y===1950?'戦後産業復興期':y===1980?'世界市場拡大期':'現代のグローバル市場'}</span></label>`).join('')}</div>`:wizard===1?`<h2>2. 創業市場</h2><div class="choices">${Object.keys(NAMES).map(c=>`<label class="choice"><input type="radio" name="country" value="${c}" ${setup.country===c?'checked':''}><b>${NAMES[c]}</b><span class="small muted">通貨：${WORLD_ENGINE_CURRENCIES[c].slice(4)} / 人口基準値 ${nfmt(anchorPopulation(c,setup.era))}百万人</span></label>`).join('')}</div>`:wizard===2?`<h2>3. 会社名</h2><div class="formgrid"><div class="field"><label>会社名</label><input id="wizardName" maxlength="38" value="${esc(setup.name)}"></div></div><div class="note" style="margin-top:20px">史実モードは主要な歴史イベントを扱い、景気循環は固定日付では発生しません。現段階ではイベントや歴史的国境・通貨の厳密再現は未完成です。</div>`:`<h2>4. 創業条件の確認</h2><div class="statrow">${[['会社名',esc(setup.name)],['開始年月',setup.era+'年1月'],['創業国',NAMES[setup.country]],['歴史モード',setup.history==='historical'?'史実':'仮想'],['初期資本（円相当）',nfmt((setup.era<1930?2400000:setup.era<1960?4200000:setup.era<1990?7000000:12000000)*(setup.difficulty==='easy'?1.6:setup.difficulty==='hard'?.7:1))]].map(([k,v])=>`<div><div class="label">${k}</div><strong>${v}</strong></div>`).join('')}</div><div class="note warnbox" style="margin-top:20px">人口は史実推計の概数を基準値に採用（${nfmt(anchorPopulation(setup.country,setup.era))}百万人）。現在の国境に対応した人口推計であり、当時の国境・通貨を再現するものではありません。為替・価格・需要は試作値です。</div>`}<div class="footer"><button class="btn" data-action="wizardBack" ${wizard===0?'disabled':''}>戻る</button><button class="btn primary" data-action="wizardNext">${wizard===3?'この条件で創業する':'次へ進む ▸'}</button></div></div></div>`}
+async function wizardNext(){if(S)return;if(wizard===0)setup.era=1900;if(wizard===1)setup.country=document.querySelector('input[name="country"]:checked')?.value||'JP';if(wizard===2){setup.history='historical';setup.difficulty='normal';setup.name=(inputValue('wizardName')||'').trim().slice(0,38)||'新規自動車メーカー'}if(wizard<3){wizard++;render();return}try{S=newWorldGame(setup);LAST_MONTH_DIAGNOSTIC=null;MONTH_DIAGNOSTIC_OPEN=false;VIEW_FIRM=S.playerId;VIEW_COUNTRY=setup.country;PAGE='dashboard';render();const saved=await saveAuto();render();toast(saved?'創業しました。IndexedDBに自動保存しました。':'創業しましたが、自動保存に失敗しました。JSONバックアップを保存してください。')}catch(e){S=null;toast('創業設定エラー：'+e.message);console.error(e)}}
 function actions(action,elem){if(MONTH_RUNNING){toast('月次処理中です。保存・計算の確定を進めています。');return;}if(action==='wizardNext')return wizardNext();if(action==='wizardBack'){wizard=Math.max(0,wizard-1);return render()}if(action==='import'){document.getElementById('importFile').click();return;}if(!S)return;switch(action){case 'previewMonth':monthlyPreview=true;return render();case 'cancelMonth':monthlyPreview=false;return render();case 'runMonth':return runMonth();case 'monthDiagnosticShow':case 'monthDiagnosticDismiss':case 'monthDiagnosticCopy':case 'monthDiagnosticDownload':case 'monthDiagnosticJump':return monthlyDiagAction(action);case 'staffToHrV023':PEOPLE_VIEW='hr';PAGE='people';render();return;case 'goProductionV023':PRODUCT_VIEW='production';PAGE='product';render();return;case 'setPlan':return setPlan();case 'createGrade':return createGrade();case 'saveQualityPolicy':return saveQualityPolicy();case 'recallModel':return recallModel(elem.dataset.modelId);case 'changeBudget':return changeBudget();case 'researchFocusSave':return researchFocusSave();case 'roadmapAdd':return roadmapAdd(elem.dataset.techId);case 'roadmapRemove':return roadmapRemove(elem.dataset.techId);case 'roadmapToggle':return roadmapToggle();case 'hireStaff':return hireStaff();case 'partOrderPlace':case 'partOrderDispatch':case 'partOrderCancel':return partTradeAction(action,elem.dataset.id);case 'bomAssemblySave':case 'bomLineSave':case 'bomShipment':return bomFactoryAction(action,elem.dataset.id);case 'lineReview':case 'linePropose':case 'lineApprove':case 'lineCancel':return lineUIAction(action,elem);case 'partLicensePropose':case 'partLicenseApprove':case 'partLicenseEnd':case 'partDevelopmentPropose':case 'partDevelopmentApprove':case 'partDevelopmentEnd':return partContractsAction(action,elem.dataset.id);case 'partFamily':case 'partRevise':case 'partSubmit':case 'partBomCreate':case 'partBomOpen':case 'partBomSave':case 'partBomApprove':return partDesignAction(action,elem.dataset.id);case 'partRepair':return partRepairAction(elem.dataset.id,Number(elem.dataset.index));case 'engineeringTraining':case 'engineeringPropose':case 'engineeringApprove':case 'engineeringAllocate':case 'engineeringPause':case 'engineeringCancel':return engineeringAction(action,elem.dataset.id);case 'hrSave':return saveHRPolicy();case 'hrNegotiate':return negotiateLabor();case 'maintain':return maintain();case 'expand':return expand();case 'develop':return develop();case 'renewModel':return startModelRevision();case 'maFilter':return maFilter();case 'maSelect':return maSelect(elem.dataset.id);case 'integratedShareOpen':return integratedShareOpen(elem.dataset.targetId,elem.dataset.successorId);case 'integratedShareBuy':return integratedShareBuy(elem.dataset.targetId,elem.dataset.sourceId);case 'maQuote':return maPreview();case 'maCorpFill':return corpShareFill();case 'maCorpQuote':return corpSharePreview();case 'maCorpBuy':return corpShareBuy();case 'maFillAvailable':return maFillAvailable();case 'maBuy':return maBuy();case 'maIntegrate':return maStartIntegration();case 'issueShares':return issueSharesUI();case 'buyBackSharesV0271':return buyBackSharesUI();case 'cancelTreasurySharesV0271':return cancelTreasurySharesUI();case 'negPreview':return negotiationPreview();case 'buyStake':return buyNegotiatedStake();case 'saveDelegate':return saveDelegationPolicy();case 'designPreview':return designPreview();case 'openSupplyContracts':return openSupplyContracts();case 'saveSupply':return saveSupply();case 'saveDistribution':return saveDistribution();case 'establishSalesCorp':return establishSalesCorporation();case 'factoryBuild':return factoryBuild();case 'factoryManageV21':return manageFactoryV21(elem.dataset.plantId);case 'factoryModeV21':return saveFactoryModeV21();case 'moduleShipV21':return shipModuleV21();case 'v21RouteSave':return saveRoutesV21();case 'partsPlan':try{return partPlanning()}catch(e){toast(e.message);return}case 'shipParts':return shipInterplant();case 'reorgTransfer':return transferBusinessUI();case 'reorgIntegrate':return integrateBusinessUI();case 'mergeSibling':return mergeWhollyOwnedSubsidiariesUI();case 'mergeParentSub':return mergeParentSubsidiaryUI();case 'cancelGroupMerger':return cancelGroupMergerUI(elem.dataset.id);case 'plantSettings':return plantSettings();case 'maintainPlant':return maintainPlant();case 'researchChoose':return researchChoose();case 'startTech':return startTech(elem.dataset.techId);case 'cancelTech':return cancelTech(elem.dataset.techId);case 'borrow':return borrow();case 'spendAd':return spendAd();case 'createSub':return createSub();case 'renameCompany':return renameCompany();case 'renamePlant':return renamePlant(elem.dataset.plantId);case 'factoryRouteSaveOne':return saveFactoryRouteOne(elem.dataset.plantId);case 'factoryManageSelected':return manageFactoryV21(elem.dataset.plantId,document.getElementById('factoryOneAction')?.value);case 'acquire':return acquire(elem.dataset.id);case 'groupLoan':return groupLoan();case 'groupSale':return groupSale();case 'diagnoseStorage':return diagnoseStorage();case 'saveManual':return saveManual();case 'loadManualArchive':return loadManualArchiveV014(elem.dataset.key);case 'manualSavePrev':MANUAL_SAVE_PAGE=Math.max(0,MANUAL_SAVE_PAGE-1);return render();case 'manualSaveNext':MANUAL_SAVE_PAGE++;return render();case 'loadManual':{const i=Number(elem.dataset.slot);if(confirm('現在の未保存変更を破棄し、手動保存'+(i+1)+'を読み込みますか？'))return restore(SAVE_INDEX.manual[i]?.serialized);return}case 'loadAutoSlot':{const i=Number(elem.dataset.slot);if(confirm('自動保存世代'+(i+1)+'を読み込みますか？'))return restore(SAVE_INDEX.auto[i]?.serialized);return}case 'export':try{fileDownload(`conglomerate_${S.year}_${S.month}.json`,savePayload(S));toast('JSONバックアップを書き出しました')}catch(e){toast('書き出しに失敗：'+e.message)}return;case 'import':document.getElementById('importFile').click();return;case 'newGame':if(confirm('現在のセッションを終了し、新しいゲームを開始しますか？ 保存済みデータは削除しません。')){S=null;wizard=0;monthlyPreview=false;PAGE='dashboard';render()}return;}}
 document.addEventListener('click',e=>{const target=e.target.closest('[data-corp-open]');if(!S||!target)return;const id=target.dataset.corpOpen;if(!controlled().some(x=>x.id===id))return;VIEW_FIRM=id;PAGE=target.dataset.corpPage||'corporateSubsidiaries';render();});
 document.addEventListener('click',e=>{const product=e.target.closest('[data-product-view]');if(product&&S){PRODUCT_VIEW=product.dataset.productView;render();window.scrollTo({top:0,behavior:'instant'});return;}const people=e.target.closest('[data-people-view]');if(people&&S){PEOPLE_VIEW=people.dataset.peopleView;render();window.scrollTo({top:0,behavior:'instant'});return;}const group=e.target.closest('[data-tech-family]');if(group&&S){TECH_FAMILY=group.dataset.techFamily;TECH_DOMAIN=TECH_FAMILIES[TECH_FAMILY].domains[0];TECH_SELECTED=TECH_DOMAIN+'-1';return redrawResearchPanel({centerSelected:false})}const field=e.target.closest('[data-tech-domain]');if(field&&S){TECH_DOMAIN=field.dataset.techDomain;techScrollDomain(TECH_DOMAIN);document.querySelectorAll('[data-tech-domain]').forEach(x=>x.classList.toggle('active',x.dataset.techDomain===TECH_DOMAIN));return}const tech=e.target.closest('[data-tech-select]');if(tech&&S){chooseTech(tech.dataset.techSelect);return}const section=e.target.closest('[data-section]');if(section&&S){PAGE=SECTIONS[section.dataset.section].pages[0][0];monthlyPreview=false;render();window.scrollTo({top:0,behavior:'instant'});return}const nav=e.target.closest('[data-page]');if(nav&&S){PAGE=nav.dataset.page;monthlyPreview=false;render();window.scrollTo({top:0,behavior:'instant'});return}const el=e.target.closest('[data-action]');if(el&&!el.disabled)actions(el.dataset.action,el)});
@@ -8706,6 +8745,7 @@ function worldSelectedCode(){return Object.hasOwn(S.world,VIEW_COUNTRY)?VIEW_COU
 
 function worldMapPage(){
  const c=worldSelectedCode(),w=S.world[c];
+ if(S.worldExpansion)return titlePage('世界・経済市場','市場と時代別の管轄を確認します。')+worldMarketPanel(S);
  const cards=Object.entries(S.world).map(([code,v])=>`<section class="panel span4"><h2>${esc(NAMES[code]||code)}</h2><p class="hint">人口 ${nfmt(v.pop)}百万人 ／ 経済循環 ${nfmt(100+v.cycle*100)}</p><div class="vlist">${rowstat('推計自動車需要',nfmt(v.demand)+'台/月')}${rowstat('政策金利',nfmt(v.rate*100)+'%')}${rowstat('物価上昇率',nfmt(v.inflation*100)+'%')}</div><div class="row"><button class="btn sm primary" data-mk-region="${code}">地域市場を分析</button></div></section>`).join('');
  return titlePage('世界地図・国別概要','ゲーム内の対象国を一覧で確認し、国別経済・市場分析へ移動できます。',tag('地図描画・地理上の道路網は未実装','warn'))+`<p class="note">現在は国別データの比較・選択画面です。位置関係を描く世界地図、国境、港湾、交通路の地理表示は未実装です。</p>${worldRegionSelector()}<div class="grid">${cards}<section class="panel span12"><h2>選択国：${esc(NAMES[c])}</h2>${rowstat('人口',nfmt(w.pop)+'百万人')}${rowstat('所得係数',nfmt(w.wealth))}${rowstat('推計需要',nfmt(w.demand)+'台/月')}<div class="row"><button class="btn primary" data-mk-region="${c}">地域経済・市場分析へ</button><button class="btn" data-page="market">人口・都市を見る</button><button class="btn" data-page="worldInfrastructure">工業地域を見る</button></div></section></div>`;
 }
@@ -8719,7 +8759,7 @@ function worldPopulationPage(){
 }
 
 function worldPolicyPage(){
- const code=worldSelectedCode(),w=S.world[code],currency=COUNTRIES[code]?.currency||'—';
+ const code=worldSelectedCode(),w=S.world[code],currency=firmCurrency({country:code});
  return titlePage('政策・歴史','国別の景気・金融政策に関係する既存指標と現在のシナリオ年代を確認します。',tag('政策変更操作は未実装','warn'))+worldRegionSelector()+`<div class="grid">${card('現在の年月',S.year+'年'+S.month+'月','ゲーム内シナリオ','span3')}${card('政策金利',nfmt(w.rate*100)+'%',NAMES[code],'span3')}${card('インフレ率',nfmt(w.inflation*100)+'%',NAMES[code]+'・内部計算','span3')}${card('景気循環指数',nfmt(100+w.cycle*100),'100を中立水準とした参考値','span3')}
  <section class="panel span6"><h2>${esc(NAMES[code])}の政策・景気指標</h2>${rowstat('通貨',currency)}${rowstat('政策金利',nfmt(w.rate*100)+'%')}${rowstat('物価上昇率',nfmt(w.inflation*100)+'%')}${rowstat('失業率',nfmt(w.unemployment*100)+'%')}${rowstat('相対所得',nfmt(w.wealth))}${rowstat('戦争ショック',w.war?tag('影響あり','warn'):tag('なし','good'))}<p class="hint">政策金利や物価はゲーム内の景気計算値であり、実際の歴史上の同年の統計値を再現したものではありません。</p></section>
  <section class="panel span6"><h2>国別の政策・経済比較</h2><div class="scroll"><table><thead><tr><th>国</th><th class="num">政策金利</th><th class="num">インフレ</th><th class="num">景気指数</th><th>戦争</th></tr></thead><tbody>${Object.entries(S.world).map(([c,v])=>`<tr><td>${esc(NAMES[c]||c)}</td><td class="num">${nfmt(v.rate*100)}%</td><td class="num">${nfmt(v.inflation*100)}%</td><td class="num">${nfmt(100+v.cycle*100)}</td><td>${v.war?'影響あり':'なし'}</td></tr>`).join('')}</tbody></table></div><p class="hint">新たな政策立案・条約・歴史イベントの追加は今回行っていません。</p></section>
@@ -9261,7 +9301,7 @@ function step4FirmSizeSnapshot(f,s){
   const activeModels=(f.models||[]).filter(m=>m.status==='active').length;
   const markets=(f.marketPresence||[]).length;
   const partLines=(f.partOperations?.productionPlans||[]).length;
-  const suppliers=(f.supply?.contracts||[]).length;
+  const suppliers=Object.keys(f.supply?.contracts??{}).length;
   const complexityPoints=activePlants*2.5+activeModels*2+Math.max(0,markets-1)*1.5+Math.min(5,partLines)*1.2+Math.min(6,suppliers)*0.5;
   const parts={employees:step4ScaleScore(employees,20*kind,2500*kind),
     sales:step4ScaleScore(sales,150000*kind,15000000*kind),
@@ -10272,7 +10312,12 @@ newGame=function(cfg){
 const step7NativeSavePayload=savePayload;
 savePayload=function(s){
   if(s?.step7LinksV1!==undefined)step7ValidateRoot(s,s.step7LinksV1);
-  return step7NativeSavePayload(s); // Do not change VERSION, checksum or slots.
+  if(s?.worldExpansion){
+   // Project current facilities without mutating the live state during export.
+   s={...s,worldExpansion:{...s.worldExpansion}};
+   syncWorldIdentities(s);validateWorldExpansion(s);
+  }
+  return step7NativeSavePayload(s);
 };
 function step7EventRoute(event){
   switch(event.kind){
@@ -10393,6 +10438,173 @@ document.addEventListener('click',event=>{
     step7OpenRoute(step7EventRoute(notice),notice.firmId);
   }
 });
+
+// Phase 1: the market catalog is independent of the five-region simulation.
+const WORLD_CATALOG_VERSION=1;
+const WORLD_START_MONTH=ym(1900,1);
+const WORLD_MARKETS=JSON.parse(document.getElementById('world-market-catalog').textContent);
+const WORLD_MARKET_BY_ID=new Map(WORLD_MARKETS.map(m=>[m.id,m]));
+const WORLD_TERRITORIES=new Map(WORLD_MARKETS.flatMap(m=>m.territories.map(t=>[t.id,{...t,marketId:m.id}])));
+const WORLD_CITIES=new Map(WORLD_MARKETS.flatMap(m=>m.cities.map(c=>[c.id,c])));
+const WORLD_ENGINE_TERRITORY={UK:'TER-01-01',FR:'TER-02-01',DE:'TER-03-01',JP:'TER-14-01',US:'TER-26-01'};
+const WORLD_ENGINE_CURRENCIES={UK:'CUR-GBP',FR:'CUR-EUR',DE:'CUR-EUR',JP:'CUR-JPY',US:'CUR-USD'};
+const WORLD_CURRENCIES=new Set([...Object.values(WORLD_ENGINE_CURRENCIES),'CUR-NOK']);
+const WORLD_JURISDICTIONS=new Map([
+ ['JUR-UK',{name:'イギリス',currencyId:'CUR-GBP'}],
+ ['JUR-FR',{name:'フランス',currencyId:'CUR-EUR'}],
+ ['JUR-DE',{name:'ドイツ',currencyId:'CUR-EUR'}],
+ ['JUR-JP',{name:'日本',currencyId:'CUR-JPY'}],
+ ['JUR-US',{name:'アメリカ',currencyId:'CUR-USD'}],
+ ['JUR-IE',{name:'アイルランド自由国',currencyId:'CUR-EUR'}],
+ ['JUR-NO-UNION',{name:'ノルウェー（スウェーデンとの同君連合）',currencyId:'CUR-NOK'}],
+ ['JUR-NO',{name:'ノルウェー',currencyId:'CUR-NOK'}]
+]);
+const WORLD_INITIAL_JURISDICTIONS={...Object.fromEntries(
+ Object.entries(WORLD_ENGINE_TERRITORY).map(([code,territoryId])=>[territoryId,'JUR-'+code])
+),'TER-01-02':'JUR-UK','TER-11-01':'JUR-NO-UNION'};
+const WORLD_SITE_CITIES={
+ 'JP-TOK':'CITY-14-01','JP-NGO':'CITY-14-03','JP-OSA':'CITY-14-02',
+ 'US-CHI':'CITY-26-03','US-LAX':'CITY-26-04','UK-LON':'CITY-01-01',
+ 'DE-RUH':'CITY-03-03','DE-BER':'CITY-03-01','DE-HAM':'CITY-03-02',
+ 'FR-PAR':'CITY-02-01','FR-LYO':'CITY-02-02','FR-MAR':'CITY-02-03'
+};
+const WORLD_LOCATIONS=new Map(SITE_CATALOG.map(site=>[
+ 'LOC-'+site.id,{id:'LOC-'+site.id,territoryId:WORLD_ENGINE_TERRITORY[site.country],cityId:WORLD_SITE_CITIES[site.id]??null}
+]));
+const WORLD_ENGINE_BY_MARKET=Object.fromEntries(Object.entries(WORLD_ENGINE_TERRITORY)
+ .map(([code,territoryId])=>[WORLD_TERRITORIES.get(territoryId).marketId,code]));
+// The month is a provisional simulation input. The act establishing the Irish Free
+// State came into operation by proclamation in December 1922. This changes
+// the territory within MKT-01 and never creates a forty-first market.
+const WORLD_EVENTS=[
+ {id:'HIST-NO-1905',month:ym(1905,10),territoryId:'TER-11-01',jurisdictionId:'JUR-NO',
+  openMarketId:'MKT-11',status:'PROVISIONAL',
+  source:'https://www.regjeringen.no/en/the-government/previous-governments/regjeringer-siden-1814/historiske-regjeringer/ministries-1905---1940/christian-michelsens-government-1905---1/id507098/'},
+ {id:'HIST-IE-1922',month:ym(1922,12),territoryId:'TER-01-02',jurisdictionId:'JUR-IE',
+  openMarketId:null,status:'PROVISIONAL',
+  source:'https://data.oireachtas.ie/ie/oireachtas/communications/other/2021/2021-12-16_centenary-of-the-treaty-debates_en.pdf'}
+];
+
+function newWorldGame(setup){
+ const state=newGame({...setup,era:1900,difficulty:'normal',history:'historical',scenario:'world'});
+ state.worldExpansion=makeWorldExpansion();
+ applyWorldHistory(state);syncWorldIdentities(state);validateWorldExpansion(state);
+ return state;
+}
+
+function makeWorldExpansion(){
+ return {
+  catalogVersion:WORLD_CATALOG_VERSION,
+  territoryJurisdictions:Object.fromEntries([...WORLD_TERRITORIES.keys()].map(id=>[id,WORLD_INITIAL_JURISDICTIONS[id]??null])),
+  openMarkets:Object.fromEntries(WORLD_MARKETS.map(m=>[m.id,Object.hasOwn(WORLD_ENGINE_BY_MARKET,m.id)?WORLD_START_MONTH:null])),
+  appliedEvents:[],companies:{},facilities:{}
+ };
+}
+
+function recordWorldEvent(world,event){
+ const territory=WORLD_TERRITORIES.get(event.territoryId);
+ if(!territory||!WORLD_JURISDICTIONS.has(event.jurisdictionId)||!Number.isSafeInteger(event.month)
+     ||event.month<WORLD_START_MONTH||typeof event.id!=='string'||!event.id
+     ||(event.openMarketId!==null&&event.openMarketId!==territory.marketId)){
+  throw Error('国家・市場イベントの参照または効力月が不正です');
+ }
+ if(world.appliedEvents.some(item=>item.id===event.id))return false;
+ world.territoryJurisdictions[event.territoryId]=event.jurisdictionId;
+ if(event.openMarketId!==null)world.openMarkets[event.openMarketId]??=event.month;
+ world.appliedEvents.push({...event});
+ return true;
+}
+
+function applyWorldHistory(s){
+ if(!s.worldExpansion)return;
+ const month=ym(s.year,s.month);
+ for(const event of WORLD_EVENTS){
+  if(event.month<=month)recordWorldEvent(s.worldExpansion,event);
+ }
+}
+
+function syncWorldIdentities(s){
+ const world=s.worldExpansion;
+ if(!world)return;
+ const companies={},facilities={};
+ for(const firm of s.firms){
+  const territoryId=WORLD_ENGINE_TERRITORY[firm.country];
+  if(!territoryId)throw Error('法人の登記領域が未登録です：'+firm.id);
+  const previous=world.companies[firm.id];
+  const headquartersId=previous?.headquartersId??'HQ-'+firm.id;
+  const locationId=previous?.locationId??'LOC-'+homeSite(firm.country).id;
+  companies[firm.id]={companyId:firm.id,headquartersId,locationId,territoryId,
+   jurisdictionId:world.territoryJurisdictions[territoryId],currencyId:WORLD_ENGINE_CURRENCIES[firm.country]};
+  for(const plant of firm.plants){
+   const key='FAC-'+plant.id;
+   const plantLocation='LOC-'+plant.siteId;
+   if(!WORLD_LOCATIONS.has(plantLocation))throw Error('工場の所在地が未登録です：'+plant.id);
+   if(Object.hasOwn(facilities,key))throw Error('施設IDが重複しています：'+plant.id);
+   facilities[key]={facilityId:key,ownerCompanyId:firm.id,locationId:plantLocation};
+  }
+ }
+ world.companies=companies;
+ world.facilities=facilities;
+}
+
+function validateWorldExpansion(s){
+ if(s.config?.scenario!=='world'&&!Object.hasOwn(s,'worldExpansion'))return;
+ const world=s.worldExpansion;
+ if(s.config?.scenario!=='world'||s.startYear!==1900||world?.catalogVersion!==WORLD_CATALOG_VERSION
+     ||!Array.isArray(world.appliedEvents)||!world.companies||!world.facilities
+     ||!Number.isSafeInteger(s.rng)||s.rng<0||s.rng>0xffffffff){
+  throw Error('世界経済セーブの版、開始年、または乱数状態が不正です');
+ }
+ const expected=makeWorldExpansion();
+ for(const event of WORLD_EVENTS){
+  if(event.month<=ym(s.year,s.month))recordWorldEvent(expected,event);
+ }
+ if(JSON.stringify(world.territoryJurisdictions)!==JSON.stringify(expected.territoryJurisdictions)
+     ||JSON.stringify(world.openMarkets)!==JSON.stringify(expected.openMarkets)
+     ||JSON.stringify(world.appliedEvents)!==JSON.stringify(expected.appliedEvents)){
+  throw Error('国家・市場イベントの履歴がシナリオと一致しません');
+ }
+ let count=0;
+ for(const firm of s.firms){
+  const row=world.companies[firm.id],site=WORLD_LOCATIONS.get(row?.locationId);
+  if(!row||row.companyId!==firm.id||row.headquartersId!=='HQ-'+firm.id||!site
+      ||row.territoryId!==WORLD_ENGINE_TERRITORY[firm.country]||site.territoryId!==row.territoryId
+      ||row.jurisdictionId!==world.territoryJurisdictions[row.territoryId]
+      ||row.currencyId!==WORLD_ENGINE_CURRENCIES[firm.country]||!WORLD_CURRENCIES.has(row.currencyId)){
+   throw Error('法人の本拠・管轄・帳簿通貨の参照が不正です：'+firm.id);
+  }
+  for(const plant of firm.plants){
+   const id='FAC-'+plant.id,facility=world.facilities[id];
+   if(!facility||facility.facilityId!==id||facility.ownerCompanyId!==firm.id
+       ||facility.locationId!=='LOC-'+plant.siteId||!WORLD_LOCATIONS.has(facility.locationId)){
+    throw Error('施設の所在地または所有者の参照が不正です：'+plant.id);
+   }
+   count++;
+  }
+ }
+ if(Object.keys(world.companies).length!==s.firms.length||Object.keys(world.facilities).length!==count){
+  throw Error('存在しない法人または施設を参照しています');
+ }
+}
+
+function worldMarketPanel(s){
+ const rows=WORLD_MARKETS.map(m=>{
+  const active=s.worldExpansion.openMarkets[m.id]!==null;
+  const code=WORLD_ENGINE_BY_MARKET[m.id];
+  const territories=m.territories.map(t=>{
+   const polity=WORLD_JURISDICTIONS.get(s.worldExpansion.territoryJurisdictions[t.id]);
+   return esc(t.name)+'（'+esc(polity?.name??'管轄の史実照合待ち')+'）';
+  });
+  return `<details class="panel span4" data-market-id="${m.id}"><summary><strong>${esc(m.name)}</strong> · ${esc(m.region)}</summary>
+   <p>${active?(code?'試作経済で稼働中':'開放確認用・経済計算は未接続'):'開放データの史実照合待ち'}</p><p>${territories.join('、')}</p>
+   <h3>都市・工業地域候補</h3><ul>${m.cities.map(c=>`<li>${esc(c.name)}</li>`).join('')}</ul>
+   ${active&&code?`<button class="btn sm" data-mk-region="${code}">地域経済を開く</button>`:''}</details>`;
+ });
+ return `<section aria-label="40経済市場" class="grid" style="margin-bottom:16px">
+  <section class="panel span12"><h2>世界の経済市場</h2>
+   <p>40市場。都市・工業地域と歴史上の管轄は検証用です。取引可能な市場では既存の試作経済を使います。</p></section>
+  ${rows.join('')}</section>`;
+}
 
 boot();
 </script>

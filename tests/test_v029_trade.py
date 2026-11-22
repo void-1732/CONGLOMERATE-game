@@ -35,8 +35,8 @@ with sync_playwright() as p:
     page.on("pageerror", lambda e: errors.append(str(e)))
     page.set_content(html)
     page.evaluate(setup)
-    assert page.evaluate("raw=>restore(raw)", old_save)
-    page.evaluate("PAGE='group';render()")
+    assert not page.evaluate("raw=>restore(raw)", old_save), "旧形式は新規ゲームの対象外"
+    page.evaluate("PAGE='corporateSubsidiaries';render()")
     page.locator("#subName").fill("部品購入子会社")
     page.locator("#subCountry").select_option("JP")
     page.locator("#subIndustry").select_option("manufacturing")
