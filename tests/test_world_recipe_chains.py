@@ -62,6 +62,33 @@ def main():
         }""")
         assert result.pop("count") == 13, result
         assert all(result.values()), result
+        integration = page.evaluate("""async () => {
+          S=newWorldGame({country:'JP',name:'追加世界商品・月次統合試験'});
+          const f=company(S.playerId,S);
+          const p=f.plants.find(x=>canPlanWireProduction(x));
+          f.delegate.mode='manual';f.auto=false;
+          for(const model of f.models)f.plans[model.id]=0;
+          p.componentLines=[];p.wirePlan=0;p.lastProduced=0;
+          if(!f.research.tree.done.includes('materials-1'))f.research.tree.done.push('materials-1');
+          post(f,{materials:2000},{cash:2000},'生産試験用の原料','operating',S);
+          f.stock.steel.q+=100;f.stock.steel.v+=2000;
+          worldPlanSave(f,p,'PRD-M03',8);
+          VIEW_FIRM=f.id; PAGE='facilityProduction';render();
+          const hasButton=!!document.querySelector('[data-world-production-save]');
+          const month=S.monthCommitted;
+          await runMonth();
+          const now=company(f.id,S);
+          const produced=now.stock['PRD-M03']?.q||0;
+          const roundTrip=company(f.id,parsePayload(savePayload(S))).stock['PRD-M03']?.q||0;
+          return {
+            hasButton,advanced:S.monthCommitted===month+1,
+            produced:produced>=8,roundTrip:roundTrip===produced,
+            clean:check(S).length===0,
+            diagnostics:LAST_MONTH_DIAGNOSTIC
+          };
+        }""")
+        assert integration.pop("diagnostics") is None, integration
+        assert all(integration.values()), integration
         assert not errors, errors
         browser.close()
     print("PASS: 13 researched world recipes, factory, input, cash, duplicate processing, and save")
