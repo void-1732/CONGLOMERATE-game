@@ -2852,6 +2852,213 @@ function journalizeRepayment(parent,account,bookAmount,cashReceived,kind,desc,s)
  if(cashReceived<bookAmount)dr.fxLoss=bookAmount-cashReceived;
  post(parent,dr,cr,desc,kind,s);
 }
+
+/* Insolvent NPC equity liquidation.
+   A retired company stays in the legal/accounting archive. Its live minority or
+   controlling stakes are sold ONLY to solvent, independent NPCs using their own cash,
+   or settled against documented external bank debt. Unmarketable holdings wait in
+   the estate; no fictional sale proceeds or automatic share cancellation are created.
+   All settlements are deterministic and idempotent per firm/month. */
+function ensureBankruptcyLiquidationState(s){
+ s.bankruptcyLiquidations??=[];
+ s.bankruptcyLiquidationSales??=[];
+}
+function bankruptcyHeldShares(s,seller){
+ return s.firms.filter(target=>target.id!==seller.id&&target.owners?.some(o=>o.id===seller.id&&o.econ>0.0000005));
+}
+function bankruptcyHoldingBasis(s,seller,target){
+ const owner=target.owners?.find(o=>o.id===seller.id),oldUnits=Math.round((owner?.econ||0)*1000000);
+ if(oldUnits<1)return {reason:'譲渡可能な株式がありません'};
+ const all=legacyLinks(s).links.filter(l=>l.parentId===seller.id&&l.childId===target.id&&(l.ratio||0)>0);
+ const records=all.map(x=>s.equityLinks?.find(l=>l.id===x.id)||x);
+ const totalCost=records.reduce((n,l)=>n+Math.max(0,Math.round(l.remainingConsiderationLocal??l.considerationLocal??0)),0);
+ if(!records.length||!totalCost)return {reason:'株式の取得原価記録が不足'};
+ if(totalCost>acc(seller,'investment')+2)return {reason:'保有株式の取得原価と投資勘定が不一致'};
+ return {owner,oldUnits,records,totalCost};
+}
+function bankruptcyQuoteLocal(s,target,country,units,discount){
+ return Math.max(1,localFromBase(Math.max(1,Math.round(maValuation(s,target).reference*(units/1000000)*discount)),country));
+}
+function bankruptcyCashBid(s,seller,target,units){
+ const referenceLocal=bankruptcyQuoteLocal(s,target,seller.country,1000000,.70);
+ const candidates=s.firms.filter(b=>b.id!==seller.id&&b.id!==target.id&&
+  b.country===seller.country&&b.lifecycle?.phase!=='withdrawn'&&b.reorgStatus!=='integrated'&&
+  !controller(s,b.id)&&!controller(s,b.id,seller.id)&&!controller(s,b.id,target.id))
+  .map(b=>({firm:b,capacity:Math.max(0,Math.min(Math.floor(acc(b,'cash')*.65),
+   acc(b,'cash')-localFromBase(Math.round(20000*eraCostFactor(s.year)),b.country)))}))
+  .filter(x=>x.capacity>0).sort((a,b)=>b.capacity-a.capacity||a.firm.id.localeCompare(b.firm.id));
+ for(const c of candidates){
+  let quantity=Math.min(units,Math.floor(c.capacity/referenceLocal*1000000));
+  if(quantity<1)continue;
+  let payment=bankruptcyQuoteLocal(s,target,seller.country,quantity,.70);
+  while(quantity>0&&payment>c.capacity){quantity--;if(quantity)payment=bankruptcyQuoteLocal(s,target,seller.country,quantity,.70);}
+  if(quantity>0&&payment>0&&payment<=acc(c.firm,'cash'))return {buyer:c.firm,units:quantity,payment};
+ }
+ return null;
+}
+function bankruptcyMoveHolding(s,seller,target,basis,units,toId){
+ const {owner,oldUnits,records,totalCost}=basis;
+ if(!Number.isSafeInteger(units)||units<1||units>oldUnits)throw Error('清算株式数が不正です');
+ const fraction=roundShare(units/1000000);
+ const cost=units===oldUnits?totalCost:Math.round(totalCost*units/oldUnits);
+ if(cost>acc(seller,'investment'))throw Error('売却原価が保有投資勘定を超えています');
+ const oldVoteUnits=Math.round(owner.vote*1000000);
+ const voteUnits=units===oldUnits?oldVoteUnits:Math.round(oldVoteUnits*units/oldUnits);
+ const remainingUnits=oldUnits-units,remainingVote=oldVoteUnits-voteUnits;
+ owner.econ=roundShare(remainingUnits/1000000);
+ owner.vote=roundShare(remainingVote/1000000);
+ if(!remainingUnits)target.owners=target.owners.filter(o=>o.id!==seller.id);
+ let receiver=target.owners.find(o=>o.id===toId);
+ if(!receiver){receiver={id:toId,econ:0,vote:0};target.owners.push(receiver);}
+ receiver.econ=roundShare(receiver.econ+fraction);
+ receiver.vote=roundShare(receiver.vote+roundShare(voteUnits/1000000));
+ if(receiver.econ>1.0000001||receiver.vote>1.0000001)throw Error('株式移転後の持分が100%を超えています');
+ // Allocate both carrying value and current stake across original purchase lots.
+ let assignedUnits=0,assignedCost=0;
+ const oldWeights=records.map(l=>Math.max(0,Math.round((l.remainingRatio??l.ratio)*1000000)));
+ const weightTotal=oldWeights.reduce((n,x)=>n+x,0);
+ if(weightTotal<1)throw Error('取得履歴の保有比率が不正です');
+ const survivors=remainingUnits,bookRemaining=totalCost-cost;
+ for(let i=0;i<records.length;i++){
+  const l=records[i],priorCost=Math.max(0,Math.round(l.remainingConsiderationLocal??l.considerationLocal??0));
+  if(!s.equityLinks?.some(x=>x.id===l.id)){s.equityLinks??=[];s.equityLinks.push(l);}
+  l.originalRatio??=l.ratio;l.originalConsiderationLocal??=l.considerationLocal;
+  const keepUnits=i===records.length-1?survivors-assignedUnits:Math.floor(survivors*oldWeights[i]/weightTotal);
+  const keepCost=i===records.length-1?bookRemaining-assignedCost:
+   (totalCost>0?Math.floor(bookRemaining*priorCost/totalCost):0);
+  l.remainingRatio=roundShare(keepUnits/1000000);
+  l.remainingConsiderationLocal=keepCost;
+  l.liquidationTransfers??=[];
+  l.liquidationTransfers.push({month:ym(s.year,s.month),fromId:seller.id,toId,ratio:fraction});
+  assignedUnits+=keepUnits;assignedCost+=keepCost;
+ }
+ return {fraction,cost};
+}
+function bankruptcyRecordSale(s,seller,target,entry,kind,toId,units,amount,cost){
+ const rec={id:'BL'+s.seq++,month:ym(s.year,s.month),sellerId:seller.id,targetId:target.id,
+  buyerId:toId,kind,units,fraction:roundShare(units/1000000),
+  amountLocal:amount,costLocal:cost,country:seller.country};
+ s.bankruptcyLiquidationSales.unshift(rec);
+ if(s.bankruptcyLiquidationSales.length>240)s.bankruptcyLiquidationSales.pop();
+ entry.disposals=(entry.disposals||0)+1;
+ if(kind==='sale')entry.proceedsLocal=(entry.proceedsLocal||0)+amount;
+ else entry.debtOffsetLocal=(entry.debtOffsetLocal||0)+amount;
+ return rec;
+}
+function bankruptcySaleToFirm(s,seller,target,basis,bid,entry){
+ const priorControl=controller(s,target.id,bid.buyer.id);
+ post(bid.buyer,{investment:bid.payment},{cash:bid.payment},'倒産企業保有株式の清算取得：'+target.name,'investing',s);
+ const buyerJournal=bid.buyer.journals.at(-1)?.id;
+ const disposal=bankruptcyMoveHolding(s,seller,target,basis,bid.units,bid.buyer.id);
+ const gain=bid.payment-disposal.cost;
+ post(seller,{cash:bid.payment,...(gain<0?{otherExpense:-gain}:{})},
+  {investment:disposal.cost,...(gain>0?{otherRevenue:gain}:{})},
+  '倒産清算・保有株式売却：'+target.name,'investing',s);
+ const nowControl=controller(s,target.id,bid.buyer.id);
+ registerEquityLink(s,{parentId:bid.buyer.id,childId:target.id,ratio:disposal.fraction,
+  kind:'liquidationPurchase',considerationLocal:bid.payment,buyerJournal,
+  bookEquityBase:baseFromLocal(netWorth(target),target.country),
+  cashAcquiredBase:baseFromLocal(acc(target,'cash'),target.country),
+  controlEstablished:nowControl&&!priorControl,sellerId:seller.id});
+ return bankruptcyRecordSale(s,seller,target,entry,'sale',bid.buyer.id,bid.units,bid.payment,disposal.cost);
+}
+function bankruptcyBankOffset(s,seller,target,basis,entry){
+ const externalLoans=(seller.loans||[]).filter(l=>!l.parent&&l.outstanding>0)
+  .sort((a,b)=>(a.due||0)-(b.due||0));
+ if(!externalLoans.length)return null;
+ const loan=externalLoans[0],reference=bankruptcyQuoteLocal(s,target,seller.country,1000000,.55);
+ const maxDebt=Math.min(loan.outstanding,Math.max(0,-acc(seller,'debt')));
+ let units=Math.min(basis.oldUnits,Math.floor(maxDebt/reference*1000000));
+ if(units<1)return null;
+ let debtOffset=bankruptcyQuoteLocal(s,target,seller.country,units,.55);
+ while(units>0&&debtOffset>maxDebt){units--;if(units)debtOffset=bankruptcyQuoteLocal(s,target,seller.country,units,.55);}
+ if(units<1||debtOffset<1)return null;
+ const disposal=bankruptcyMoveHolding(s,seller,target,basis,units,'PUBLIC');
+ ensureMAState(s);
+ const bank=target.shareBlocks.find(b=>b.id==='bank');
+ if(bank)bank.holding=roundShare(bank.holding+disposal.fraction);
+ else target.shareBlocks.push({id:'bank',name:'銀行・金融機関',holding:disposal.fraction,weight:.15,reserve:1.10});
+ const gain=debtOffset-disposal.cost;
+ post(seller,{debt:debtOffset,...(gain<0?{otherExpense:-gain}:{})},
+  {investment:disposal.cost,...(gain>0?{otherRevenue:gain}:{})},
+  '倒産清算・銀行債務の株式代物弁済：'+target.name,'financing',s);
+ loan.outstanding-=debtOffset;
+ if(!loan.outstanding&&!(loan.interestOutstanding||0))loan.closed=true;
+ return bankruptcyRecordSale(s,seller,target,entry,'bank-offset','PUBLIC',units,debtOffset,disposal.cost);
+}
+function bankruptcyPayClaims(s,seller,entry){
+ let repaid=0;
+ const pay=(account,amount,label)=>{
+  const n=Math.min(Math.max(0,Math.round(amount)),Math.max(0,acc(seller,'cash')),Math.max(0,-acc(seller,account)));
+  if(n){post(seller,{[account]:n},{cash:n},'倒産清算・'+label,'financing',s);repaid+=n;}
+  return n;
+ };
+ pay('wagesDue',-acc(seller,'wagesDue'),'未払賃金弁済');
+ // Tax and ordinary trade-payable schedules must shrink with the posted liability.
+ for(const account of ['taxDue','payable']){
+  const claims=seller.payables.filter(x=>(x.account||'payable')===account).sort((a,b)=>a.due-b.due);
+  for(const claim of claims){
+   if(acc(seller,'cash')<=0)break;
+   const n=pay(account,claim.amount,account==='taxDue'?'未払税金弁済':'一般買掛金弁済');
+   claim.amount-=n;
+  }
+ }
+ seller.payables=seller.payables.filter(x=>x.amount>0);
+ // Settle bank-loan subledgers along with the general ledger. Intercompany
+ // receivables are left to the existing paired settlement engine.
+ for(const loan of seller.loans){
+  if(loan.parent)continue;
+  const interest=pay('interestDue',loan.interestOutstanding||0,'外部銀行の未払利息弁済');
+  loan.interestOutstanding=Math.max(0,(loan.interestOutstanding||0)-interest);
+  const principal=pay('debt',loan.outstanding,'外部銀行借入元本弁済');
+  loan.outstanding-=principal;
+  if(!loan.outstanding&&!loan.interestOutstanding)loan.closed=true;
+ }
+ seller.loans=seller.loans.filter(x=>!x.closed);
+ entry.repaidLocal=(entry.repaidLocal||0)+repaid;
+ return repaid;
+}
+function processBankruptcyLiquidations(s,events){
+ ensureMAState(s);ensureBankruptcyLiquidationState(s);
+ const month=ym(s.year,s.month);
+ for(const seller of s.firms.filter(f=>f.lifecycle?.phase==='withdrawn'&&f.reorgStatus!=='integrated')){
+  let entry=s.bankruptcyLiquidations.find(x=>x.firmId===seller.id);
+  const holdings=bankruptcyHeldShares(s,seller);
+  if(!entry&&!holdings.length)continue;
+  if(!entry){
+   entry={firmId:seller.id,startedMonth:month,lastProcessedMonth:-1,status:'auction',
+    disposals:0,proceedsLocal:0,debtOffsetLocal:0,repaidLocal:0,remaining:holdings.length,note:''};
+   s.bankruptcyLiquidations.push(entry);
+  }
+  if(entry.lastProcessedMonth>=month)continue;
+  entry.lastProcessedMonth=month;
+  let moved=0,reason='';
+  // No more than two disposals per estate per month; remainder is retained for next month.
+  for(const target of holdings.slice(0,2)){
+   if(target.lifecycle?.phase==='withdrawn'||target.reorgStatus==='integrated'){
+    reason=target.name+'：投資先が営業終了済み';continue;
+   }
+   const basis=bankruptcyHoldingBasis(s,seller,target);
+   if(basis.reason){reason=target.name+'：'+basis.reason;continue;}
+   const bid=bankruptcyCashBid(s,seller,target,basis.oldUnits);
+   const transaction=bid?bankruptcySaleToFirm(s,seller,target,basis,bid,entry):
+    bankruptcyBankOffset(s,seller,target,basis,entry);
+   if(!transaction){reason=target.name+'：買受資金・弁済可能な外部銀行債権が不足';continue;}
+   moved++;
+   events.push(seller.name+'：倒産株式清算 '+target.name+' '+maPct(transaction.fraction)+
+    (transaction.kind==='sale'?'を'+(company(transaction.buyerId,s)?.name||transaction.buyerId)+'へ売却':'を銀行債務と相殺'));
+  }
+  const repaid=bankruptcyPayClaims(s,seller,entry);
+  if(repaid)events.push(seller.name+'：株式清算資金から債務 '+fnum(seller,repaid)+' を弁済');
+  entry.remaining=bankruptcyHeldShares(s,seller).length;
+  entry.unpaidLiabilitiesLocal=financials(seller).liab;
+  entry.status=entry.remaining?'auction':'shares-cleared';
+  entry.note=entry.remaining?reason||'継続売却中':
+   (entry.unpaidLiabilitiesLocal>0?'保有株式の処分完了・未払債務あり':'保有株式の処分完了');
+  if(entry.remaining&&!moved&&reason&&entry.startedMonth===month)events.push(seller.name+'：株式清算は買い手等の条件が整うまで保留');
+ }
+}
+
 function financeMonthly(s,events){
  // Stage 1: settle intercompany and external liabilities before period-wide financial reporting.
  for(const f of s.firms){
@@ -2991,7 +3198,7 @@ async function runMonth(){
   step('GROUP_ADMIN',()=>chargeGroupAdministration(trial,events));
   step('MA',()=>processMAMonth(trial,events));
   step('EQUITY',()=>aiCapitalIssuance(trial,events));
-  step('FINANCE',()=>{financeMonthly(trial,events);settlePartClaims(trial)});
+  step('FINANCE',()=>{processBankruptcyLiquidations(trial,events);financeMonthly(trial,events);settlePartClaims(trial)});
    step('GROUP_MERGER',()=>processGroupMergers(trial,events));
   step('AI_EVOLUTION',()=>{competitorEvolution(trial,events);proposeAIComponentLines(trial,events)});
   step('MARKET_STATS',()=>{
@@ -6462,6 +6669,20 @@ function corporateMergerPage(){
  return titlePage('合併・再編','100%子会社の合併申請、進捗・取消、既存の簿価事業移管を管理します。',tag('月末処理・会計検証を維持'))+(!edit?noaccess():'')+`<div class="kpis">${card('進行・保留中',active+'件','月末処理で進行する合併','')}${card('合併計画の総件数',plans.length+'件','取消・完了を含む履歴','')}${card('事業移管履歴',nfmt(S.reorgHistory?.length||0)+'件','既存の簿価事業移管','')}</div><div class="grid">${siblingMergerPanel(f,edit)}${reorganizationPanel(f,edit)}<section class="panel span12"><p class="hint">合併は申請後に所定の月次処理で進行します。旧「全事業を移管」は法的合併ではなく、法人の会計台帳を残したまま事業資産を移転します。株式そのものの売買はM&Aから実行してください。</p><div class="row"><button class="btn" data-page="ma">M&A・経営統合へ</button><button class="btn" data-page="corporateHoldings">保有株式の確認へ</button></div></section></div>`;
 }
 
+
+function bankruptcyLiquidationPanel(){
+ const cases=(S.bankruptcyLiquidations||[]).slice(-12).reverse();
+ const sales=(S.bankruptcyLiquidationSales||[]).slice(0,16);
+ if(!cases.length)return '<section class="panel span12"><h2>倒産企業の保有株式清算</h2><p class="hint">現在、株式清算の記録はありません。市場退出した独立企業の保有株式は翌月以降の月末処理で売却・債務弁済の対象になります。</p></section>';
+ return '<section class="panel span12"><h2>倒産企業の保有株式清算</h2><p class="hint">倒産した会社の持分は実際の買い手企業の現金で取得するか、外部銀行への代物弁済で移転します。売却先がいない場合は未清算のまま残し、翌月再判定します。廃止企業の法人・会計履歴は削除しません。</p>'+
+ '<div class="scroll"><table><thead><tr><th>倒産企業</th><th>処理</th><th>未売却投資先</th><th>売却収入（円相当）</th><th>債務弁済等（円相当）</th><th>備考</th></tr></thead><tbody>'+
+ cases.map(x=>{const firm=company(x.firmId),country=firm?.country||'JP';return '<tr><td>'+esc(firm?.name||x.firmId)+'</td><td>'+(x.remaining?'売却継続':'保有株式処分完了')+'</td><td class="num">'+(x.remaining||0)+'社</td><td class="num">'+baseMoney(baseFromLocal(x.proceedsLocal||0,country))+'</td><td class="num">'+baseMoney(baseFromLocal((x.repaidLocal||0)+(x.debtOffsetLocal||0),country))+'</td><td>'+esc(x.note||'—')+'</td></tr>';}).join('')+
+ '</tbody></table></div>'+
+ (sales.length?'<h3>最近の株式清算・移転記録</h3><div class="scroll"><table><thead><tr><th>月</th><th>売却元</th><th>対象企業</th><th>移転先</th><th>持分</th><th>種類</th></tr></thead><tbody>'+
+ sales.map(x=>'<tr><td>'+Math.floor(x.month/12)+'年'+(x.month%12+1)+'月</td><td>'+esc(company(x.sellerId)?.name||x.sellerId)+'</td><td>'+esc(company(x.targetId)?.name||x.targetId)+'</td><td>'+esc(x.buyerId==='PUBLIC'?'外部銀行債権者':company(x.buyerId)?.name||x.buyerId)+'</td><td>'+maPct(x.fraction)+'</td><td>'+(x.kind==='bank-offset'?'銀行債務と相殺':'有償売却')+'</td></tr>').join('')+
+ '</tbody></table></div>':'')+'</section>';
+}
+
 function corporateHoldingsPage(){
  const f=current(),group=controlled().filter(isActiveCorporateFirm),held=S.firms.filter(x=>isActiveCorporateFirm(x)&&x.owners?.some(o=>o.id===f.id&&o.econ>0)),controlledSet=controlSet(S,S.playerId);
  const rows=S.firms.filter(isActiveCorporateFirm).map(x=>{const direct=x.owners?.find(o=>o.id===f.id),grpRatio=x.owners?.filter(o=>controlledSet.has(o.id)).reduce((s,o)=>s+o.econ,0)||0,outsider=x.owners?.find(o=>o.id==='PUBLIC')?.econ||0;return `<tr><td><b>${esc(x.name)}</b><div class="hint">${esc(x.id)}</div></td><td>${esc(NAMES[x.country]||x.country)}</td><td>${maPct(direct?.econ||0)}</td><td>${maPct(direct?.vote||0)}</td><td>${maPct(grpRatio)}</td><td>${maPct(outsider)}</td><td>${controller(S,x.id)?tag('支配下','good'):'外部・非支配'}</td></tr>`}).join('');
@@ -6473,7 +6694,7 @@ function corporateHoldingsPage(){
  <section class="panel span12"><h2>企業別の所有関係（ゲーム内全法人）</h2><p class="hint">「表示法人の直接保有」は現在選択中の法人だけ、「グループ企業保有合計」は支配下法人の直接持分の合算です。間接実効持分を掛け合わせた数値ではありません。</p><div class="scroll"><table><thead><tr><th>対象企業</th><th>国</th><th>表示法人の直接保有</th><th>直接議決権</th><th>グループ企業保有合計</th><th>外部株主</th><th>状態</th></tr></thead><tbody>${rows}</tbody></table></div></section>
  <section class="panel span6"><h2>${esc(f.name)}の株主</h2><div class="scroll"><table><thead><tr><th>株主</th><th>持分</th><th>議決権</th><th>種類</th></tr></thead><tbody>${details||'<tr><td colspan="4">株主記録がありません。</td></tr>'}</tbody></table></div><p class="hint">自己株式は別途資本政策・自己株式台帳で確認してください。</p></section>
  <section class="panel span6"><h2>株主・資本関連の操作</h2><p class="hint">既存の株主交渉、企業株主からの子会社株式譲受や外部持分の購入は「M&A」で行います。新株発行・自己株式取得などは「財務・管理 → 資本政策」です。</p><div class="row"><button class="btn primary" data-page="ma">M&Aの株式取引へ</button><button class="btn" data-page="capital">資本政策へ</button></div></section>
- <section class="panel span12"><h2>表示法人に関連する買収・株式譲渡履歴</h2><div class="scroll"><table><thead><tr><th>年月</th><th>買い手</th><th>対象企業</th><th>取得比率</th><th>支払対価</th></tr></thead><tbody>${deals||'<tr><td colspan="5">該当する買収履歴はありません。</td></tr>'}</tbody></table></div></section></div>`;
+ <section class="panel span12"><h2>表示法人に関連する買収・株式譲渡履歴</h2><div class="scroll"><table><thead><tr><th>年月</th><th>買い手</th><th>対象企業</th><th>取得比率</th><th>支払対価</th></tr></thead><tbody>${deals||'<tr><td colspan="5">該当する買収履歴はありません。</td></tr>'}</tbody></table></div></section>${bankruptcyLiquidationPanel()}</div>`;
 }
 
 function reportsPage(){const rep=S.lastReport;const f=current();return titlePage('月次レポート','月末一括処理の結果・資源・財務の整合性を確認します。',)+(rep?`<div class="kpis">${card('確定年月',esc(rep.date),'処理は一回だけ確定','')}${card('親会社現金',fnum(company(S.playerId),rep.cash),'確定時点','')}${card('親会社当月損益',`<span class="${rep.netProfit>=0?'positive':'negative'}">${fnum(company(S.playerId),rep.netProfit)}</span>`,'当月発生の損益','')}${card('親会社販売',nfmt(rep.units)+'件','完成車・商品・サービス等','')}</div><div class="grid"><section class="panel span6"><h2>月次運用サマリー</h2>${rowstat('月次売上',fnum(company(S.playerId),rep.sales))}${rowstat('完成生産数量',nfmt(rep.produced))}${rowstat('支配下の法人',rep.firms+'社')}${rowstat('会計・資源検算',tag('合格','good'))}${rowstat('自動保存',S.autosaveState==='保存成功'?tag('成功','good'):tag(S.autosaveState,'warn'))}</section><section class="panel span6"><h2>今回の出来事</h2>${rep.events.length?rep.events.map(x=>`<div class="notice">${esc(x)}</div>`).join(''):'<div class="muted small">重要な特殊イベントはありませんでした。</div>'}</section><section class="panel span12"><h2>月次レポート履歴</h2><div class="scroll"><table><thead><tr><th>年月</th><th class="num">月間売上</th><th class="num">月間損益</th><th class="num">販売件数</th><th class="num">生産数量</th></tr></thead><tbody>${S.reports.map(r=>`<tr><td>${esc(r.date)}</td><td class="num">${fnum(company(S.playerId),r.sales)}</td><td class="num ${r.netProfit>=0?'positive':'negative'}">${fnum(company(S.playerId),r.netProfit)}</td><td class="num">${nfmt(r.units)}</td><td class="num">${nfmt(r.produced)}</td></tr>`).join('')}</tbody></table></div></section></div>`:`<section class="panel"><h2>月次計算はまだ実行されていません</h2><p>製品・工場・研究・人事などの計画を設定し、右上の「月末処理」を選択してください。</p></section>`)}
