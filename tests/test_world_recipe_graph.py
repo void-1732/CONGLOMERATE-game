@@ -33,9 +33,9 @@ def main():
           const n=WORLD_SUPPLEMENTAL_RECIPES.length;
           const productCatalog=validateWorldProductCatalog();
           const implementations=WORLD_PRODUCTS.map(p=>worldProductImplementation(p.id));
-          const catalogStatus=implementations.filter(x=>x.implementation==='RECIPE_PROTOTYPE').length===35
+          const catalogStatus=implementations.filter(x=>x.implementation==='RECIPE_PROTOTYPE').length===46
             &&implementations.filter(x=>x.implementation==='WIRE_PILOT').length===1
-            &&implementations.filter(x=>x.implementation==='DATA_CANDIDATE').length===114;
+            &&implementations.filter(x=>x.implementation==='DATA_CANDIDATE').length===103;
           const services=implementations.filter(x=>!x.physical);
           const serviceMetadata=services.length===15&&services.every(x=>x.unitClass==='service');
           const volumeUnits=worldProductUnitClass('PRD-M15')==='volume';
@@ -91,11 +91,11 @@ def main():
             firstPass,secondPass,noDuplicate,saved,goodLedger,uiUpdated,allCandidateProducts
           };
         }""")
-        assert result.pop("n") == 35, result
+        assert result.pop("n") == 46, result
         assert all(result.values()), result
         assert not errors, errors
         browser.close()
-    print("PASS Phase 2: 35 recipes, intermediate-to-equipment production, era, cycle, inventory, ledger, and save")
+    print("PASS Phase 2: 46 recipes, intermediate-to-equipment production, era, cycle, inventory, ledger, and save")
 
 
 if __name__ == "__main__":

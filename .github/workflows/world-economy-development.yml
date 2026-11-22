@@ -12,6 +12,7 @@ on:
       - tests/test_world_recipe_chains.py
       - tests/test_world_recipe_graph.py
       - tests/test_world_resources_services.py
+      - tests/test_world_phase2c.py
       - tests/test_vehicle_discontinuation.py
       - .github/workflows/world-economy-development.yml
   pull_request:
@@ -48,6 +49,7 @@ jobs:
           python -B tests/test_world_recipe_chains.py
           python -B tests/test_world_recipe_graph.py
           python -B tests/test_world_resources_services.py
+          python -B tests/test_world_phase2c.py
           python -B tests/test_vehicle_discontinuation.py
       - name: Existing UI, trade and save regression
         run: |
