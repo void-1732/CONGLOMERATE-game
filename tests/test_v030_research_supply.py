@@ -37,7 +37,7 @@ with sync_playwright() as p:
     page.set_default_timeout(10000)
     page.set_content(html)
     page.evaluate(setup)
-    assert page.evaluate("raw=>restore(raw)", raw)
+    assert not page.evaluate("raw=>restore(raw)", raw)  # SPEC-168: old saves are not imported
     assert page.evaluate("TECH_NODES.map(n=>n.id)") == technology_ids and len(technology_ids) == 800
 
     def screen(section, firm=None):
@@ -53,7 +53,7 @@ with sync_playwright() as p:
         }""")
         assert status["advanced"] and not status["errors"] and not status["group"] and status["cf"], status
 
-    screen("group")
+    screen("corporateSubsidiaries")
     page.locator("#subName").fill("自社資源開発")
     page.locator("#subCountry").select_option("JP")
     page.locator("#subIndustry").select_option("resource")
@@ -65,14 +65,14 @@ with sync_playwright() as p:
         "steel", "rubber", "aluminum", "copper", "glass", "chemicals"
     ]
 
-    contracts = page.get_by_text("原材料・部品の購入契約を編集（7資材）", exact=True)
-    screen("supply", mine)
+    screen("supplyContracts", mine)
+    contracts = page.get_by_text("購入契約を編集（7資材）", exact=True)
     assert page.get_by_text("グループ内の供給元", exact=True).is_visible()
     assert page.get_by_text("選択中の法人自身は仕入先候補から除外されます", exact=False).is_visible()
     contracts.click()
     assert page.locator(f'#supplier_steel option[value="CORP:{mine}:steel"]').count() == 0
     screen("supply")
-    page.get_by_role("button", name="購入契約を開く").click()
+    page.get_by_role("button", name="調達契約を開く").click()
     selector = f"CORP:{mine}:steel"
     assert page.locator("#supplier_steel option").first.get_attribute("value") == selector
     assert page.locator(f'#supplier_components option[value="CORP:{mine}:components"]').count() == 0
