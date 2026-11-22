@@ -10,6 +10,7 @@ on:
       - tests/test_world_catalog_integrity.py
       - tests/test_world_production.py
       - tests/test_world_recipe_chains.py
+      - tests/test_world_recipe_graph.py
       - .github/workflows/world-economy-development.yml
   pull_request:
     branches: [main]
@@ -39,6 +40,7 @@ jobs:
           python -B tests/test_world_catalog_integrity.py
           python -B tests/test_world_production.py
           python -B tests/test_world_recipe_chains.py
+          python -B tests/test_world_recipe_graph.py
       - name: Existing UI, trade and save regression
         run: |
           python -B tests/test_step10_37_pages.py
