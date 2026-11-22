@@ -85,7 +85,7 @@ def run():
 
         # All seven material policies are saved by the actual UI, not only helpers.
         settings=page.evaluate("""() => {
-            PAGE='supply';VIEW_FIRM=S.playerId;render();
+            PAGE='supplyContracts';VIEW_FIRM=S.playerId;render();
             const policy=document.getElementById('buffer_steel');
             const automatic=document.getElementById('autoOrder_steel');
             if(!policy||!automatic)throw Error('調達設定UIが見つかりません');
@@ -94,7 +94,7 @@ def run():
             const f=company(S.playerId,S);
             return {policy:f.supply.contracts.steel.safetyMonths,
                 automatic:f.supply.contracts.steel.autoOrder,
-                inPage:document.body.textContent.includes('6か月先予測'),
+                inPage:(()=>{PAGE='supply';render();return document.body.textContent.includes('6か月先予測')})(),
                 errors:check(S)};
         }""")
         assert settings["policy"]==1.5 and settings["automatic"] is False,settings
