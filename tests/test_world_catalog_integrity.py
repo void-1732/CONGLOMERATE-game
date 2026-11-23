@@ -54,6 +54,31 @@ def main():
             const city=worldCityLocation(state,id);
             return city.jurisdictionId!=null&&city.marketOpen;
           });
+          const historicMoney=(
+            worldHistoricalMonetaryReference('TER-02-01',ym(1900,1)).currencyId==='CUR-FRF'
+            &&worldHistoricalMonetaryReference('TER-02-01',ym(1999,1)).currencyId==='CUR-EUR'
+            &&worldHistoricalMonetaryReference('TER-03-01',ym(1900,1)).currencyId==='CUR-GMK'
+            &&worldHistoricalMonetaryReference('TER-03-01',ym(1924,10)).currencyId==='CUR-RMK'
+            &&worldHistoricalMonetaryReference('TER-03-01',ym(1948,7)).currencyId==='CUR-DEM'
+            &&worldHistoricalMonetaryReference('TER-05-02',ym(1900,1)).currencyId==='CUR-PTR'
+            &&worldHistoricalMonetaryReference('TER-05-02',ym(1911,6)).currencyId==='CUR-PTE'
+            &&worldHistoricalMonetaryReference('TER-08-02',ym(1900,1)).currencyId==='CUR-BEF'
+            &&worldHistoricalMonetaryReference('TER-08-03',ym(1900,1)).currencyId==='CUR-LUF'
+            &&worldHistoricalMonetaryReference('TER-24-01',ym(1966,3)).currencyId==='CUR-AUD'
+            &&worldHistoricalMonetaryReference('TER-25-01',ym(1967,8)).currencyId==='CUR-NZD'
+            &&worldHistoricalMonetaryReference('TER-33-01',ym(1961,3)).currencyId==='CUR-ZAR'
+            &&worldHistoricalMonetaryReference('TER-13-01',ym(1900,1))===null
+          );
+          // This is a sourced historical reference only. Do not retroactively
+          // redenominate firms, cash, contracts, journals or FX in saved games.
+          const historicalMoneyIsNotLedger=(
+            worldCityLocation(state,'CITY-02-01').historicalMoney.currencyId==='CUR-FRF'
+            &&WORLD_ENGINE_CURRENCIES.FR==='CUR-EUR'
+            &&WORLD_ENGINE_CURRENCIES.DE==='CUR-EUR'
+            &&worldCityLocation(state,'CITY-05-03').historicalMoney.currencyId==='CUR-PTR'
+            &&worldCityLocation(state,'CITY-05-03').jurisdictionId==null
+            &&worldCityLocation(state,'CITY-05-03').marketOpen===false
+          );
           const first=worldCityLocation(state,'CITY-01-04');
           const identityBefore=JSON.stringify([
             state.firms.map(f=>[f.id,f.owners,f.loans]),
@@ -76,7 +101,7 @@ def main():
           ]);
           const restored=parsePayload(savePayload(state));
           return {
-            ...out,compositeClosed,compositeOpen,
+            ...out,compositeClosed,compositeOpen,historicMoney,historicalMoneyIsNotLedger,
             firstHistory,secondHistory:!secondHistory,rejectsConflict,
             irelandBefore:first.territoryId==='TER-01-02'
               &&first.marketId==='MKT-01'&&first.jurisdictionId==='JUR-UK',
