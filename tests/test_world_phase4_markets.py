@@ -673,6 +673,73 @@ def test_dated_colonial_export(page, data):
     }""",data)
     assert all(result.values()), (data["country"],result)
 
+
+def test_saudi_rice_import(page):
+    """1932 kingdom opening, British India rice exporter, Jeddah import and settlement."""
+    result=page.evaluate("""() => {
+      const rejects=fn=>{try{fn();return false;}catch{return true;}};
+      S=newWorldGame({country:'IN',name:'Bombay rice exporter'});
+      VIEW_FIRM=S.playerId;VIEW_COUNTRY='IN';
+      const seller=company(S.playerId),port=seller.plants[0],profileId='IN-SA-BOMBAY-JEDDAH-RICE';
+      const initiallyClosed=!S.world.SA&&!worldCityLocation(S,'CITY-39-02').marketOpen
+        &&!worldInternationalRouteAvailable(S,profileId);
+      S.year=1932;S.month=9;S.monthCommitted=ym(1932,9)-1;
+      applyWorldHistory(S);
+      const beforeUnification=!S.world.SA;
+      S.month=10;applyWorldHistory(S);syncWorldIdentities(S);
+      const opened=S.world.SA?.code==='SA'
+        &&S.worldExpansion.openMarkets['MKT-39']===ym(1932,10)
+        &&worldCityLocation(S,'CITY-39-02').jurisdictionId==='JUR-SA-KINGDOM'
+        &&S.worldExpansion.appliedEvents.some(e=>e.id==='HIST-SA-1932');
+      S.year=1934;S.month=5;S.monthCommitted=ym(1934,5)-1;
+      applyWorldHistory(S);syncWorldIdentities(S);
+      PAGE='corporateSubsidiaries';render();
+      document.querySelector('#subName').value='Jeddah rice importer';
+      document.querySelector('#subCountry').value='SA';
+      document.querySelector('#subIndustry').value='manufacturing';
+      document.querySelector('#subCapital').value='650000';
+      createSub();
+      const buyer=S.firms.find(f=>f.name==='Jeddah rice importer'),whPlant=buyer.plants[0];
+      for(const f of [buyer,seller]){
+        f.auto=false;f.research.tree.done=[...new Set([...f.research.tree.done,'production-1'])];
+      }
+      for(const [f,id,value] of [[seller,'PRD-E18',2400],[buyer,'PRD-E20',700],[buyer,'PRD-E21',900]]){
+        post(f,{materials:value},{cash:value},'検証用有償現物設備','operating',S);
+        f.stock[id]={q:1,v:value};
+      }
+      syncWorldIdentities(S);
+      const registration=S.worldExpansion.companies[buyer.id];
+      const currency=registration.jurisdictionId==='JUR-SA-KINGDOM'
+        &&registration.currencyId==='CUR-SAR'&&firmCurrency(buyer,S)==='SAR'
+        &&S.worldExpansion.facilities['FAC-'+whPlant.id].locationId==='LOC-SA-JED';
+      worldBuyRegionalSupply(S,seller.id,port.id,'IN-BOM-RICE-1934',14);
+      worldBuyRegionalSupply(S,seller.id,port.id,'IN-BOM-BUNKER-COAL-1934',20);
+      const route=worldInternationalRegisterRoute(S,seller.id,profileId);
+      const warehouse=worldInternationalInstallWarehouse(S,buyer.id,whPlant.id,profileId);
+      const o=worldInternationalPlaceOrder(S,buyer.id,{routeId:route.id,warehouseId:warehouse.id,
+        productId:'PRD-R23',quantity:14,cargoLitres:30,
+        unitPriceSeller:localFromBase(40,'IN'),maxPaymentBuyer:100000,paymentDays:60});
+      worldInternationalActOrder(S,seller.id,o.id,'approve');
+      S.month=6;worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
+      const cargo=S.worldExpansion.internationalShipments.at(-1);
+      const shipped=cargo?.status==='IN_TRANSIT'&&cargo.quantity===14
+        &&cargo.loadKg===15&&cargo.sellerRate!==cargo.buyerRate
+        &&acc(seller,'worldShipmentStock')===cargo.bookCost
+        &&!buyer.stock['PRD-R23']?.q&&!check(S).length;
+      const damaged=structuredClone(S);damaged.worldExpansion.internationalShipments.at(-1).fuelRequired++;
+      const tamper=rejects(()=>parsePayload(savePayload(damaged)));
+      S.month=7;worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
+      const paid=cargo.status==='IN_TRANSIT'&&cargo.credit.paidAt===ym(1934,7)
+        &&!worldInternationalRouteAvailable(S,profileId);
+      S.month=8;worldInternationalReceiveShipments(S);
+      const restored=parsePayload(savePayload(S));
+      const done=cargo.status==='DELIVERED'&&buyer.stock['PRD-R23'].q===14
+        &&buyer.stock['PRD-R23'].v===cargo.totalBuyer&&!acc(seller,'worldShipmentStock')
+        &&!check(restored).length&&!consolidate(restored).errors.length;
+      return {initiallyClosed,beforeUnification,opened,currency,shipped,tamper,paid,done};
+    }""")
+    assert all(result.values()),result
+
 def main():
     with sync_playwright() as pw:
         browser = pw.chromium.launch(
@@ -929,9 +996,24 @@ def main():
             "buyerCountry": "UK", "destination": "UK-HULL", "product": "PRD-R04",
             "departure": 5, "payMonth": 6,
         })
+        test_steamship_export(page, {
+            "profile": "VN-FR-SAIGON-RICE", "country": "VN", "site": "VN-SGN",
+            "city": "CITY-19-02", "currency": "ICP", "year": 1907,
+            "offer": "VN-SGN-RICE", "authority": None,
+            "buyerCountry": "FR", "destination": "FR-MAR", "product": "PRD-R23",
+            "departure": 5, "payMonth": 6,
+        })
+        test_steamship_export(page, {
+            "profile": "IR-IN-BANDARABBAS-WOOL", "country": "IR", "site": "IR-BND",
+            "city": "CITY-40-01", "currency": "IRK", "year": 1905,
+            "offer": "IR-BND-WOOL", "authority": None,
+            "buyerCountry": "IN", "destination": "IN-BOM", "product": "PRD-R21",
+            "departure": 5, "payMonth": 6,
+        })
+        test_saudi_rice_import(page)
         assert not errors, errors
         browser.close()
-    print("PASS Phase 4 Canada, Australia, New Zealand, Mexico, Brazil, Argentina, Chile, Colombia, Sweden, Netherlands, Italy, Egypt, India, South Africa, Siam, Straits Singapore, Qing China, Netherlands East Indies and Colonial Nigeria, Spain, Philippines, Russian Empire, Colonial Korea, Ottoman Empire, British Malaya, Kenya, Morocco, Switzerland, Austria, Poland and Greece: sourced cargo, loading, shipment and settlement")
+    print("PASS Phase 4 Canada, Australia, New Zealand, Mexico, Brazil, Argentina, Chile, Colombia, Sweden, Netherlands, Italy, Egypt, India, South Africa, Siam, Straits Singapore, Qing China, Netherlands East Indies and Colonial Nigeria, Spain, Philippines, Russian Empire, Colonial Korea, Ottoman Empire, British Malaya, Kenya, Morocco, Switzerland, Austria, Poland, Greece, French Indochina, Qajar Persia and Saudi Arabia: sourced cargo, loading, shipment and settlement")
 
 
 if __name__ == "__main__":

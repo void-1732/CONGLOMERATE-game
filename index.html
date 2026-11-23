@@ -678,6 +678,11 @@ const MANUAL_SAVE_PAGE_SIZE=20,AUTO_SAVE_MONTHS=3,MANUAL_ARCHIVE_PREFIX='manual:
 // Based on the OWID long-run population series (Gapminder before 1950; UN WPP since 1950).
 // Reference values are rounded and based on modern territorial boundaries, not historical sovereignty.
 const POPULATION_ANCHORS={
+ // French Cochinchina / Qajar Persia / 1930s Saudi Arabia are different
+ // political geographies from modern states: game-sized estimates only.
+ VN:{1900:13,1910:14,1920:17},
+ IR:{1900:10,1910:10.7,1920:11.7},
+ SA:{1932:3,1940:3.5},
  // Swiss 1900/1910 census estimates; other 1900 territorial populations
  // are provisional territory-level game anchors, not empire census totals.
  CH:{1900:3.315443,1910:3.753293},
@@ -742,7 +747,7 @@ function anchorPopulation(code,year){const anchors=POPULATION_ANCHORS[code];if(!
  if(year>=yrs[yrs.length-1])return anchors[yrs[yrs.length-1]];
  for(let i=1;i<yrs.length;i++){if(year<=yrs[i]){const lo=yrs[i-1],hi=yrs[i];return anchors[lo]+(anchors[hi]-anchors[lo])*(year-lo)/(hi-lo);}}return null;}
 
-const NAMES={JP:'日本',US:'アメリカ',UK:'イギリス',DE:'ドイツ',FR:'フランス',NO:'ノルウェー',CA:'カナダ',AU:'オーストラリア',NZ:'ニュージーランド',MX:'メキシコ',BR:'ブラジル',AR:'アルゼンチン',CL:'チリ',CO:'コロンビア',SE:'スウェーデン',NL:'オランダ',IT:'イタリア',EG:'エジプト',IN:'英領インド',ZA:'南アフリカ連邦',SG:'英領シンガポール',TH:'シャム王国',CN:'清朝中国',ID:'オランダ領東インド',NG:'英領ナイジェリア',ES:'スペイン',PH:'米領フィリピン',RU:'ロシア帝国',KR:'朝鮮（日本統治下）',TR:'オスマン帝国',MY:'英領マラヤ',KE:'英領ケニア',MA:'仏保護領モロッコ',CH:'スイス連邦',AT:'オーストリア=ハンガリー帝国領オーストリア',PL:'ポーランド共和国',GR:'ギリシャ王国'};
+const NAMES={JP:'日本',US:'アメリカ',UK:'イギリス',DE:'ドイツ',FR:'フランス',NO:'ノルウェー',CA:'カナダ',AU:'オーストラリア',NZ:'ニュージーランド',MX:'メキシコ',BR:'ブラジル',AR:'アルゼンチン',CL:'チリ',CO:'コロンビア',SE:'スウェーデン',NL:'オランダ',IT:'イタリア',EG:'エジプト',IN:'英領インド',ZA:'南アフリカ連邦',SG:'英領シンガポール',TH:'シャム王国',CN:'清朝中国',ID:'オランダ領東インド',NG:'英領ナイジェリア',ES:'スペイン',PH:'米領フィリピン',RU:'ロシア帝国',KR:'朝鮮（日本統治下）',TR:'オスマン帝国',MY:'英領マラヤ',KE:'英領ケニア',MA:'仏保護領モロッコ',CH:'スイス連邦',AT:'オーストリア=ハンガリー帝国領オーストリア',PL:'ポーランド共和国',GR:'ギリシャ王国',VN:'仏領インドシナ',IR:'ガージャール朝ペルシア',SA:'サウジアラビア王国'};
 const INITIAL_ENGINE_COUNTRIES=['JP','US','UK','DE','FR'];
 const COUNTRIES={
  JP:{currency:'JPY',fx:1,pop:44,wealth:1,wage:145,demand:115,steel:420,rubber:280,steelSupply:1100,rubberSupply:1050},
@@ -826,7 +831,13 @@ const COUNTRIES={
  PL:{currency:'PLN',fx:44,pop:anchorPopulation('PL',1921),wealth:.84,wage:131,demand:26,
   steel:472,rubber:320,steelSupply:140,rubberSupply:115},
  GR:{currency:'GRD',fx:66,pop:anchorPopulation('GR',1900),wealth:.82,wage:134,demand:13,
-  steel:467,rubber:322,steelSupply:95,rubberSupply:83}
+  steel:467,rubber:322,steelSupply:95,rubberSupply:83},
+ VN:{currency:'ICP',fx:85,pop:anchorPopulation('VN',1900),wealth:.79,wage:121,demand:24,
+  steel:488,rubber:326,steelSupply:110,rubberSupply:92},
+ IR:{currency:'IRK',fx:38,pop:anchorPopulation('IR',1900),wealth:.78,wage:127,demand:20,
+  steel:484,rubber:327,steelSupply:115,rubberSupply:90},
+ SA:{currency:'SAR',fx:49,pop:anchorPopulation('SA',1932),wealth:.72,wage:123,demand:14,
+  steel:482,rubber:329,steelSupply:105,rubberSupply:85}
 };
 const ACCTYPE={cash:'asset',materials:'asset',materialsTransit:'asset',componentStock:'asset',componentTransit:'asset',wip:'asset',goods:'asset',goodsTransit:'asset',constructionAssets:'asset',ppe:'asset',accdep:'contra',investment:'asset',ar:'asset',loanrec:'asset',resourceRights:'asset',worldShipmentStock:'asset',worldImportDutyPrepaid:'asset',worldInternationalReceivable:'asset',worldStoredStock:'asset',worldInsuranceReserve:'asset',worldInsurancePrepaid:'asset',worldTravelAdvance:'asset',worldBankDeposits:'asset',worldBankRemittance:'asset',worldBankReserve:'asset',worldSupplierAdvances:'asset',partReceivable:'asset',partPayable:'liability',worldCustomerAdvances:'liability',worldInternationalPayable:'liability',worldInternationalDutyPayable:'liability',worldInsuranceUnearned:'liability',worldDemandDeposits:'liability',payable:'liability',wagesDue:'liability',debt:'liability',interestDue:'liability',taxDue:'liability',capital:'equity',treasuryStock:'contraEquity',sales:'revenue',serviceRevenue:'revenue',otherRevenue:'revenue',cogs:'expense',labor:'expense',rndExpense:'expense',advert:'expense',maintenance:'expense',interestExpense:'expense',depreciation:'expense',taxExpense:'expense',fxLoss:'expense',otherExpense:'expense'};
 const PAGES={dashboard:'経営概況',marketOwn:'自社グループ市場分析',market:'世界市場分析',product:'製品・開発',factory:'工場・調達',people:'研究・人事',finance:'財務・資金',group:'企業グループ',consolidated:'連結財務三表',reports:'月次レポート',save:'保存・設定'};
@@ -1625,7 +1636,10 @@ const SITE_CATALOG=[
   ['KE-MBA','KE','モンバサ港'],['MA-CAS','MA','カサブランカ港'],
   ['CH-BAS','CH','バーゼル鉄道貨物駅'],['DE-FRE','DE','フライブルク貨物駅'],
   ['AT-VIE','AT','ウィーン貨物駅'],['DE-MUN','DE','ミュンヘン貨物駅'],
-  ['PL-GDY','PL','グディニャ港'],['GR-PIR','GR','ピレウス港']].map(([id,country,name])=>(
+  ['PL-GDY','PL','グディニャ港'],['GR-PIR','GR','ピレウス港'],
+  ['VN-SGN','VN','サイゴン港（現ホーチミン市）'],
+  ['IR-BND','IR','バンダル・アッバース港'],
+  ['SA-JED','SA','ジッダ港']].map(([id,country,name])=>(
   {id,country,name,land:1,wage:1,infra:1,labor:1,freight:1,worldOnly:true}))
 ];
 const findSite=id=>SITE_CATALOG.find(x=>x.id===id);
@@ -11089,7 +11103,7 @@ const WORLD_TERRITORIES=new Map(WORLD_MARKETS.flatMap(m=>m.territories.map(t=>[t
 const WORLD_CITIES=new Map(WORLD_MARKETS.flatMap(m=>m.cities.map(c=>[c.id,c])));
 // Registry version zero is the saved pre-expansion world (five initial economies).
 // New onboarding data is additive and does not change the original scenario.
-const WORLD_MARKET_REGISTRY_VERSION=15;
+const WORLD_MARKET_REGISTRY_VERSION=16;
 const WORLD_MARKET_ONBOARDING=Object.freeze({
  CA:Object.freeze({introducedIn:1,territoryId:'TER-27-01',currencyId:'CUR-CAD',jurisdictionId:'JUR-CA',
   jurisdictionSource:'https://www.canada.ca/en/immigration-refugees-citizenship/corporate/publications-manuals/discover-canada/read-online/canadas-history.html',
@@ -11249,6 +11263,24 @@ const WORLD_MARKET_ONBOARDING=Object.freeze({
  GR:Object.freeze({introducedIn:15,territoryId:'TER-13-03',currencyId:'CUR-GRD',jurisdictionId:'JUR-GR-KINGDOM',
   jurisdictionSource:'https://en.wikisource.org/wiki/Page:EB1911_-_Volume_12.djvu/524',
   currencySource:'https://www.bankofgreece.gr/en/the-bank/history/drachma',
+  populationSource:'https://ourworldindata.org/grapher/population'}),
+ // French Cochinchina, not the later independent Vietnamese Republic.
+ VN:Object.freeze({introducedIn:16,territoryId:'TER-19-01',currencyId:'CUR-ICP',jurisdictionId:'JUR-VN-FRENCH',
+  jurisdictionSource:'https://www.jstage.jst.go.jp/article/sea1971/1988/17/1988_17_3/_article/-char/en',
+  currencySource:'https://indochine.uqam.ca/en/historical-dictionary/333-currency-french-indochina.html',
+  populationSource:'https://ourworldindata.org/grapher/population'}),
+ // Currency qiran before the 1931/1932 rial re-denomination. Future switches
+ // are outstanding, and the 1905 trade never uses the modern Iranian rial.
+ IR:Object.freeze({introducedIn:16,territoryId:'TER-40-01',currencyId:'CUR-IRK',jurisdictionId:'JUR-IR-QAJAR',
+  jurisdictionSource:'https://www.iranicaonline.org/articles/economy-viii-in-the-qajar-period/',
+  currencySource:'https://www.iranicaonline.org/articles/coins-and-coinage/',
+  populationSource:'https://ourworldindata.org/grapher/population'}),
+ // Saudi kingdom existed after 1932-09-23. The 1934 cargo is an import;
+ // a historical 1939 petroleum export/tanker is NOT claimed to be implemented.
+ SA:Object.freeze({introducedIn:16,territoryId:'TER-39-01',currencyId:'CUR-SAR',jurisdictionId:'JUR-SA-KINGDOM',
+  opensAt:ym(1932,10),effectiveDate:'1932-09-23',
+  jurisdictionSource:'https://www.qdl.qa/en/historical-profile-saudi-arabia',
+  currencySource:'https://sama.gov.sa/en-US/Currency/Pages/HistoricalInfo.aspx',
   populationSource:'https://ourworldindata.org/grapher/population'})
 });
 function worldInitialEngineCountries(registryVersion){
@@ -11293,7 +11325,7 @@ const WORLD_SITE_CITIES={
  'RU-SPB':'CITY-06-02','KR-BUS':'CITY-17-02','TR-IZM':'CITY-38-03',
  'MY-PEN':'CITY-21-02','KE-MBA':'CITY-36-02','MA-CAS':'CITY-37-02',
  'CH-BAS':'CITY-09-04','AT-VIE':'CITY-12-01','DE-MUN':'CITY-03-04',
- 'GR-PIR':'CITY-13-02'
+ 'GR-PIR':'CITY-13-02','VN-SGN':'CITY-19-02','SA-JED':'CITY-39-02'
 };
 const WORLD_LOCATIONS=new Map(SITE_CATALOG.map(site=>[
  'LOC-'+site.id,{id:'LOC-'+site.id,territoryId:WORLD_ENGINE_TERRITORY[site.country],cityId:WORLD_SITE_CITIES[site.id]??null}
@@ -12747,6 +12779,18 @@ function worldSupplyOffer(siteId,productId,name,firstYear,quantity,priceBase,sou
 }
 const WORLD_REGIONAL_SUPPLY=Object.freeze({
  // Verified port trade categories; unit costs and finite purchase caps are game fixtures.
+ 'VN-SGN-RICE':worldSupplyOffer('VN-SGN','PRD-R23','仏領コーチシナ・サイゴンの輸出米',1907,150,18,
+  'https://www.entreprises-coloniales.fr/inde-indochine/Riziculture_indochinoise.pdf',1907),
+ 'VN-SGN-BUNKER-COAL':worldSupplyOffer('VN-SGN','PRD-R04','サイゴン港汽船の石炭取扱い',1907,135,17,
+  'https://georgesdeherme.fr/fileadmin/site/1_Georges_Deherme__1867-1937_/4_Bibliotheque/Monographies/Colonies__Les__Franc__aises__Paris__Union_coliale_franc__aise_s.d.__50_p/Les_Colonies_francaises_Union.pdf',1907),
+ 'IR-BND-WOOL':worldSupplyOffer('IR-BND','PRD-R21','ペルシア湾岸バンダル・アッバース輸出羊毛',1905,135,23,
+  'https://www.qdl.qa/en/archive/81055/vdc_100076639076.0x000034',1905),
+ 'IR-BND-BUNKER-COAL':worldSupplyOffer('IR-BND','PRD-R04','バンダル・アッバース港の汽船燃料',1905,125,18,
+  'https://qdl.qa/en/archive/81055/vdc_100023282068.0x000018',1905),
+ 'IN-BOM-RICE-1934':worldSupplyOffer('IN-BOM','PRD-R23','英国領インドのジッダ向け食用米',1934,140,18,
+  'https://qdl.qa/en/archive/81055/vdc_100036362871.0x00005a',1934),
+ 'IN-BOM-BUNKER-COAL-1934':worldSupplyOffer('IN-BOM','PRD-R04','ボンベイ港の1934年汽船燃料',1934,130,17,
+  'https://tile.loc.gov/storage-services/service/gdc/gdclccn/a2/20/00/92/0/a22000920/a22000920.pdf',1934),
  'CH-BAS-TEXTILES':worldSupplyOffer('CH-BAS','PRD-M36','バーゼル製綿織物のドイツ向け輸出',1906,120,30,
   'https://upload.wikimedia.org/wikipedia/commons/4/4a/Cotton_fabrics_in_middle_Europe_-_Germany%2C_Austria-Hungary%2C_Switzerland_%28IA_cottonfabricsinm00clar_0%29.pdf',1906),
  'CH-BAS-BUNKER-COAL':worldSupplyOffer('CH-BAS','PRD-R04','バーゼル鉄道機関車燃料用石炭',1906,100,17,
@@ -13878,6 +13922,12 @@ function worldInternationalRailProfile(from,to,opensAt,distanceKm,source){
   truck:'PRD-E16',fuelScale:1200});
 }
 const WORLD_INTERNATIONAL_CORRIDORS=Object.freeze({
+ 'VN-FR-SAIGON-RICE':worldSteamshipProfile('VN-SGN','FR-MAR',ym(1907,4),12900,30,26,3,
+  'https://www.entreprises-coloniales.fr/inde-indochine/Riziculture_indochinoise.pdf'),
+ 'IR-IN-BANDARABBAS-WOOL':worldSteamshipProfile('IR-BND','IN-BOM',ym(1905,4),1850,30,26,2,
+  'https://www.qdl.qa/en/archive/81055/vdc_100076639076.0x000034'),
+ 'IN-SA-BOMBAY-JEDDAH-RICE':worldSteamshipProfile('IN-BOM','SA-JED',ym(1934,4),3600,30,26,2,
+  'https://qdl.qa/en/archive/81055/vdc_100036362871.0x00005a'),
  'CH-DE-BASEL-TEXTILES':worldInternationalRailProfile('CH-BAS','DE-FRE',ym(1906,3),165,
   'https://www.aboutswitzerland.eda.admin.ch/en/a-nation-of-railway-enthusiasts-a-history-of-the-swiss-railways'),
  'AT-DE-VIENNA-TIMBER':worldInternationalRailProfile('AT-VIE','DE-MUN',ym(1905,3),430,
@@ -14020,6 +14070,18 @@ const WORLD_INTERNATIONAL_CORRIDORS=Object.freeze({
 // the modeled capacity, distance or cost. The playable dates conservatively
 // allow time to pass after dated sources; they are not claimed opening dates.
 const WORLD_INTERNATIONAL_ROUTE_EVIDENCE=Object.freeze({
+ 'VN-FR-SAIGON-RICE':Object.freeze({untilMonth:ym(1907,6),
+  products:Object.freeze(['PRD-R23']),
+  source:'https://www.entreprises-coloniales.fr/inde-indochine/Riziculture_indochinoise.pdf',
+  operationSource:'https://georgesdeherme.fr/fileadmin/site/1_Georges_Deherme__1867-1937_/4_Bibliotheque/Monographies/Colonies__Les__Franc__aises__Paris__Union_coliale_franc__aise_s.d.__50_p/Les_Colonies_francaises_Union.pdf'}),
+ 'IR-IN-BANDARABBAS-WOOL':Object.freeze({untilMonth:ym(1905,6),
+  products:Object.freeze(['PRD-R21']),
+  source:'https://www.qdl.qa/en/archive/81055/vdc_100076639076.0x000034',
+  operationSource:'https://qdl.qa/en/archive/81055/vdc_100023282068.0x000018'}),
+ 'IN-SA-BOMBAY-JEDDAH-RICE':Object.freeze({untilMonth:ym(1934,6),
+  products:Object.freeze(['PRD-R23']),
+  source:'https://qdl.qa/en/archive/81055/vdc_100036362871.0x00005a',
+  operationSource:'https://tile.loc.gov/storage-services/service/gdc/gdclccn/a2/20/00/92/0/a22000920/a22000920.pdf'}),
  'CH-DE-BASEL-TEXTILES':Object.freeze({untilMonth:ym(1906,5),
   products:Object.freeze(['PRD-M36']),
   source:'https://upload.wikimedia.org/wikipedia/commons/4/4a/Cotton_fabrics_in_middle_Europe_-_Germany%2C_Austria-Hungary%2C_Switzerland_%28IA_cottonfabricsinm00clar_0%29.pdf',
@@ -14332,7 +14394,7 @@ const WORLD_INTERNATIONAL_REMITTANCE=Object.freeze({
   source:'https://leicester.contentdm.oclc.org/digital/api/collection/p16445coll4/id/274979/download',
   branchSource:'https://leicester.contentdm.oclc.org/digital/api/collection/p16445coll4/id/34866/download'})
 });
-const WORLD_PHASE4_TARIFF_BPS=Object.freeze({JP:350,US:300,UK:250,FR:300,DE:300,NO:250,CA:300,AU:300,NZ:300,MX:300,BR:300,AR:300,CL:300,CO:300,SE:250,NL:300,IT:300,EG:300,IN:300,ZA:250,TH:300,SG:0,CN:300,ID:300,NG:250,ES:250,PH:300,RU:300,KR:300,TR:300,MY:250,KE:250,MA:300,CH:300,AT:300,PL:250,GR:300});
+const WORLD_PHASE4_TARIFF_BPS=Object.freeze({JP:350,US:300,UK:250,FR:300,DE:300,NO:250,CA:300,AU:300,NZ:300,MX:300,BR:300,AR:300,CL:300,CO:300,SE:250,NL:300,IT:300,EG:300,IN:300,ZA:250,TH:300,SG:0,CN:300,ID:300,NG:250,ES:250,PH:300,RU:300,KR:300,TR:300,MY:250,KE:250,MA:300,CH:300,AT:300,PL:250,GR:300,VN:300,IR:300,SA:300});
 function worldInternationalTariffBps(s,country,profileId,productId){
  if(!s.world?.[country]||!Object.hasOwn(WORLD_PHASE4_TARIFF_BPS,country))
   throw Error('輸入国の関税制度が未接続です');
