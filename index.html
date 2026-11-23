@@ -11077,6 +11077,71 @@ function validateWorldExpansion(s){
  }
 }
 
+// Phase 3-A: indicative household demand only. Never post inventory, cash or revenue.
+// City-order shares are PROVISIONAL until historical weights are verified.
+function worldPhase3CityShares(market){
+ const n=market.cities.length;
+ if(n<3||n>5)throw Error('需要配分対象の都市数が不正です');
+ const each=Math.floor(6000/(n-1)),rem=6000%(n-1);
+ return market.cities.map((city,i)=>({
+  cityId:city.id,name:city.name,shareBps:i===0?4000:each+(i<=rem?1:0)
+ }));
+}
+function worldPhase3AllocateQuantity(quantity,market){
+ if(!Number.isSafeInteger(quantity)||quantity<0)throw Error('国内消費需要の数量が不正です');
+ const rows=worldPhase3CityShares(market).map((c,i)=>({
+  ...c,quantity:Math.floor(quantity*c.shareBps/10000),
+  fraction:quantity*c.shareBps%10000,order:i
+ }));
+ const remaining=quantity-rows.reduce((sum,c)=>sum+c.quantity,0);
+ const priority=[...rows].sort((a,b)=>b.fraction-a.fraction||a.order-b.order);
+ for(let i=0;i<remaining;i++)priority[i].quantity++;
+ return rows.map(({fraction,order,...row})=>row);
+}
+function worldPhase3ConsumerQuote(s,marketId,productId){
+ const market=WORLD_MARKET_BY_ID.get(marketId),product=WORLD_PRODUCT_BY_ID.get(productId);
+ if(!market||!product||product.category!=='consumer')
+  throw Error('消費需要の市場・商品IDが不正です');
+ const code=WORLD_ENGINE_BY_MARKET[marketId],world=s.worldExpansion;
+ if(!world||world.openMarkets[marketId]==null||!code||!s.world?.[code])
+  throw Error('未開放または経済計算未接続の消費市場です');
+ const w=s.world[code],recipe=WORLD_SUPPLEMENTAL_BY_ID.get(productId);
+ if(!recipe)throw Error('消費財レシピが存在しません：'+productId);
+ const available=s.year>=Math.max(recipe.year,TECH_BY_ID[recipe.tech]?.year??recipe.year);
+ const price=available?Math.max(1,Math.round(
+  localFromBase(recipe.cost*eraCostFactor(s.year),code)*
+  (1.25+clamp(w.inflation??0,-.2,.3)*.4+clamp(w.cycle??0,-.3,.3)*.2))):0;
+ const quantity=available?Math.max(0,Math.round(
+  Math.max(0,w.pop)*100*Math.max(.1,w.wealth)*
+  (1-clamp(w.unemployment??0,0,.9))*(1+clamp(w.cycle??0,-.5,.5))*
+  Math.sqrt(12/recipe.cost)/Math.max(.5,1+(w.inflation??0)))):0;
+ const cities=worldPhase3AllocateQuantity(quantity,market).map(c=>({
+  ...c,referencePrice:price?Math.max(1,Math.round(
+   price*(1+(c.shareBps*market.cities.length-10000)/100000))):0
+ }));
+ return {marketId,productId,country:code,month:ym(s.year,s.month),
+  unit:worldProductUnit(productId),available,referencePrice:price,
+  nationalQuantity:quantity,cities,status:'PROVISIONAL'};
+}
+function worldPhase3Preview(s,market,playable){
+ if(!playable)return '';
+ const quotes=WORLD_PRODUCTS.filter(p=>p.category==='consumer')
+  .map(p=>worldPhase3ConsumerQuote(s,market.id,p.id));
+ const sample=quotes.filter(q=>q.available).slice(0,4);
+ const rows=sample.map(q=>{
+  const p=WORLD_PRODUCT_BY_ID.get(q.productId);
+  return `<tr><td>${esc(p.name)}</td><td class="num">${nfmt(q.nationalQuantity)} ${esc(q.unit)}</td><td class="num">${nfmt(q.referencePrice)}</td></tr>`;
+ }).join('');
+ const cities=worldPhase3CityShares(market)
+  .map(c=>`<li>${esc(c.name)}：${(c.shareBps/100).toFixed(2)}%</li>`).join('');
+ return `<details data-phase3-market="${market.id}"><summary>Phase 3-A：国別消費需要・都市固定配分（暫定）</summary>
+  <p class="hint">30消費財の参考推計。価格は当地通貨の参考値で、受注・実在庫・売上・入金には反映しません。係数はPROVISIONALです。</p>
+  <ul>${cities}</ul>
+  <div class="scroll"><table><thead><tr><th>消費財（例）</th><th>国別月間推計</th><th>参考市場価格</th></tr></thead><tbody>${rows}</tbody></table></div>
+  <p class="hint">推計対象 ${quotes.length}品目／登場済み ${quotes.filter(q=>q.available).length}品目。保存状態から決定的に再計算します。</p>
+ </details>`;
+}
+
 function worldMarketPanel(s){
  const rows=WORLD_MARKETS.map(m=>{
   const active=s.worldExpansion.openMarkets[m.id]!==null;
@@ -11089,6 +11154,7 @@ function worldMarketPanel(s){
   return `<details class="panel span4" data-market-id="${m.id}"><summary><strong>${esc(m.name)}</strong> · ${esc(m.region)}</summary>
    <p>${active?(playable?'試作経済で稼働中':'開放確認用・経済計算は未接続'):'開放データの史実照合待ち'}</p><p>${territories.join('、')}</p>
    <h3>都市・工業地域候補</h3><ul>${m.cities.map(c=>`<li>${esc(c.name)}</li>`).join('')}</ul>
+   ${worldPhase3Preview(s,m,playable)}
    ${playable?`<button class="btn sm" data-mk-region="${code}">地域経済を開く</button>`:''}</details>`;
  });
  return `<section aria-label="40経済市場" class="grid" style="margin-bottom:16px">
