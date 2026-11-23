@@ -26,6 +26,19 @@ def main():
           const profile='JP-US-YOKOHAMA-TRANSFER';
           const advance=month=>{S.month=month;applyWorldHistory(S);syncWorldIdentities(S);};
           const routeDetail=()=>worldMapRouteDetail(S,worldMapNetwork(S).routes.find(r=>r.id===profile));
+          const mapPosition=(cargo,position,site=null)=>{
+            const snapshot=JSON.stringify(S);
+            PAGE='worldMap';render();
+            if(WORLD_MAP_SELECTED_ROUTE_ID!==profile){
+              document.querySelector('[data-world-map-select-route="'+profile+'"]').click();
+            }
+            const rows=document.querySelector('[data-world-map-shipment="'+cargo.id+'"]');
+            const markers=[...document.querySelectorAll('[data-world-map-freight-site]')];
+            return rows?.cells[4].textContent===position
+              &&markers.length===(site?1:0)
+              &&(!site||markers[0].dataset.worldMapFreightSite===site)
+              &&JSON.stringify(S)===snapshot;
+          };
           S=newWorldGame({country:'JP',name:'Shimbashi paper merchant'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';
           const closedEarly=!worldInternationalRouteAvailable(S,profile);
           S.year=1920;S.month=1;S.monthCommitted=ym(1920,1)-1;
@@ -105,6 +118,7 @@ def main():
             &&pausedHub?.reserved===8;
           const waits=cargo.transfer.arrivedAt===null&&cargo.transfer.boardedAt===null
             &&cargo.credit.dueDate==='1920-04-01'&&cargo.credit.paidAt===null;
+          const railPosition=mapPosition(cargo,'東京・京浜 [JP-TOK] → 横浜・桜木町／新港 [JP-YOK]');
           terminal.paused=false;syncPlant(seller);
           advance(4);worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
           const savedInPort=parsePayload(savePayload(S));
@@ -113,12 +127,14 @@ def main():
             &&savedInPort.worldExpansion.internationalShipments[0].transfer.arrivedAt===ym(1920,4)
             &&worldInternationalTradePanel(seller,true).includes('横浜新港で積替え待ち')
             &&routeDetail().includes('横浜新港で積替え待ち');
+          const portPosition=mapPosition(cargo,'横浜・桜木町／新港 [JP-YOK]','JP-YOK');
           const forged=structuredClone(S);forged.worldExpansion.internationalShipments[0].transfer.railDueAt--;
           const audit=rejects(()=>parsePayload(savePayload(forged)));
           advance(5);worldInternationalReceiveShipments(S);
           const boarded=cargo.transfer.boardedAt===ym(1920,5)&&cargo.dueAt===ym(1920,8)
             &&worldDomesticWarehouseReservations(S.worldExpansion,depot.id)===0&&!buyer.stock['PRD-M14']?.q
             &&routeDetail().includes('船積み済み')&&routeDetail().includes('1920年8月');
+          const seaPosition=mapPosition(cargo,'横浜・桜木町／新港 [JP-YOK] → シアトル港 [US-SEA]');
           advance(7);worldInternationalReceiveShipments(S);
           const stillOwned=cargo.status==='IN_TRANSIT'&&acc(seller,'worldShipmentStock')===cargo.bookCost;
           advance(8);worldInternationalReceiveShipments(S);
@@ -126,7 +142,8 @@ def main():
           const settled=cargo.status==='DELIVERED'&&buyer.stock['PRD-M14'].q===4
             &&buyer.stock['PRD-M14'].v===cargo.totalBuyer&&!acc(seller,'worldShipmentStock')
             &&-acc(seller,'sales')===cargo.goodsSeller&&!check(reopened).length&&!consolidate(reopened).errors.length;
-          return {closedEarly,blocked,inactiveRejected,registered,routeGatedCapacity,damagedCapacity,loaded,pausedCapacity,waits,held,audit,boarded,stillOwned,settled};
+          return {closedEarly,blocked,inactiveRejected,registered,routeGatedCapacity,damagedCapacity,loaded,pausedCapacity,waits,
+            railPosition,held,portPosition,audit,boarded,seaPosition,stillOwned,settled};
         }""")
         assert all(result.values()), result
         assert not errors, errors

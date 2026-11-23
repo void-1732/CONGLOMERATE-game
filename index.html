@@ -9406,7 +9406,7 @@ function worldMapNetwork(s=S){
   return {...site,cityId:cityId??null,
    ...(coords?{lat:coords[0],lon:coords[1],...worldMapProject(...coords)}:{})};
  });
- const bySite=new Map(sites.map(x=>[x.id,x]));
+ const bySite=new Map(sites.map(x=>[x.id,x])),month=s?ym(s.year,s.month):null;
  const routes=[...Object.entries(WORLD_DOMESTIC_CORRIDORS).map(([id,p])=>({
   id,kind:'domestic',mode:p.mode,fromId:p.from,toId:p.to,documented:true,
   name:p.name??id,opensAt:p.opensAt,distanceKm:p.km,capacityKg:p.capacity,
@@ -9417,7 +9417,9 @@ function worldMapNetwork(s=S){
  ...Object.entries(WORLD_INTERNATIONAL_CORRIDORS).map(([id,p])=>({
   id,kind:'international',mode:p.mode??'sea',fromId:p.from,toId:p.to,transfer:p.transfer,
   documented:Object.hasOwn(WORLD_INTERNATIONAL_ROUTE_EVIDENCE,id),
-  name:id,opensAt:p.opensAt,distanceKm:p.distanceKm,capacityKg:p.capacityKg,
+  name:id,opensAt:worldInternationalOpeningMonth(p,WORLD_INTERNATIONAL_ROUTE_EVIDENCE[id]),
+  untilMonth:WORLD_INTERNATIONAL_ROUTE_EVIDENCE[id]?.untilMonth,
+  distanceKm:p.distanceKm,capacityKg:p.capacityKg,
   installed:Object.values(s?.worldExpansion?.internationalRoutes??{}).filter(x=>x.profileId===id&&x.retiredAt==null).length,
   shipments:(s?.worldExpansion?.internationalShipments??[]).filter(x=>s.worldExpansion.internationalRoutes?.[x.routeId]?.profileId===id&&x.status==='IN_TRANSIT').length,
   available:!!s&&worldInternationalRouteAvailable(s,id)
@@ -9429,7 +9431,7 @@ function worldMapNetwork(s=S){
   if(points.some(point=>!Number.isFinite(point?.x)||!Number.isFinite(point?.y)))
    throw Error('地図と実物流の拠点IDが不一致：'+r.id);
  }
- return {cities,sites,routes};
+ return {cities,sites,routes,month};
 }
 function worldMapSvgLine(route){
  const color=route.mode==='rail'?'#eab75b':route.mode==='road'?'#e97373':
@@ -9582,7 +9584,7 @@ const WORLD_MAP_LAND_PATH=[
  'M322.2,22.7 378.1,24.3 359.5,28.0 366.5,28.0 348.2,33.7 329.9,35.2 334.3,35.6 332.1,36.2 334.7,37.9 320.8,42.2 326.8,43.6 318.2,45.6 289.6,44.6 289.2,43.1 295.1,42.3 293.6,39.9 304.1,41.1 294.5,38.4 303.7,35.2 297.8,32.2 314.1,31.5 295.7,31.3 282.9,26.7 302.4,24.2 309.8,25.3 312.3,23.6Z',
  'M489.3,21.4 509.3,24.0 473.9,25.7 505.4,27.3 501.9,29.2 525.5,26.7 536.9,28.7 511.9,32.4 519.3,32.6 512.9,37.1 513.0,40.8 516.9,42.9 506.6,44.1 512.5,45.9 513.3,48.7 509.9,49.0 514.0,51.8 506.9,52.1 510.6,53.4 509.6,54.6 500.6,55.1 504.6,58.8 496.7,58.3 505.2,61.2 506.4,63.8 500.7,64.4 494.3,61.3 495.4,63.5 491.6,65.3 504.5,65.6 487.2,71.0 474.3,72.2 466.6,77.0 448.6,81.0 444.2,87.5 439.0,90.1 440.3,92.7 437.2,98.7 421.6,96.2 410.8,87.0 403.3,75.3 406.5,71.4 411.3,70.2 413.2,66.2 404.9,68.4 401.0,67.3 402.1,63.3 411.6,64.1 397.3,60.5 400.9,57.5 388.5,47.8 379.9,45.9 356.8,46.0 347.5,42.9 362.4,41.7 341.4,39.5 365.7,35.0 367.0,33.8 358.3,32.6 376.8,28.6 375.5,27.2 406.3,26.8 414.8,25.0 433.5,27.5 425.9,25.7 426.4,24.3 452.4,21.3Z'
 ].join('');
-function worldMapSvg(nodes,routes){
+function worldMapSvg(nodes,routes,freightSites){
  const grid=[-120,-60,0,60,120].map(lon=>'<line x1="'+worldMapProject(0,lon).x
   +'" x2="'+worldMapProject(0,lon).x+'" y1="0" y2="594" stroke="#294969" stroke-width=".7"/>').join('')
   +[-60,-30,0,30,60].map(lat=>'<line x1="0" x2="1152" y1="'+worldMapProject(lat,0).y
@@ -9601,18 +9603,36 @@ function worldMapSvg(nodes,routes){
   .map(site=>'<circle data-world-map-site="'+esc(site.id)+'" pointer-events="none" cx="'+site.x+'" cy="'+site.y
   +'" r="3.4" fill="#eaf7fc" stroke="#0c2539" stroke-width="1"><title>'+esc(site.name)
   +' / '+esc(site.id)+'</title></circle>').join('');
+ const freightMarkers=[...new Set(freightSites)].map(site=>
+  '<circle data-world-map-freight-site="'+esc(site.id)+'" pointer-events="none" cx="'+site.x
+  +'" cy="'+site.y+'" r="7" fill="none" stroke="#ffd275" stroke-width="1.6">'
+  +'<title>'+esc(site.name)+' / 現物貨物の滞留記録</title></circle>').join('');
  return '<svg class="phase5-world-svg" viewBox="0 0 1152 594" role="group" '
   +'aria-label="世界155都市と稼働中・予定の国内国際物流路線を示すオフライン模式地図">'
   +'<rect x="0" y="0" width="1152" height="594" fill="#102d45"/>'
-  +land+grid+routes.map(worldMapSvgLine).join('')+emphasized+circles+'</svg>';
+  +land+grid+routes.map(worldMapSvgLine).join('')+emphasized+circles+freightMarkers+'</svg>';
 }
 // The detail inspector joins real route assets and shipments by their ledger IDs.
-function worldMapRouteDetail(s,r){
+function worldMapRouteShipments(s,r){
+ const w=s.worldExpansion,domestic=r.kind==='domestic';
+ const registry=(domestic?w.domesticRoutes:w.internationalRoutes)??{};
+ return ((domestic?w.domesticShipments:w.internationalShipments)??[])
+  .filter(t=>registry[t.routeId]?.profileId===r.id);
+}
+function worldMapFreightLeg(r,t){
+ if(t.status==='DELIVERED')return [r.to];
+ if(t.status!=='IN_TRANSIT')return [];
+ if(t.customs?.arrivalAt!=null)return [r.to];
+ if(!t.transfer)return [r.from,r.to];
+ if(t.transfer.boardedAt!==null)return [r.via,r.to];
+ if(t.transfer.arrivedAt!==null)return [r.via];
+ return [r.from,r.via];
+}
+function worldMapRouteDetail(s,r,shipments){
  if(!r)return '';
+ shipments??=worldMapRouteShipments(s,r);
  const w=s.worldExpansion,domestic=r.kind==='domestic',registry=domestic?w.domesticRoutes??{}:w.internationalRoutes??{};
  const assets=Object.values(registry).filter(x=>x.profileId===r.id);
- const shipments=(domestic?w.domesticShipments??[]:w.internationalShipments??[])
-  .filter(t=>registry[t.routeId]?.profileId===r.id);
  const profile=domestic?WORLD_DOMESTIC_CORRIDORS[r.id]:WORLD_INTERNATIONAL_CORRIDORS[r.id];
  const evidence=domestic?profile:WORLD_INTERNATIONAL_ROUTE_EVIDENCE[r.id];
  const source=typeof evidence?.source==='string'?evidence.source:null;
@@ -9633,9 +9653,11 @@ function worldMapRouteDetail(s,r){
     month=t.transfer.arrivedAt===null?t.transfer.railDueAt:null;
    }
   }
+  const leg=worldMapFreightLeg(r,t);
+  const position=leg.map(site=>esc(site.name)+' ['+esc(site.id)+']').join(' → ');
   return '<tr data-world-map-shipment="'+esc(t.id)+'"><td><code>'+esc(t.id)+'</code></td>'
    +'<td>'+esc(t.productId)+'</td><td>'+nfmt(t.quantity)+' kg</td><td>'+esc(stage)
-   +'</td><td>'+(month==null?'—':partContractDate(month))+'</td><td>'+esc(t.routeId)+'</td></tr>';
+   +'</td><td>'+(position||'—')+'</td><td>'+(month==null?'—':partContractDate(month))+'</td><td>'+esc(t.routeId)+'</td></tr>';
  }).join('');
  return '<section class="panel" aria-label="Phase 5 経路明細" data-world-map-detail="'+esc(r.id)+'">'
   +'<h3>経路別の実物台帳: '+esc(r.id)+'</h3>'
@@ -9643,15 +9665,18 @@ function worldMapRouteDetail(s,r){
   +esc(r.to.name)+' / '+nfmt(r.distanceKm)
   +' km / マスター積載上限 '+nfmt(r.capacityKg)+' kg。'
   +'設備や貨物の登録がない場合は架空の輸送実績を表示しません。</p>'
-  +'<p class="hint">運用条件 '+esc(worldMapRouteStatus(r))
+  +'<p class="hint">運用条件 '+esc(worldMapRouteStatus(r,ym(s.year,s.month)))
   +' / 稼働登録設備 '+r.installed+' / 輸送中件数 '+r.shipments
   +(source?' / <a href="'+esc(source)+'" target="_blank" rel="noopener noreferrer">路線・品目の史料</a>':'')+'</p>'
+  +(r.documented?'<p class="hint">ゲーム内の運行期間 '+partContractDate(r.opensAt)+'から'
+   +(r.untilMonth!=null?partContractDate(r.untilMonth-1)+'まで':'')
+   +(evidence.sailingMonths?' / 運航月 '+evidence.sailingMonths.join('・')+'月':'')+'。</p>':'')
   +'<div class="scroll"><table><thead><tr><th>実設備ID</th><th>所有会社</th><th>設備状態</th>'
   +'<th>登録状態</th></tr></thead><tbody>'+(equipment||'<tr><td colspan="4">登録設備なし</td></tr>')
   +'</tbody></table></div>'
   +'<div class="scroll"><table><thead><tr><th>輸送ID</th><th>現物品目</th><th>数量</th>'
-  +'<th>輸送・検収状況</th><th>台帳の予定・記録月</th><th>設備ID</th></tr></thead><tbody>'
-  +(freight||'<tr><td colspan="6">出荷履歴なし</td></tr>')+'</tbody></table></div>'
+  +'<th>輸送・検収状況</th><th>台帳の現在区間・到着拠点</th><th>台帳の予定・記録月</th><th>設備ID</th></tr></thead><tbody>'
+  +(freight||'<tr><td colspan="7">出荷履歴なし</td></tr>')+'</tbody></table></div>'
   +'</section>';
 }
 // Legal territory and monetary references are intentionally distinct
@@ -9696,8 +9721,9 @@ function worldMapCityBuildSites(s,cityId){
  return SITE_CATALOG.filter(site=>WORLD_SITE_CITIES[site.id]===cityId
   &&Object.hasOwn(s.world,site.country)&&siteVisibleInGame(site,s));
 }
-function worldMapRouteStatus(route){
+function worldMapRouteStatus(route,month){
  if(!route.documented)return '未接続・運航史料未登録';
+ if(route.untilMonth!=null&&month>=route.untilMonth)return '登録運行期間終了';
  if(!route.available)return '年代・航路条件待ち';
  return route.installed?'開通・設備登録あり':'開通・設備未登録';
 }
@@ -9712,13 +9738,16 @@ function worldMapTransportPanel(s){
   &&(WORLD_MAP_ACTIVITY==='all'||WORLD_MAP_ACTIVITY==='registered'&&r.installed>0
    ||WORLD_MAP_ACTIVITY==='transit'&&r.shipments>0));
  const selected=filtered.find(r=>r.id===WORLD_MAP_SELECTED_ROUTE_ID)??null;
+ const shipments=selected?worldMapRouteShipments(s,selected):[];
+ const freightSites=shipments.filter(t=>t.status==='IN_TRANSIT')
+  .map(t=>worldMapFreightLeg(selected,t)).filter(leg=>leg.length===1).flat();
  const selectedCity=network.cities.find(c=>c.id===WORLD_MAP_SELECTED_CITY_ID)??null;
  const rows=filtered.map(r=>'<tr data-world-map-route-row="'+esc(r.id)+'"><td>'
   +'<button type="button" class="btn sm" data-world-map-select-route="'+esc(r.id)
   +'" aria-pressed="'+(r.id===WORLD_MAP_SELECTED_ROUTE_ID)+'">'+esc(r.id)+'</button></td>'
   +'<td>'+esc(r.from.name)+' → '+(r.via?esc(r.via.name)+' → ':'')+esc(r.to.name)+'</td><td>'+esc(r.mode)
-  +'</td><td>'+Math.floor(r.opensAt/12)+'年</td><td class="num">'+nfmt(r.distanceKm)
-  +' km</td><td>'+esc(worldMapRouteStatus(r))
+  +'</td><td>'+(r.documented?partContractDate(r.opensAt):'—')+'</td><td class="num">'+nfmt(r.distanceKm)
+   +' km</td><td>'+esc(worldMapRouteStatus(r,network.month))
   +'</td><td class="num">'+r.installed+' / '+r.shipments+'</td></tr>').join('');
  return '<section class="panel span12" aria-label="Phase 5 オフライン交通地図">'
   +'<h2>オフライン世界地図・貨物輸送網</h2>'
@@ -9737,20 +9766,21 @@ function worldMapTransportPanel(s){
   +'<option value="">都市を選択（155地点）</option>'
   +network.cities.map(c=>'<option value="'+esc(c.id)+'"'+(c.id===WORLD_MAP_SELECTED_CITY_ID?' selected':'')+'>'
    +esc(c.name)+' / '+esc(c.id)+'</option>').join('')
-  +'</select></label></div><div class="phase5-map-frame">'+worldMapSvg(network.cities,filtered)+'</div>'
+  +'</select></label></div><div class="phase5-map-frame">'+worldMapSvg(network.cities,filtered,freightSites)+'</div>'
   +'<p class="hint">水色は海運、黄は鉄道、赤は道路、紫は航空、緑は複合輸送。'
   +'実線は年代・航路条件成立、点線は条件待ちまたは未接続。太線は登録設備、強調線は選択経路です。'
+  +'金色の輪は選択経路で積替えや通関を待つ貨物の記録拠点です。'
   +'経路が開通していても設備未登録なら出荷できません。</p>'
   +'<div class="grid">'+card('登録都市',network.cities.length+'地点','40経済市場','span3')
   +card('貨物ルート',network.routes.length+'路線','国内・国際の既存ID','span3')
   +card('表示路線',filtered.length+'路線','選択中のフィルタ','span3')
   +card('実設備登録',network.routes.reduce((n,r)=>n+r.installed,0)+'件','廃止済みを除く','span3')+'</div>'
   +'<div class="scroll"><table><thead><tr><th>経路ID・詳細</th><th>出発 → 到着</th>'
-  +'<th>方式</th><th>開始年（参考）</th><th class="num">マスター距離</th>'
+  +'<th>方式</th><th>ゲーム内期間の開始月</th><th class="num">マスター距離</th>'
   +'<th>状態</th><th class="num">設備 / 輸送中</th></tr></thead><tbody>'+rows
   +(rows?'':'<tr><td colspan="7">現在の絞込条件に該当する経路はありません。</td></tr>')
   +'</tbody></table></div>'
-  +worldMapRouteDetail(s,selected)
+  +worldMapRouteDetail(s,selected,shipments)
   +worldMapCityDetail(s,selectedCity)
   +worldMapWarehousePanel(s)
   +'<div class="row"><button type="button" class="btn" data-page="transportNetwork">輸送網管理</button>'
@@ -14828,11 +14858,14 @@ function worldInternationalProfile(id){
  if(!profile)throw Error('国際実経路の登録がありません');
  return profile;
 }
+function worldInternationalOpeningMonth(profile,evidence){
+ return Math.max(profile.opensAt,evidence?.fromMonth??profile.opensAt);
+}
 function worldInternationalRouteAvailable(s,id){
  const p=worldDomesticProfile(WORLD_INTERNATIONAL_CORRIDORS,id);
  const evidence=worldDomesticProfile(WORLD_INTERNATIONAL_ROUTE_EVIDENCE,id);
  const month=ym(s.year,s.month);
- if(!p||!evidence||month<Math.max(p.opensAt,evidence.fromMonth??p.opensAt)
+ if(!p||!evidence||month<worldInternationalOpeningMonth(p,evidence)
   ||(evidence.untilMonth!=null&&month>=evidence.untilMonth)
   ||(evidence.sailingMonths&&!evidence.sailingMonths.includes(s.month)))return false;
  return !!s.world?.[findSite(p.from)?.country]&&!!s.world?.[findSite(p.to)?.country];

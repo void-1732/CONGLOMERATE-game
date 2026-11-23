@@ -173,6 +173,24 @@ def main():
         assert '未接続・運航史料未登録' in page.locator('[data-world-map-detail="JP-US-AIR-1965"]').inner_text()
         provisional.get_by_role('button').click()
 
+        marseille = page.locator('[data-world-map-route-row="FR-UK-SEA-1900"]')
+        assert '1904年1月' in marseille.inner_text()
+        marseille.get_by_role('button').click()
+        assert 'ゲーム内の運行期間 1904年1月から' in page.locator('[data-world-map-detail="FR-UK-SEA-1900"]').inner_text()
+        marseille.get_by_role('button').click()
+        schedule = page.evaluate("""() => {
+          const state=structuredClone(S),route='JP-US-SEATTLE-STEAM';
+          state.year=1941;state.month=7;
+          const before=worldMapNetwork(state).routes.find(r=>r.id===route);
+          state.month=8;
+          const after=worldMapNetwork(state).routes.find(r=>r.id===route);
+          return before.available&&!after.available
+            &&worldMapRouteStatus(after,ym(state.year,state.month))==='登録運行期間終了'
+            &&worldMapRouteDetail(state,after).includes('1941年7月まで');
+        }""")
+        assert schedule
+        assert page.locator('[data-world-map-freight-site]').count() == 0
+
         first_route = page.locator('[data-world-map-select-route]').first
         selected_id = first_route.get_attribute("data-world-map-select-route")
         first_route.click()

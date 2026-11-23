@@ -111,6 +111,15 @@ def test_australia(page):
         &&cargo.customs.authorityId==='CUSTOMS-JP-YOK-1911'&&acc(seller,'worldShipmentStock')===cargo.bookCost
         &&!buyer.stock['PRD-R21']?.q&&worldInternationalTradePanel(buyer,true).includes('保税・通関審査中')
         &&parsePayload(savePayload(S)).worldExpansion.internationalShipments[0].customs.arrivalAt===ym(1913,9);
+      const beforeMap=JSON.stringify(S);
+      PAGE='worldMap';render();
+      document.querySelector('[data-world-map-select-route="'+profile+'"]').click();
+      const freightRow=document.querySelector('[data-world-map-shipment="'+cargo.id+'"]');
+      const bondedMap=document.querySelectorAll('[data-world-map-freight-site]').length===1
+        &&document.querySelector('[data-world-map-freight-site="JP-YOK"]')!==null
+        &&freightRow?.cells[3].textContent==='保税・通関審査中'
+        &&freightRow?.cells[4].textContent.includes('[JP-YOK]')
+        &&freightRow?.cells[5].textContent==='1913年10月'&&JSON.stringify(S)===beforeMap;
       const forged=structuredClone(S);forged.worldExpansion.internationalShipments[0].customs.releasedAt=ym(1913,9);
       let prematureRejected=false;
       try{parsePayload(savePayload(forged));}catch{prematureRejected=true;}
@@ -121,7 +130,7 @@ def test_australia(page):
         &&reopened.worldExpansion.internationalShipments[0].receivedAt===ym(1913,10)
         &&reopened.worldExpansion.internationalShipments[0].customs.releasedAt===ym(1913,10)
         &&!check(reopened).length&&!consolidate(reopened).errors.length;
-      return {migration,initiallyClosed,opened,identities,dispatch,prepaid,held,prematureRejected,settle};
+      return {migration,initiallyClosed,opened,identities,dispatch,prepaid,held,bondedMap,prematureRejected,settle};
     }""")
     assert all(result.values()), result
 
