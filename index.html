@@ -11442,7 +11442,9 @@ function worldCityLocation(s,cityId){
  const market=WORLD_MARKET_BY_ID.get(territory.marketId);
  const jurisdictionId=s.worldExpansion.territoryJurisdictions[territory.id];
  return {cityId,territoryId:territory.id,marketId:market.id,jurisdictionId,
-  marketOpen:s.worldExpansion.openMarkets[market.id]!==null};
+  // Composite markets share a market ID, not a legal jurisdiction. A city
+  // is operable only when its own territory has a registered jurisdiction.
+  marketOpen:s.worldExpansion.openMarkets[market.id]!==null&&jurisdictionId!=null};
 }
 
 function newWorldGame(setup){
