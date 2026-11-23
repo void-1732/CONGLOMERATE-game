@@ -192,7 +192,26 @@ def main():
           const changed=structuredClone(S);
           changed.worldExpansion.internationalShipments.at(-1).tariffBps++;
           const tamper=(()=>{try{parsePayload(savePayload(changed));return false}catch{return true}})();
-          return {paths,equipment,customs,retain,delivered,retained,provenance,tamper};
+          const coalBefore=seller.stock['PRD-R04'].q;
+          const sharedFuelDenied=Boolean(worldInternationalQuote(
+            S,route,'PRD-R04',coalBefore,100,buyer.id).problem);
+          const sharedFuelQuoted=!worldInternationalQuote(
+            S,route,'PRD-R04',1,100,buyer.id).problem;
+          const coalOrder=worldInternationalPlaceOrder(S,buyer.id,{
+            routeId:route.id,warehouseId:wh.id,productId:'PRD-R04',
+            quantity:1,unitPriceSeller:100,maxPaymentBuyer:100000});
+          worldInternationalActOrder(S,seller.id,coalOrder.id,'approve');
+          S.month++;
+          worldInternationalResolveOrders(S);
+          const coal=S.worldExpansion.internationalShipments.at(-1);
+          const sharedFuelDispatched=coal?.orderId===coalOrder.id
+            &&coal.status==='IN_TRANSIT'&&coal.quantity===1
+            &&coal.fuelRequired>0&&coal.fuelCost>0
+            &&seller.stock['PRD-R04'].q===coalBefore-1-coal.fuelRequired
+            &&acc(seller,'materials')>=0
+            &&worldValidateInternationalLogistics(S)&&!check(S).length;
+          return {paths,equipment,customs,retain,delivered,retained,provenance,tamper,
+            sharedFuelDenied,sharedFuelQuoted,sharedFuelDispatched};
         }""")
         assert all(multimodal.values()),multimodal
         browser.close()

@@ -13477,10 +13477,13 @@ function worldInternationalQuote(s,route,productId,quantity,unitPriceSeller,buye
   cargo=seller.stock?.[productId],fuel=seller.stock?.[profile.fuel];
  const fuelRequired=Math.ceil(profile.distanceKm*quantity/(profile.fuelScale??600));
  if(!cargo||cargo.q<quantity||!cargo.v||!fuel||fuel.q<fuelRequired||!fuel.v
+  ||(productId===profile.fuel&&cargo.q<quantity+fuelRequired)
   ||!Number.isSafeInteger(quantity)||quantity<1)
   return {problem:'国際貨物または実使用燃料が不足'};
  const bookCost=Math.round(cargo.v*quantity/cargo.q);
- const fuelCost=Math.round(fuel.v*fuelRequired/fuel.q);
+ const fuelCost=productId===profile.fuel
+  ?Math.round((cargo.v-bookCost)*fuelRequired/(cargo.q-quantity))
+  :Math.round(fuel.v*fuelRequired/fuel.q);
  const goodsSeller=quantity*unitPriceSeller,prepaidSeller=goodsSeller+fuelCost;
  const sellerRate=Math.round(s.world[seller.country].fx*100000),
   buyerRate=Math.round(s.world[buyer.country].fx*100000);
