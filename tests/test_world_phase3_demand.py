@@ -54,7 +54,7 @@ def main():
           const wealth=worldPhase3ConsumerQuote(copy,'MKT-14','PRD-C01').nationalQuantity>japan.nationalQuantity;
           copy.world.JP.inflation=.15;
           const prices=worldPhase3ConsumerQuote(copy,'MKT-14','PRD-C01').referencePrice>japan.referencePrice;
-          return {markets:WORLD_MARKETS.length===40&&opened.length===5,
+          return {markets:WORLD_MARKETS.length===40&&opened.some(m=>m.id==='MKT-27')&&opened.length===6,
             products:consumer.length===30,fixed,conserved,stable,
             available:japan.nationalQuantity>0&&japan.referencePrice>0,
             era:!years.available&&years.nationalQuantity===0&&years.referencePrice===0,

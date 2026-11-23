@@ -682,7 +682,11 @@ const POPULATION_ANCHORS={
  US:{1900:76.3,1920:106.5,1950:157.8,1980:229.5,2020:339.1},
  UK:{1900:41.5,1920:43.7,1950:49.8,1980:56.3,2020:67.3},
  DE:{1900:56.4,1920:61.2,1950:68.4,1980:78.3,2020:83.6},
- FR:{1900:38.5,1920:39.0,1950:41.8,1980:53.9,2020:67.4}
+ FR:{1900:38.5,1920:39.0,1950:41.8,1980:53.9,2020:67.4},
+ // Statistics Canada census anchors (millions), rounded only for display.
+ CA:{1891:4.833239,1901:5.371315,1911:7.206643,1921:8.787949,1931:10.376786,
+  1941:11.506655,1951:14.009429,1961:18.238247,1971:21.962032,1981:24.819915,
+  1991:28.037420,2001:31.019020,2010:34.108752}
 };
 const POP_SOURCE='https://ourworldindata.org/grapher/population';
 function anchorPopulation(code,year){const anchors=POPULATION_ANCHORS[code];if(!anchors)return null;
@@ -691,7 +695,7 @@ function anchorPopulation(code,year){const anchors=POPULATION_ANCHORS[code];if(!
  if(year>=yrs[yrs.length-1])return anchors[yrs[yrs.length-1]];
  for(let i=1;i<yrs.length;i++){if(year<=yrs[i]){const lo=yrs[i-1],hi=yrs[i];return anchors[lo]+(anchors[hi]-anchors[lo])*(year-lo)/(hi-lo);}}return null;}
 
-const NAMES={JP:'日本',US:'アメリカ',UK:'イギリス',DE:'ドイツ',FR:'フランス',NO:'ノルウェー'};
+const NAMES={JP:'日本',US:'アメリカ',UK:'イギリス',DE:'ドイツ',FR:'フランス',NO:'ノルウェー',CA:'カナダ'};
 const INITIAL_ENGINE_COUNTRIES=['JP','US','UK','DE','FR'];
 const COUNTRIES={
  JP:{currency:'JPY',fx:1,pop:44,wealth:1,wage:145,demand:115,steel:420,rubber:280,steelSupply:1100,rubberSupply:1050},
@@ -700,7 +704,9 @@ const COUNTRIES={
  DE:{currency:'DEM',fx:160,pop:55,wealth:1.10,wage:148,demand:145,steel:410,rubber:280,steelSupply:1000,rubberSupply:970},
  FR:{currency:'FRF',fx:155,pop:41,wealth:1.02,wage:147,demand:115,steel:425,rubber:290,steelSupply:900,rubberSupply:900},
  // Provisional game coefficients, independent of the sourced opening event.
- NO:{currency:'NOK',fx:14,pop:2.24,wealth:.94,wage:136,demand:13,steel:449,rubber:311,steelSupply:90,rubberSupply:80}
+ NO:{currency:'NOK',fx:14,pop:2.24,wealth:.94,wage:136,demand:13,steel:449,rubber:311,steelSupply:90,rubberSupply:80},
+ CA:{currency:'CAD',fx:110,pop:anchorPopulation('CA',1900),wealth:1.03,wage:145,demand:16,
+  steel:440,rubber:307,steelSupply:140,rubberSupply:110}
 };
 const ACCTYPE={cash:'asset',materials:'asset',materialsTransit:'asset',componentStock:'asset',componentTransit:'asset',wip:'asset',goods:'asset',goodsTransit:'asset',constructionAssets:'asset',ppe:'asset',accdep:'contra',investment:'asset',ar:'asset',loanrec:'asset',resourceRights:'asset',worldShipmentStock:'asset',worldImportDutyPrepaid:'asset',worldInternationalReceivable:'asset',worldStoredStock:'asset',worldInsuranceReserve:'asset',worldInsurancePrepaid:'asset',worldTravelAdvance:'asset',worldBankDeposits:'asset',worldBankReserve:'asset',worldSupplierAdvances:'asset',partReceivable:'asset',partPayable:'liability',worldCustomerAdvances:'liability',worldInternationalPayable:'liability',worldInternationalDutyPayable:'liability',worldInsuranceUnearned:'liability',worldDemandDeposits:'liability',payable:'liability',wagesDue:'liability',debt:'liability',interestDue:'liability',taxDue:'liability',capital:'equity',treasuryStock:'contraEquity',sales:'revenue',serviceRevenue:'revenue',otherRevenue:'revenue',cogs:'expense',labor:'expense',rndExpense:'expense',advert:'expense',maintenance:'expense',interestExpense:'expense',depreciation:'expense',taxExpense:'expense',fxLoss:'expense',otherExpense:'expense'};
 const PAGES={dashboard:'経営概況',marketOwn:'自社グループ市場分析',market:'世界市場分析',product:'製品・開発',factory:'工場・調達',people:'研究・人事',finance:'財務・資金',group:'企業グループ',consolidated:'連結財務三表',reports:'月次レポート',save:'保存・設定'};
@@ -1478,7 +1484,8 @@ const INDUSTRIAL_SITES={
 const SITE_CATALOG=[
  ...Object.entries(INDUSTRIAL_SITES).flatMap(([country,rows])=>rows.map(([id,name,land,wage,infra,labor,freight])=>(
   {id,country,name,land,wage,infra,labor,freight}))),
- ...[['US-SEA','US','シアトル港'],['UK-NORTHSHIELDS','UK','ノースシールズ港']].map(([id,country,name])=>(
+ ...[['US-SEA','US','シアトル港'],['UK-NORTHSHIELDS','UK','ノースシールズ港'],
+  ['CA-MTL','CA','モントリオール港']].map(([id,country,name])=>(
   {id,country,name,land:1,wage:1,infra:1,labor:1,freight:1,worldOnly:true}))
 ];
 const findSite=id=>SITE_CATALOG.find(x=>x.id===id);
@@ -1801,8 +1808,9 @@ function seedEngineMarket(code,year){
   wealth:p.wealth*(year<1960?1:1.3),demand,cycle:0,inflation:.02,rate:.04,confidence:.8,
   steelPrice:p.steel,rubberPrice:p.rubber,unemployment:.06,industrial:1,war:false};
 }
-function blankWorld(year){
- return Object.fromEntries(INITIAL_ENGINE_COUNTRIES.map(code=>[code,seedEngineMarket(code,year)]));
+function blankWorld(year,world=false){
+ const initial=world?worldInitialEngineCountries(WORLD_MARKET_REGISTRY_VERSION):INITIAL_ENGINE_COUNTRIES;
+ return Object.fromEntries(initial.map(code=>[code,seedEngineMarket(code,year)]));
 }
 
 /* GAMEPLAY v0.8 / G1-A G5-C H3-C (incremental), experimental coefficients.
@@ -2378,7 +2386,7 @@ function groupSynergyPanel(f){const g=enterpriseSynergy(S,f);const members=contr
 function competitorEcosystemPanel(){ensureV10(S);const last=S.competition.history.slice(-8).reverse();const firms=S.firms;const active=firms.filter(f=>f.lifecycle?.phase!=='withdrawn');return `<section class="panel span12"><h2>競合企業の創業・成長・市場退出（v0.9）</h2><div class="grid">${card('全法人',nfmt(firms.length)+'社','買収済み・撤退法人を含む','span3')}${card('市場参加中',nfmt(active.length)+'社','現役の独立企業・子会社','span3')}${card('市場撤退',nfmt(firms.length-active.length)+'社','会計台帳と株主情報は保持','span3')}${card('新規参入',nfmt(S.competition.entryCount||0)+'社','開始後の参入実績','span3')}</div><div class="scroll"><table><thead><tr><th>企業</th><th>国</th><th>業種</th><th>戦略</th><th>経営状態</th><th class="num">月次損益</th></tr></thead><tbody>${firms.map(f=>`<tr><td>${esc(f.name)}</td><td>${NAMES[f.country]}</td><td>${industryName(f.industry)}</td><td>${strategyName(f.strategy)}</td><td>${f.lifecycle?.phase==='withdrawn'?tag('市場退出','warn'):f.distress.stage>=2?tag('資金難','warn'):tag('稼働','good')}</td><td class="num">${fnum(f,f.monthly.profit)}</td></tr>`).join('')}</tbody></table></div>${last.length?`<h3>直近の企業動向</h3>${last.map(x=>`<div class="notice">${esc(x.text)}</div>`).join('')}`:''}<p class="hint">独立企業は業績・資金状態に応じ設備へ再投資し、毎年の参入候補が市場に参加します。深刻な資金難が続く企業は市場退出しますが、法人や債務は削除しません。競合の倒産法制・精緻な資本再建は未実装です。</p></section>${rivalStrategyPanel()}`;}
 
 function newGame(cfg){const era=Number(cfg.era),capitalBase=Math.round((era<1930?2400000:era<1960?4200000:era<1990?7000000:12000000)*Math.pow(eraCostFactor(era),.70)*(cfg.difficulty==='easy'?1.6:cfg.difficulty==='hard'?.7:1));
- const s={schema:VERSION,year:era,month:1,startYear:era,seq:1,rng:390182+(era*101),config:{...cfg},world:blankWorld(era),firms:[],playerId:'',history:[],notices:[],reports:[],lastReport:null,monthCommitted:ym(era,1)-1,autosaveState:'未保存',started:true,worldEffects:{},monthEvents:[]};
+ const s={schema:VERSION,year:era,month:1,startYear:era,seq:1,rng:390182+(era*101),config:{...cfg},world:blankWorld(era,cfg.scenario==='world'),firms:[],playerId:'',history:[],notices:[],reports:[],lastReport:null,monthCommitted:ym(era,1)-1,autosaveState:'未保存',started:true,worldEffects:{},monthEvents:[]};
  const f=initFirm(s,{name:cfg.name.trim()||'東亜自動車工業',country:cfg.country,player:true,seedBase:capitalBase,size:1.2,strategy:'balanced'});s.playerId=f.id;ensureSupplyNetwork(s);for(const firm of s.firms)ensureNetwork(firm,s);
  const others=[{name:'日本交通機械',c:'JP',size:1.05,strategy:'quality'},{name:'North Atlantic Motors',c:'US',size:1.8,strategy:'growth'},{name:'Albion Motor Works',c:'UK',size:1,strategy:'profit'},{name:'Continental Automobil',c:'DE',size:1.15,strategy:'tech'},{name:'Automobiles Lumière',c:'FR',size:.95,strategy:'balanced'},{name:'東亜物産',c:'JP',industry:'trade',size:.48,strategy:'profit'}];
  for(const o of others)initFirm(s,{name:o.name,country:o.c,industry:o.industry||'auto',size:o.size,seedBase:Math.round((o.industry?350000:2400000*o.size)*eraCostFactor(s.year)),strategy:o.strategy});
@@ -6194,6 +6202,7 @@ function flushSafetySnapshotV037(){
 function parsePayload(raw){if(typeof raw!=='string')throw Error('保存データが存在しません');const obj=JSON.parse(raw);if(obj.format!=='CONGLOMERATE'||obj.version!==SAVE_FORMAT_VERSION)throw Error('対応しない保存形式です');if(hash(obj.payload)!==obj.checksum)throw Error('チェックサム不一致');const s=JSON.parse(obj.payload);
  validateWorldExpansion(s);
  if(s.config?.scenario==='world'){
+  upgradeWorldMarketRegistry(s);
   const errs=check(s);
   if(errs.length)throw Error(errs.slice(0,3).join(' / '));
   return s;
@@ -7342,7 +7351,7 @@ function savePage(){const active=SAVE_INDEX.active,gen=SAVE_INDEX.auto.map(inspe
 function sectionPanel(){return sectionTabs();}
 function render(){if(!S){document.getElementById('content').innerHTML='';document.getElementById('modalHost').innerHTML=wizardHTML();document.getElementById('topCompany').textContent='ゲーム未開始';document.getElementById('topDate').textContent='開始シナリオを選択';document.getElementById('companySelect').innerHTML='';document.getElementById('regionSelect').innerHTML='';return}if(!isActiveCorporateFirm(current()))VIEW_FIRM=S.playerId;const f=current();document.getElementById('topCompany').textContent=f.name;document.getElementById('topDate').textContent=`${dateKey()} ｜ ${NAMES[f.country]} ｜ ${industryName(f.industry)}`;document.getElementById('companySelect').innerHTML=S.firms.filter(isActiveCorporateFirm).map(x=>`<option value="${esc(x.id)}" ${VIEW_FIRM===x.id?'selected':''}>${esc(x.name)}${controller(S,x.id)?'':' (参照)'}</option>`).join('');document.getElementById('regionSelect').innerHTML=Object.keys(S.world).map(c=>`<option value="${c}" ${VIEW_COUNTRY===c?'selected':''}>${NAMES[c]}</option>`).join('');document.querySelectorAll('[data-section]').forEach(x=>x.classList.toggle('active',x.dataset.section===sectionOf(PAGE)));const html={dashboard:dashboard,marketOverview:marketOverviewV025,marketRegion:marketRegionV025,marketRivals:marketRivalsV025,marketOwn:groupMarketPage,marketExport:marketExportPage,market:worldPopulationPage,distribution:distributionPages,worldMap:worldMapPage,worldPolicy:worldPolicyPage,worldInfrastructure:worldInfrastructurePage,product:productPage,factory:factoryPage,facilityBusiness:facilityBusinessPage,facilityExpansion:facilityExpansionPage,facilityProduction:facilityProductionPage,facilityMaintenance:facilityMaintenancePage,supply:logisticsSupplyPage,supplyContracts:supplyContractsPage,transportNetwork:transportNetworkPage,logisticsHubs:logisticsHubsPage,logisticsDelivery:logisticsDeliveryPage,people:peoplePage,research:researchPageStep2,hr:hrPageStep2,finance:financePage,group:groupPage,corporateSubsidiaries:corporateSubsidiariesPage,corporateMerger:corporateMergerPage,corporateHoldings:corporateHoldingsPage,automation:automationPage,consolidated:consolidatedPage,ma:maPage,capital:capitalPage,reports:reportsPage,save:savePage,...STEP3_PAGE_RENDERERS,managementNotices:managementNoticesPage,financeFunding:financeFundingPage}[PAGE];document.getElementById('content').innerHTML=sectionPanel()+monthDiagnosticBanner()+html();document.getElementById('modalHost').innerHTML=monthlyPreview?monthModal():(MONTH_DIAGNOSTIC_OPEN?monthDiagnosticDialog():'');if(PAGE==='product')designPreview();if(FACILITY_DETAIL_PAGES.includes(PAGE)){if(PAGE==='facilityExpansion')factorySitePreview();filterFactoryList();if(PAGE==='facilityProduction')setupFactoryDetailsV026();}document.getElementById('nextMonthBtn').disabled=S.monthCommitted===ym(S.year,S.month)}
 function monthModal(){const issues=checkMonthPreview(),f=current();return `<div class="modalwrap"><div class="modal" role="dialog" aria-modal="true"><div class="eyebrow">MONTH-END / PRE-FLIGHT</div><h1>${dateKey()}の月末処理</h1><p class="muted">処理前チェックは確定状態を変更しません。実行後は当月を固定順序で計算し、資源・会計の整合性を検証して結果を確定します。</p><div class="grid">${card('対象',esc(dateKey()),'月次一括処理','span4')}${card('支配下法人',controlled().length+'社','計算は全世界の企業を含む','span4')}${card('現金残高',fnum(f,financials(f).cash),'現在選択中の法人','span4')}</div><h2 style="margin-top:20px">事前確認・警告</h2>${issues.length?issues.map(v=>`<div class="notice">${tag('注意','warn')}　${esc(v)}</div>`).join(''):`<div class="note">現時点の計画に重大な資源警告は見つかりませんでした。価格変化や供給不足など、実際の月末処理で決定される結果もあります。</div>`}<div class="note warnbox" style="margin-top:15px">数値計算は試作係数に基づきます。正式SPEC-095以降の計算方式は未確定です。処理失敗時は計算前の状態を保護します。</div><div class="footer"><button class="btn" data-action="cancelMonth">計画に戻る</button><button class="btn primary" data-action="runMonth">この月を確定する</button></div></div></div>`}
-function wizardHTML(){const stepLabels=['開始年代','創業市場','会社名','創業条件確認'];return `<div class="modalwrap"><div class="modal" role="dialog" aria-modal="true"><div class="eyebrow">NEW GAME / STEP ${wizard+1} OF 4</div><h1>新しい企業経営を始める</h1>${saveWarning?`<div class="note warnbox"><b>保存・復元に関する注意</b><p>${esc(saveWarning)}</p><button class="btn" data-action="import">JSONバックアップを読み込んで復元する</button></div>`:''}<p class="muted small">自動車メーカーを創業する試作版です。利用できる市場は既存の試作経済を使用します。都市・初期経済値・開放データには検証中の項目があります。</p><div class="steps">${stepLabels.map((x,i)=>`<span class="${i<=wizard?'on':''}" title="${x}"></span>`).join('')}</div>${wizard===0?`<h2>1. 開始年代</h2><div class="choices">${[1900].map(y=>`<label class="choice"><input type="radio" name="era" value="${y}" ${setup.era===y?'checked':''}><b>${y}年</b><span class="small muted">${y===1900?'工業化初期・自動車市場の草創期':y===1920?'自動車普及期':y===1950?'戦後産業復興期':y===1980?'世界市場拡大期':'現代のグローバル市場'}</span></label>`).join('')}</div>`:wizard===1?`<h2>2. 創業市場</h2><div class="choices">${INITIAL_ENGINE_COUNTRIES.map(c=>`<label class="choice"><input type="radio" name="country" value="${c}" ${setup.country===c?'checked':''}><b>${NAMES[c]}</b><span class="small muted">通貨：${WORLD_ENGINE_CURRENCIES[c].slice(4)} / 人口基準値 ${nfmt(anchorPopulation(c,setup.era))}百万人</span></label>`).join('')}</div>`:wizard===2?`<h2>3. 会社名</h2><div class="formgrid"><div class="field"><label>会社名</label><input id="wizardName" maxlength="38" value="${esc(setup.name)}"></div></div><div class="note" style="margin-top:20px">史実モードは主要な歴史イベントを扱い、景気循環は固定日付では発生しません。現段階ではイベントや歴史的国境・通貨の厳密再現は未完成です。</div>`:`<h2>4. 創業条件の確認</h2><div class="statrow">${[['会社名',esc(setup.name)],['開始年月',setup.era+'年1月'],['創業国',NAMES[setup.country]],['歴史モード',setup.history==='historical'?'史実':'仮想'],['初期資本（円相当）',nfmt((setup.era<1930?2400000:setup.era<1960?4200000:setup.era<1990?7000000:12000000)*(setup.difficulty==='easy'?1.6:setup.difficulty==='hard'?.7:1))]].map(([k,v])=>`<div><div class="label">${k}</div><strong>${v}</strong></div>`).join('')}</div><div class="note warnbox" style="margin-top:20px">人口は史実推計の概数を基準値に採用（${nfmt(anchorPopulation(setup.country,setup.era))}百万人）。現在の国境に対応した人口推計であり、当時の国境・通貨を再現するものではありません。為替・価格・需要は試作値です。</div>`}<div class="footer"><button class="btn" data-action="wizardBack" ${wizard===0?'disabled':''}>戻る</button><button class="btn primary" data-action="wizardNext">${wizard===3?'この条件で創業する':'次へ進む ▸'}</button></div></div></div>`}
+function wizardHTML(){const stepLabels=['開始年代','創業市場','会社名','創業条件確認'];return `<div class="modalwrap"><div class="modal" role="dialog" aria-modal="true"><div class="eyebrow">NEW GAME / STEP ${wizard+1} OF 4</div><h1>新しい企業経営を始める</h1>${saveWarning?`<div class="note warnbox"><b>保存・復元に関する注意</b><p>${esc(saveWarning)}</p><button class="btn" data-action="import">JSONバックアップを読み込んで復元する</button></div>`:''}<p class="muted small">自動車メーカーを創業する試作版です。利用できる市場は既存の試作経済を使用します。都市・初期経済値・開放データには検証中の項目があります。</p><div class="steps">${stepLabels.map((x,i)=>`<span class="${i<=wizard?'on':''}" title="${x}"></span>`).join('')}</div>${wizard===0?`<h2>1. 開始年代</h2><div class="choices">${[1900].map(y=>`<label class="choice"><input type="radio" name="era" value="${y}" ${setup.era===y?'checked':''}><b>${y}年</b><span class="small muted">${y===1900?'工業化初期・自動車市場の草創期':y===1920?'自動車普及期':y===1950?'戦後産業復興期':y===1980?'世界市場拡大期':'現代のグローバル市場'}</span></label>`).join('')}</div>`:wizard===1?`<h2>2. 創業市場</h2><div class="choices">${worldInitialEngineCountries(WORLD_MARKET_REGISTRY_VERSION).map(c=>`<label class="choice"><input type="radio" name="country" value="${c}" ${setup.country===c?'checked':''}><b>${NAMES[c]}</b><span class="small muted">通貨：${WORLD_ENGINE_CURRENCIES[c].slice(4)} / 人口基準値 ${nfmt(anchorPopulation(c,setup.era))}百万人</span></label>`).join('')}</div>`:wizard===2?`<h2>3. 会社名</h2><div class="formgrid"><div class="field"><label>会社名</label><input id="wizardName" maxlength="38" value="${esc(setup.name)}"></div></div><div class="note" style="margin-top:20px">史実モードは主要な歴史イベントを扱い、景気循環は固定日付では発生しません。現段階ではイベントや歴史的国境・通貨の厳密再現は未完成です。</div>`:`<h2>4. 創業条件の確認</h2><div class="statrow">${[['会社名',esc(setup.name)],['開始年月',setup.era+'年1月'],['創業国',NAMES[setup.country]],['歴史モード',setup.history==='historical'?'史実':'仮想'],['初期資本（円相当）',nfmt((setup.era<1930?2400000:setup.era<1960?4200000:setup.era<1990?7000000:12000000)*(setup.difficulty==='easy'?1.6:setup.difficulty==='hard'?.7:1))]].map(([k,v])=>`<div><div class="label">${k}</div><strong>${v}</strong></div>`).join('')}</div><div class="note warnbox" style="margin-top:20px">人口は史実推計の概数を基準値に採用（${nfmt(anchorPopulation(setup.country,setup.era))}百万人）。現在の国境に対応した人口推計であり、当時の国境・通貨を再現するものではありません。為替・価格・需要は試作値です。</div>`}<div class="footer"><button class="btn" data-action="wizardBack" ${wizard===0?'disabled':''}>戻る</button><button class="btn primary" data-action="wizardNext">${wizard===3?'この条件で創業する':'次へ進む ▸'}</button></div></div></div>`}
 async function wizardNext(){if(S)return;if(wizard===0)setup.era=1900;if(wizard===1)setup.country=document.querySelector('input[name="country"]:checked')?.value||'JP';if(wizard===2){setup.history='historical';setup.difficulty='normal';setup.name=(inputValue('wizardName')||'').trim().slice(0,38)||'新規自動車メーカー'}if(wizard<3){wizard++;render();return}try{S=newWorldGame(setup);LAST_MONTH_DIAGNOSTIC=null;MONTH_DIAGNOSTIC_OPEN=false;VIEW_FIRM=S.playerId;VIEW_COUNTRY=setup.country;PAGE='dashboard';render();const saved=await saveAuto();render();toast(saved?'創業しました。IndexedDBに自動保存しました。':'創業しましたが、自動保存に失敗しました。JSONバックアップを保存してください。')}catch(e){S=null;toast('創業設定エラー：'+e.message);console.error(e)}}
 function actions(action,elem){if(MONTH_RUNNING){toast('月次処理中です。保存・計算の確定を進めています。');return;}if(action==='wizardNext')return wizardNext();if(action==='wizardBack'){wizard=Math.max(0,wizard-1);return render()}if(action==='import'){document.getElementById('importFile').click();return;}if(!S)return;switch(action){case 'previewMonth':monthlyPreview=true;return render();case 'cancelMonth':monthlyPreview=false;return render();case 'runMonth':return runMonth();case 'monthDiagnosticShow':case 'monthDiagnosticDismiss':case 'monthDiagnosticCopy':case 'monthDiagnosticDownload':case 'monthDiagnosticJump':return monthlyDiagAction(action);case 'staffToHrV023':PEOPLE_VIEW='hr';PAGE='people';render();return;case 'goProductionV023':PRODUCT_VIEW='production';PAGE='product';render();return;case 'setPlan':return setPlan();case 'createGrade':return createGrade();case 'saveQualityPolicy':return saveQualityPolicy();case 'recallModel':return recallModel(elem.dataset.modelId);case 'changeBudget':return changeBudget();case 'researchFocusSave':return researchFocusSave();case 'roadmapAdd':return roadmapAdd(elem.dataset.techId);case 'roadmapRemove':return roadmapRemove(elem.dataset.techId);case 'roadmapToggle':return roadmapToggle();case 'hireStaff':return hireStaff();case 'partOrderPlace':case 'partOrderDispatch':case 'partOrderCancel':return partTradeAction(action,elem.dataset.id);case 'bomAssemblySave':case 'bomLineSave':case 'bomShipment':return bomFactoryAction(action,elem.dataset.id);case 'lineReview':case 'linePropose':case 'lineApprove':case 'lineCancel':return lineUIAction(action,elem);case 'partLicensePropose':case 'partLicenseApprove':case 'partLicenseEnd':case 'partDevelopmentPropose':case 'partDevelopmentApprove':case 'partDevelopmentEnd':return partContractsAction(action,elem.dataset.id);case 'partFamily':case 'partRevise':case 'partSubmit':case 'partBomCreate':case 'partBomOpen':case 'partBomSave':case 'partBomApprove':return partDesignAction(action,elem.dataset.id);case 'partRepair':return partRepairAction(elem.dataset.id,Number(elem.dataset.index));case 'engineeringTraining':case 'engineeringPropose':case 'engineeringApprove':case 'engineeringAllocate':case 'engineeringPause':case 'engineeringCancel':return engineeringAction(action,elem.dataset.id);case 'hrSave':return saveHRPolicy();case 'hrNegotiate':return negotiateLabor();case 'maintain':return maintain();case 'expand':return expand();case 'develop':return develop();case 'renewModel':return startModelRevision();case 'discontinueModel':return discontinueModelAction(elem.dataset.modelId);case 'maFilter':return maFilter();case 'maSelect':return maSelect(elem.dataset.id);case 'integratedShareOpen':return integratedShareOpen(elem.dataset.targetId,elem.dataset.successorId);case 'integratedShareBuy':return integratedShareBuy(elem.dataset.targetId,elem.dataset.sourceId);case 'maQuote':return maPreview();case 'maCorpFill':return corpShareFill();case 'maCorpQuote':return corpSharePreview();case 'maCorpBuy':return corpShareBuy();case 'maFillAvailable':return maFillAvailable();case 'maBuy':return maBuy();case 'maIntegrate':return maStartIntegration();case 'issueShares':return issueSharesUI();case 'buyBackSharesV0271':return buyBackSharesUI();case 'cancelTreasurySharesV0271':return cancelTreasurySharesUI();case 'negPreview':return negotiationPreview();case 'buyStake':return buyNegotiatedStake();case 'saveDelegate':return saveDelegationPolicy();case 'designPreview':return designPreview();case 'openSupplyContracts':return openSupplyContracts();case 'saveSupply':return saveSupply();case 'saveDistribution':return saveDistribution();case 'establishSalesCorp':return establishSalesCorporation();case 'factoryBuild':return factoryBuild();case 'factoryManageV21':return manageFactoryV21(elem.dataset.plantId);case 'factoryModeV21':return saveFactoryModeV21();case 'moduleShipV21':return shipModuleV21();case 'v21RouteSave':return saveRoutesV21();case 'partsPlan':try{return partPlanning()}catch(e){toast(e.message);return}case 'shipParts':return shipInterplant();case 'reorgTransfer':return transferBusinessUI();case 'reorgIntegrate':return integrateBusinessUI();case 'mergeSibling':return mergeWhollyOwnedSubsidiariesUI();case 'mergeParentSub':return mergeParentSubsidiaryUI();case 'cancelGroupMerger':return cancelGroupMergerUI(elem.dataset.id);case 'plantSettings':return plantSettings();case 'maintainPlant':return maintainPlant();case 'researchChoose':return researchChoose();case 'startTech':return startTech(elem.dataset.techId);case 'cancelTech':return cancelTech(elem.dataset.techId);case 'borrow':return borrow();case 'spendAd':return spendAd();case 'createSub':return createSub();case 'renameCompany':return renameCompany();case 'renamePlant':return renamePlant(elem.dataset.plantId);case 'factoryRouteSaveOne':return saveFactoryRouteOne(elem.dataset.plantId);case 'factoryManageSelected':return manageFactoryV21(elem.dataset.plantId,document.getElementById('factoryOneAction')?.value);case 'acquire':return acquire(elem.dataset.id);case 'groupLoan':return groupLoan();case 'groupSale':return groupSale();case 'diagnoseStorage':return diagnoseStorage();case 'saveManual':return saveManual();case 'loadManualArchive':return loadManualArchiveV014(elem.dataset.key);case 'manualSavePrev':MANUAL_SAVE_PAGE=Math.max(0,MANUAL_SAVE_PAGE-1);return render();case 'manualSaveNext':MANUAL_SAVE_PAGE++;return render();case 'loadManual':{const i=Number(elem.dataset.slot);if(confirm('現在の未保存変更を破棄し、手動保存'+(i+1)+'を読み込みますか？'))return restore(SAVE_INDEX.manual[i]?.serialized);return}case 'loadAutoSlot':{const i=Number(elem.dataset.slot);if(confirm('自動保存世代'+(i+1)+'を読み込みますか？'))return restore(SAVE_INDEX.auto[i]?.serialized);return}case 'export':try{fileDownload(`conglomerate_${S.year}_${S.month}.json`,savePayload(S));toast('JSONバックアップを書き出しました')}catch(e){toast('書き出しに失敗：'+e.message)}return;case 'import':document.getElementById('importFile').click();return;case 'newGame':if(confirm('現在のセッションを終了し、新しいゲームを開始しますか？ 保存済みデータは削除しません。')){S=null;wizard=0;monthlyPreview=false;PAGE='dashboard';render()}return;}}
 document.addEventListener('click',e=>{const target=e.target.closest('[data-corp-open]');if(!S||!target)return;const id=target.dataset.corpOpen;if(!controlled().some(x=>x.id===id))return;VIEW_FIRM=id;PAGE=target.dataset.corpPage||'corporateSubsidiaries';render();});
@@ -10933,8 +10942,23 @@ const WORLD_MARKETS=JSON.parse(document.getElementById('world-market-catalog').t
 const WORLD_MARKET_BY_ID=new Map(WORLD_MARKETS.map(m=>[m.id,m]));
 const WORLD_TERRITORIES=new Map(WORLD_MARKETS.flatMap(m=>m.territories.map(t=>[t.id,{...t,marketId:m.id}])));
 const WORLD_CITIES=new Map(WORLD_MARKETS.flatMap(m=>m.cities.map(c=>[c.id,c])));
-const WORLD_ENGINE_TERRITORY={UK:'TER-01-01',FR:'TER-02-01',DE:'TER-03-01',NO:'TER-11-01',JP:'TER-14-01',US:'TER-26-01'};
-const WORLD_ENGINE_CURRENCIES={UK:'CUR-GBP',FR:'CUR-EUR',DE:'CUR-EUR',NO:'CUR-NOK',JP:'CUR-JPY',US:'CUR-USD'};
+// Registry version zero is the saved pre-expansion world (five initial economies).
+// New onboarding data is additive and does not change the original scenario.
+const WORLD_MARKET_REGISTRY_VERSION=1;
+const WORLD_MARKET_ONBOARDING=Object.freeze({
+ CA:Object.freeze({introducedIn:1,territoryId:'TER-27-01',currencyId:'CUR-CAD',jurisdictionId:'JUR-CA',
+  jurisdictionSource:'https://www.canada.ca/en/immigration-refugees-citizenship/corporate/publications-manuals/discover-canada/read-online/canadas-history.html',
+  currencySource:'https://www.bankofcanada.ca/wp-content/uploads/2010/07/1841-71.pdf',
+  populationSource:'https://www150.statcan.gc.ca/n1/pub/11-402-x/2011000/chap/pop/tbl/tbl01-eng.htm'})
+});
+function worldInitialEngineCountries(registryVersion){
+ return [...INITIAL_ENGINE_COUNTRIES,...Object.entries(WORLD_MARKET_ONBOARDING)
+  .filter(([,profile])=>profile.introducedIn<=registryVersion).map(([code])=>code)];
+}
+const WORLD_ENGINE_TERRITORY={UK:'TER-01-01',FR:'TER-02-01',DE:'TER-03-01',NO:'TER-11-01',JP:'TER-14-01',US:'TER-26-01',
+ ...Object.fromEntries(Object.entries(WORLD_MARKET_ONBOARDING).map(([code,row])=>[code,row.territoryId]))};
+const WORLD_ENGINE_CURRENCIES={UK:'CUR-GBP',FR:'CUR-EUR',DE:'CUR-EUR',NO:'CUR-NOK',JP:'CUR-JPY',US:'CUR-USD',
+ ...Object.fromEntries(Object.entries(WORLD_MARKET_ONBOARDING).map(([code,row])=>[code,row.currencyId]))};
 const WORLD_CURRENCIES=new Set(Object.values(WORLD_ENGINE_CURRENCIES));
 const WORLD_JURISDICTIONS=new Map([
  ['JUR-UK',{name:'イギリス',currencyId:'CUR-GBP'}],
@@ -10944,7 +10968,10 @@ const WORLD_JURISDICTIONS=new Map([
  ['JUR-US',{name:'アメリカ',currencyId:'CUR-USD'}],
  ['JUR-IE',{name:'アイルランド自由国',currencyId:'CUR-EUR'}],
  ['JUR-NO-UNION',{name:'ノルウェー（スウェーデンとの同君連合）',currencyId:'CUR-NOK'}],
- ['JUR-NO',{name:'ノルウェー',currencyId:'CUR-NOK'}]
+ ['JUR-NO',{name:'ノルウェー',currencyId:'CUR-NOK'}],
+ ...Object.entries(WORLD_MARKET_ONBOARDING).map(([code,row])=>[
+  row.jurisdictionId,{name:NAMES[code],currencyId:row.currencyId,source:row.jurisdictionSource}
+ ])
 ]);
 const WORLD_INITIAL_JURISDICTIONS={...Object.fromEntries(
  INITIAL_ENGINE_COUNTRIES.map(code=>[WORLD_ENGINE_TERRITORY[code],'JUR-'+code])
@@ -10954,7 +10981,7 @@ const WORLD_SITE_CITIES={
  'US-CHI':'CITY-26-03','US-LAX':'CITY-26-04','UK-LON':'CITY-01-01',
  'DE-RUH':'CITY-03-03','DE-BER':'CITY-03-01','DE-HAM':'CITY-03-02',
  'FR-PAR':'CITY-02-01','FR-LYO':'CITY-02-02','FR-MAR':'CITY-02-03',
- 'NO-OSL':'CITY-11-01','NO-BGO':'CITY-11-02','NO-TRD':'CITY-11-03'
+ 'NO-OSL':'CITY-11-01','NO-BGO':'CITY-11-02','NO-TRD':'CITY-11-03','CA-MTL':'CITY-27-03'
 };
 const WORLD_LOCATIONS=new Map(SITE_CATALOG.map(site=>[
  'LOC-'+site.id,{id:'LOC-'+site.id,territoryId:WORLD_ENGINE_TERRITORY[site.country],cityId:WORLD_SITE_CITIES[site.id]??null}
@@ -11019,6 +11046,12 @@ function validateWorldCatalog(){
    if(!city||city.territoryId!==location.territoryId)fail('工業立地の都市リンク '+site.id);
   }
  }
+ for(const [code,row] of Object.entries(WORLD_MARKET_ONBOARDING)){
+  if(!Number.isSafeInteger(row.introducedIn)||row.introducedIn<1||row.introducedIn>WORLD_MARKET_REGISTRY_VERSION
+   ||!COUNTRIES[code]||!WORLD_LOCATIONS.has('LOC-'+homeSite(code).id)
+   ||!['jurisdictionSource','currencySource','populationSource'].every(key=>/^https:\/\//.test(row[key])))
+   fail('追加市場の根拠または拠点 '+code);
+ }
  for(const [code,territoryId] of Object.entries(WORLD_ENGINE_TERRITORY)){
   const territory=WORLD_TERRITORIES.get(territoryId);
   if(!territory||WORLD_ENGINE_BY_MARKET[territory.marketId]!==code)fail('旧経済市場リンク '+code);
@@ -11060,11 +11093,14 @@ function newWorldGame(setup){
  return state;
 }
 
-function makeWorldExpansion(){
+function makeWorldExpansion(registryVersion=WORLD_MARKET_REGISTRY_VERSION){
+ const added=Object.values(WORLD_MARKET_ONBOARDING).filter(row=>row.introducedIn<=registryVersion);
+ const jurisdictions={...WORLD_INITIAL_JURISDICTIONS,...Object.fromEntries(added.map(row=>[row.territoryId,row.jurisdictionId]))};
+ const initial=new Set(worldInitialEngineCountries(registryVersion));
  return {
-  catalogVersion:WORLD_CATALOG_VERSION,
-  territoryJurisdictions:Object.fromEntries([...WORLD_TERRITORIES.keys()].map(id=>[id,WORLD_INITIAL_JURISDICTIONS[id]??null])),
-  openMarkets:Object.fromEntries(WORLD_MARKETS.map(m=>[m.id,INITIAL_ENGINE_COUNTRIES.includes(WORLD_ENGINE_BY_MARKET[m.id])?WORLD_START_MONTH:null])),
+  catalogVersion:WORLD_CATALOG_VERSION,marketRegistryVersion:registryVersion,
+  territoryJurisdictions:Object.fromEntries([...WORLD_TERRITORIES.keys()].map(id=>[id,jurisdictions[id]??null])),
+  openMarkets:Object.fromEntries(WORLD_MARKETS.map(m=>[m.id,initial.has(WORLD_ENGINE_BY_MARKET[m.id])?WORLD_START_MONTH:null])),
   appliedEvents:[],companies:{},facilities:{},resourceDeposits:{},powerAllocations:{},powerGenerators:{},energyReceipts:[],physicalDeliveries:[],powerLines:{},powerTransfers:[],localSupplyPlans:{},domesticRoutes:{},domesticShipments:[],domesticWarehouses:{},domesticAssetTransfers:[],domesticOrders:[],internationalRoutes:{},internationalWarehouses:{},internationalOrders:[],internationalShipments:[],regionalSupplyPurchases:[],manufacturingTools:{},medicalClinics:{},medicalRequests:[],medicalTreatments:[],storageServices:[],agencyServiceReceipts:[],trainingServiceReceipts:[],externalLoanReceipts:[],cargoInsurance:[]
  };
 }
@@ -11102,6 +11138,22 @@ function applyWorldHistory(s){
  }
 }
 
+function upgradeWorldMarketRegistry(s){
+ const world=s.worldExpansion,previous=world.marketRegistryVersion??0;
+ if(previous===WORLD_MARKET_REGISTRY_VERSION)return;
+ for(const [code,row] of Object.entries(WORLD_MARKET_ONBOARDING)){
+  if(row.introducedIn<=previous)continue;
+  const marketId=WORLD_TERRITORIES.get(row.territoryId).marketId;
+  world.openMarkets[marketId]=WORLD_START_MONTH;
+  world.territoryJurisdictions[row.territoryId]=row.jurisdictionId;
+  s.world[code]=seedEngineMarket(code,s.year);
+ }
+ world.marketRegistryVersion=WORLD_MARKET_REGISTRY_VERSION;
+ for(const firm of s.firms)ensureNetwork(firm,s);
+ ensureSupplyNetwork(s);
+ validateWorldExpansion(s);
+}
+
 function syncWorldIdentities(s){
  const world=s.worldExpansion;
  if(!world)return;
@@ -11135,7 +11187,10 @@ function validateWorldExpansion(s){
      ||!Number.isSafeInteger(s.rng)||s.rng<0||s.rng>0xffffffff){
   throw Error('世界経済セーブの版、開始年、または乱数状態が不正です');
  }
- const expected=makeWorldExpansion();
+ const registryVersion=world.marketRegistryVersion??0;
+ if(!Number.isSafeInteger(registryVersion)||registryVersion<0||registryVersion>WORLD_MARKET_REGISTRY_VERSION)
+  throw Error('世界市場レジストリの版が不正です');
+ const expected=makeWorldExpansion(registryVersion);
  for(const event of WORLD_EVENTS){
   if(event.month<=ym(s.year,s.month))recordWorldEvent(expected,event);
  }
@@ -12356,6 +12411,11 @@ function worldSupplyOffer(siteId,productId,name,firstYear,quantity,priceBase,sou
   closesAt:lastYear===null?null:ym(lastYear+1,1),quantity,priceBase,source});
 }
 const WORLD_REGIONAL_SUPPLY=Object.freeze({
+ 'CA-MTL-WHEAT':worldSupplyOffer('CA-MTL','PRD-R22','モントリオール港の輸出小麦',1909,200,10,
+  'https://publications.gc.ca/collections/collection_2019/statcan/22-004/CS22-004-1909-eng.pdf',1915),
+ 'CA-MTL-COAL':worldSupplyOffer('CA-MTL','PRD-R04','モントリオール港の石炭',1909,160,11,
+  'https://upload.wikimedia.org/wikipedia/commons/a/a5/Report_of_the_Harbour_Commissioners%2C_etc.%2C_to_31st_December%2C_1909._%28IA_1910v44i14p23_0664%29.pdf',1909),
+
  'JP-KIBA-TIMBER':Object.freeze({siteId:'JP-TOK',productId:'PRD-R19',name:'東京・木場の木材',
   opensAt:ym(1900,1),closesAt:ym(1974,4),quantity:180,priceBase:12,
   source:'https://www.rinya.maff.go.jp/j/kikaku/hakusyo/26hakusyo/pdf/5hon1-1.pdf'}),
@@ -13339,10 +13399,12 @@ function worldSteamshipProfile(from,to,opensAt,distanceKm,capacityKg,warehouseCa
   fuel:'PRD-R04',truck:'PRD-E18',vehicles:Object.freeze(['PRD-E18']),terminals:Object.freeze(['PRD-E20','PRD-E21']),
   fuelScale:18000,source,status:'PROVISIONAL'});
 }
+const WORLD_MONTREAL_FREIGHT_SOURCE='https://www66.statcan.gc.ca/eng/1915/191502370201_p.%20201.pdf';
 const WORLD_SEATTLE_CARGO_SOURCE='https://www.portseattle.org/blog/birth-seattle-global-gateway';
 const WORLD_NORTH_SHIELDS_SOURCE='https://kringom.no/nb/midthordland/bergen/om-englandsruta-bergen-newcastle';
 const WORLD_BERGEN_CARGO_SOURCE='https://snl.no/Det_Bergenske_Dampskibsselskab';
 const WORLD_INTERNATIONAL_CORRIDORS=Object.freeze({
+ 'CA-UK-MONTREAL-GRAIN':worldSteamshipProfile('CA-MTL','UK-LIV',ym(1909,5),5200,32,28,2,WORLD_MONTREAL_FREIGHT_SOURCE),
  'JP-US-SEATTLE-STEAM':worldSteamshipProfile('JP-YOK','US-SEA',ym(1900,1),8100,32,28,3,WORLD_SEATTLE_CARGO_SOURCE),
  'US-JP-SEATTLE-STEAM':worldSteamshipProfile('US-SEA','JP-YOK',ym(1900,1),8100,32,28,3,WORLD_SEATTLE_CARGO_SOURCE),
  'NO-UK-NORTHSHIELDS-STEAM':worldSteamshipProfile('NO-BGO','UK-NORTHSHIELDS',ym(1907,10),940,20,18,1,WORLD_NORTH_SHIELDS_SOURCE),
@@ -13426,6 +13488,9 @@ const WORLD_INTERNATIONAL_CORRIDORS=Object.freeze({
 // the modeled capacity, distance or cost. The playable dates conservatively
 // allow time to pass after dated sources; they are not claimed opening dates.
 const WORLD_INTERNATIONAL_ROUTE_EVIDENCE=Object.freeze({
+ // The annual series covers 1909–1915 grain moves in the navigation season.
+ 'CA-UK-MONTREAL-GRAIN':Object.freeze({untilMonth:ym(1916,1),sailingMonths:Object.freeze([5,6,7,8,9,10]),
+  products:Object.freeze(['PRD-R22']),source:WORLD_MONTREAL_FREIGHT_SOURCE}),
  // End months bound the documented operating scenario. Existing cargo can be
  // completed or refunded after new departures become unavailable.
  'JP-US-SEATTLE-STEAM':Object.freeze({untilMonth:ym(1941,8),source:WORLD_SEATTLE_CARGO_SOURCE,
@@ -13454,7 +13519,8 @@ function worldInternationalRouteAvailable(s,id){
  const evidence=worldDomesticProfile(WORLD_INTERNATIONAL_ROUTE_EVIDENCE,id);
  const month=ym(s.year,s.month);
  if(!p||!evidence||month<Math.max(p.opensAt,evidence.fromMonth??p.opensAt)
-  ||(evidence.untilMonth!=null&&month>=evidence.untilMonth))return false;
+  ||(evidence.untilMonth!=null&&month>=evidence.untilMonth)
+  ||(evidence.sailingMonths&&!evidence.sailingMonths.includes(s.month)))return false;
  return !!s.world?.[findSite(p.from)?.country]&&!!s.world?.[findSite(p.to)?.country];
 }
 function worldInternationalRegisterRoute(s,firmId,profileId){
@@ -13487,11 +13553,25 @@ function worldInternationalInstallWarehouse(s,firmId,plantId,profileId){
  (w.internationalWarehouses??={})[h.id]=h;
  return h;
 }
-function worldInternationalCargoAllowed(productId){
+function worldInternationalCargoAllowed(productId,profileId){
  const product=WORLD_PRODUCT_BY_ID.get(productId);
- return !!product&&['resource','material'].includes(product.category)&&worldDomesticDryCargo(productId,{});
+ const eligible=WORLD_INTERNATIONAL_ROUTE_EVIDENCE[profileId]?.products;
+ return !!product&&['resource','material'].includes(product.category)&&worldDomesticDryCargo(productId,{})
+  &&(!eligible||eligible.includes(productId));
 }
 const WORLD_INTERNATIONAL_PAYMENT_DAYS=new Set([0,30,60,90]);
+// Provisional loading coefficients, in litres per kg of capacity. The
+// manifest describes the outside volume of the loaded consignment.
+const WORLD_INTERNATIONAL_LOADING_LITRES=Object.freeze({'road+rail-shuttle':3,sea:2,rail:3,air:6});
+const WORLD_MAX_CONSIGNMENT_LITRES=10000000;
+function worldInternationalValidVolume(litres){
+ return litres===0||(Number.isSafeInteger(litres)&&litres>0&&litres<=WORLD_MAX_CONSIGNMENT_LITRES);
+}
+function worldInternationalLoad(profile,quantity,manifestLitres=0,manifestKg=quantity){
+ const cargoLitres=Math.ceil(manifestLitres*quantity/manifestKg);
+ const loadKg=Math.max(quantity,Math.ceil(cargoLitres/WORLD_INTERNATIONAL_LOADING_LITRES[profile.mode]));
+ return {cargoLitres,loadKg};
+}
 function worldInternationalCreditDeadline(acceptedMonth,days){
  const date=new Date(Date.UTC(Math.floor(acceptedMonth/12),acceptedMonth%12,1+days));
  return {dueDate:date.toISOString().slice(0,10),dueMonth:ym(date.getUTCFullYear(),date.getUTCMonth()+1)};
@@ -13523,7 +13603,7 @@ function worldInternationalBuyerSettlementAccounts(t,advance){
  const duty=advance?'worldImportDutyPrepaid':'worldInternationalDutyPayable';
  return {[goods]:t.prepaidBuyer,...(t.dutyBuyer?{[duty]:t.dutyBuyer}:{})};
 }
-function worldInternationalPlaceOrder(s,buyerId,{routeId,warehouseId,productId,quantity,unitPriceSeller,maxPaymentBuyer,paymentDays=0}){
+function worldInternationalPlaceOrder(s,buyerId,{routeId,warehouseId,productId,quantity,unitPriceSeller,maxPaymentBuyer,paymentDays=0,cargoLitres=0}){
  const w=s.worldExpansion,route=w?.internationalRoutes?.[routeId],
   warehouse=w?.internationalWarehouses?.[warehouseId],
   profile=WORLD_INTERNATIONAL_CORRIDORS[route?.profileId],
@@ -13535,14 +13615,14 @@ function worldInternationalPlaceOrder(s,buyerId,{routeId,warehouseId,productId,q
   ||!worldDomesticSiteActive(seller.plants.find(p=>p.id===route.plantId),profile.from)
   ||!worldDomesticSiteActive(buyer.plants.find(p=>p.id===warehouse.plantId),profile.to)
   ||!worldInternationalRouteAvailable(s,route.profileId)
-  ||!worldInternationalCargoAllowed(productId)
-  ||!Number.isSafeInteger(quantity)||quantity<1||quantity>100000
+  ||!worldInternationalCargoAllowed(productId,route.profileId)
+  ||!Number.isSafeInteger(quantity)||quantity<1||quantity>100000||!worldInternationalValidVolume(cargoLitres)
   ||!Number.isSafeInteger(unitPriceSeller)||unitPriceSeller<1||unitPriceSeller>10000000
   ||!Number.isSafeInteger(maxPaymentBuyer)||maxPaymentBuyer<1||maxPaymentBuyer>1000000000
   ||!WORLD_INTERNATIONAL_PAYMENT_DAYS.has(paymentDays))
   throw Error('国際注文の実経路・受入設備・物理貨物・数量・外貨上限が不正');
  const order={id:'IO-'+s.seq++,routeId,warehouseId,sellerId:seller.id,buyerId,
-  productId,quantity,unitPriceSeller,maxPaymentBuyer,paymentDays,placedAt:ym(s.year,s.month),
+  productId,quantity,unitPriceSeller,maxPaymentBuyer,paymentDays,cargoLitres,placedAt:ym(s.year,s.month),
   status:'OPEN',sellerDecision:null,decisionAt:null,closedAt:null,acceptedQty:0,shipmentId:null,result:null};
  (w.internationalOrders??=[]).push(order);
  return order;
@@ -13560,7 +13640,7 @@ function worldInternationalActOrder(s,actorId,orderId,action){
  return o;
 }
 // SPEC-079, PROVISIONAL destination-wide tariffs, not historical legal rates.
-const WORLD_PHASE4_TARIFF_BPS=Object.freeze({JP:350,US:300,UK:250,FR:300,DE:300,NO:250});
+const WORLD_PHASE4_TARIFF_BPS=Object.freeze({JP:350,US:300,UK:250,FR:300,DE:300,NO:250,CA:300});
 function worldInternationalTariffBps(s,country){
  if(!s.world?.[country]||!Object.hasOwn(WORLD_PHASE4_TARIFF_BPS,country))
   throw Error('輸入国の関税制度が未接続です');
@@ -13569,12 +13649,13 @@ function worldInternationalTariffBps(s,country){
 function worldInternationalFuelRequired(profile,quantity){
  return Math.ceil(profile.distanceKm*quantity/(profile.fuelScale??600));
 }
-function worldInternationalQuote(s,route,productId,quantity,unitPriceSeller,buyerId,paymentDays=0){
+function worldInternationalQuote(s,route,productId,quantity,unitPriceSeller,buyerId,paymentDays=0,cargoLitres=0){
  const seller=company(route.ownerCompanyId,s),buyer=company(buyerId,s),
   profile=worldInternationalProfile(route.profileId),
   cargo=seller.stock?.[productId],fuel=seller.stock?.[profile.fuel];
- const fuelRequired=worldInternationalFuelRequired(profile,quantity);
- if(!cargo||cargo.q<quantity||!cargo.v||!fuel||fuel.q<fuelRequired||!fuel.v
+ const load=worldInternationalLoad(profile,quantity,cargoLitres);
+ const fuelRequired=worldInternationalFuelRequired(profile,load.loadKg);
+ if(!worldInternationalValidVolume(cargoLitres)||!cargo||cargo.q<quantity||!cargo.v||!fuel||fuel.q<fuelRequired||!fuel.v
   ||(productId===profile.fuel&&cargo.q<quantity+fuelRequired)
   ||!Number.isSafeInteger(quantity)||quantity<1)
   return {problem:'国際貨物または実使用燃料が不足'};
@@ -13595,7 +13676,7 @@ function worldInternationalQuote(s,route,productId,quantity,unitPriceSeller,buye
   ||prepaidBuyer<1||!sellerRate||!buyerRate||acc(seller,'materials')<bookCost+fuelCost
   ||(!paymentDays&&acc(buyer,'cash')<totalBuyer))
   return {problem:'国際取引の原価・通貨換算・実残高が不足'};
- return {quantity,unitPriceSeller,bookCost,fuelRequired,fuelCost,goodsSeller,
+ return {quantity,...load,unitPriceSeller,bookCost,fuelRequired,fuelCost,goodsSeller,
   prepaidSeller,prepaidBuyer,sellerRate,buyerRate,tariffBps,dutyBuyer,totalBuyer};
 }
 function worldInternationalResolveOrders(s,events=[]){
@@ -13620,14 +13701,17 @@ function worldInternationalResolveOrders(s,events=[]){
    o.result='NO_CONSENT';continue;
   }
   const occupied=(w.internationalShipments??[]).filter(t=>t.routeId===route.id&&t.dispatchedAt===month)
-   .reduce((n,t)=>n+t.quantity,0);
+   .reduce((n,t)=>n+(t.loadKg??t.quantity),0);
   const reserved=(w.internationalShipments??[]).filter(t=>t.warehouseId===h.id&&t.status==='IN_TRANSIT')
-   .reduce((n,t)=>n+t.quantity,0);
-  const limit=Math.min(o.quantity,Math.floor(route.capacityKg*(route.condition??100)/100)-occupied,
-   Math.floor(profile.warehouseCapacityKg*(h.condition??100)/100)-reserved,seller.stock?.[o.productId]?.q??0);
+   .reduce((n,t)=>n+(t.loadKg??t.quantity),0);
+  const capacity=Math.min(Math.floor(route.capacityKg*(route.condition??100)/100)-occupied,
+   Math.floor(profile.warehouseCapacityKg*(h.condition??100)/100)-reserved);
+  const limit=Math.min(o.quantity,capacity,seller.stock?.[o.productId]?.q??0);
   for(let q=limit;q>=1;q--){
    const paymentDays=o.paymentDays??0;
-   const quote=worldInternationalQuote(s,route,o.productId,q,o.unitPriceSeller,buyer.id,paymentDays);
+   const load=worldInternationalLoad(profile,q,o.cargoLitres??0,o.quantity);
+   if(load.loadKg>capacity)continue;
+   const quote=worldInternationalQuote(s,route,o.productId,q,o.unitPriceSeller,buyer.id,paymentDays,load.cargoLitres);
    if(quote.problem||quote.totalBuyer>o.maxPaymentBuyer||quote.goodsSeller<quote.bookCost)continue;
    const start=s.seq,provenance={},fuelProvenance={};
    consume(seller,o.productId,q,provenance);
@@ -13853,8 +13937,8 @@ function worldValidateInternationalLogistics(s){
    ||!Number.isSafeInteger(o.quantity)||o.quantity<1||o.quantity>100000
    ||!Number.isSafeInteger(o.unitPriceSeller)||o.unitPriceSeller<1||o.unitPriceSeller>10000000
    ||!Number.isSafeInteger(o.maxPaymentBuyer)||o.maxPaymentBuyer<1||o.maxPaymentBuyer>1000000000
-   ||!worldInternationalCargoAllowed(o.productId)
-   ||!WORLD_INTERNATIONAL_PAYMENT_DAYS.has(o.paymentDays??0)
+   ||!worldInternationalCargoAllowed(o.productId,route.profileId)
+   ||!WORLD_INTERNATIONAL_PAYMENT_DAYS.has(o.paymentDays??0)||!worldInternationalValidVolume(o.cargoLitres??0)
    ||!Number.isSafeInteger(o.placedAt)||o.placedAt<orderMonth||o.placedAt<Math.max(route.installedAt,h.installedAt)||o.placedAt>month
    ||!['OPEN','FILLED','PARTIAL','REJECTED','CANCELLED'].includes(o.status)
    ||!Number.isSafeInteger(o.acceptedQty)||o.acceptedQty<0||o.acceptedQty>o.quantity
@@ -13894,6 +13978,7 @@ function worldValidateInternationalLogistics(s){
   const order=ordersById.get(t.orderId),r=routes[t.routeId],h=warehouses[t.warehouseId],
    seller=company(t.sellerId,s),buyer=company(t.buyerId,s),profile=WORLD_INTERNATIONAL_CORRIDORS[r?.profileId];
   const seq=Number(t.id?.slice(3));
+  const load=profile&&order?worldInternationalLoad(profile,t.quantity,order.cargoLitres??0,order.quantity):null;
   if(!/^IS-[1-9]\d*$/.test(t.id)||!Number.isSafeInteger(seq)||seq<=shipmentSequence
    ||seq>=s.seq||!order||order.shipmentId!==t.id
    ||order.routeId!==t.routeId||order.warehouseId!==t.warehouseId
@@ -13907,7 +13992,9 @@ function worldValidateInternationalLogistics(s){
    ||t.goodsSeller!==t.quantity*t.unitPriceSeller
    ||!Number.isSafeInteger(t.bookCost)||t.bookCost<1
    ||!Number.isSafeInteger(t.fuelCost)||t.fuelCost<1
-   ||t.fuelRequired!==worldInternationalFuelRequired(profile,t.quantity)
+   ||(t.cargoLitres??0)!==load.cargoLitres||(t.loadKg??t.quantity)!==load.loadKg
+   ||(load.cargoLitres>0&&t.loadKg===undefined)
+   ||t.fuelRequired!==worldInternationalFuelRequired(profile,load.loadKg)
    ||t.prepaidSeller!==t.goodsSeller+t.fuelCost
    ||!Number.isSafeInteger(t.sellerRate)||t.sellerRate<1
    ||!Number.isSafeInteger(t.buyerRate)||t.buyerRate<1
@@ -13929,11 +14016,11 @@ function worldValidateInternationalLogistics(s){
    throw Error('国際貨物・検収/返金・通貨換算記録が不正：'+t.id);
   seenShipments.add(t.id);
   shipmentSequence=seq;
-  const routeMonth=t.routeId+'|'+t.dispatchedAt,used=(routeMonths.get(routeMonth)??0)+t.quantity;
+  const routeMonth=t.routeId+'|'+t.dispatchedAt,used=(routeMonths.get(routeMonth)??0)+load.loadKg;
   if(used>profile.capacityKg)throw Error('国際路線の月間輸送能力が超過：'+routeMonth);
   routeMonths.set(routeMonth,used);
   if(t.status==='IN_TRANSIT'){
-   const reserved=(reservations.get(t.warehouseId)??0)+t.quantity;
+   const reserved=(reservations.get(t.warehouseId)??0)+load.loadKg;
    if(reserved>profile.warehouseCapacityKg)throw Error('国際倉庫の受入引当が超過：'+t.warehouseId);
    reservations.set(t.warehouseId,reserved);
   }
@@ -14020,7 +14107,8 @@ function worldInternationalTradePanel(firm,editable){
  const orderRows=orders.slice(-20).map(o=>'<tr><td>'+esc(o.id)+'</td><td>'+esc(WORLD_PRODUCT_BY_ID.get(o.productId)?.name)
   +'</td><td>'+nfmt(o.quantity)+' / '+nfmt(o.acceptedQty)+'</td><td>'+esc(o.status)+'</td></tr>').join('');
  const shipmentRows=active.slice(-20).map(t=>'<tr><td>'+esc(t.id)+'</td><td>'+esc(t.status)
-  +'</td><td>'+nfmt(t.quantity)+' kg</td><td>'+nfmt(t.prepaidBuyer)+'</td><td>'+nfmt(t.prepaidSeller)
+  +'</td><td>'+nfmt(t.quantity)+' kg'+(t.cargoLitres?' ／ '+nfmt(t.cargoLitres)+' L（換算 '+nfmt(t.loadKg)+' kg）':'')
+  +'</td><td>'+nfmt(t.prepaidBuyer)+'</td><td>'+nfmt(t.prepaidSeller)
   +'</td><td>'+(t.status==='REFUND_PENDING'?'返金未払':t.status==='REFUNDED'?'未納終了'
    :!t.credit?'受注時決済':esc(t.credit.dueDate)+' / '
    +(t.credit.paidAt!==null?'決済済':ym(S.year,S.month)>t.credit.dueMonth?'延滞':'未決済'))
@@ -14045,12 +14133,13 @@ function worldInternationalTradePanel(firm,editable){
   const choices=wh.filter(h=>h.ownerCompanyId===firm.id&&worldInternationalRouteAvailable(S,h.profileId))
    .flatMap(h=>routes.filter(r=>r.profileId===h.profileId&&r.ownerCompanyId!==firm.id).flatMap(r=>{
     const seller=company(r.ownerCompanyId);
-    return Object.keys(seller?.stock??{}).filter(worldInternationalCargoAllowed)
+    return Object.keys(seller?.stock??{}).filter(productId=>worldInternationalCargoAllowed(productId,r.profileId))
      .map(productId=>[r.id,h.id,productId]);
    }));
   if(choices.length)forms.push(make('order','<select name="choice">'
    +choices.map(([r,h,p])=>'<option value="'+r+'|'+h+'|'+p+'">'+esc(WORLD_PRODUCT_BY_ID.get(p).name)+'</option>').join('')+'</select>'
-   +'<input name="quantity" type="number" min="1" max="100000" placeholder="数量kg" required>'
+   +'<label>実重量（kg） <input name="quantity" type="number" min="1" max="100000" required></label>'
+   +'<label>荷姿の外寸容積（L） <input name="cargoLitres" type="number" min="1" max="'+WORLD_MAX_CONSIGNMENT_LITRES+'" required></label>'
    +'<input name="price" type="number" min="1" max="10000000" placeholder="売手通貨単価(銭)" required>'
    +'<input name="limit" type="number" min="1" max="1000000000" placeholder="買手通貨支払上限(銭)" required>'
    +'<label>支払条件 <select name="paymentDays"><option value="0">即時</option>'
@@ -14099,7 +14188,7 @@ document.addEventListener('submit',event=>{
   }else if(form.dataset.worldInternational==='order'){
    const [routeId,warehouseId,productId]=data.get('choice').split('|');
    worldInternationalPlaceOrder(S,firm.id,{routeId,warehouseId,productId,
-    quantity:Number(data.get('quantity')),unitPriceSeller:Number(data.get('price')),
+    quantity:Number(data.get('quantity')),cargoLitres:Number(data.get('cargoLitres')),unitPriceSeller:Number(data.get('price')),
     maxPaymentBuyer:Number(data.get('limit')),paymentDays:Number(data.get('paymentDays'))});
   }else if(['approve','reject','cancel'].includes(form.dataset.worldInternational))
    worldInternationalActOrder(S,firm.id,data.get('order'),form.dataset.worldInternational);

@@ -461,4 +461,11 @@ python -B tests/test_step13_120_months.py --era 1900 --world
 - 即時再読込時、先に開始した非同期IndexedDB保存がより新しい簡易復旧スナップショットを上書きする競合を修正した。37画面試験で、社名変更の前に開始した旧保存を意図的に後から完了させて再現・検証する。
 - 既存5方向に、横浜―シアトル、ベルゲン―ノースシールズ、ベルゲン―ハンブルクの各往復を加え、計11方向を史料に接続した。シアトル港とノースシールズ港は拡張世界用の既存市場内の物流拠点で、155都市のカタログ件数を維持する。太平洋は1941年の運航休止前、北海は第一次世界大戦前の確認できる期間に新規出荷を限定。閉鎖前に出た荷物の検収・返金は可能とし、全6方向で現物機材、燃料、関税、受入、保存を個別に試験した。 [シアトル港](https://www.portseattle.org/blog/birth-seattle-global-gateway) · [日本郵船・氷川丸](https://hikawamaru.nyk.com/en/history.html) · [1907–1908年の北海定期航路](https://kringom.no/nb/midthordland/bergen/om-englandsruta-bergen-newcastle) · [ベルゲンとハンブルクの貨客船史](https://snl.no/Det_Bergenske_Dampskibsselskab)
 - **Phase 4未合格。** カタログ40市場のうち経済エンジンは6市場。史料確認済みの国際出荷は、期間内に利用可能な11方向の試作に限定。残りの国・制度への接続、荷種の重量容積換算、史料付き区間と積替え、独立した外部金融・通関、全市場の実証取引および最新HEADの長期試験が必要。これらの受入が完了した時点でPhase 5を開始する。
+
+### Phase 4 追加市場 — カナダと貨物容積
+
+- カナダ市場 `MKT-27` を1900年から経済エンジンに接続した。固有の `JUR-CA`・`CUR-CAD` と既存都市 `CITY-27-03` のモントリオール港を使用する。人口はカナダ統計局のセンサスを使用する。既存の有効な世界セーブは追加市場を取り込み、企業・資産・乱数状態を維持する。[自治領の成立](https://www.canada.ca/en/immigration-refugees-citizenship/corporate/publications-manuals/discover-canada/read-online/canadas-history.html) · [通貨資料](https://www.bankofcanada.ca/wp-content/uploads/2010/07/1841-71.pdf) · [人口](https://www150.statcan.gc.ca/n1/pub/11-402-x/2011000/chap/pop/tbl/tbl01-eng.htm)
+- モントリオール発リヴァプール向け小麦を、確認した1909～1915年の5～10月に利用できる。定期船運賃、穀物輸出、港での石炭取扱いに根拠を付けた。在庫枠・日程・運賃のゲーム係数を別に記録した。[定期船運賃](https://www66.statcan.gc.ca/eng/1915/191502370201_p.%20201.pdf) · [穀物輸出](https://publications.gc.ca/collections/collection_2019/statcan/22-004/CS22-004-1909-eng.pdf) · [1909年港湾報告](https://upload.wikimedia.org/wikipedia/commons/a/a5/Report_of_the_Harbour_Commissioners%2C_etc.%2C_to_31st_December%2C_1909._%28IA_1910v44i14p23_0664%29.pdf)
+- 発注時に梱包容積（L）を明示し、実重量と輸送方式別の容積換算重量の大きい方を輸送および倉庫の予約に用いる。部分受注時は容積を比例配分し、棚卸・売上原価は実重量から計算する。換算係数はゲーム用の暫定値。
+- 専用Playwrightでカナダの発注・部分引当・出荷・前払・検収・関税・CAD決済・保存復元と改竄拒否が合格。経済エンジンは1900年時点で6市場、ノルウェー開放後で7市場。未接続市場は33。市場を経由する積替え、外部金融・通関の独立処理、全40市場の実取引、追加後の長期試験は引き続き受入対象。
 - 再開時はDraft PR #29の最新HEADで開発CIと1,200か月5ジョブを確認し、34未接続市場の管轄・通貨・施設と具体的な史料付き区間を、実出荷・検収・決済試験と対にして追加する。
