@@ -2964,11 +2964,36 @@ function worldMoveCostLayers(source,target,part,total){
  }
  if(!Object.keys(layers).length)delete source.domesticCostLayers;
 }
+// Track original seller-local unrealized profit across partial consumption/resale.
+function worldMergeInternationalLayers(target,layers,via=null){
+ if(!layers)return;
+ const dest=target.internationalCostLayers??={};
+ for(const [path,value] of Object.entries(layers)){
+  if(!value)continue;
+  const key=via?path+'|'+via:path;
+  dest[key]=(dest[key]??0)+value;
+  if(!dest[key])delete dest[key];
+ }
+ if(!Object.keys(dest).length)delete target.internationalCostLayers;
+}
+function worldMoveInternationalLayers(source,target,part,total){
+ const layers=source.internationalCostLayers;
+ if(!layers||part<=0||total<=0)return;
+ for(const [path,value] of Object.entries(layers)){
+  const moved=part>=total?value:Math.sign(value)*Math.round(Math.abs(value)*part/total);
+  if(!moved)continue;
+  if(target)worldMergeInternationalLayers(target,{[path]:moved});
+  layers[path]-=moved;
+  if(!layers[path])delete layers[path];
+ }
+ if(!Object.keys(layers).length)delete source.internationalCostLayers;
+}
 function consume(f,key,q,provenance=null){
  const st=f.stock[key];
  if(q<=0)return 0;
  const amount=q===st.q?st.v:Math.round(st.v*q/st.q);
  worldMoveCostLayers(st,provenance,q,st.q);
+ worldMoveInternationalLayers(st,provenance,q,st.q);
  st.q-=q;st.v-=amount;
  return amount;
 }
@@ -13090,6 +13115,7 @@ function worldPostDomesticShipment(s,cargo,quote,orderId){
   dispatchedAt:month,dueAt:month+route.transitMonths,status:'IN_TRANSIT',
   receivedAt:null,refundedAt:null};
  if(cargoOrigins.domesticCostLayers)t.domesticCostLayers=cargoOrigins.domesticCostLayers;
+ if(cargoOrigins.internationalCostLayers)t.internationalCostLayers=cargoOrigins.internationalCostLayers;
  if(fuelOrigins.domesticCostLayers)t.fuelCostLayers=fuelOrigins.domesticCostLayers;
  if(profile)Object.assign(t,{warehouseId:warehouse.id,fuelId,fuelQuantity:fuelRequired});
  if(orderId){
@@ -13463,6 +13489,7 @@ function worldInternationalResolveOrders(s,events=[]){
     productId:o.productId,dispatchedAt:month,dueAt:month+profile.transitMonths,
     status:'IN_TRANSIT',receivedAt:null,refundedAt:null,
     ...quote,journals:{dispatch:start,terminal:null}};
+   if(provenance.internationalCostLayers)t.internationalCostLayers=provenance.internationalCostLayers;
    (w.internationalShipments??=[]).push(t);
    o.acceptedQty=q;o.shipmentId=t.id;o.status=q===o.quantity?'FILLED':'PARTIAL';
    o.result=q===o.quantity?'FILLED':'REMAINDER_UNFILLED';
@@ -13499,8 +13526,8 @@ function worldInternationalReceiveShipments(s,events=[]){
   const stock=buyer.stock[t.productId]??={q:0,v:0};
   stock.q+=t.quantity;stock.v+=t.totalBuyer??t.prepaidBuyer;
   t.status='DELIVERED';t.receivedAt=month;t.journals.terminal=start;
-  // Foreign-currency group profit elimination requires later common-currency
-  // provenance. External cross-border cargo never inherits domestic cost lots.
+  worldMergeInternationalLayers(stock,t.internationalCostLayers,t.id);
+  worldMergeInternationalLayers(stock,{[t.id]:t.goodsSeller-t.bookCost});
   events.push('国際現物貨物検収 '+t.id+' '+t.quantity+' kg');
  }
 }
@@ -13858,6 +13885,7 @@ function worldReceiveDomesticShipments(s,events=[]){
   worldMergeCostLayers(stock,t.domesticCostLayers,t.id);
   worldMergeCostLayers(stock,t.fuelCostLayers,t.id);
   worldMergeCostLayers(stock,{[t.id]:t.amount-t.bookCost});
+  worldMergeInternationalLayers(stock,t.internationalCostLayers,t.id);
   worldFinishCargoInsurance(s,t);
   events.push('国内物流の現物検収 '+t.id+': '+t.quantity);
  }
