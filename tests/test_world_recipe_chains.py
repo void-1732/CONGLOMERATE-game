@@ -91,7 +91,7 @@ def main():
         assert all(integration.values()), integration
         assert not errors, errors
         browser.close()
-    print("PASS: 46 researched world recipes, factory, input, cash, duplicate processing, and save")
+    print("PASS: 61 researched world recipes, factory, input, cash, duplicate processing, and save")
 
 
 if __name__ == "__main__":

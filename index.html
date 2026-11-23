@@ -2942,7 +2942,7 @@ function laborAndPlant(s,events,industry=null){for(const f of s.firms){if(indust
  let produced=0,steelUsed=0,rubberUsed=0,componentsUsed=0,extraUsed={},byModel={},modelWeights={},moduleUsed={},internalLaborBase=0,internallyAssembled=0,bomBatches={};
  if(['auto','manufacturing'].includes(f.industry))({produced,steelUsed,rubberUsed,componentsUsed,extraUsed,byModel,modelWeights,moduleUsed={},internalLaborBase=0,internallyAssembled=0,bomBatches={}}=combinedFactoryOutput(f,prodPossible,s));
  if(internallyAssembled&&controller(s,f.id))events.push(f.name+'：総合完成車工場で'+internallyAssembled+'台分のエンジン・車体・電子部品を内製し、当月の車両組立に投入');
- else if(f.industry==='resource')produced=Math.min(prodPossible,f.reserveUnits);
+ else if(f.industry==='resource')produced=(s.worldExpansion&&f.plants.some(p=>p.worldMiningPlan?.quantity>0))?0:Math.min(prodPossible,f.reserveUnits);
  const usedRatio=prodPossible?produced/prodPossible:0;
  const baseWagesProd=Math.max(0,Math.round(f.staff.production*salary*sitePayrollFactor(f,s))),internalWages=localFromBase(Math.round(internalLaborBase*eraCostFactor(s.year)),f.country),wagesProd=baseWagesProd+internalWages,wagesResearch=Math.max(0,Math.round(f.staff.research*salary)),wagesSales=Math.max(0,Math.round(f.staff.sales*salary));const capWage=Math.round(baseWagesProd*usedRatio)+internalWages,idleWage=wagesProd-capWage;
  const wagesEngineering=engineers(f)*salary;
@@ -3497,7 +3497,7 @@ async function runMonth(){
   step('FACTORY_JOBS',()=>{advanceFactoryJobsV21(trial,events);advanceComponentLines(trial,events)});
   step('AI_PREPARE',()=>{for(const f of trial.firms){ensureFirmGameplay(f);f.marketThisMonth={};f._profitStart=financials(f).profit;rivalMonthlyStrategy(trial,f,events);planAI(f,trial);autoOperations(trial,f)}});
   step('PEOPLE',()=>processHumanResources(trial,events));
-  step('RESOURCE_PRODUCTION',()=>laborAndPlant(trial,events,'resource'));
+  step('RESOURCE_PRODUCTION',()=>{laborAndPlant(trial,events,'resource');produceWorldDeposits(trial,events)});
   step('NPC_PRODUCTION',()=>produceNpcV033(trial,events));
    step('PROCUREMENT',()=>{for(const f of trial.firms){ensureNetwork(f,trial);f.supply.monthFlow=Object.fromEntries(SUPPLY_TYPES.map(t=>[t,{month:ym(trial.year,trial.month),start:f.stock[t]?.q||0}]));}procureNetwork(trial,events)});
   step('NPC_SETTLEMENT',()=>settleNpcMarketV033(trial));
@@ -10836,7 +10836,7 @@ function makeWorldExpansion(){
   catalogVersion:WORLD_CATALOG_VERSION,
   territoryJurisdictions:Object.fromEntries([...WORLD_TERRITORIES.keys()].map(id=>[id,WORLD_INITIAL_JURISDICTIONS[id]??null])),
   openMarkets:Object.fromEntries(WORLD_MARKETS.map(m=>[m.id,INITIAL_ENGINE_COUNTRIES.includes(WORLD_ENGINE_BY_MARKET[m.id])?WORLD_START_MONTH:null])),
-  appliedEvents:[],companies:{},facilities:{},resourceDeposits:{},powerAllocations:{}
+  appliedEvents:[],companies:{},facilities:{},resourceDeposits:{},powerAllocations:{},powerGenerators:{},energyReceipts:[],physicalDeliveries:[]
  };
 }
 
@@ -11093,7 +11093,7 @@ function worldProductionPanel(firm,editable){
   ${rowstat('銅線在庫',nfmt(wire.q)+' kg')}${rowstat('在庫原価',fnum(firm,wire.v))}
   ${controls||'<p>総合完成車工場または組立工場が必要です。</p>'}
   <h3>商品候補</h3><p>銅線の試作レシピを接続済み。その他の個別レシピ・解禁・販売条件は監査待ちです。</p>
-  ${worldSupplementalPanel(firm,editable)}${items}</section>`;
+  ${worldSupplementalPanel(firm,editable)}${worldResourceAndPowerPanel(firm,editable)}${items}</section>`;
 }
 
 document.addEventListener('click',event=>{
@@ -11165,7 +11165,24 @@ const WORLD_SUPPLEMENTAL_RECIPES=Object.freeze([
  {id:'PRD-C17',year:1900,tech:'production-1',cost:9,unit:'個',plantKind:'assembly',powerKwh:0,inputs:[['PRD-M14',2],['chemicals',1]]},
  {id:'PRD-C18',year:1900,tech:'production-1',cost:6,unit:'個',plantKind:'assembly',powerKwh:0,inputs:[['PRD-M14',1],['chemicals',1]]},
  {id:'PRD-M29',year:1980,tech:'materials-6',cost:55,unit:'kg',plantKind:'integrated',powerKwh:4,inputs:[['PRD-R14',1],['copper',1]]},
- {id:'PRD-M30',year:1980,tech:'electronics-1',cost:75,unit:'個',plantKind:'assembly',powerKwh:6,inputs:[['PRD-M29',2],['PRD-M06',1]]}
+ {id:'PRD-M30',year:1980,tech:'electronics-1',cost:75,unit:'個',plantKind:'assembly',powerKwh:6,inputs:[['PRD-M29',2],['PRD-M06',1]]},
+ // Phase 2-D: all process coefficients and units PROVISIONAL; physical stock required.
+ {id:'PRD-M05',year:1900,tech:'materials-1',cost:32,unit:'kg',plantKind:'integrated',powerKwh:0,inputs:[['PRD-R02',3],['PRD-R04',1]]},
+ {id:'PRD-M07',year:1900,tech:'materials-1',cost:38,unit:'kg',plantKind:'integrated',powerKwh:5,inputs:[['PRD-R03',3]]},
+ {id:'PRD-M36',year:1900,tech:'materials-1',cost:15,unit:'kg',plantKind:'integrated',powerKwh:0,inputs:[['PRD-R20',2]]},
+ {id:'PRD-M39',year:1900,tech:'materials-1',cost:17,unit:'kg',plantKind:'integrated',powerKwh:0,inputs:[['PRD-R25',2]]},
+ {id:'PRD-M40',year:1900,tech:'materials-1',cost:13,unit:'kg',plantKind:'integrated',powerKwh:0,inputs:[['PRD-R26',2]]},
+ {id:'PRD-M41',year:1900,tech:'materials-1',cost:11,unit:'kg',plantKind:'integrated',powerKwh:0,inputs:[['PRD-R22',2]]},
+ {id:'PRD-M42',year:1900,tech:'materials-1',cost:14,unit:'kg',plantKind:'integrated',powerKwh:0,inputs:[['PRD-R24',2],['PRD-R25',1]]},
+ {id:'PRD-C01',year:1900,tech:'production-1',cost:8,unit:'個',plantKind:'assembly',powerKwh:0,inputs:[['PRD-M41',1],['PRD-M40',1]]},
+ {id:'PRD-C02',year:1900,tech:'production-1',cost:7,unit:'個',plantKind:'assembly',powerKwh:0,inputs:[['PRD-R23',2]]},
+ {id:'PRD-C07',year:1900,tech:'production-1',cost:12,unit:'個',plantKind:'assembly',powerKwh:0,inputs:[['PRD-R27',1],['PRD-M40',1]]},
+ {id:'PRD-C08',year:1900,tech:'production-1',cost:13,unit:'個',plantKind:'assembly',powerKwh:0,inputs:[['PRD-R28',1],['PRD-M40',1]]},
+ {id:'PRD-C09',year:1900,tech:'production-1',cost:20,unit:'個',plantKind:'assembly',powerKwh:0,inputs:[['PRD-M36',2]]},
+ {id:'PRD-C11',year:1900,tech:'production-1',cost:24,unit:'個',plantKind:'assembly',powerKwh:0,inputs:[['PRD-M12',3]]},
+ {id:'PRD-C12',year:1900,tech:'production-1',cost:22,unit:'個',plantKind:'assembly',powerKwh:0,inputs:[['PRD-M36',2],['PRD-M12',1]]},
+ {id:'PRD-E01',year:1900,tech:'production-1',cost:110,unit:'台',plantKind:'integrated',powerKwh:0,inputs:[['PRD-M02',3],['PRD-M33',2]]}
+
 ]);
 const WORLD_SUPPLEMENTAL_BY_ID=new Map(WORLD_SUPPLEMENTAL_RECIPES.map(r=>[r.id,r]));
 function worldRecipeUnlocked(firm,recipe,year){
@@ -11280,7 +11297,7 @@ function worldExtractFromDeposit(s,firmId,plantId,depositId,wanted,unitCost,even
   ||p.construction||p.paused||p.renovation||f.reorgStatus==='integrated')
   throw Error('採掘権・稼働施設の条件を満たしません');
  const month=ym(s.year,s.month);
- if(s.year<d.availableFromYear||d.requiredTech&&!f.research?.tree?.done?.includes(d.requiredTech)
+ if(d.status==='PROVISIONAL'||s.year<d.availableFromYear||d.requiredTech&&!f.research?.tree?.done?.includes(d.requiredTech)
   ||d.lastExtractedAt===month||d.remaining<=0)return 0;
  const workforce=factoryLaborPlanV026(f).byId[plantId]?.assigned??0;
  const capacity=Math.floor(p.capacity*p.condition/100);
@@ -11300,29 +11317,196 @@ function worldExtractFromDeposit(s,firmId,plantId,depositId,wanted,unitCost,even
 // Phase 2-C: a finite per-plant, per-month power budget. There is deliberately
 // NO automatic supply: Phase 6 must establish metered generation and grid supply.
 // Until then only explicitly identified test fixtures can exercise powered recipes.
+
+/* Phase 2-D: monthly resource plans can operate ONLY against a pre-existing
+   finite, owned deposit. No automatic discovery, initial reserve or extraction
+   is synthesized. Planned resource firms suppress their legacy generic output
+   to avoid running two mining processes with the same workers and facility. */
+function worldSetMiningPlan(s,firmId,plantId,depositId,quantity,unitCost){
+ if(!s.worldExpansion||!Number.isSafeInteger(quantity)||quantity<0||quantity>100000
+  ||!Number.isSafeInteger(unitCost)||unitCost<=0||unitCost>1000000)
+  throw Error('月次採掘計画の数量・原価が不正');
+ const f=company(firmId,s),p=f?.plants.find(v=>v.id===plantId);
+ if(!f||!p||f.industry!=='resource')throw Error('資源採掘は採掘事業所だけが指定できます');
+ if(quantity){
+  const d=s.worldExpansion.resourceDeposits?.[depositId];
+  if(!d||d.plantId!==plantId||d.ownerCompanyId!==firmId||d.status==='PROVISIONAL')
+   throw Error('承認済みの有限鉱床が存在しません');
+  validateWorldResourceDeposits(s);
+ }
+ p.worldMiningPlan=quantity?{depositId,quantity,unitCost}:null;
+}
+function validateWorldMiningPlans(s){
+ for(const f of s.firms)for(const p of f.plants){
+  const a=p.worldMiningPlan;if(!a)continue;
+  const dep=s.worldExpansion.resourceDeposits?.[a.depositId];
+  if(f.industry!=='resource'||!dep||dep.plantId!==p.id||dep.ownerCompanyId!==f.id
+   ||dep.status==='PROVISIONAL'
+   ||!Number.isSafeInteger(a.quantity)||a.quantity<1||a.quantity>100000
+   ||!Number.isSafeInteger(a.unitCost)||a.unitCost<1||a.unitCost>1000000)
+   throw Error('有限鉱床と採掘計画の整合性が不正：'+p.id);
+ }
+ return true;
+}
+function produceWorldDeposits(s,events){
+ if(!s.worldExpansion)return;
+ validateWorldMiningPlans(s);
+ for(const f of s.firms)for(const p of f.plants){
+  const plan=p.worldMiningPlan;
+  if(plan?.quantity>0)worldExtractFromDeposit(s,f.id,p.id,plan.depositId,plan.quantity,plan.unitCost,events);
+ }
+}
+/* Local, immediate acceptance of an existing physical lot. The two active
+   plants MUST share a site: no imaginary international freight or sale before
+   delivery. This does not implement the future contract/credit/shipping API. */
+function worldLocalPhysicalDelivery(s,sellerId,sellerPlantId,buyerId,buyerPlantId,productId,quantity,unitPrice){
+ if(!s.worldExpansion||sellerId===buyerId||!Number.isSafeInteger(quantity)||quantity<1
+  ||!Number.isSafeInteger(unitPrice)||unitPrice<1||unitPrice>10000000)
+  throw Error('現物検収取引の数量または価格が不正');
+ const product=WORLD_PRODUCT_BY_ID.get(productId),seller=company(sellerId,s),buyer=company(buyerId,s);
+ const sp=seller?.plants.find(p=>p.id===sellerPlantId),bp=buyer?.plants.find(p=>p.id===buyerPlantId);
+ if(!product||product.category==='service'||!sp||!bp||sp.siteId!==bp.siteId
+  ||sp.construction||sp.paused||bp.construction||bp.paused
+  ||seller.reorgStatus==='integrated'||buyer.reorgStatus==='integrated')
+  throw Error('同一拠点にある稼働設備間の現物検収が必要です');
+ const stock=seller.stock?.[productId],total=quantity*unitPrice;
+ if(!Number.isSafeInteger(total)||!stock||stock.q<quantity||acc(buyer,'cash')<total)
+  throw Error('現物在庫または買手現預金が不足しています');
+ const cost=consume(seller,productId,quantity);
+ post(seller,{cash:total},{sales:total},'世界現物引渡・'+product.name,'operating',s);
+ if(cost)post(seller,{cogs:cost},{materials:cost},'世界現物の原価払出','operating',s);
+ post(buyer,{materials:total},{cash:total},'世界現物を検収・'+product.name,'operating',s);
+ const dest=buyer.stock[productId]??={q:0,v:0};
+ dest.q+=quantity;dest.v+=total;
+ const receipt={id:'WD-'+s.seq++,month:ym(s.year,s.month),sellerId,buyerId,
+  sellerPlantId,buyerPlantId,siteId:sp.siteId,productId,quantity,unitPrice,amount:total,bookCost:cost};
+ (s.worldExpansion.physicalDeliveries??=[]).push(receipt);
+ return receipt;
+}
+function validateWorldPhysicalDeliveries(s){
+ const records=s.worldExpansion?.physicalDeliveries;
+ if(records===undefined)return true;
+ if(!Array.isArray(records))throw Error('現物検収台帳が不正');
+ const seen=new Set();
+ for(const x of records){
+  const seller=company(x.sellerId,s),buyer=company(x.buyerId,s);
+  const sp=seller?.plants.find(p=>p.id===x.sellerPlantId),bp=buyer?.plants.find(p=>p.id===x.buyerPlantId);
+  if(!/^WD-\d+$/.test(x.id)||seen.has(x.id)||x.sellerId===x.buyerId
+   ||!sp||!bp||sp.siteId!==x.siteId||bp.siteId!==x.siteId
+   ||WORLD_PRODUCT_BY_ID.get(x.productId)?.category==='service'||!WORLD_PRODUCT_BY_ID.has(x.productId)
+   ||!Number.isSafeInteger(x.month)||x.month<WORLD_START_MONTH
+   ||!Number.isSafeInteger(x.quantity)||x.quantity<1
+   ||!Number.isSafeInteger(x.unitPrice)||x.unitPrice<1||x.amount!==x.quantity*x.unitPrice
+   ||!Number.isSafeInteger(x.bookCost)||x.bookCost<0)
+   throw Error('現物検収・所有権・計算が不一致：'+x.id);
+  seen.add(x.id);
+ }
+ return true;
+}
+
+
+/* Phase 2-D physically funded onsite generators. Coefficients are PROVISIONAL:
+   coal quantity to gross kWh = 10; wire loss = 10%. No free grid feed-in.
+   Generator equipment becomes PPE; consumed coal is recognized as a real
+   expense, not inventory or revenue. Future Phase 6 replaces these values. */
+function worldInstallGenerator(s,firmId,plantId){
+ if(!s.worldExpansion)throw Error('世界ゲームでのみ発電設備を設置できます');
+ const f=company(firmId,s),p=f?.plants.find(p=>p.id===plantId),equipment='PRD-E04';
+ if(!f||!p||p.construction||p.paused||s.year<1915
+  ||!f.research?.tree?.done.includes('energy-1')
+  ||s.worldExpansion.powerGenerators?.[plantId])
+  throw Error('発電設備の所有、年代または研究条件を満たしません');
+ if(!f.stock[equipment]||f.stock[equipment].q<1)throw Error('物理的な発電機が在庫にありません');
+ const assetValue=consume(f,equipment,1);
+ if(!assetValue)throw Error('取得原価のない設備は設置できません');
+ post(f,{ppe:assetValue},{materials:assetValue},'世界発電設備の設置','investing',s);
+ const unit={id:'GEN-'+plantId,ownerCompanyId:firmId,plantId,
+  productId:equipment,assetValue,installedAt:ym(s.year,s.month),fuelProductId:'PRD-R04',kwhPerFuel:10,lossBps:1000};
+ (s.worldExpansion.powerGenerators??={})[plantId]=unit;
+ return unit;
+}
 function validateWorldPowerAllocations(state){
- const allocations=state.worldExpansion?.powerAllocations;
- if(allocations===undefined)return true; // earlier world saves
- if(!allocations||typeof allocations!=='object'||Array.isArray(allocations))
-  throw Error('工場電力割当台帳の形式が不正');
- const receipts=new Set();
+ const world=state.worldExpansion,allocations=world?.powerAllocations;
+ if(allocations===undefined)return true;
+ if(!allocations||typeof allocations!=='object'||Array.isArray(allocations)
+  ||(world.powerGenerators!==undefined&&(!world.powerGenerators||typeof world.powerGenerators!=='object'||Array.isArray(world.powerGenerators)))
+  ||(world.energyReceipts!==undefined&&!Array.isArray(world.energyReceipts)))
+  throw Error('工場電力・発電機・燃料台帳の形式が不正');
+ const generators=world.powerGenerators??{},history=world.energyReceipts??[],receiptMap=new Map(),seen=new Set();
+ for(const [plantId,g] of Object.entries(generators)){
+  const f=company(g.ownerCompanyId,state),p=f?.plants.find(p=>p.id===plantId);
+  if(!p||g.id!=='GEN-'+plantId||g.plantId!==plantId||g.productId!=='PRD-E04'
+   ||g.fuelProductId!=='PRD-R04'||g.kwhPerFuel!==10||g.lossBps!==1000
+   ||!Number.isSafeInteger(g.assetValue)||g.assetValue<1
+   ||!Number.isSafeInteger(g.installedAt)||g.installedAt<WORLD_START_MONTH)
+   throw Error('発電設備の所有・資産参照不正：'+plantId);
+ }
+ for(const r of history){
+  const g=generators[r.plantId];
+  if(!/^PWR-[A-Za-z0-9-]+$/.test(r.id)||seen.has(r.id)||!g||r.generatorId!==g.id
+   ||r.ownerCompanyId!==g.ownerCompanyId||r.fuelProductId!==g.fuelProductId
+   ||!Number.isSafeInteger(r.month)||r.month<g.installedAt
+   ||!Number.isSafeInteger(r.fuelQty)||r.fuelQty<1
+   ||!Number.isSafeInteger(r.fuelBookCost)||r.fuelBookCost<0
+   ||!Number.isSafeInteger(r.grossKwh)||r.grossKwh!==r.fuelQty*g.kwhPerFuel
+   ||!Number.isSafeInteger(r.lossKwh)||r.lossKwh!==Math.floor(r.grossKwh*g.lossBps/10000)
+   ||r.deliveredKwh!==r.grossKwh-r.lossKwh)
+   throw Error('発電・燃料・損失の保存則が不正：'+r.id);
+  seen.add(r.id);receiptMap.set(r.id,r);
+ }
+ const allocated=new Set();
  for(const [plantId,budget] of Object.entries(allocations)){
   const owner=state.firms.find(f=>f.plants?.some(p=>p.id===plantId));
-  if(!owner||budget?.plantId!==plantId||budget.source!=='TEST_FIXTURE'
-   ||typeof budget.receiptId!=='string'||!/^TEST-[A-Za-z0-9-]+$/.test(budget.receiptId)
-   ||receipts.has(budget.receiptId)
+  if(!owner||budget?.plantId!==plantId
+   ||!['TEST_FIXTURE','FUEL_GENERATED'].includes(budget.source)
+   ||typeof budget.receiptId!=='string'||allocated.has(budget.receiptId)
    ||!Number.isSafeInteger(budget.month)||budget.month<WORLD_START_MONTH
    ||!Number.isSafeInteger(budget.capacityKwh)||budget.capacityKwh<0
    ||!Number.isSafeInteger(budget.usedKwh)||budget.usedKwh<0
    ||budget.usedKwh>budget.capacityKwh)
    throw Error('工場電力割当の所有・時点・数量が不正：'+plantId);
-  receipts.add(budget.receiptId);
+  if(budget.source==='TEST_FIXTURE'){
+   if(!/^TEST-[A-Za-z0-9-]+$/.test(budget.receiptId))throw Error('試験電力ID不正');
+  }else{
+   const r=receiptMap.get(budget.receiptId);
+   if(!r||r.plantId!==plantId||r.month!==budget.month||r.deliveredKwh!==budget.capacityKwh)
+    throw Error('電力供給の燃料明細が存在しません');
+  }
+  allocated.add(budget.receiptId);
  }
  return true;
 }
+function worldGeneratePower(s,firmId,plantId,fuelQty){
+ if(!s.worldExpansion||!Number.isSafeInteger(fuelQty)||fuelQty<1)
+  throw Error('発電量の指定が不正');
+ validateWorldPowerAllocations(s);
+ const f=company(firmId,s),p=f?.plants.find(p=>p.id===plantId),g=s.worldExpansion.powerGenerators?.[plantId];
+ if(!f||!p||!g||g.ownerCompanyId!==firmId||p.construction||p.paused||p.renovation
+  ||s.year<1915||!f.research?.tree?.done.includes('energy-1'))
+  throw Error('稼働中の所有発電機、研究または年代の条件が不正');
+ const month=ym(s.year,s.month),prev=s.worldExpansion.powerAllocations?.[plantId];
+ if(prev?.month===month||(s.worldExpansion.energyReceipts??[]).some(r=>r.plantId===plantId&&r.month===month))
+  throw Error('同月の発電・電力割当は既に登録されています');
+ const rated=Math.floor(p.capacity*p.condition/100)*10;
+ if(fuelQty*10>rated||!f.stock[g.fuelProductId]||f.stock[g.fuelProductId].q<fuelQty)
+  throw Error('発電設備能力または実燃料が不足しています');
+ const gross=fuelQty*10,loss=Math.floor(gross/10),delivered=gross-loss;
+ const fuelBookCost=consume(f,g.fuelProductId,fuelQty);
+ if(fuelBookCost)post(f,{otherExpense:fuelBookCost},{materials:fuelBookCost},
+   '世界発電燃料の実消費','operating',s);
+ const receipt={id:'PWR-'+s.seq++,generatorId:g.id,ownerCompanyId:firmId,plantId,
+  month,fuelProductId:g.fuelProductId,fuelQty,fuelBookCost,
+  grossKwh:gross,lossKwh:loss,deliveredKwh:delivered};
+ (s.worldExpansion.energyReceipts??=[]).push(receipt);
+ (s.worldExpansion.powerAllocations??={})[plantId]={
+  plantId,source:'FUEL_GENERATED',receiptId:receipt.id,month,
+  capacityKwh:delivered,usedKwh:0
+ };
+ return receipt;
+}
 function worldPowerAvailable(state,plantId){
  const b=state.worldExpansion?.powerAllocations?.[plantId];
- return b?.source==='TEST_FIXTURE'&&b.month===ym(state.year,state.month)
+ return b&&['TEST_FIXTURE','FUEL_GENERATED'].includes(b.source)&&b.month===ym(state.year,state.month)
   ?Math.max(0,b.capacityKwh-b.usedKwh):0;
 }
 function worldConsumePower(state,plantId,kwh){
@@ -11334,6 +11518,8 @@ function worldConsumePower(state,plantId,kwh){
 
 function validateWorldSupplemental(state){
  validateWorldPowerAllocations(state);
+ validateWorldMiningPlans(state);
+ validateWorldPhysicalDeliveries(state);
  validateWorldProductCatalog();
  validateWorldResourceDeposits(state);
  validateWorldRecipeGraph();
@@ -11401,6 +11587,61 @@ function produceWorldSupplemental(state,events){
   }
  }
 }
+
+function worldResourceAndPowerPanel(firm,editable){
+ const world=S.worldExpansion,facilities=firm.plants.filter(p=>!p.construction);
+ const mineRows=firm.industry==='resource'?facilities.map((p,i)=>{
+  const dep=Object.values(world.resourceDeposits||{}).filter(d=>
+   d.ownerCompanyId===firm.id&&d.plantId===p.id&&d.status!=='PROVISIONAL');
+  const plan=p.worldMiningPlan;
+  const opts=dep.map(d=>'<option value="'+esc(d.id)+'" '+(plan?.depositId===d.id?'selected':'')+'>'
+   +esc(WORLD_PRODUCT_BY_ID.get(d.productId).name)+' '+nfmt(d.remaining)+'</option>').join('');
+  return '<div class="row between"><label>'+esc(p.name)+'の有限鉱床</label><select id="world-dep-'+i+'">'+opts+'</select>'
+   +'<label>採掘量<input type="number" id="world-mine-'+i+'" min="0" value="'+(plan?.quantity??0)+'"></label>'
+   +'<label>単位加工費<input type="number" id="world-mcost-'+i+'" min="1" value="'+(plan?.unitCost??17)+'"></label>'
+   +'<button class="btn sm" data-world-mine-save="'+esc(p.id)+'" data-world-mine-dep="world-dep-'+i+'"' 
+   +' data-world-mine-qty="world-mine-'+i+'" data-world-mine-cost="world-mcost-'+i+'" '
+   +(editable&&dep.length?'':'disabled')+'>有限鉱床の計画を保存</button></div>';
+ }).join(''):'';
+ const genRows=facilities.filter(canPlanWireProduction).map((p,i)=>{
+  const g=world.powerGenerators?.[p.id],remaining=worldPowerAvailable(S,p.id);
+  return '<div class="row between"><strong>'+esc(p.name)+'</strong>'
+   +'<small>発電機 '+(g?'設置済':'未設置')+' / 当月利用可能 '+nfmt(remaining)+' kWh</small>'
+   +'<button class="btn sm" data-world-generator-install="'+esc(p.id)+'" '
+   +(editable&&!g?'':'disabled')+'>発電機（設備在庫1台）を設置</button>'
+   +'<label>石炭投入<input type="number" id="world-fuel-'+i+'" min="1" value="1"></label>'
+   +'<button class="btn sm" data-world-generate="'+esc(p.id)+'" data-world-fuel-input="world-fuel-'+i+'" '
+   +(editable&&g?'':'disabled')+'>燃料を消費して発電</button></div>';
+ }).join('');
+ return '<section class="panel"><h3>有限資源採掘・実燃料発電（Phase 2-D）</h3>'
+  +'<p>鉱床は自動作成せず、登録された有限埋蔵量だけ採掘します。発電は設備在庫と石炭在庫を消費し、10%送電損失を記録。'
+  +'燃料/kWhの係数は暫定。B2B一般物流・サービス契約は未実装です。</p>'
+  +(mineRows||'<p>この企業の稼働可能な有限鉱床は登録されていません。</p>')
+  +genRows+'</section>';
+}
+document.addEventListener('click',event=>{
+ const mine=event.target.closest('[data-world-mine-save]');
+ const install=event.target.closest('[data-world-generator-install]');
+ const generate=event.target.closest('[data-world-generate]');
+ if(!mine&&!install&&!generate||!S?.worldExpansion||MONTH_RUNNING||!canEdit(current()))return;
+ try{
+  const firm=current();
+  if(mine){
+   const p=firm.plants.find(p=>p.id===mine.dataset.worldMineSave);
+   const depositId=document.getElementById(mine.dataset.worldMineDep)?.value;
+   const quantity=Number(document.getElementById(mine.dataset.worldMineQty)?.value);
+   const unitCost=Number(document.getElementById(mine.dataset.worldMineCost)?.value);
+   if(!p||!depositId)throw Error('有限鉱床を選択してください');
+   worldSetMiningPlan(S,firm.id,p.id,depositId,quantity,unitCost);
+  }else if(install)worldInstallGenerator(S,firm.id,install.dataset.worldGeneratorInstall);
+  else{
+   const fuelQty=Number(document.getElementById(generate.dataset.worldFuelInput)?.value);
+   worldGeneratePower(S,firm.id,generate.dataset.worldGenerate,fuelQty);
+  }
+  validateWorldExpansion(S);requestOperationSaveV037();render();toast('採掘・発電の操作を保存しました');
+ }catch(error){toast(error.message)}
+});
+
 function worldSupplementalPanel(firm,editable){
  const candidateList=WORLD_SUPPLEMENTAL_RECIPES.map(r=>WORLD_PRODUCT_BY_ID.get(r.id));
  const plants=firm.plants.filter(canPlanWireProduction);
@@ -11418,7 +11659,7 @@ function worldSupplementalPanel(firm,editable){
  }).join('');
  return '<section class="panel"><h3>追加商品・生産連鎖（検証中）</h3>'
   +'<p>既存800研究の解禁と年代、原材料・人員・設備・加工資金を使う追加'+WORLD_SUPPLEMENTAL_RECIPES.length+'レシピ。'
-  +'工場の設備種別・実在庫と電力枠も制約します。電力枠の自動生成は行わず、送電網が未実装のため電力必須レシピは通常時停止します。</p>'
+  +'工場の設備種別・実在庫と電力枠も制約します。燃料と所有発電設備から発電した有限kWhのみ利用可能です。</p>'
   +rows+'</section>';
 }
 document.addEventListener('click',event=>{
