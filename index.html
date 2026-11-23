@@ -6572,6 +6572,7 @@ function consolidate(s,rootId=s.playerId){
    }
   }return true;};
  const domesticCost=worldDomesticCostAdjustments(s,ids,insidePeriod,ownership.shares);
+ const internationalCost=worldInternationalConsolidationAdjustments(s,ids,insidePeriod,ownership.shares);
  const stockTx=(s.intercompanyTx||[]).filter(t=>t.kind==='goods'&&ids.has(t.seller)&&ids.has(t.buyer)&&insidePeriod(t));
  let inventoryProfit=0,internalSales=0,internalCostSold=0,internalSellerCost=0,internalSalesRevenue=0;
  for(const tx of stockTx){const buyer=company(tx.buyer,s),it=buyer.goods[tx.stockKey];
@@ -6581,7 +6582,7 @@ function consolidate(s,rootId=s.playerId){
   internalSales+=tx.saleBase;internalSellerCost+=Math.round(tx.costBase*ratio);internalCostSold+=Math.round(tx.saleBase*(1-ratio));
   if(it&&it.q>tx.q)notes.push('内部在庫の記録量が元取引数量を超過：'+tx.stockKey);
  }
- bs.goods-=inventoryProfit+parts.goods;bs.assets-=inventoryProfit+parts.deferred+parts.claims+domesticCost.retained;bs.liab-=parts.claims;
+ bs.goods-=inventoryProfit+parts.goods;bs.assets-=inventoryProfit+parts.deferred+parts.claims+domesticCost.retained+internationalCost.retained;bs.liab-=parts.claims;
  // Match accrued intercompany loan interest; parent revenue & child expense are eliminated.
  const accrued=(s.intercompanyTx||[]).filter(t=>t.kind==='interest'&&ids.has(t.seller)&&ids.has(t.buyer)&&insidePeriod(t));
  const interestRev=accrued.reduce((a,t)=>a+t.revenueBase,0),interestExp=accrued.reduce((a,t)=>a+t.expenseBase,0);
@@ -6604,6 +6605,13 @@ function consolidate(s,rootId=s.playerId){
   t.status==='IN_TRANSIT'&&ids.has(t.sellerId)&&ids.has(t.buyerId));
  const advances=domesticAdvances.reduce((total,t)=>total+baseFromLocal(t.prepaid,company(t.buyerId,s).country),0);
  bs.assets-=advances;bs.liab-=advances;
+ const internationalAdvances=(domestic?.internationalShipments??[]).filter(t=>
+  t.status==='IN_TRANSIT'&&ids.has(t.sellerId)&&ids.has(t.buyerId));
+ const internationalAdvanceAsset=internationalAdvances.reduce((n,t)=>n+baseFromLocal(t.prepaidBuyer,company(t.buyerId,s).country),0);
+ const internationalAdvanceLiability=internationalAdvances.reduce((n,t)=>n+baseFromLocal(t.prepaidSeller,company(t.sellerId,s).country),0);
+ bs.assets-=internationalAdvanceAsset;bs.liab-=internationalAdvanceLiability;
+ if(Math.abs(internationalAdvanceAsset-internationalAdvanceLiability)>2)
+  notes.push('国際グループ内前払の通貨換算差は期末ブリッジで監査');
  const internalDeposits=worldInternalBankDeposits(s,ids,f=>COUNTRIES[f.country].fx);
  bs.assets-=internalDeposits;bs.liab-=internalDeposits;
  const assetCash=(domestic?.domesticAssetTransfers??[]).map(t=>({kind:'domesticAssetCash',
@@ -6638,14 +6646,20 @@ function consolidate(s,rootId=s.playerId){
    if(insidePeriod(claim)){insuranceCash.push(claim);insuranceInternalFees+=value(p.payout);}
   }
  }
- const cashTx=[...(s.intercompanyTx||[]),...developmentCashPairs(s),...partCashPairs(s),...assetCash,...tradeCash,...storageCash,...phoneCash,...medicalCash,...insuranceCash].filter(t=>ids.has(t.seller)&&ids.has(t.buyer)&&insidePeriod(t));
+ const internationalCash=(domestic?.internationalShipments??[]).flatMap(t=>{
+  const dispatch={kind:'domesticTradeCash',seller:t.sellerId,buyer:t.buyerId,yearMonth:t.dispatchedAt,
+   fromJournal:t.journals.dispatch+3,toJournal:t.journals.dispatch+2};
+  return t.status==='REFUNDED'?[dispatch,{...dispatch,yearMonth:t.refundedAt,
+   fromJournal:t.journals.terminal,toJournal:t.journals.terminal+1}]:[dispatch];
+ });
+ const cashTx=[...(s.intercompanyTx||[]),...developmentCashPairs(s),...partCashPairs(s),...assetCash,...tradeCash,...internationalCash,...storageCash,...phoneCash,...medicalCash,...insuranceCash].filter(t=>ids.has(t.seller)&&ids.has(t.buyer)&&insidePeriod(t));
  const cashJournals=new Set();for(const t of cashTx)if(['loan','loanCash','interestCash','goods','developmentCash','partTradeCash','equityCash','domesticAssetCash','domesticTradeCash'].includes(t.kind))for(const id of [t.fromJournal,t.toJournal])if(id!==undefined)cashJournals.add(id);
  for(const l of activeLinks)if(l.kind==='foundation')for(const id of [l.buyerJournal,l.childJournal])if(id!==undefined)cashJournals.add(id);
  // Group assets minus group debts determine consolidated net equity. Subsidiary net
  // assets (not gross balance sheet items) are allocated to NCI by effective ownership.
  const controlledInvestByOwner={};for(const l of activeLinks)controlledInvestByOwner[l.parentId]=(controlledInvestByOwner[l.parentId]||0)+baseFromLocal(l.considerationLocal,company(l.parentId,s).country);
  let nci=0;for(const f of members){if(f.id===rootId)continue;const minority=1-(ownership.shares[f.id]||0),net=baseFromLocal(financials(f).equity,f.country)-(controlledInvestByOwner[f.id]||0);nci+=minority*net;}
- nci+=nciGoodwill-parts.nci-domesticCost.nci;
+ nci+=nciGoodwill-parts.nci-domesticCost.nci-internationalCost.nci;
  nci-=stockTx.reduce((a,t)=>{const buyer=company(t.buyer,s),remain=buyer.goods[t.stockKey]?.q||0;const ratio=t.q?Math.min(1,remain/t.q):0;return a+Math.round(t.marginBase*ratio)*(1-(ownership.shares[t.seller]||0));},0);
  bs.nci=Math.round(nci);bs.equity=bs.assets-bs.liab;bs.parentEquity=bs.equity-bs.nci;bs.liabEquityDiff=bs.assets-bs.liab-bs.equity;
  if(!Number.isSafeInteger(bs.assets)||!Number.isSafeInteger(bs.equity)||!Number.isSafeInteger(bs.nci))errors.push('連結金額の安全整数範囲を超過');
@@ -6666,9 +6680,9 @@ function consolidate(s,rootId=s.playerId){
  const equityRevenueEliminated=internalEquity.reduce((n,t)=>n+Math.max(0,t.gainBase||0),0),equityExpenseEliminated=internalEquity.reduce((n,t)=>n+Math.max(0,-(t.gainBase||0)),0);
  const netElimination=internalSales-internalSellerCost-internalCostSold;
  // For a period with internal stock still in inventory: netElimination=remaining markup.
- rev-=internalSales+interestRev+parts.sales+equityRevenueEliminated+domesticCost.sales+serviceFees+insuranceInternalFees;exp-=internalSellerCost+internalCostSold+interestExp+parts.sales-parts.deferred+equityExpenseEliminated+domesticCost.sales-domesticCost.retained+serviceFees+insuranceInternalFees;
+ rev-=internalSales+interestRev+parts.sales+equityRevenueEliminated+domesticCost.sales+internationalCost.sales+serviceFees+insuranceInternalFees;exp-=internalSellerCost+internalCostSold+interestExp+parts.sales-parts.deferred+equityExpenseEliminated+domesticCost.sales-domesticCost.retained+internationalCost.sales-internationalCost.retained+serviceFees+insuranceInternalFees;
  const rawProfit=rev-exp;
- const pl={revenue:Math.round(rev),expenses:Math.round(exp),profit:Math.round(rawProfit+bargain),bargainGain:Math.round(bargain),intercompanySales:internalSales+parts.sales+domesticCost.sales+serviceFees+insuranceInternalFees,internalInterest:interestRev,unrealizedProfit:inventoryProfit+parts.deferred+domesticCost.retained,nciProfit:0,parentProfit:0};
+ const pl={revenue:Math.round(rev),expenses:Math.round(exp),profit:Math.round(rawProfit+bargain),bargainGain:Math.round(bargain),intercompanySales:internalSales+parts.sales+domesticCost.sales+internationalCost.sales+serviceFees+insuranceInternalFees,internalInterest:interestRev,unrealizedProfit:inventoryProfit+parts.deferred+domesticCost.retained+internationalCost.retained,nciProfit:0,parentProfit:0};
  let minorProfit=0;
  for(const f of members){if(f.id===rootId)continue;const entry=opens[f.id]??0,l=scopeHistory.filter(l=>l.childId===f.id&&l.month===entry).sort((a,b)=>a.buyerJournal-b.buyerJournal)[0];
   const fin=financials(f),baseline=groupEntryIncomeBaseline(f,entry,l?.buyerJournal??Number.MAX_SAFE_INTEGER,s);
@@ -6676,7 +6690,7 @@ function consolidate(s,rootId=s.playerId){
  minorProfit-=stockTx.reduce((a,t)=>{const it=company(t.buyer,s).goods[t.stockKey],ratio=t.q?Math.min(1,(it?.q||0)/t.q):0;return a+t.marginBase*ratio*(1-(ownership.shares[t.seller]||0));},0);
  minorProfit-=accrued.reduce((a,t)=>a+(1-(ownership.shares[t.seller]||0))*t.revenueBase-(1-(ownership.shares[t.buyer]||0))*t.expenseBase,0);
  minorProfit-=internalEquity.reduce((n,t)=>n+(t.gainBase||0)*(1-(ownership.shares[t.seller]||0)),0);
- pl.nciProfit=Math.round(minorProfit-parts.nci-domesticCost.nci);pl.parentProfit=pl.profit-pl.nciProfit;
+ pl.nciProfit=Math.round(minorProfit-parts.nci-domesticCost.nci-internationalCost.nci);pl.parentProfit=pl.profit-pl.nciProfit;
  // Cash-flow classification for most recently committed month. Each legal entity's
  // cash journal is summed once, then linked internal cash legs are removed by ID.
  const period=s.monthCommitted;
@@ -6688,13 +6702,22 @@ function consolidate(s,rootId=s.playerId){
   const cat=j.kind==='financing'?'financing':j.kind==='investing'?'investing':'operating';cf[cat]+=base;
  }}
  for(const l of activeLinks){if(l.kind==='acquisition'&&l.month===period){cf.investing+=l.cashAcquiredBase||0;}}
+ // Import duties are external cash even where the cross-border payment legs cancel.
+ for(const t of internationalAdvances){
+  if(t.dispatchedAt===period&&t.dutyBuyer&&insidePeriod({seller:t.sellerId,buyer:t.buyerId,
+   kind:'domesticTradeCash',yearMonth:t.dispatchedAt,fromJournal:t.journals.dispatch+3,
+   toJournal:t.journals.dispatch+2}))
+   cf.operating-=baseFromLocal(t.dutyBuyer,company(t.buyerId,s).country);
+ }
  cf.net=cf.operating+cf.investing+cf.financing;
  const prior=[...(s.consoHistory||[])].reverse().find(x=>x.month===period-1);
  if(prior){cf.openingCash=prior.cash;cf.fxAndAcquisitions=bs.cash-prior.cash-cf.net;cf.reconciled=Math.abs(cf.fxAndAcquisitions)<=2;
   if(!cf.reconciled)notes.push('CF差額：取得・外貨換算・月次外操作等を追加照合してください');
  }else notes.push('比較可能な前月の連結現金スナップショットはありません');
  if(warnings.length)notes.push('旧版の一部取得・内部取引は復元可能な範囲で照合しました');
- return {members:members.map(f=>f.id),shares:ownership.shares,links:acquired,bs,pl,cf,errors:[...new Set(errors)],notes:[...new Set(notes)],adjustments:{investment:internalInvest,goodwill:Math.round(goodwill),bargain:Math.round(bargain),inventoryProfit:inventoryProfit+parts.deferred+domesticCost.retained,internalSales:internalSales+parts.sales+domesticCost.sales+serviceFees+insuranceInternalFees,domesticInventoryProfit:domesticCost.retained,domesticInternalSales:domesticCost.sales,partClaimsEliminated:parts.claims,bankDepositsEliminated:internalDeposits,internalSellerCost,internalCostSold,interestRev,interestExp,loanRecEliminated,loanDebtEliminated,interestRecEliminated,interestDueEliminated},status:'連結試算・会計検算付き（取得時公正価値評価と外貨換算は未確定）'};
+ return {members:members.map(f=>f.id),shares:ownership.shares,links:acquired,bs,pl,cf,errors:[...new Set(errors)],notes:[...new Set(notes)],adjustments:{investment:internalInvest,goodwill:Math.round(goodwill),bargain:Math.round(bargain),inventoryProfit:inventoryProfit+parts.deferred+domesticCost.retained,internalSales:internalSales+parts.sales+domesticCost.sales+serviceFees+insuranceInternalFees,domesticInventoryProfit:domesticCost.retained,domesticInternalSales:domesticCost.sales,
+  internationalInventoryProfit:internationalCost.retained,internationalInternalSales:internationalCost.sales,
+  internationalAdvanceEliminated:internationalAdvanceAsset,partClaimsEliminated:parts.claims,bankDepositsEliminated:internalDeposits,internalSellerCost,internalCostSold,interestRev,interestExp,loanRecEliminated,loanDebtEliminated,interestRecEliminated,interestDueEliminated},status:'連結試算・会計検算付き（取得時公正価値評価と外貨換算は未確定）'};
 }
 
 /* v0.4 accounting review: no claim of full IFRS/J-GAAP compliance. Currency closing
