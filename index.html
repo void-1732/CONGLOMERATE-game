@@ -11352,7 +11352,8 @@ function worldHistoricalMonetaryReference(territoryId,month){
  return row?{currencyId:row[1],effectiveMonth:row[0],source:row[2],
   kind:partial?'PARTIAL_TERRITORY_REFERENCE':'REFERENCE_ONLY'}:null;
 }
-const WORLD_CURRENCIES=new Set(Object.values(WORLD_ENGINE_CURRENCIES));
+const WORLD_CURRENCIES=new Set([...Object.values(WORLD_ENGINE_CURRENCIES),
+ ...Object.values(WORLD_TERRITORY_MONETARY_REFERENCES).flatMap(entries=>entries.map(row=>row[1]))]);
 const WORLD_JURISDICTIONS=new Map([
  ['JUR-UK',{name:'イギリス',currencyId:'CUR-GBP'}],
  ['JUR-FR',{name:'フランス',currencyId:'CUR-EUR'}],
