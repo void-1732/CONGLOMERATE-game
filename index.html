@@ -13182,6 +13182,51 @@ function worldResolveDomesticOrders(s,events=[]){
   if(!order.result)order.result='NO_ALLOCATION';
  }
 }
+// Phase 3: actual demand limits AI raw-material procurement; it never
+// creates household sales or transfers any inventory by itself.
+function worldPhase3ConsumerProductionLimit(s,firm,plant,recipe,plannedUnits){
+ if(WORLD_PRODUCT_BY_ID.get(recipe.id)?.category!=='consumer')return plannedUnits;
+ const marketId=WORLD_TERRITORIES.get(WORLD_ENGINE_TERRITORY[firm.country])?.marketId;
+ const market=WORLD_MARKET_BY_ID.get(marketId);
+ if(!market||s.worldExpansion?.openMarkets[marketId]==null||!s.world?.[firm.country])return 0;
+ const quote=worldPhase3ConsumerQuote(s,marketId,recipe.id);
+ if(!quote.available)return 0;
+ // Unlisted minor sites provisionally belong to the first major urban catchment.
+ const cityId=WORLD_SITE_CITIES[plant.siteId]??market.cities[0].id;
+ const cityDemand=quote.cities.find(c=>c.cityId===cityId)?.quantity??0;
+ const peers=s.firms.reduce((count,c)=>count+
+   (c.country!==firm.country||!c.auto||!isActiveCorporateFirm(c)?0:
+    c.plants.filter(p=>p.worldPlan?.productId===recipe.id
+      &&(WORLD_SITE_CITIES[p.siteId]??market.cities[0].id)===cityId
+      &&worldDomesticSiteActive(p,p.siteId)).length),0);
+ return Math.max(0,Math.min(plannedUnits,Math.ceil(cityDemand/Math.max(1,peers))));
+}
+function worldPhase3RegionalB2BUnitPrice(s,seller,productId,receivingSiteId){
+ const stock=seller.stock?.[productId],marketId=
+  WORLD_TERRITORIES.get(WORLD_ENGINE_TERRITORY[seller.country])?.marketId;
+ const market=WORLD_MARKET_BY_ID.get(marketId),w=s.world?.[seller.country];
+ if(!market||!w||s.worldExpansion?.openMarkets[marketId]==null
+   ||!stock||!Number.isSafeInteger(stock.q)||stock.q<=0
+   ||!Number.isSafeInteger(stock.v)||stock.v<=0
+   ||worldProductUnitClass(productId)!=='mass')
+  throw Error('地域B2B参考価格に市場・原価・現物の裏付けがありません');
+ const cityId=WORLD_SITE_CITIES[receivingSiteId]??market.cities[0].id;
+ const city=worldPhase3CityShares(market).find(c=>c.cityId===cityId);
+ const cityPressure=((city?.shareBps??0)-Math.floor(10000/market.cities.length))/10000;
+ const orders=(s.worldExpansion.domesticOrders??[]).reduce((total,o)=>{
+  if(o.status!=='OPEN'||o.productId!==productId)return total;
+  const buyer=company(o.buyerId,s);
+  return total+(buyer?.country===seller.country?o.requestedQty:0);
+ },0);
+ const supply=s.firms.reduce((total,f)=>total+
+   (f.country===seller.country&&isActiveCorporateFirm(f)?(f.stock?.[productId]?.q??0):0),0);
+ // PROVISIONAL multipliers; actual acquired stock value stays the price floor.
+ const premium=1.05+clamp((w.inflation??0)-.02,-.04,.2)*.4
+  +clamp(w.cycle??0,-.3,.3)*.08+cityPressure*.03
+  +Math.min(.08,orders/Math.max(1,supply)*.025);
+ return Math.max(1,Math.ceil(stock.v/stock.q*Math.max(1.05,premium)));
+}
+
 function worldPlanDomesticPurchases(s,events=[]){
  const w=s.worldExpansion,warehouses=Object.values(w?.domesticWarehouses??{}).filter(h=>h.retiredAt==null);
  if(!warehouses.length)return;
@@ -13201,7 +13246,7 @@ function worldPlanDomesticPurchases(s,events=[]){
    if(!WORLD_PRODUCT_BY_ID.has(id)||worldProductUnitClass(id)!=='mass'
     ||(profile.products&&!profile.products.includes(id)))continue;
    const need=byProduct.get(id)??{quantity:0,warehouses:[]};
-   need.quantity+=Math.min(plant.capacity,plan.quantity)*perUnit;
+   need.quantity+=worldPhase3ConsumerProductionLimit(s,buyer,plant,recipe,Math.min(plant.capacity,plan.quantity))*perUnit;
    need.warehouses.push(h);
    byProduct.set(id,need);
   }
@@ -13228,8 +13273,8 @@ function worldPlanDomesticPurchases(s,events=[]){
      const from=seller.plants.find(p=>worldDomesticSiteActive(p,route.fromSiteId));
      const cargo=worldDomesticCargo(s,route.id,seller.id,from?.id,buyerId,h.plantId,productId);
      if(cargo.problem)continue;
-     // The reference price uses existing stock cost with a provisional 5% premium.
-     const unitPrice=Math.ceil(stock.v/stock.q*1.05);
+     // Real seller cost, regional conditions and existing unsettled orders.
+     const unitPrice=worldPhase3RegionalB2BUnitPrice(s,seller,productId,cargo.to.siteId);
      if(!Number.isSafeInteger(unitPrice)||unitPrice<1||unitPrice>10000000)continue;
      const cap=Math.min(missing,stock.q,Math.floor(route.capacityQty*(route.condition??100)/100),cargo.receiving.capacity);
      for(let quantity=cap;quantity>=1;quantity--){
