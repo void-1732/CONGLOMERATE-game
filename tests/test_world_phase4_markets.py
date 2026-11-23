@@ -62,7 +62,7 @@ def test_australia(page):
       const profile='AU-JP-SYDNEY-WOOL';
       const initiallyClosed=!S.world.AU&&!worldCityLocation(S,'CITY-24-01').marketOpen
         &&!worldInternationalRouteAvailable(S,profile);
-      S.month=12;S.monthCommitted=ym(1900,12)-1;
+      advanceFreightFixtureMonth(12);S.monthCommitted=ym(1900,12)-1;
       saveAuto=async()=>true;await runMonth();
       const opened=S.monthCommitted===ym(1900,12)&&S.world.AU?.code==='AU'
         &&worldCityLocation(S,'CITY-24-01').jurisdictionId==='JUR-AU'
@@ -98,14 +98,14 @@ def test_australia(page):
         productId:'PRD-R21',quantity:12,cargoLitres:32,unitPriceSeller:10,
         maxPaymentBuyer:100000,paymentDays:90});
       worldInternationalActOrder(S,seller.id,order.id,'approve');
-      S.month=6;worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
+      advanceFreightFixtureMonth(6);worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
       const [cargo]=S.worldExpansion.internationalShipments;
       const dispatch=purchase.quantity===12&&cargo?.status==='IN_TRANSIT'&&cargo.loadKg===16
         &&cargo.prepaidBuyer>cargo.prepaidSeller&&acc(seller,'worldShipmentStock')===cargo.bookCost
         &&!buyer.stock['PRD-R21']?.q;
-      S.month=8;worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
+      advanceFreightFixtureMonth(8);worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
       const prepaid=cargo.status==='IN_TRANSIT'&&cargo.credit.paidAt===ym(1913,8);
-      S.month=9;worldInternationalReceiveShipments(S);
+      advanceFreightFixtureMonth(9);worldInternationalReceiveShipments(S);
       const held=cargo.status==='IN_TRANSIT'&&cargo.customs?.arrivalAt===ym(1913,9)
         &&cargo.customs.releasedAt===null&&cargo.customs.duty===0&&cargo.tariffBps===0
         &&cargo.customs.authorityId==='CUSTOMS-JP-YOK-1911'&&acc(seller,'worldShipmentStock')===cargo.bookCost
@@ -114,7 +114,7 @@ def test_australia(page):
       const forged=structuredClone(S);forged.worldExpansion.internationalShipments[0].customs.releasedAt=ym(1913,9);
       let prematureRejected=false;
       try{parsePayload(savePayload(forged));}catch{prematureRejected=true;}
-      S.month=10;worldInternationalReceiveShipments(S);
+      advanceFreightFixtureMonth(10);worldInternationalReceiveShipments(S);
       const reopened=parsePayload(savePayload(S));
       const settle=cargo.status==='DELIVERED'&&buyer.stock['PRD-R21'].q===12
         &&buyer.stock['PRD-R21'].v===cargo.totalBuyer&&!acc(seller,'worldShipmentStock')
@@ -139,6 +139,8 @@ def test_new_zealand(page):
         &&S.worldExpansion.appliedEvents.find(e=>e.id==='HIST-NZ-1907')?.effectiveDate==='1907-09-26';
       const profile='NZ-UK-WELLINGTON-WOOL',noEarlyRoute=!worldInternationalRouteAvailable(S,profile);
       S.year=1913;S.month=1;S.monthCommitted=ym(1913,1)-1;
+      // This fixture jumps over the 1910 history events before testing payment.
+      applyWorldHistory(S);syncWorldIdentities(S);
       PAGE='corporateSubsidiaries';render();
       document.querySelector('#subName').value='Wellington wool exporter';
       document.querySelector('#subCountry').value='NZ';
@@ -167,13 +169,13 @@ def test_new_zealand(page):
       const order=worldInternationalPlaceOrder(S,buyer.id,{routeId:route.id,warehouseId:warehouse.id,
         productId:'PRD-R21',quantity:10,cargoLitres:24,unitPriceSeller:12,maxPaymentBuyer:100000,paymentDays:30});
       worldInternationalActOrder(S,seller.id,order.id,'approve');
-      S.month=2;worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
+      advanceFreightFixtureMonth(2);worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
       const [cargo]=S.worldExpansion.internationalShipments;
       const dispatched=purchase.quantity===10&&cargo?.status==='IN_TRANSIT'&&cargo.loadKg===12
         &&cargo.fuelRequired===15&&acc(seller,'worldShipmentStock')===cargo.bookCost
         &&cargo.sellerRate===cargo.buyerRate&&cargo.prepaidSeller===cargo.prepaidBuyer;
       const dueDate=cargo.credit.dueDate==='1913-03-03';
-      S.month=3;worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
+      advanceFreightFixtureMonth(3);worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
       const bank=cargo.credit.remittance;
       const roundtrip=parsePayload(savePayload(S));
       const held=cargo.status==='IN_TRANSIT'&&cargo.credit.paidAt===null&&bank.sentAt===ym(1913,3)
@@ -186,24 +188,24 @@ def test_new_zealand(page):
       try{parsePayload(savePayload(forged));}catch{forgedRejected=true;}
 
       const cancelled=structuredClone(S);
-      cancelled.month=6;
+      cancelled.month=6;applyWorldHistory(cancelled);syncWorldIdentities(cancelled);
       const buyerAtCancellation=company(buyer.id,cancelled),cashBefore=acc(buyerAtCancellation,'cash');
       const voided=worldInternationalRefundShipment(cancelled,cargo.id);
       const refunded=voided.status==='REFUNDED'&&voided.credit.remittance.returnedAt===ym(1913,6)
         &&!acc(buyerAtCancellation,'worldBankRemittance')&&acc(buyerAtCancellation,'cash')===cashBefore+bank.principal
         &&!check(parsePayload(savePayload(cancelled))).length;
 
-      S.month=4;worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
+      advanceFreightFixtureMonth(4);worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
       const prepaid=cargo.status==='IN_TRANSIT'&&cargo.credit.paidAt===ym(1913,4)&&!buyer.stock['PRD-R21']?.q
         &&!acc(buyer,'worldBankRemittance')&&acc(buyer,'worldSupplierAdvances')===cargo.prepaidBuyer
         &&-acc(seller,'worldCustomerAdvances')===cargo.prepaidSeller&&!worldInternationalCashPairs(S).length;
-      S.month=5;worldInternationalReceiveShipments(S);
+      advanceFreightFixtureMonth(5);worldInternationalReceiveShipments(S);
       const restored=parsePayload(savePayload(S));
       const settled=cargo.status==='DELIVERED'&&buyer.stock['PRD-R21'].q===10
         &&buyer.stock['PRD-R21'].v===cargo.totalBuyer&&!acc(seller,'worldShipmentStock')
         &&restored.worldExpansion.internationalShipments[0].receivedAt===ym(1913,5)
         &&!check(restored).length&&!consolidate(restored).errors.length;
-      S.month=10;
+      advanceFreightFixtureMonth(10);
       return {before,opensOnDominion,noEarlyRoute,identities,dispatched,dueDate,held,forgedRejected,refunded,prepaid,settled,
         documentedPeriod:!worldInternationalRouteAvailable(S,profile)};
     }""")
@@ -247,23 +249,23 @@ def test_steamship_export(page, market_data):
         productId:product,quantity:14,cargoLitres:30,unitPriceSeller:localFromBase(40,country),
         maxPaymentBuyer:100000,paymentDays:60});
       worldInternationalActOrder(S,seller.id,order.id,'approve');
-      S.month=departure;worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
+      advanceFreightFixtureMonth(departure);worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
       const [cargo]=S.worldExpansion.internationalShipments;
       const shipped=purchase.quantity===14&&cargo?.status==='IN_TRANSIT'
         &&cargo.loadKg===worldInternationalLoad(worldInternationalProfile(profile),14,30).loadKg
         &&cargo.prepaidSeller!==cargo.prepaidBuyer&&acc(seller,'worldShipmentStock')===cargo.bookCost;
-      S.month=payMonth;worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
+      advanceFreightFixtureMonth(payMonth);worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
       const prepaid=cargo.status==='IN_TRANSIT'&&cargo.credit.paidAt===ym(year,payMonth)
         &&!worldInternationalRouteAvailable(S,profile);
       const arrival=departure+worldInternationalProfile(profile).transitMonths;
-      S.month=arrival;worldInternationalReceiveShipments(S);
+      advanceFreightFixtureMonth(arrival);worldInternationalReceiveShipments(S);
       const held=authority===null?!cargo.customs&&cargo.status==='DELIVERED':
         cargo.status==='IN_TRANSIT'&&cargo.customs?.arrivalAt===ym(year,arrival)
         &&cargo.customs.authorityId===authority
         &&cargo.customs.currencyId===(customsCurrency??'CUR-USD')
         &&cargo.customs.releasedAt===null&&cargo.customs.duty===0
         &&!buyer.stock[product]?.q;
-      if(authority!==null){S.month=arrival+1;worldInternationalReceiveShipments(S);}
+      if(authority!==null){advanceFreightFixtureMonth(arrival+1);worldInternationalReceiveShipments(S);}
       const reopened=parsePayload(savePayload(S));
       const done=cargo.status==='DELIVERED'&&buyer.stock[product].q===14
         &&buyer.stock[product].v===cargo.totalBuyer&&!acc(seller,'worldShipmentStock')
@@ -316,7 +318,7 @@ def test_italy_coal_import(page):
       const queued=order.status==='OPEN'&&acc(buyer,'cash')===preCash
         &&!S.worldExpansion.internationalShipments.length;
       worldInternationalActOrder(S,seller.id,order.id,'approve');
-      S.month=8;worldInternationalResolveOrders(S);
+      advanceFreightFixtureMonth(8);worldInternationalResolveOrders(S);
       const cargo=S.worldExpansion.internationalShipments.at(-1);
       const loaded=purchase.quantity===28&&cargo?.orderId===order.id
         &&cargo.status==='IN_TRANSIT'&&cargo.quantity===12
@@ -329,11 +331,11 @@ def test_italy_coal_import(page):
       const forged=structuredClone(S);
       forged.worldExpansion.internationalShipments.at(-1).fuelRequired++;
       const tamper=denies(()=>parsePayload(savePayload(forged)));
-      S.month=9;worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
+      advanceFreightFixtureMonth(9);worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
       const paid=cargo.status==='IN_TRANSIT'&&cargo.credit.paidAt===ym(1907,9)
         &&acc(buyer,'worldSupplierAdvances')===cargo.prepaidBuyer
         &&!buyer.stock['PRD-R04']?.q;
-      S.month=10;worldInternationalReceiveShipments(S);
+      advanceFreightFixtureMonth(10);worldInternationalReceiveShipments(S);
       const restored=parsePayload(savePayload(S));
       const delivered=cargo.status==='DELIVERED'&&cargo.receivedAt===ym(1907,10)
         &&buyer.stock['PRD-R04'].q===12
@@ -342,7 +344,7 @@ def test_italy_coal_import(page):
         &&!acc(seller,'worldShipmentStock')
         &&!check(restored).length
         &&!consolidate(restored).errors.length;
-      S.month=11;
+      advanceFreightFixtureMonth(11);
       const closed=!worldInternationalRouteAvailable(S,'UK-IT-CARDIFF-GENOA-COAL');
       return {italyOpen,sharedShortage,queued,loaded,tamper,paid,delivered,closed};
     }""")
@@ -398,7 +400,7 @@ def test_south_africa_union(page):
         routeId:route.id,warehouseId:wh.id,productId:'PRD-R21',
         quantity:14,cargoLitres:30,unitPriceSeller:45,maxPaymentBuyer:100000,paymentDays:60});
       worldInternationalActOrder(S,seller.id,order.id,'approve');
-      S.month=6;worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
+      advanceFreightFixtureMonth(6);worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
       const cargo=S.worldExpansion.internationalShipments.at(-1);
       const freight=wool.quantity===14&&cargo?.orderId===order.id
         &&cargo.status==='IN_TRANSIT'&&cargo.quantity===14
@@ -408,15 +410,15 @@ def test_south_africa_union(page):
         &&!buyer.stock['PRD-R21']?.q&&!check(S).length;
       const tampered=structuredClone(S);tampered.worldExpansion.internationalShipments.at(-1).loadKg++;
       const tamperRejected=fail(()=>parsePayload(savePayload(tampered)));
-      S.month=7;worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
+      advanceFreightFixtureMonth(7);worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
       const paid=cargo.credit.paidAt===ym(1911,7);
-      S.month=9;worldInternationalReceiveShipments(S);
+      advanceFreightFixtureMonth(9);worldInternationalReceiveShipments(S);
       const saved=parsePayload(savePayload(S));
       const delivered=cargo.status==='DELIVERED'&&buyer.stock['PRD-R21'].q===14
         &&buyer.stock['PRD-R21'].v===cargo.totalBuyer
         &&acc(seller,'worldShipmentStock')===0
         &&!check(saved).length&&!consolidate(saved).errors.length;
-      S.month=10;
+      advanceFreightFixtureMonth(10);
       return {closed,beforeUnion,opened,jurisdictions,freight,tamperRejected,paid,delivered,
         expired:!worldInternationalRouteAvailable(S,profile)};
     }""")
@@ -473,7 +475,7 @@ def test_nigeria_colonial_cocoa(page):
         quantity:14,cargoLitres:30,unitPriceSeller:40,
         maxPaymentBuyer:100000,paymentDays:60});
       worldInternationalActOrder(S,seller.id,order.id,'approve');
-      S.month=5;worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
+      advanceFreightFixtureMonth(5);worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
       const cargo=S.worldExpansion.internationalShipments.at(-1);
       const shipped=originalStock.quantity===14&&cargo?.status==='IN_TRANSIT'
         &&cargo.quantity===14&&cargo.loadKg===15&&cargo.fuelRequired>0
@@ -481,10 +483,10 @@ def test_nigeria_colonial_cocoa(page):
         &&!buyer.stock['PRD-R28']?.q&&!check(S).length;
       const forged=structuredClone(S);forged.worldExpansion.internationalShipments.at(-1).cargoLitres++;
       const tamper=rejects(()=>parsePayload(savePayload(forged)));
-      S.month=6;worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
+      advanceFreightFixtureMonth(6);worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
       const prepaid=cargo.status==='IN_TRANSIT'&&cargo.credit.paidAt===ym(1922,6)
         &&!worldInternationalRouteAvailable(S,routeId);
-      S.month=7;worldInternationalReceiveShipments(S);
+      advanceFreightFixtureMonth(7);worldInternationalReceiveShipments(S);
       const restored=parsePayload(savePayload(S));
       const delivered=cargo.status==='DELIVERED'&&buyer.stock['PRD-R28'].q===14
         &&buyer.stock['PRD-R28'].v===cargo.totalBuyer
@@ -533,30 +535,31 @@ def test_philippines_sugar_customs(page):
       const identity=S.worldExpansion.companies[seller.id];
       const peg=identity.jurisdictionId==='JUR-PH-INSULAR'&&identity.currencyId==='CUR-PHP'
         &&S.world.PH.fx*2===S.world.US.fx&&firmCurrency(seller,S)==='PHP';
-      worldBuyRegionalSupply(S,seller.id,port.id,'PH-MNL-SUGAR',14);
+      const sugar=worldBuyRegionalSupply(S,seller.id,port.id,'PH-MNL-SUGAR',14);
+      const unitPriceSeller=Math.ceil(sugar.amount/sugar.quantity)+1;
       worldBuyRegionalSupply(S,seller.id,port.id,'PH-MNL-BUNKER-COAL',21);
       const route=worldInternationalRegisterRoute(S,seller.id,profileId);
       const wh=worldInternationalInstallWarehouse(S,buyer.id,depot.id,profileId);
       const order=worldInternationalPlaceOrder(S,buyer.id,{
         routeId:route.id,warehouseId:wh.id,productId:'PRD-M40',quantity:14,
-        cargoLitres:30,unitPriceSeller:35,maxPaymentBuyer:100000,paymentDays:60});
-      const freeQuota=worldInternationalQuote(S,route,'PRD-M40',14,35,buyer.id,60,30).tariffBps===0
+        cargoLitres:30,unitPriceSeller,maxPaymentBuyer:100000,paymentDays:60});
+      const freeQuota=worldInternationalQuote(S,route,'PRD-M40',14,unitPriceSeller,buyer.id,60,30).tariffBps===0
         &&WORLD_INTERNATIONAL_CUSTOMS[profileId].annualQuotaKg===304814400;
       worldInternationalActOrder(S,seller.id,order.id,'approve');
-      S.month=5;worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
+      advanceFreightFixtureMonth(5);worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
       const cargo=S.worldExpansion.internationalShipments.at(-1);
       const shipped=cargo?.status==='IN_TRANSIT'&&cargo.quantity===14
         &&cargo.tariffBps===0&&cargo.dutyBuyer===0&&cargo.loadKg===15
         &&acc(seller,'worldShipmentStock')===cargo.bookCost
         &&!buyer.stock['PRD-M40']?.q&&!check(S).length;
-      S.month=6;worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
+      advanceFreightFixtureMonth(6);worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
       const paid=cargo.credit.paidAt===ym(1911,6)&&!worldInternationalRouteAvailable(S,profileId);
-      S.month=7;worldInternationalReceiveShipments(S);
+      advanceFreightFixtureMonth(7);worldInternationalReceiveShipments(S);
       const held=cargo.status==='IN_TRANSIT'&&cargo.customs?.arrivalAt===ym(1911,7)
         &&cargo.customs.releasedAt===null&&cargo.customs.authorityId==='CUSTOMS-US-SFO-PH1909';
       const altered=structuredClone(S);altered.worldExpansion.internationalShipments.at(-1).customs.duty++;
       const tamper=reject(()=>parsePayload(savePayload(altered)));
-      S.month=8;worldInternationalReceiveShipments(S);
+      advanceFreightFixtureMonth(8);worldInternationalReceiveShipments(S);
       const saved=parsePayload(savePayload(S));
       const settled=cargo.status==='DELIVERED'&&buyer.stock['PRD-M40'].q===14
         &&buyer.stock['PRD-M40'].v===cargo.totalBuyer
@@ -607,15 +610,15 @@ def test_korean_colonial_rice(page):
       const parity=identity.jurisdictionId==='JUR-KR-COLONIAL'
         &&identity.currencyId==='CUR-KPY'&&firmCurrency(seller,S)==='KPY'
         &&firmCurrency(buyer,S)==='JPY'&&S.world.KR.fx===S.world.JP.fx;
-      worldBuyRegionalSupply(S,seller.id,port.id,'KR-BUS-RICE',14);
+      const rice=worldBuyRegionalSupply(S,seller.id,port.id,'KR-BUS-RICE',14);
       worldBuyRegionalSupply(S,seller.id,port.id,'KR-BUS-BUNKER-COAL',20);
       const route=worldInternationalRegisterRoute(S,seller.id,profileId);
       const wh=worldInternationalInstallWarehouse(S,buyer.id,depot.id,profileId);
       const order=worldInternationalPlaceOrder(S,buyer.id,{
         routeId:route.id,warehouseId:wh.id,productId:'PRD-R23',quantity:14,
-        cargoLitres:30,unitPriceSeller:80,maxPaymentBuyer:100000,paymentDays:60});
+        cargoLitres:30,unitPriceSeller:Math.ceil(rice.amount/rice.quantity)+1,maxPaymentBuyer:100000,paymentDays:60});
       worldInternationalActOrder(S,seller.id,order.id,'approve');
-      S.month=6;worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
+      advanceFreightFixtureMonth(6);worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
       const cargo=S.worldExpansion.internationalShipments.at(-1);
       const shipped=cargo?.status==='IN_TRANSIT'&&cargo.quantity===14&&cargo.loadKg===15
         &&cargo.sellerRate===cargo.buyerRate&&cargo.prepaidSeller===cargo.prepaidBuyer
@@ -623,10 +626,10 @@ def test_korean_colonial_rice(page):
         &&!buyer.stock['PRD-R23']?.q&&!check(S).length;
       const damaged=structuredClone(S);damaged.worldExpansion.internationalShipments.at(-1).loadKg++;
       const tamper=rejects(()=>parsePayload(savePayload(damaged)));
-      S.month=7;worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
+      advanceFreightFixtureMonth(7);worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
       const paid=cargo.credit.paidAt===ym(1914,7)
         &&!worldInternationalRouteAvailable(S,profileId);
-      S.month=8;worldInternationalReceiveShipments(S);
+      advanceFreightFixtureMonth(8);worldInternationalReceiveShipments(S);
       const restored=parsePayload(savePayload(S));
       const delivered=cargo.status==='DELIVERED'&&buyer.stock['PRD-R23'].q===14
         &&buyer.stock['PRD-R23'].v===cargo.totalBuyer
@@ -685,7 +688,7 @@ def test_dated_colonial_export(page, data):
         cargoLitres:30,unitPriceSeller:localFromBase(40,country),
         maxPaymentBuyer:100000,paymentDays:60});
       worldInternationalActOrder(S,seller.id,o.id,'approve');
-      S.month=departure;worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
+      advanceFreightFixtureMonth(departure);worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
       const cargo=S.worldExpansion.internationalShipments.at(-1);
       const shipped=cargo?.status==='IN_TRANSIT'&&cargo.quantity===14&&cargo.loadKg===15
         &&cargo.fuelRequired>0&&acc(seller,'worldShipmentStock')===cargo.bookCost
@@ -693,10 +696,10 @@ def test_dated_colonial_export(page, data):
       const forged=structuredClone(S);
       forged.worldExpansion.internationalShipments.at(-1).loadKg++;
       const tamper=(()=>{try{parsePayload(savePayload(forged));return false;}catch{return true;}})();
-      S.month=payMonth;worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
+      advanceFreightFixtureMonth(payMonth);worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
       const prepaid=cargo.status==='IN_TRANSIT'&&cargo.credit.paidAt===ym(year,payMonth)
         &&!worldInternationalRouteAvailable(S,profile);
-      S.month=departure+worldInternationalProfile(profile).transitMonths;
+      advanceFreightFixtureMonth(departure+worldInternationalProfile(profile).transitMonths);
       worldInternationalReceiveShipments(S);
       const saved=parsePayload(savePayload(S));
       const done=cargo.status==='DELIVERED'&&buyer.stock[product]?.q===14
@@ -724,7 +727,7 @@ def test_saudi_rice_import(page):
         &&S.worldExpansion.openMarkets['MKT-39']===ym(1932,10)
         &&worldCityLocation(S,'CITY-39-02').jurisdictionId==='JUR-SA-KINGDOM'
         &&S.worldExpansion.appliedEvents.some(e=>e.id==='HIST-SA-1932');
-      S.year=1934;S.month=5;S.monthCommitted=ym(1934,5)-1;
+      S.year=1934;S.month=4;S.monthCommitted=ym(1934,4)-1;
       applyWorldHistory(S);syncWorldIdentities(S);
       PAGE='corporateSubsidiaries';render();
       document.querySelector('#subName').value='Jeddah rice importer';
@@ -753,7 +756,7 @@ def test_saudi_rice_import(page):
         productId:'PRD-R23',quantity:14,cargoLitres:30,
         unitPriceSeller:localFromBase(40,'IN'),maxPaymentBuyer:100000,paymentDays:60});
       worldInternationalActOrder(S,seller.id,o.id,'approve');
-      S.month=6;worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
+      advanceFreightFixtureMonth(5);worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
       const cargo=S.worldExpansion.internationalShipments.at(-1);
       const shipped=cargo?.status==='IN_TRANSIT'&&cargo.quantity===14
         &&cargo.loadKg===15&&cargo.sellerRate!==cargo.buyerRate
@@ -761,10 +764,10 @@ def test_saudi_rice_import(page):
         &&!buyer.stock['PRD-R23']?.q&&!check(S).length;
       const damaged=structuredClone(S);damaged.worldExpansion.internationalShipments.at(-1).fuelRequired++;
       const tamper=rejects(()=>parsePayload(savePayload(damaged)));
-      S.month=7;worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
-      const paid=cargo.status==='IN_TRANSIT'&&cargo.credit.paidAt===ym(1934,7)
+      advanceFreightFixtureMonth(6);worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
+      const paid=cargo.status==='IN_TRANSIT'&&cargo.credit.paidAt===ym(1934,6)
         &&!worldInternationalRouteAvailable(S,profileId);
-      S.month=8;worldInternationalReceiveShipments(S);
+      advanceFreightFixtureMonth(7);worldInternationalReceiveShipments(S);
       const restored=parsePayload(savePayload(S));
       const done=cargo.status==='DELIVERED'&&buyer.stock['PRD-R23'].q===14
         &&buyer.stock['PRD-R23'].v===cargo.totalBuyer&&!acc(seller,'worldShipmentStock')
@@ -784,6 +787,13 @@ def main():
         page.on("pageerror", lambda error: errors.append(str(error)))
         page.set_content((ROOT / "index.html").read_text(encoding="utf-8"))
         page.wait_for_function("STORAGE_READY")
+        # These cargo scenarios jump directly to dispatch, arrival, and payment
+        # months. Apply the same world history as the normal monthly close.
+        page.evaluate("""() => {
+          window.advanceFreightFixtureMonth=month=>{
+            S.month=month;applyWorldHistory(S);syncWorldIdentities(S);
+          };
+        }""")
         result = page.evaluate("""() => {
           const rejects=action=>{try{action();return false;}catch{return true;}};
           const legacy=newGame({country:'UK',era:1900,difficulty:'normal',history:'historical',name:'Legacy world'});
@@ -846,7 +856,7 @@ def main():
           const first=worldInternationalPlaceOrder(S,buyer.id,base);
           const second=worldInternationalPlaceOrder(S,buyer.id,{...base,quantity:2,cargoLitres:8});
           for(const o of [first,second])worldInternationalActOrder(S,seller.id,o.id,'approve');
-          S.month=6;worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
+          advanceFreightFixtureMonth(6);worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
           const [a,b]=S.worldExpansion.internationalShipments;
           const loading=a?.quantity===6&&a.cargoLitres===51&&a.loadKg===26&&a.fuelRequired===8
             &&b?.quantity===1&&b.cargoLitres===4&&b.loadKg===2&&b.fuelRequired===1
@@ -856,12 +866,12 @@ def main():
             &&!buyer.stock['PRD-R22']?.q&&seller.stock['PRD-R22'].q===13&&!check(S).length;
           const altered=structuredClone(S);altered.worldExpansion.internationalShipments[0].loadKg--;
           const audit=rejects(()=>parsePayload(savePayload(altered)));
-          S.month=7;
+          advanceFreightFixtureMonth(7);
           worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
           const prepaid=a?.credit.paidAt===ym(1909,7)&&a.status==='IN_TRANSIT'
             &&acc(buyer,'worldSupplierAdvances')===a.prepaidBuyer+b.prepaidBuyer
             &&acc(buyer,'worldImportDutyPrepaid')===a.dutyBuyer+b.dutyBuyer;
-          S.month=8;worldInternationalReceiveShipments(S);
+          advanceFreightFixtureMonth(8);worldInternationalReceiveShipments(S);
           const restored=parsePayload(savePayload(S));
           const shipment=restored.worldExpansion.internationalShipments[0];
           const settlement=a?.status==='DELIVERED'&&b?.status==='DELIVERED'
@@ -869,7 +879,7 @@ def main():
             &&buyer.stock['PRD-R22'].q===7&&buyer.stock['PRD-R22'].v===a.totalBuyer+b.totalBuyer
             &&!acc(seller,'worldShipmentStock')&&!acc(buyer,'worldSupplierAdvances')
             &&!check(restored).length&&!consolidate(restored).errors.length;
-          S.month=11;
+          advanceFreightFixtureMonth(11);
           const seasonal=closedAtStart&&!worldInternationalRouteAvailable(S,profile)
             &&rejects(()=>worldInternationalPlaceOrder(S,buyer.id,base));
           return {registryUpgrade,downgradeRejected,selected,invalid,loading,ownership,audit,prepaid,settlement,seasonal};

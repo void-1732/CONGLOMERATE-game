@@ -2,9 +2,94 @@
 from pathlib import Path
 import os
 import shutil
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import expect, sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_city_facility_management(page):
+    page.evaluate("""() => {
+      S=newWorldGame({country:'JP',name:'Phase5 施設検証'});VIEW_FIRM=S.playerId;
+      VIEW_COUNTRY='JP';PAGE='worldMap';
+      const rival=S.firms.find(f=>!controller(S,f.id)&&f.country==='JP'&&f.plants.length);
+      rival.plants[0].siteId='JP-NGO';
+      rival.plants[0].siteCountry='JP';
+      syncWorldIdentities(S);
+      window.phase5RivalPlant=rival.plants[0].id;
+      window.phase5BeforeBuild={cash:acc(current(),'cash'),ppe:acc(current(),'ppe'),
+        capacity:current().plant.capacity};
+      render();
+    }""")
+    page.locator('[data-world-map-city-select]').select_option('CITY-14-03')
+    detail = page.locator('[data-world-map-city-detail="CITY-14-03"]')
+    rival_plant = page.evaluate('window.phase5RivalPlant')
+    assert detail.locator(f'[data-world-map-maintain="{rival_plant}"]').count() == 0
+    assert detail.get_by_text('JP-NGO', exact=True).count() > 0
+    detail.locator('[data-world-map-build="JP-NGO"]').click()
+    assert page.locator('#factorySite').input_value() == 'JP-NGO'
+    page.locator('#factoryName').fill('名古屋物流工場')
+    page.locator('[data-action="factoryBuild"]').click()
+    plant_id = page.evaluate("""() => {
+      const firm=current(),plant=firm.plants.find(p=>p.name==='名古屋物流工場');
+      const before=window.phase5BeforeBuild;
+      const amount=localFromBase(siteInvestmentQuote('JP-NGO','small','integrated',S),firm.country);
+      const restored=parsePayload(savePayload(S));
+      if(!plant||plant.siteId!=='JP-NGO'||plant.construction?.monthsLeft!==2
+       ||firm.plant.capacity!==before.capacity
+       ||acc(firm,'cash')!==before.cash-amount||acc(firm,'ppe')!==before.ppe+amount
+       ||restored.worldExpansion.facilities['FAC-'+plant.id]?.locationId!=='LOC-JP-NGO'
+       ||check(restored).length||consolidate(restored).errors.length)throw Error('建設・復元が不一致');
+      return plant.id;
+    }""")
+    page.evaluate("PAGE='worldMap';render();")
+    assert '建設中（残2か月）' in detail.inner_text()
+    manage = detail.locator(f'[data-world-map-maintain="{plant_id}"]')
+    manage.click()
+    action = page.locator(f'[data-action="factoryManageSelected"][data-plant-id="{plant_id}"]')
+    page.locator('#factoryOneAction').select_option('pause')
+    action.click()
+    assert page.evaluate("(id)=>!current().plants.find(p=>p.id===id).paused", plant_id)
+
+    assert page.evaluate("""async id => {
+      saveAuto=async()=>true;
+      await runMonth();await runMonth();
+      const plant=current().plants.find(p=>p.id===id);
+      return S.monthCommitted===ym(1900,2)&&plant.construction===null&&activeFactories(current()).includes(plant);
+    }""", plant_id)
+    page.evaluate("PAGE='worldMap';render();")
+    manage.click()
+    page.locator('#factoryOneAction').select_option('pause')
+    action.click()
+    assert page.evaluate("(id)=>parsePayload(savePayload(S)).firms.find(f=>f.id===S.playerId).plants.find(p=>p.id===id).paused", plant_id)
+    page.locator('#factoryOneAction').select_option('resume')
+    action.click()
+    assert page.evaluate("(id)=>!current().plants.find(p=>p.id===id).paused&&!check(S).length", plant_id)
+
+    page.evaluate("""() => {
+      S.year=1970;S.month=1;S.monthCommitted=ym(1970,1)-1;
+      applyWorldHistory(S);syncWorldIdentities(S);
+      const firm=current();
+      if(!firm.research.tree.done.includes('production-1'))firm.research.tree.done.push('production-1');
+      post(firm,{materials:900},{cash:900},'検証用の有償倉庫設備','operating',S);
+      firm.stock['PRD-E20']={q:1,v:900};
+      window.phase5HubPpe=acc(firm,'ppe');
+      PAGE='worldMap';render();
+    }""")
+    page.get_by_role('button', name='物流拠点管理', exact=True).click()
+    page.locator('#world-domestic > summary').click()
+    warehouse_form = page.locator('form[data-world-domestic="warehouse"]')
+    warehouse_form.locator('select[name="installation"]').select_option(f'JP-NAGOYA-SILO|{plant_id}')
+    warehouse_form.get_by_role('button', name='倉庫設備を設置').click()
+    warehouse_id = page.evaluate("""id => {
+      const firm=current(),restored=parsePayload(savePayload(S));
+      const hub=Object.values(restored.worldExpansion.domesticWarehouses).find(h=>h.plantId===id);
+      if(!hub||hub.ownerCompanyId!==firm.id||hub.assetValue!==900
+       ||acc(firm,'ppe')!==window.phase5HubPpe+900||firm.stock['PRD-E20'].q!==0
+       ||check(restored).length||consolidate(restored).errors.length)throw Error('倉庫資産・復元が不一致');
+      return hub.id;
+    }""", plant_id)
+    hub = page.locator(f'[data-world-hub-id="{warehouse_id}"]')
+    assert '稼働設備' in hub.inner_text() and '6 kg' in hub.inner_text()
 
 
 def main():
@@ -29,6 +114,7 @@ def main():
               ...Object.keys(WORLD_INTERNATIONAL_CORRIDORS)
             ]);
             const siteIds=new Set(SITE_CATALOG.map(s=>s.id));
+            const transfer=n.routes.find(r=>r.id==='JP-US-YOKOHAMA-TRANSFER');
             const before=JSON.stringify(S);
             render();
             return {
@@ -40,6 +126,9 @@ def main():
                 &&r.from.id===r.fromId&&r.to.id===r.toId
                 &&Number.isFinite(r.from.x)&&Number.isFinite(r.to.y)),
               svg:document.querySelectorAll('.phase5-world-svg').length,
+              coastline:document.querySelector('[data-world-map-land]')?.getTotalLength()>0,
+              handoff:transfer.via?.id==='JP-YOK'&&document.querySelectorAll(
+                '[data-world-map-route="JP-US-YOKOHAMA-TRANSFER"] line').length===3,
               cityCircles:document.querySelectorAll('[data-world-map-city]').length,
               routeGraphics:document.querySelectorAll('[data-world-map-route]').length,
               noMutation:JSON.stringify(S)===before,
@@ -51,8 +140,8 @@ def main():
         assert audit["markets"] == 40 and audit["cities"] == 155, audit
         assert audit["distinctCities"] == 155, audit
         assert audit["routes"] == audit["profiles"] and audit["routes"] >= 60, audit
-        assert audit["exactIds"] and audit["endpoints"], audit
-        assert audit["svg"] == 1 and audit["cityCircles"] == 155, audit
+        assert audit["exactIds"] and audit["endpoints"] and audit["handoff"], audit
+        assert audit["svg"] == 1 and audit["coastline"] and audit["cityCircles"] == 155, audit
         assert audit["routeGraphics"] == audit["routes"], audit
         assert audit["noMutation"] and audit["check"] == 0, audit
         assert audit["noPhantomWarehouses"] and audit["noPhantomEquipment"], audit
@@ -77,12 +166,12 @@ def main():
         page.locator('[data-world-map-focus="global"]').click()
         assert page.locator('[data-world-map-route-row]').count() == audit["routes"]
 
-        first_route = page.locator('[data-world-map-select-route]').first()
+        first_route = page.locator('[data-world-map-select-route]').first
         selected_id = first_route.get_attribute("data-world-map-select-route")
         first_route.click()
         assert page.locator('[data-world-map-detail]').get_attribute("data-world-map-detail") == selected_id
         assert page.locator('[data-world-map-selected-route="true"]').count() == 1
-        assert page.locator('[data-world-map-select-route]').first().get_attribute("aria-pressed") == "true"
+        assert page.locator('[data-world-map-select-route]').first.get_attribute("aria-pressed") == "true"
         assert page.locator('[data-world-map-detail]').locator("text=登録設備なし").count() == 1
         assert page.locator('[data-world-map-detail]').locator("text=出荷履歴なし").count() == 1
 
@@ -93,20 +182,23 @@ def main():
         assert page.locator('[data-world-map-route-row]').count() == 0
         page.locator('[data-world-map-activity="all"]').click()
         assert page.locator('[data-world-map-detail]').get_attribute("data-world-map-detail") == selected_id
-        page.locator('[data-world-map-select-route]').first().click()
+        page.locator('[data-world-map-select-route]').first.click()
         assert page.locator('[data-world-map-detail]').count() == 0
 
         page.locator('[data-world-map-city-select]').select_option('CITY-14-01')
-        # Port/site symbols cover city dots at the same coordinates.
-        assert page.locator('[data-world-map-site]').first().get_attribute("pointer-events") == "none"
+        # Port/site symbols share coordinates with city dots.
+        assert page.locator('[data-world-map-site]').first.get_attribute("pointer-events") == "none"
         assert page.locator('[data-world-map-city-detail="CITY-14-01"]').count() == 1
         assert page.locator('[data-world-map-city-selected="true"]').count() == 1
         assert "JUR-JP" in page.locator('[data-world-map-city-detail]').inner_text()
         # City-circle selection toggles its corresponding read-only legal panel.
         page.locator('[data-world-map-city="CITY-14-01"]').click()
         assert page.locator('[data-world-map-city-detail]').count() == 0
-        page.locator('[data-world-map-city="CITY-14-01"]').focus()
+        tokyo = page.get_by_role('button', name='東京 の都市・管轄情報')
+        tokyo.focus()
         page.keyboard.press('Enter')
+        expect(tokyo).to_be_focused()
+        expect(tokyo).to_have_attribute('aria-pressed', 'true')
         assert page.locator('[data-world-map-city-detail="CITY-14-01"]').count() == 1
         assert page.locator('[data-world-map-city-selected="true"]').count() == 1
 
@@ -118,7 +210,7 @@ def main():
           const panel=city&&worldMapCityDetail(S,city);
           return !!city&&state.jurisdictionId==='JUR-PT-KINGDOM'
             &&!state.marketOpen&&panel.includes('REFERENCE_ONLY')
-            &&panel.includes('未開放・未接続');
+            &&panel.includes('未開放・未接続')&&!panel.includes('data-world-map-build');
         }""")
         assert territory_reference
         # Registry views must not report retired infrastructure as installed.
@@ -139,10 +231,11 @@ def main():
         assert page.locator("text=国内・国際物流の登録・発注操作").count() >= 1
         assert page.locator('[data-page="worldMap"]').count() >= 1
         assert page.evaluate("JSON.stringify(S)===window.__phase5PreUiState")
+        test_city_facility_management(page)
         assert not errors, errors
         browser.close()
     print("PASS Phase 5: 40 markets, 155 city dots, exact routes, "
-          "filters, hubs and nonmutating map")
+          "filters, hubs, facility construction and maintenance")
 
 
 if __name__ == "__main__":

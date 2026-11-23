@@ -56,6 +56,11 @@ def main():
           put(warehouseFirm,'PRD-E20',1,120);
           const route=worldRegisterDomesticRoute(S,parent.id,'JP-TOK','JP-YOK',29,'VERIFIED','JP-SHIMBASHI-YOKOHAMA');
           const depot=worldInstallDomesticWarehouse(S,warehouseFirm.id,destination.id,'JP-YOKOHAMA-SHINKO');
+          depot.condition=50;
+          let blocksDamagedStorage=false;
+          try{worldStartStorageService(S,parent.id,coLocated.id,depot.id,'PRD-R19',5,2,12);}
+          catch(e){blocksDamagedStorage=e.message.includes('余力');}
+          depot.condition=100;
           const storage=worldStartStorageService(S,parent.id,coLocated.id,depot.id,'PRD-R19',5,2,12);
           const hasCustody=parent.stock['PRD-R19'].q===5&&acc(parent,'worldStoredStock')===50
             &&acc(warehouseFirm,'materials')===Object.values(warehouseFirm.stock).reduce((x,t)=>x+t.v,0)
@@ -72,7 +77,7 @@ def main():
           const noEarlyPremium=acc(insurer,'cash')===providerCash+3-20&&acc(insurer,'worldInsuranceReserve')===20
             &&-acc(insurer,'worldInsuranceUnearned')===3&&!acc(insurer,'serviceRevenue')
             &&worldServiceActivity(parsePayload(savePayload(S)),'PRD-S07').length===0;
-          const capacity=blocksOverfill&&blocksHazard&&worldDomesticWarehouseReservations(S.worldExpansion,depot.id)===8
+          const capacity=blocksDamagedStorage&&blocksOverfill&&blocksHazard&&worldDomesticWarehouseReservations(S.worldExpansion,depot.id)===8
             &&worldServiceActivity(S,'PRD-S03').length===0;
           let blockedRetire=false;
           try{worldRetireDomesticAsset(S,warehouseFirm.id,'warehouse',depot.id);}catch{blockedRetire=true;}

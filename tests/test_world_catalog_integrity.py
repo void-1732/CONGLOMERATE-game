@@ -141,9 +141,10 @@ def main():
             historicMoney,historicalMoneyIsNotLedger,
             firstHistory,secondHistory:!secondHistory,rejectsConflict,
             irelandBefore:first.territoryId==='TER-01-02'
-              &&first.marketId==='MKT-01'&&first.jurisdictionId==='JUR-UK',
+              &&first.marketId==='MKT-01'&&first.jurisdictionId==='JUR-UK'
+              &&!first.marketOpen&&!first.economicEngineConnected,
             irelandAfter:later.jurisdictionId==='JUR-IE'
-              &&later.marketId==='MKT-01',
+              &&later.marketId==='MKT-01'&&!later.marketOpen&&!later.economicEngineConnected,
             stableIdentity:identityBefore===identityAfter,
             roundTrip:worldCityLocation(restored,'CITY-01-04').jurisdictionId==='JUR-IE',
             allMarkets:Object.keys(restored.worldExpansion.openMarkets).length===40,

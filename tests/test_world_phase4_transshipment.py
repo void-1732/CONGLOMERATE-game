@@ -24,6 +24,8 @@ def main():
         result = page.evaluate("""() => {
           const rejects=action=>{try{action();return false;}catch{return true;}};
           const profile='JP-US-YOKOHAMA-TRANSFER';
+          const advance=month=>{S.month=month;applyWorldHistory(S);syncWorldIdentities(S);};
+          const routeDetail=()=>worldMapRouteDetail(S,worldMapNetwork(S).routes.find(r=>r.id===profile));
           S=newWorldGame({country:'JP',name:'Shimbashi paper merchant'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';
           const closedEarly=!worldInternationalRouteAvailable(S,profile);
           S.year=1920;S.month=1;S.monthCommitted=ym(1920,1)-1;
@@ -56,6 +58,11 @@ def main():
           const blocked=rejects(()=>worldInternationalRegisterRoute(S,seller.id,profile));
           const depot=worldInstallDomesticWarehouse(S,seller.id,terminal.id,'JP-YOKOHAMA-SHINKO');
           const route=worldInternationalRegisterRoute(S,seller.id,profile);
+          const inactive=structuredClone(S),closedBuyer=company(buyer.id,inactive);
+          closedBuyer.reorgStatus='integrated';
+          const beforeDenied=JSON.stringify(inactive);
+          const inactiveRejected=rejects(()=>worldInternationalInstallWarehouse(
+            inactive,buyer.id,destination.id,profile))&&JSON.stringify(inactive)===beforeDenied;
           const warehouse=worldInternationalInstallWarehouse(S,buyer.id,destination.id,profile);
           const openBuyerHub=worldMapWarehouseLedger(S).find(h=>h.id===warehouse.id);
           const dateYear=S.year,dateMonth=S.month;
@@ -84,7 +91,7 @@ def main():
           const first=worldInternationalPlaceOrder(S,buyer.id,options);
           const second=worldInternationalPlaceOrder(S,buyer.id,{...options,quantity:1,cargoLitres:2});
           for(const o of [first,second])worldInternationalActOrder(S,seller.id,o.id,'approve');
-          S.month=2;worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
+          advance(2);worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
           const [cargo]=S.worldExpansion.internationalShipments;
           const loaded=first.acceptedQty===4&&second.result==='NO_ALLOCATION'&&cargo?.loadKg===8
             &&cargo.transfer.fuelRail===1&&cargo.transfer.fuelSea===4&&seller.stock['PRD-R04'].q===10
@@ -92,32 +99,34 @@ def main():
             &&rejects(()=>worldRetireDomesticAsset(S,seller.id,'warehouse',depot.id))
             &&!buyer.stock['PRD-M14']?.q&&acc(seller,'worldShipmentStock')===cargo.bookCost;
           terminal.paused=true;syncPlant(seller);
-          S.month=3;worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
+          advance(3);worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
           const pausedHub=worldMapWarehouseLedger(S).find(h=>h.id===depot.id);
           const pausedCapacity=pausedHub?.status==='拠点休止中'&&pausedHub?.available===0
             &&pausedHub?.reserved===8;
           const waits=cargo.transfer.arrivedAt===null&&cargo.transfer.boardedAt===null
             &&cargo.credit.dueDate==='1920-04-01'&&cargo.credit.paidAt===null;
           terminal.paused=false;syncPlant(seller);
-          S.month=4;worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
+          advance(4);worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
           const savedInPort=parsePayload(savePayload(S));
           const held=cargo.transfer.arrivedAt===ym(1920,4)&&cargo.transfer.boardedAt===null
             &&cargo.credit.paidAt===ym(1920,4)&&!acc(seller,'sales')
             &&savedInPort.worldExpansion.internationalShipments[0].transfer.arrivedAt===ym(1920,4)
-            &&worldInternationalTradePanel(seller,true).includes('横浜新港で積替え待ち');
+            &&worldInternationalTradePanel(seller,true).includes('横浜新港で積替え待ち')
+            &&routeDetail().includes('横浜新港で積替え待ち');
           const forged=structuredClone(S);forged.worldExpansion.internationalShipments[0].transfer.railDueAt--;
           const audit=rejects(()=>parsePayload(savePayload(forged)));
-          S.month=5;worldInternationalReceiveShipments(S);
+          advance(5);worldInternationalReceiveShipments(S);
           const boarded=cargo.transfer.boardedAt===ym(1920,5)&&cargo.dueAt===ym(1920,8)
-            &&worldDomesticWarehouseReservations(S.worldExpansion,depot.id)===0&&!buyer.stock['PRD-M14']?.q;
-          S.month=7;worldInternationalReceiveShipments(S);
+            &&worldDomesticWarehouseReservations(S.worldExpansion,depot.id)===0&&!buyer.stock['PRD-M14']?.q
+            &&routeDetail().includes('船積み済み')&&routeDetail().includes('1920年8月');
+          advance(7);worldInternationalReceiveShipments(S);
           const stillOwned=cargo.status==='IN_TRANSIT'&&acc(seller,'worldShipmentStock')===cargo.bookCost;
-          S.month=8;worldInternationalReceiveShipments(S);
+          advance(8);worldInternationalReceiveShipments(S);
           const reopened=parsePayload(savePayload(S));
           const settled=cargo.status==='DELIVERED'&&buyer.stock['PRD-M14'].q===4
             &&buyer.stock['PRD-M14'].v===cargo.totalBuyer&&!acc(seller,'worldShipmentStock')
             &&-acc(seller,'sales')===cargo.goodsSeller&&!check(reopened).length&&!consolidate(reopened).errors.length;
-          return {closedEarly,blocked,registered,routeGatedCapacity,damagedCapacity,loaded,pausedCapacity,waits,held,audit,boarded,stillOwned,settled};
+          return {closedEarly,blocked,inactiveRejected,registered,routeGatedCapacity,damagedCapacity,loaded,pausedCapacity,waits,held,audit,boarded,stillOwned,settled};
         }""")
         assert all(result.values()), result
         assert not errors, errors

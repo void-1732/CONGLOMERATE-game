@@ -120,7 +120,12 @@ def main():
             S,route.id,seller.id,origin.id,buyer.id,p.id,product,quantity,16);
           const refusesCargo=refuses(()=>dispatch(road,roadReceiver,'PRD-R19',1),'荷種')
             &&refuses(()=>dispatch(road,roadReceiver,'PRD-S01',1),'現物重量品');
+          railDepot.condition=50;
+          const damagedCapacity=refuses(()=>dispatch(rail,railReceiver,'PRD-R19',5),'引当済み容量');
+          railDepot.condition=100;
           const railLoad=dispatch(rail,railReceiver,'PRD-R19',7);
+          // Existing reservations survive later deterioration and a save/load.
+          railDepot.condition=50;
           const roadLoad=dispatch(road,roadReceiver,'PRD-R22',5);
           const capacity=refuses(()=>dispatch(rail,railReceiver,'PRD-R19',2),'引当済み容量')
             &&refuses(()=>dispatch(road,roadReceiver,'PRD-R22',2),'引当済み容量');
@@ -191,7 +196,7 @@ def main():
             &&element.textContent.includes('東名高速道路')
             &&element.textContent.includes('REFUNDED')
             &&element.querySelector('form[data-world-domestic="retire"]')!==null;
-          return {opens,rejectsFiction,needsWagon,refineries,refining,refusesCargo,capacity,freight,escrow,
+          return {opens,rejectsFiction,needsWagon,refineries,refining,refusesCargo,damagedCapacity,capacity,freight,escrow,
             stays,savedTransit,receipt,title,groupTitle,once,refund,closure,tamper,showPanel};
         }""")
         assert result and all(result.values()), result
