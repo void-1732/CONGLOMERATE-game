@@ -34,6 +34,7 @@ on:
       - tests/test_world_phase4_corridors.py
       - tests/test_world_phase4_markets.py
       - tests/test_world_phase4_transshipment.py
+      - tests/audit_world_freight_coverage.py
       - tests/test_world_phase5_map.py
       - tests/test_step13_120_months.py
       - tests/test_fx_book_and_period_pl.py
@@ -101,12 +102,7 @@ jobs:
       - name: Phase 3 real-demand B2B purchasing and regional pricing
         run: python -B tests/test_world_phase3_market_b2b.py
       - name: Phase 4 international cargo, calendar settlement and save
-        run: |
-          python -B tests/test_world_phase4_international.py
-          python -B tests/test_world_phase4_credit.py
-          python -B tests/test_world_phase4_corridors.py
-          python -B tests/test_world_phase4_markets.py
-          python -B tests/test_world_phase4_transshipment.py
+        run: python -B tests/audit_world_freight_coverage.py
       - name: Phase 5 offline geography and logistics management
         run: python -B tests/test_world_phase5_map.py
       - name: Existing UI, trade and save regression

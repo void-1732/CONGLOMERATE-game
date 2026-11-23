@@ -6,15 +6,17 @@ from playwright.sync_api import sync_playwright
 
 ROOT=Path(__file__).resolve().parents[1]
 
-def main():
+def main(observe_receipts=None):
     with sync_playwright() as pw:
         browser=pw.chromium.launch(
             executable_path=os.getenv("CHROMIUM_EXECUTABLE") or shutil.which("chromium"),
             args=["--no-sandbox"])
-        page=browser.new_page()
+        page=browser.new_page(offline=True)
         page.on("pageerror",lambda err:print("BROWSER ERROR",err))
         page.set_content((ROOT/"index.html").read_text(encoding="utf-8"))
         page.wait_for_function("STORAGE_READY")
+        if observe_receipts is not None:
+            observe_receipts(page)
         result=page.evaluate("""() => {
           S=newWorldGame({country:'UK',name:'Phase 4 Channel freight'});
           const buyer=company(S.playerId),bp=buyer.plants[0];

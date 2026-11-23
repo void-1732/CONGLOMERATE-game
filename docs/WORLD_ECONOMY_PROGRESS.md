@@ -690,3 +690,11 @@ python -B tests/test_step13_120_months.py --era 1900 --world
 - 1919年8月25日のロンドン発パリ向け皮革輸送を同年の航空専門誌で確認した。ハウンズロー・ヒースとル・ブルジェを既存のロンドン・パリ都市IDにひも付け、飛行場の参照位置を単一HTMLに収録。月次ゲームでは1919年9月からクロイドンへの移転月の前まで出荷できる。期末前の出荷は運行期間終了後も検収できる。[Flight、1919年8月28日](https://flyingmachines.ru/Site2/Crafts/Craft30102.htm) · [航空業界の運航記録](https://www.aviationarchives.uk/Portal/AAAI/en-GB/RecordView/Index/1131025) · [ハウンズローの参照座標](https://www.abct.org.uk/airfields/hounslow/) · [ル・ブルジェの参照座標](https://www.sia.aviation-civile.gouv.fr/media/dvd/eAIP_29_OCT_2026/FRANCE/AIRAC-2026-10-29/html/eAIP/FR-AD-2.LFPB-fr-FR.html)
 - 既存の航空機と倉庫資産を登録し、有償調達した皮革とガソリンを実在庫から引き当て、引換えの外貨前払・関税・所有権留保・検収・保存復元を試験した。距離・容量・燃料消費量・日程の月次換算と調達枠はゲーム値。フランスの帳簿通貨移行と史料付き関税はこの区間でも未完成。
 - 先行コミット `9bba52cd152c2cfaeb404a3087c91c36ea580e8f` では、開発CIのpush・PR実行および1,200か月の5条件がGitHub Actionsで合格。ローカルでも開発CIの35コマンド、1900年・2020年の37画面、IndexedDB、会計、120か月、40市場・46経路の現物検収を確認した。[push開発CI](https://github.com/void-1732/CONGLOMERATE-game/actions/runs/45193638813) · [PR開発CI](https://github.com/void-1732/CONGLOMERATE-game/actions/runs/45193653612) · [1,200か月試験](https://github.com/void-1732/CONGLOMERATE-game/actions/runs/45193653716)
+
+### Phase 4・5 現物検収のCI監査と帳簿通貨の表示（2026-11-24、日本時間）
+
+- 開発CIのPhase 4工程で専用Playwright 5本を実行し、出荷台帳が実際に検収を記帳した経路と当事者の市場IDを収集する。40市場と運航史料を登録した全47経路が検収に現れることを合格条件とした。経路の登録やHTML表示だけでは合格しない。実行コマンドは `python -B tests/audit_world_freight_coverage.py`。
+- 1960年1月を境にフランス旧フランと新フランを史料参照で区別する。単体財務は帳簿通貨と該当年代の史料参照を併記する。1900年のフランスとドイツで表示・残高・在庫・仕訳を照合し、帳簿が現状EURのままであることを確認した。契約と会計の法定通貨への移行は継続課題。
+- Phase 5のオフラインPlaywrightで、航空フィルタ、2拠点ID、経路選択、運行期間の終了表示を確認した。
+- 1900年の世界経済長期試験に航空貨物を追加した。240か月時点で発注し、250か月までに皮革2 kg、荷姿換算3 kgの検収と掛け決済を確認。300か月の試行で当該履歴、連結BS・CF、64,951,508バイトのJSON復元に合格した。初回の試験用法人は施設取得後の資金が不足したため、資本金の範囲で設立できる規模に修正した。
+- 先行公開HEAD `040de6e870716d91d4cec93a4d7b6c46f64d88fc` の開発CIはpush・PRとも合格した。専用Playwright、1900年・2020年の既存37画面、IndexedDB、保存・会計、120か月を含む。[push開発CI](https://github.com/void-1732/CONGLOMERATE-game/actions/runs/45252976737) · [PR開発CI](https://github.com/void-1732/CONGLOMERATE-game/actions/runs/45252987194)

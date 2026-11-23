@@ -61,7 +61,9 @@ def main():
             return city.jurisdictionId!=null&&city.marketOpen;
           });
           const historicMoney=(
-            worldHistoricalMonetaryReference('TER-02-01',ym(1900,1)).currencyId==='CUR-FRF'
+            worldHistoricalMonetaryReference('TER-02-01',ym(1900,1)).currencyId==='CUR-FRF-OLD'
+            &&worldHistoricalMonetaryReference('TER-02-01',ym(1959,12)).currencyId==='CUR-FRF-OLD'
+            &&worldHistoricalMonetaryReference('TER-02-01',ym(1960,1)).currencyId==='CUR-FRF'
             &&worldHistoricalMonetaryReference('TER-02-01',ym(1999,1)).currencyId==='CUR-EUR'
             &&worldHistoricalMonetaryReference('TER-03-01',ym(1900,1)).currencyId==='CUR-GMK'
             &&worldHistoricalMonetaryReference('TER-03-01',ym(1924,10)).currencyId==='CUR-RMK'
@@ -84,7 +86,7 @@ def main():
           // This is a sourced historical reference only. Do not retroactively
           // redenominate firms, cash, contracts, journals or FX in saved games.
           const historicalMoneyIsNotLedger=(
-            worldCityLocation(state,'CITY-02-01').historicalMoney.currencyId==='CUR-FRF'
+            worldCityLocation(state,'CITY-02-01').historicalMoney.currencyId==='CUR-FRF-OLD'
             &&WORLD_ENGINE_CURRENCIES.FR==='CUR-EUR'
             &&WORLD_ENGINE_CURRENCIES.DE==='CUR-EUR'
             &&worldCityLocation(state,'CITY-05-03').historicalMoney.currencyId==='CUR-PTR'
@@ -153,6 +155,21 @@ def main():
           };
         }""")
         assert all(result.values()), result
+        for country, reference in (("FR", "CUR-FRF-OLD"), ("DE", "CUR-GMK")):
+            preserved = page.evaluate("""country => {
+              S=newWorldGame({country,name:'会計通貨監査'});
+              VIEW_FIRM=S.playerId;VIEW_COUNTRY=country;PAGE='finance';
+              const firm=current();
+              const balances=()=>JSON.stringify([firm.ledger,firm.stock,firm.journals]);
+              const before=balances();
+              render();
+              return before===balances()&&firmCurrency(firm,S)==='EUR';
+            }""", country)
+            notice = page.locator("[data-world-currency-audit]")
+            assert preserved and notice.count() == 1
+            assert f"帳簿通貨 CUR-EUR ／ 年代別の史料参照 {reference}" in notice.inner_text()
+        page.evaluate("S.year=1999;applyWorldHistory(S);syncWorldIdentities(S);render();")
+        assert notice.count() == 0
         assert not errors, errors
         browser.close()
     print("PASS Phase 1 world catalog unique IDs, territory location, history, ownership and restore")

@@ -112,6 +112,11 @@ Phase 4の残件を最優先とし、実輸送や会計の新しい前提を必�
 
 ### 年代別帳簿通貨移行の史料確認（Phase 4）
 
-- フランス本土の1960年1月の切替は新1フラン＝旧100フラン。旧フラン表示の債権債務も新しい単位へ移行した。現在の史実参照は1960年の単位の違いを区別していないため、帳簿移行では両単位を明示する。[フランス通貨令第58-1341号](https://www.legifrance.gouv.fr/affichTexte.do?categorieLien=id&cidTexte=JORFTEXT000000339269) · [国民議会答弁](https://archives.assemblee-nationale.fr/4/cri/1968-1969-ordinaire1/102.pdf)
+- フランス本土の1960年1月の切替は新1フラン＝旧100フラン。旧フラン表示の債権債務も新しい単位へ移行した。都市の史実参照は `CUR-FRF-OLD` と `CUR-FRF` に分けてある。会計移行では契約・残高・仕訳に適用する単位と切替月を保持する必要がある。[フランス通貨令第58-1341号](https://www.legifrance.gouv.fr/affichTexte.do?categorieLien=id&cidTexte=JORFTEXT000000339269) · [国民議会答弁](https://archives.assemblee-nationale.fr/4/cri/1968-1969-ordinaire1/102.pdf)
 - 1999年1月の法定換算は1 EUR＝6.55957 FRF、1 EUR＝1.95583 DEM。換算率を途中で丸めず、換算後の支払・計上額に端数処理を適用する。契約は継続する。ゲームで仕訳を実際に移すには、債権債務の明細合計と総勘定元帳の差額処理を決め、旧帳簿と連結の照合試験が必要。[換算率のEU規則2866/98](https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:31998R2866) · [契約継続と端数処理のEU規則1103/97](https://eur-lex.europa.eu/eli/reg/1997/1103/oj/eng)
 - 西ドイツの1948年改革は、給与・賃料等ではRMとDEMが1対1、現預金の主要部分には別の換算率が適用された。単一の為替係数で全科目を一括移行できない。適用法域、科目・契約別の例外、月次境界を確認してから仕訳移行に進む。[ドイツ連邦銀行の通貨改革資料](https://www.bundesbank.de/en/tasks/topics/dates-of-the-german-monetary-policy-detailed-version--626908)
+
+### 英国の生コーヒー豆に関する通関の残件（Phase 4）
+
+- 1924年5月5日から通常税率は112ポンドあたり14シリング。1922年の税率で前払済みの貨物が新制度下に到着する場合、到着日、実査定額、前払差額または未払残高、取得原価と仕訳を照合する。月の途中で税率が変わる場合の判定は、到着日の扱いを確定してから実装する。[1924年財政法第3条](https://www.legislation.gov.uk/ukpga/1924/21/pdfs/ukpga_19240021_en.pdf)
+- 生豆の帝国特恵には、発送地と産地の両方を税関に証明する必要がある。既存の仕入・出荷台帳と在庫から証明できること、他の原産地の在庫の混入や証明数量の二重使用を防げることを条件とする。[1919年財政法第8条と第2附表](https://www.legislation.gov.uk/ukpga/Geo5/9-10/32/pdfs/ukpga_19190032_en.pdf)

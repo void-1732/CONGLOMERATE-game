@@ -65,13 +65,14 @@ WORLD_FREIGHT_FIXTURE = """() => {
   return {order:order.id,profileId,issues:check(S)};
 }"""
 
-WORLD_REMITTANCE_FIXTURE = """() => {
+WORLD_DOCUMENTED_FREIGHT_FIXTURE = """profileId => {
   const root=company(S.playerId);
+  const isAir=profileId==='UK-FR-HOUNSLOW-LEATHER';
   function form(name,country,seedBase){
     const capital=localFromBase(seedBase,root.country),payer=S.seq;
-    if(acc(root,'cash')<capital)throw Error('Insufficient remittance fixture formation budget');
+    if(acc(root,'cash')<capital)throw Error('Insufficient freight fixture formation budget');
     post(root,{investment:capital},{cash:capital},'長期回帰用・国際売買法人設立','investing',S);
-    const firm=initFirm(S,{name,country,seedBase,size:.6,publicOwnership:false});
+    const firm=initFirm(S,{name,country,seedBase,size:isAir ? 0.25 : 0.6,publicOwnership:false});
     firm.owners=[{id:root.id,econ:1,vote:1}];
     registerEquityLink(S,{parentId:root.id,childId:firm.id,ratio:1,kind:'foundation',
       considerationLocal:capital,buyerJournal:payer,childJournal:firm.journals.find(j=>j.text==='創業資本').id,
@@ -81,19 +82,25 @@ WORLD_REMITTANCE_FIXTURE = """() => {
     for(const model of firm.models)firm.plans[model.id]=0;
     return firm;
   }
-  const buyer=form('London remittance buyer','UK',480000),seller=form('Wellington wool seller','NZ',480000);
-  const plant=buyer.plants[0];plant.siteId='UK-LON';
-  for(const [firm,id,value] of [[seller,'PRD-E18',2400],[buyer,'PRD-E20',700],[buyer,'PRD-E21',900]]){
+  const buyer=isAir?form('Le Bourget leather buyer','FR',240000):form('London remittance buyer','UK',480000);
+  const seller=isAir?form('Hounslow leather seller','UK',240000):form('Wellington wool seller','NZ',480000);
+  const profile=worldInternationalProfile(profileId);
+  const plant=buyer.plants[0],origin=seller.plants[0];
+  plant.siteId=profile.to;origin.siteId=profile.from;
+  const equipment=[[seller,profile.vehicles[0],2400],
+    ...profile.terminals.map((id,i)=>[buyer,id,700+200*i])];
+  for(const [firm,id,value] of equipment){
     post(firm,{materials:value},{cash:value},'長期回帰用の有償現物設備','operating',S);
     firm.stock[id]={q:1,v:value};
   }
   syncWorldIdentities(S);
-  worldBuyRegionalSupply(S,seller.id,seller.plants[0].id,'NZ-WLG-WOOL',10);
-  worldBuyRegionalSupply(S,seller.id,seller.plants[0].id,'NZ-WLG-BUNKER-COAL',25);
-  const profileId='NZ-UK-WELLINGTON-WOOL',route=worldInternationalRegisterRoute(S,seller.id,profileId);
+  const goods=worldBuyRegionalSupply(S,seller.id,origin.id,isAir?'UK-HOUNSLOW-LEATHER':'NZ-WLG-WOOL',isAir?5:10);
+  worldBuyRegionalSupply(S,seller.id,origin.id,isAir?'UK-HOUNSLOW-PETROL':'NZ-WLG-BUNKER-COAL',isAir?10:25);
+  const route=worldInternationalRegisterRoute(S,seller.id,profileId);
   const warehouse=worldInternationalInstallWarehouse(S,buyer.id,plant.id,profileId);
   const order=worldInternationalPlaceOrder(S,buyer.id,{routeId:route.id,warehouseId:warehouse.id,
-    productId:'PRD-R21',quantity:10,cargoLitres:24,unitPriceSeller:12,maxPaymentBuyer:100000,paymentDays:30});
+    productId:goods.productId,quantity:isAir?2:10,cargoLitres:isAir?18:24,
+    unitPriceSeller:isAir?goods.unitPrice+20:12,maxPaymentBuyer:100000,paymentDays:30});
   worldInternationalActOrder(S,seller.id,order.id,'approve');
   return {order:order.id,profileId,issues:check(S)};
 }"""
@@ -201,10 +208,14 @@ def run(era, scenario='baseline', world=False, months=MONTHS):
                     assert not freight["issues"], freight
                     print("FREIGHT", json.dumps(freight, ensure_ascii=False), flush=True)
                 if world and count == 160:
-                    remittance = page.evaluate(WORLD_REMITTANCE_FIXTURE)
+                    remittance = page.evaluate(WORLD_DOCUMENTED_FREIGHT_FIXTURE, "NZ-UK-WELLINGTON-WOOL")
                     assert not remittance["issues"], remittance
                     print("REMITTANCE", json.dumps(remittance, ensure_ascii=False), flush=True)
-                if count % CHECKPOINT != 0 and count != months and (not world or count not in (130, 170)):
+                if world and count == 240:
+                    air_freight = page.evaluate(WORLD_DOCUMENTED_FREIGHT_FIXTURE, "UK-FR-HOUNSLOW-LEATHER")
+                    assert not air_freight["issues"], air_freight
+                    print("AIR FREIGHT", json.dumps(air_freight, ensure_ascii=False), flush=True)
+                if count % CHECKPOINT != 0 and count != months and (not world or count not in (130, 170, 250)):
                     continue
                 checkpoint = page.evaluate(
                     """saveCheck => {
@@ -232,7 +243,8 @@ def run(era, scenario='baseline', world=False, months=MONTHS):
                         international:S.worldExpansion?.internationalShipments.map(t=>({
                           id:t.id,status:t.status,orderId:t.orderId,dutyBuyer:t.dutyBuyer,paidAt:t.credit?.paidAt??null,
                           sentAt:t.credit?.remittance?.sentAt??null,bankId:t.credit?.remittance?.bankId??null,
-                          quantity:t.quantity,profileId:S.worldExpansion.internationalRoutes[t.routeId].profileId
+                          quantity:t.quantity,loadKg:t.loadKg??t.quantity,
+                          profileId:S.worldExpansion.internationalRoutes[t.routeId].profileId
                         }))??[]
                       };
                       if (saveCheck) {
@@ -281,6 +293,11 @@ def run(era, scenario='baseline', world=False, months=MONTHS):
                                and t["quantity"] == 10 and t["bankId"] == "BANK-BNZ-GBP"
                                and t["paidAt"] == t["sentAt"] + 1
                                and t["profileId"] == remittance["profileId"]
+                               for t in checkpoint["international"]), checkpoint
+                if world and count >= 250:
+                    assert any(t["orderId"] == air_freight["order"] and t["status"] == "DELIVERED"
+                               and t["quantity"] == 2 and t["loadKg"] == 3 and t["paidAt"] is not None
+                               and t["profileId"] == air_freight["profileId"]
                                for t in checkpoint["international"]), checkpoint
                 if checkpoint["saveChecked"]:
                     assert checkpoint["saveConsistent"], {"era": era, "month": count, **checkpoint}

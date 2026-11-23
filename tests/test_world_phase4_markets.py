@@ -877,7 +877,7 @@ def test_saudi_rice_import(page):
     }""")
     assert all(result.values()),result
 
-def main():
+def main(observe_receipts=None):
     with sync_playwright() as pw:
         browser = pw.chromium.launch(
             executable_path=os.getenv("CHROMIUM_EXECUTABLE") or shutil.which("chromium"),
@@ -888,6 +888,8 @@ def main():
         page.on("pageerror", lambda error: errors.append(str(error)))
         page.set_content((ROOT / "index.html").read_text(encoding="utf-8"))
         page.wait_for_function("STORAGE_READY")
+        if observe_receipts is not None:
+            observe_receipts(page)
         # These cargo scenarios jump directly to dispatch, arrival, and payment
         # months. Apply the same world history as the normal monthly close.
         page.evaluate("""() => {

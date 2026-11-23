@@ -92,6 +92,30 @@ def test_city_facility_management(page):
     assert '稼働設備' in hub.inner_text() and '6 kg' in hub.inner_text()
 
 
+def test_historical_air_route(page):
+    page.evaluate("""() => {
+      S=newWorldGame({country:'UK',name:'航空地図の検証'});
+      VIEW_FIRM=S.playerId;VIEW_COUNTRY='UK';PAGE='worldMap';
+      S.year=1920;S.month=1;S.monthCommitted=ym(1920,1)-1;
+      applyWorldHistory(S);syncWorldIdentities(S);render();
+    }""")
+    page.locator('[data-world-map-mode="air"]').click()
+    route_id = "UK-FR-HOUNSLOW-LEATHER"
+    route = page.locator(f'[data-world-map-route-row="{route_id}"]')
+    assert "開通・設備未登録" in route.inner_text()
+    route.get_by_role("button").click()
+    detail = page.locator(f'[data-world-map-detail="{route_id}"]')
+    assert "ハウンズロー・ヒース飛行場 → ル・ブルジェ飛行場" in detail.inner_text()
+    assert detail.get_by_text("1919年9月から1920年2月まで", exact=False).count() == 1
+    assert page.locator('[data-world-map-site="UK-HOUNSLOW-HEATH"]').count() == 1
+    assert page.locator('[data-world-map-site="FR-LE-BOURGET"]').count() == 1
+    page.evaluate("""() => {
+      S.month=3;S.monthCommitted=ym(1920,3)-1;
+      applyWorldHistory(S);syncWorldIdentities(S);render();
+    }""")
+    assert "登録運行期間終了" in route.inner_text()
+
+
 def main():
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(
@@ -257,6 +281,7 @@ def main():
         assert page.locator('[data-page="worldMap"]').count() >= 1
         assert page.evaluate("JSON.stringify(S)===window.__phase5PreUiState")
         test_city_facility_management(page)
+        test_historical_air_route(page)
         assert not errors, errors
         browser.close()
     print("PASS Phase 5: 40 markets, 155 city dots, exact routes, "

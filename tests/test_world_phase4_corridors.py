@@ -9,7 +9,7 @@ from playwright.sync_api import sync_playwright
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def main():
+def main(observe_receipts=None):
     with sync_playwright() as pw:
         browser = pw.chromium.launch(
             executable_path=os.getenv("CHROMIUM_EXECUTABLE") or shutil.which("chromium"),
@@ -20,6 +20,8 @@ def main():
         page.on("pageerror", lambda error: errors.append(str(error)))
         page.set_content((ROOT / "index.html").read_text(encoding="utf-8"))
         page.wait_for_function("STORAGE_READY")
+        if observe_receipts is not None:
+            observe_receipts(page)
         result = page.evaluate("""() => {
           S=newGame({country:'US',era:1900,name:'Legacy sites',difficulty:'normal',history:'historical'});
           const legacyPortHidden=!factorySiteChoice('US').includes('US-SEA')
