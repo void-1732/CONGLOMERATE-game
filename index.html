@@ -702,7 +702,7 @@ const COUNTRIES={
  // Provisional game coefficients, independent of the sourced opening event.
  NO:{currency:'NOK',fx:14,pop:2.24,wealth:.94,wage:136,demand:13,steel:449,rubber:311,steelSupply:90,rubberSupply:80}
 };
-const ACCTYPE={cash:'asset',materials:'asset',materialsTransit:'asset',componentStock:'asset',componentTransit:'asset',wip:'asset',goods:'asset',goodsTransit:'asset',constructionAssets:'asset',ppe:'asset',accdep:'contra',investment:'asset',ar:'asset',loanrec:'asset',resourceRights:'asset',worldShipmentStock:'asset',worldStoredStock:'asset',worldInsuranceReserve:'asset',worldInsurancePrepaid:'asset',worldTravelAdvance:'asset',worldSupplierAdvances:'asset',partReceivable:'asset',partPayable:'liability',worldCustomerAdvances:'liability',worldInsuranceUnearned:'liability',payable:'liability',wagesDue:'liability',debt:'liability',interestDue:'liability',taxDue:'liability',capital:'equity',treasuryStock:'contraEquity',sales:'revenue',serviceRevenue:'revenue',otherRevenue:'revenue',cogs:'expense',labor:'expense',rndExpense:'expense',advert:'expense',maintenance:'expense',interestExpense:'expense',depreciation:'expense',taxExpense:'expense',fxLoss:'expense',otherExpense:'expense'};
+const ACCTYPE={cash:'asset',materials:'asset',materialsTransit:'asset',componentStock:'asset',componentTransit:'asset',wip:'asset',goods:'asset',goodsTransit:'asset',constructionAssets:'asset',ppe:'asset',accdep:'contra',investment:'asset',ar:'asset',loanrec:'asset',resourceRights:'asset',worldShipmentStock:'asset',worldStoredStock:'asset',worldInsuranceReserve:'asset',worldInsurancePrepaid:'asset',worldTravelAdvance:'asset',worldBankDeposits:'asset',worldBankReserve:'asset',worldSupplierAdvances:'asset',partReceivable:'asset',partPayable:'liability',worldCustomerAdvances:'liability',worldInsuranceUnearned:'liability',worldDemandDeposits:'liability',payable:'liability',wagesDue:'liability',debt:'liability',interestDue:'liability',taxDue:'liability',capital:'equity',treasuryStock:'contraEquity',sales:'revenue',serviceRevenue:'revenue',otherRevenue:'revenue',cogs:'expense',labor:'expense',rndExpense:'expense',advert:'expense',maintenance:'expense',interestExpense:'expense',depreciation:'expense',taxExpense:'expense',fxLoss:'expense',otherExpense:'expense'};
 const PAGES={dashboard:'経営概況',marketOwn:'自社グループ市場分析',market:'世界市場分析',product:'製品・開発',factory:'工場・調達',people:'研究・人事',finance:'財務・資金',group:'企業グループ',consolidated:'連結財務三表',reports:'月次レポート',save:'保存・設定'};
 /* STEP 2: navigation only. Every tab points to a current, fully functional PAGE.
    New specialized pages are created in STEP 3+, not silently replaced with placeholders.
@@ -3546,6 +3546,7 @@ async function runMonth(){
    worldFinishStorageServices(trial,events);
    worldFinishPassengerTrips(trial,events);
   });
+  step('BANKING_SERVICE',()=>worldReturnClosedBankDeposits(trial,events));
   step('NPC_PRODUCTION',()=>produceNpcV033(trial,events));
    step('PROCUREMENT',()=>{for(const f of trial.firms){ensureNetwork(f,trial);f.supply.monthFlow=Object.fromEntries(SUPPLY_TYPES.map(t=>[t,{month:ym(trial.year,trial.month),start:f.stock[t]?.q||0}]));}procureNetwork(trial,events)});
   step('NPC_SETTLEMENT',()=>settleNpcMarketV033(trial));
@@ -6576,6 +6577,8 @@ function consolidate(s,rootId=s.playerId){
   t.status==='IN_TRANSIT'&&ids.has(t.sellerId)&&ids.has(t.buyerId));
  const advances=domesticAdvances.reduce((total,t)=>total+baseFromLocal(t.prepaid,company(t.buyerId,s).country),0);
  bs.assets-=advances;bs.liab-=advances;
+ const internalDeposits=worldInternalBankDeposits(s,ids,f=>COUNTRIES[f.country].fx);
+ bs.assets-=internalDeposits;bs.liab-=internalDeposits;
  const assetCash=(domestic?.domesticAssetTransfers??[]).map(t=>({kind:'domesticAssetCash',
   seller:t.fromCompanyId,buyer:t.toCompanyId,yearMonth:t.when,fromJournal:t.sellerJournal,toJournal:t.buyerJournal}));
  const tradeCash=(domestic?.domesticShipments??[]).flatMap(t=>{
@@ -6662,7 +6665,7 @@ function consolidate(s,rootId=s.playerId){
   if(!cf.reconciled)notes.push('CF差額：取得・外貨換算・月次外操作等を追加照合してください');
  }else notes.push('比較可能な前月の連結現金スナップショットはありません');
  if(warnings.length)notes.push('旧版の一部取得・内部取引は復元可能な範囲で照合しました');
- return {members:members.map(f=>f.id),shares:ownership.shares,links:acquired,bs,pl,cf,errors:[...new Set(errors)],notes:[...new Set(notes)],adjustments:{investment:internalInvest,goodwill:Math.round(goodwill),bargain:Math.round(bargain),inventoryProfit:inventoryProfit+parts.deferred+domesticCost.retained,internalSales:internalSales+parts.sales+domesticCost.sales+storageFees+insuranceInternalFees,domesticInventoryProfit:domesticCost.retained,domesticInternalSales:domesticCost.sales,partClaimsEliminated:parts.claims,internalSellerCost,internalCostSold,interestRev,interestExp,loanRecEliminated,loanDebtEliminated,interestRecEliminated,interestDueEliminated},status:'連結試算・会計検算付き（取得時公正価値評価と外貨換算は未確定）'};
+ return {members:members.map(f=>f.id),shares:ownership.shares,links:acquired,bs,pl,cf,errors:[...new Set(errors)],notes:[...new Set(notes)],adjustments:{investment:internalInvest,goodwill:Math.round(goodwill),bargain:Math.round(bargain),inventoryProfit:inventoryProfit+parts.deferred+domesticCost.retained,internalSales:internalSales+parts.sales+domesticCost.sales+storageFees+insuranceInternalFees,domesticInventoryProfit:domesticCost.retained,domesticInternalSales:domesticCost.sales,partClaimsEliminated:parts.claims,bankDepositsEliminated:internalDeposits,internalSellerCost,internalCostSold,interestRev,interestExp,loanRecEliminated,loanDebtEliminated,interestRecEliminated,interestDueEliminated},status:'連結試算・会計検算付き（取得時公正価値評価と外貨換算は未確定）'};
 }
 
 /* v0.4 accounting review: no claim of full IFRS/J-GAAP compliance. Currency closing
@@ -6882,8 +6885,9 @@ function accountingFxReview(s,rootId,g){
   interestReceivable+=Math.round((loan.parentInterestRemaining||0)*balanceFxRate(s,parent));
   interestPayable+=Math.round((loan.interestOutstanding||0)*balanceFxRate(s,f));
  }
- const a=grossAssets-investment+goodwill-inventoryProfit-loanReceivable-interestReceivable-parts.spotClaims-parts.spotDeferred;
- const l=grossLiabilities-loanPayable-interestPayable-parts.spotClaims;
+ const internalDeposits=worldInternalBankDeposits(s,ids,f=>balanceFxRate(s,f));
+ const a=grossAssets-investment+goodwill-inventoryProfit-loanReceivable-interestReceivable-parts.spotClaims-parts.spotDeferred-internalDeposits;
+ const l=grossLiabilities-loanPayable-interestPayable-parts.spotClaims-internalDeposits;
  const totalEquity=a-l;
  const heldInvestment={};for(const x of historical){const f=company(x.parentId,s);
   heldInvestment[f.id]=(heldInvestment[f.id]||0)+Math.round((x.considerationLocal||0)*balanceFxRate(s,f));}
@@ -6901,7 +6905,7 @@ function accountingFxReview(s,rootId,g){
  const bs={period:ym(s.year,s.month),assets:a,liabilities:l,equity:totalEquity,parentEquity:totalEquity-nci,
   nci,cash:grossCash,goodwill,inventoryProfit:inventoryProfit+parts.spotDeferred,partClaimsEliminated:parts.spotClaims,investmentEliminated:investment,
   loanRecEliminated:loanReceivable,loanDebtEliminated:loanPayable,
-  interestRecEliminated:interestReceivable,interestDueEliminated:interestPayable,
+  interestRecEliminated:interestReceivable,interestDueEliminated:interestPayable,bankDepositsEliminated:internalDeposits,
   checkDifference:a-l-(totalEquity-nci)-nci,
   fxVsReference:{assets:a-g.bs.assets,liabilities:l-g.bs.liab,equity:totalEquity-g.bs.equity},
   loanTranslationDifference:(loanReceivable+interestReceivable)-(loanPayable+interestPayable)};
@@ -7007,7 +7011,7 @@ function consolidatedPage(){const g=consolidate(S,S.playerId),b=g.bs,p=g.pl,c=g.
  <div class="grid"><section class="panel span6"><h2>連結貸借対照表（BS）・現時点</h2>${resultRows([['現金',b.cash],['商品在庫（内部利益消去後）',b.goods],['取得差額（正ののれん）',b.goodwill],['総資産',b.assets,true],['負債',b.liab],['親会社株主帰属純資産',b.parentEquity],['非支配株主持分',b.nci],['負債＋純資産',b.liab+b.parentEquity+b.nci,true],['貸借照合差額',b.liabEquityDiff,true]])}</section>
  <section class="panel span6"><h2>連結損益計算書（PL）・取得後累計</h2>${resultRows([['外部売上・収益（内部売上消去後）',p.revenue],['費用・売上原価（内部調整後）',p.expenses],['帳簿価額基準の割安取得益（仮）',p.bargainGain],['連結当期までの累計損益',p.profit,true],['非支配株主帰属分',p.nciProfit],['親会社株主帰属分',p.parentProfit,true]])}<p class="footnote">取得以前の損益は取得元帳から判定可能な範囲で控除します。過去の取得時点・PPAが欠落する旧セーブでは精度が制限されます。</p></section>
  <section class="panel span6"><h2>連結キャッシュフロー（CF）・直近確定月</h2>${resultRows([['営業キャッシュフロー',c.operating],['投資キャッシュフロー',c.investing],['財務キャッシュフロー',c.financing],['外部との純キャッシュフロー',c.net,true],['前月末連結現金',c.openingCash??0],['当月末連結現金',c.closingCash,true],['取得した会社の現金（投資CF内訳）',c.scopeAdded],['換算差（非資金項目）',c.fxTranslation],['CF照合差額（端数含む）',c.unreconciled??0]])}<p class="footnote">直近確定月：${Math.floor(c.period/12)}年${c.period%12+1}月。${c.fromCommittedSnapshot?'月末の確定時点に保存したCF履歴を表示。':'当月の仕訳と取得範囲から計算。'} 為替換算差は営業・投資・財務CFに含めず別記。照合結果：${c.reconciled?'一致':'要確認'}。差額の許容値：${formatBase(c.roundingTolerance||0)}。未照合額は利益・CFに自動加算しません。</p></section>
- <section class="panel span6"><h2>連結調整・検算</h2>${resultRows([['親子会社の投資勘定消去',g.adjustments.investment],['内部貸付債権消去',g.adjustments.loanRecEliminated],['内部借入債務消去',g.adjustments.loanDebtEliminated],['帳簿価額ベースのれん（仮）',g.adjustments.goodwill],['内部売上消去',g.adjustments.internalSales],['内部在庫未実現利益消去',g.adjustments.inventoryProfit],['部品・使用料の内部売掛買掛消去',g.adjustments.partClaimsEliminated],['未収利息消去',g.adjustments.interestRecEliminated],['未払利息消去',g.adjustments.interestDueEliminated],['内部金利収益消去',g.adjustments.interestRev],['内部金利費用消去',g.adjustments.interestExp]])}<div class="sep"></div>${g.errors.length?g.errors.map(x=>`<div class="notice">${tag('異常','bad')} ${esc(x)}</div>`).join(''):tag('構造・貸借の検算通過','good')}${g.notes.map(x=>`<p class="small muted">・${esc(x)}</p>`).join('')}</section>
+ <section class="panel span6"><h2>連結調整・検算</h2>${resultRows([['親子会社の投資勘定消去',g.adjustments.investment],['内部貸付債権消去',g.adjustments.loanRecEliminated],['内部借入債務消去',g.adjustments.loanDebtEliminated],['内部預金債権・債務消去',g.adjustments.bankDepositsEliminated],['帳簿価額ベースのれん（仮）',g.adjustments.goodwill],['内部売上消去',g.adjustments.internalSales],['内部在庫未実現利益消去',g.adjustments.inventoryProfit],['部品・使用料の内部売掛買掛消去',g.adjustments.partClaimsEliminated],['未収利息消去',g.adjustments.interestRecEliminated],['未払利息消去',g.adjustments.interestDueEliminated],['内部金利収益消去',g.adjustments.interestRev],['内部金利費用消去',g.adjustments.interestExp]])}<div class="sep"></div>${g.errors.length?g.errors.map(x=>`<div class="notice">${tag('異常','bad')} ${esc(x)}</div>`).join(''):tag('構造・貸借の検算通過','good')}${g.notes.map(x=>`<p class="small muted">・${esc(x)}</p>`).join('')}</section>
  <section class="panel span6"><h2>全科目・期末為替換算BS（v0.5試算）</h2>${resultRows([['現金（期末スポット）',g.spot.cash],['連結総資産（期末レート）',g.spot.assets,true],['連結負債（期末レート）',g.spot.liabilities],['親会社帰属純資産（暫定）',g.spot.parentEquity],['非支配株主持分（暫定）',g.spot.nci],['負債＋純資産',g.spot.liabilities+g.spot.parentEquity+g.spot.nci,true],['期末換算BS差額',g.spot.checkDifference],['固定参照レートとの総資産差',g.spot.fxVsReference.assets]])}<p class="footnote">資産・負債は各法人の決算時点スポットレートで一括換算。取得原価は親会社通貨の帳簿残高、暫定のれんは取得先通貨で換算。資本の歴史的レート換算と為替換算調整勘定（OCI）は未実装のため、正式連結BSではありません。</p></section>
  <section class="panel span6"><h2>直近確定月・取引時為替換算PL（v0.5試算）</h2>${resultRows([['外部収益（内部消去後）',g.periodPL.revenue],['費用（内部消去・棚卸調整後）',g.periodPL.expenses],['帳簿価額基準の割安取得益（仮）',g.periodPL.acquisitionDiscountGainProvisional],['当月連結損益',g.periodPL.profit,true],['非支配株主帰属損益（暫定）',g.periodPL.nciProfit],['親会社帰属損益（暫定）',g.periodPL.parentProfit,true],['当月の内部売上消去',g.periodPL.internalSalesEliminated],['うち部品売買・使用料',g.periodPL.partInternalSalesEliminated??0],['内部棚卸利益の増減',g.periodPL.inventoryDeferralChange]])}<p class="footnote">${Math.floor(g.periodPL.period/12)}年${g.periodPL.period%12+1}月の仕訳を認識時レートで換算し、取得以前の損益を除外。当月確定時点のPLを保持し、その後の取得などで過去月を再計算しません。期中の取得時配賦と非支配損益の複雑な帰属は暫定です。</p></section>
  ${g.spotWarnings.map(x=>`<div class="panel span12 footnote">${esc(x)}</div>`).join('')}
@@ -7015,7 +7019,9 @@ function consolidatedPage(){const g=consolidate(S,S.playerId),b=g.bs,p=g.pl,c=g.
  </div>`;
 }
 
-function finTable(f){const x=financials(f);return `<div class="scroll"><table><thead><tr><th>単体貸借対照表（累計）</th><th class="num">現地通貨</th></tr></thead><tbody>${[['現金',acc(f,'cash')],['材料在庫',acc(f,'materials')],['BOM部品在庫',acc(f,'componentStock')],['輸送中のBOM部品',acc(f,'componentTransit')],['部品取引・使用料売掛',acc(f,'partReceivable')],['部品取引・使用料買掛',-acc(f,'partPayable')],['仕掛品',acc(f,'wip')],['完成品・商品在庫',acc(f,'goods')],['輸送中の完成品',acc(f,'goodsTransit')],['事業設備（純額）',acc(f,'ppe')+acc(f,'accdep')],['ライン建設仮勘定',acc(f,'constructionAssets')],['投資有価証券・子会社株式',acc(f,'investment')],['売掛金・貸付金',acc(f,'ar')+acc(f,'loanrec')],['採取権',acc(f,'resourceRights')],['資産合計',x.assets],['負債合計',x.liab],['払込資本・自己株式控除後',x.capital],['自己株式控除（取得原価）',-Math.max(0,acc(f,'treasuryStock'))],['累計損益',x.profit],['負債＋純資産',x.liab+x.equity]].map(([k,v])=>`<tr><td>${esc(k)}</td><td class="num">${fnum(f,v)}</td></tr>`).join('')}</tbody></table></div>`}
+function finTable(f){const x=financials(f);return `<div class="scroll"><table><thead><tr><th>単体貸借対照表（累計）</th><th class="num">現地通貨</th></tr></thead><tbody>${[['現金',acc(f,'cash')],['材料在庫',acc(f,'materials')],['BOM部品在庫',acc(f,'componentStock')],['輸送中のBOM部品',acc(f,'componentTransit')],['部品取引・使用料売掛',acc(f,'partReceivable')],['部品取引・使用料買掛',-acc(f,'partPayable')],['仕掛品',acc(f,'wip')],['完成品・商品在庫',acc(f,'goods')],['輸送中の完成品',acc(f,'goodsTransit')],['事業設備（純額）',acc(f,'ppe')+acc(f,'accdep')],['ライン建設仮勘定',acc(f,'constructionAssets')],['投資有価証券・子会社株式',acc(f,'investment')],['売掛金・貸付金',acc(f,'ar')+acc(f,'loanrec')],['採取権',acc(f,'resourceRights')],...(S.worldExpansion?[
+ ['銀行預金',acc(f,'worldBankDeposits')],['預金支払準備金',acc(f,'worldBankReserve')],['受入預金負債',-acc(f,'worldDemandDeposits')]
+ ]:[]),['資産合計',x.assets],['負債合計',x.liab],['払込資本・自己株式控除後',x.capital],['自己株式控除（取得原価）',-Math.max(0,acc(f,'treasuryStock'))],['累計損益',x.profit],['負債＋純資産',x.liab+x.equity]].map(([k,v])=>`<tr><td>${esc(k)}</td><td class="num">${fnum(f,v)}</td></tr>`).join('')}</tbody></table></div>`}
 function financePage(){const f=current(),edit=canEdit(f),x=financials(f);const recent=f.journals.slice(-28).reverse();return titlePage('単体財務','法人別の財務情報と複式仕訳を確認します。銀行借入は資金調達タブへ移動しました。',tag('発生主義／資金決済を分離'))+(!edit?noaccess():'')+`<div class="grid">${card('単体総資産',fnum(f,x.assets),'評価額の合計','span3')}${card('現金残高',fnum(f,x.cash),'現地通貨','span3')}${card('借入残高',fnum(f,x.debt),'現地通貨','span3')}${card('累計損益',`<span class="${x.profit>=0?'positive':'negative'}">${fnum(f,x.profit)}</span>`,'創業以来の累計','span3')}
  <section class="panel span6"><h2>法人別財務三表の基礎</h2>${finTable(f)}<div class="note" style="margin-top:12px">BS照合差額：${fnum(f,x.bsDiff)}（最小通貨単位）。取引別の借貸一致と在庫原価も自動検算します。連結用の調整は「連結財務三表」画面で確認できます。取得時公正価値など未確定部分は仮計算です。</div></section>
  <section class="panel span6"><h2>資金調達・銀行借入</h2><p class="hint">銀行借入と既存契約は「資金調達」へ移動しました。単体財務の貸借対照表と複式仕訳はここに残ります。</p><button type="button" class="btn primary" data-page="financeFunding">資金調達へ移動</button></section>
@@ -7027,7 +7033,7 @@ function financeFundingPage(){
  return titlePage('資金調達','銀行借入と既存契約を管理します。',tag('既存の借入処理'))+(!edit?noaccess():'')+`<div class="grid">
  <section class="panel span6"><h2>借入・資金繰り</h2>${rowstat('現金',fnum(f,x.cash))}${rowstat('借入残高',fnum(f,x.debt))}${rowstat('未払金',fnum(f,-acc(f,'payable')))}${rowstat('未払給与',fnum(f,-acc(f,'wagesDue')))}${rowstat('法人税未払',fnum(f,-acc(f,'taxDue')))}${rowstat('市場金利（仮）',(w.rate*100).toFixed(2)+'%')}${rowstat('新規借入金利（仮）',((w.rate+.03)*100).toFixed(2)+'%')}<div class="formgrid" style="margin-top:17px"><div class="field"><label for="borrowBase">借入金額（円相当）</label><input type="number" id="borrowBase" min="50000" max="50000000" value="100000" ${edit?'':'disabled'}></div><button class="btn primary" data-action="borrow" ${edit?'':'disabled'}>銀行借入（36か月）</button></div><div class="sep"></div><h3>既存借入</h3>${f.loans.length?f.loans.map(l=>`<div class="itemstat"><span>残元本 ${fnum(f,l.outstanding)}</span><span class="muted">年率${(l.rate*100).toFixed(1)}%</span></div>`).join(''):'<div class="muted small">借入契約なし</div>'}<div class="footnote">借入・利息は実取引として仕訳に反映します。債権者別の再建交渉と詳細な税務処理は未実装です。</div></section>
  <section class="panel span6"><h2>その他の資金調達</h2><p class="hint">株式発行は「資本政策」、グループ内貸付は「企業グループ」で引き続き操作できます。</p><div class="vlist"><button type="button" class="btn" data-page="capital">株式発行・資本政策へ</button><button type="button" class="btn" data-page="corporateSubsidiaries">グループ内貸付へ</button><button type="button" class="btn" data-page="finance">単体財務へ戻る</button></div></section>
- </div>`;
+ ${S.worldExpansion?worldBankDepositPanel(S,f,edit):''}</div>`;
 }
 /* v0.19: renames operate on stable IDs. Foreign/uncontrolled firms remain read-only. */
 function renameCompany(){try{
@@ -11475,6 +11481,7 @@ const WORLD_VERIFIED_SERVICE_PATHS=Object.freeze({
  'PRD-S02':Object.freeze({revenueState:'EXTERNAL_EXPENSE',settlementState:'AFTER_TRAVEL',unit:'人・区間'}),
  'PRD-S03':Object.freeze({revenueState:'COST_REIMBURSEMENT',settlementState:'AT_DELIVERY',unit:'kg'}),
  'PRD-S04':Object.freeze({revenueState:'EARNED_FEE',settlementState:'AT_RETURN',unit:'kg・月'}),
+ 'PRD-S05':Object.freeze({revenueState:'DEPOSIT_PRINCIPAL_EXCLUDED',settlementState:'ON_DEPOSIT_OR_WITHDRAWAL',unit:'件'}),
  'PRD-S06':Object.freeze({revenueState:'EXTERNAL_PRINCIPAL_EXCLUDED',settlementState:'DISBURSED',unit:'件'}),
  'PRD-S07':Object.freeze({revenueState:'EARNED_PREMIUM',settlementState:'ON_CARGO_OUTCOME',unit:'件'}),
  'PRD-S09':Object.freeze({revenueState:'EXTERNAL_EXPENSE',settlementState:'AFTER_SKILL_TRAINING',unit:'人'}),
@@ -11500,6 +11507,9 @@ function worldServiceActivity(s,productId){
  if(productId==='PRD-S04')return (w.storageServices??[]).filter(t=>t.closedAt!==null).map(t=>({
   ref:t.id,providerId:t.providerId,customerId:t.clientId,month:t.closedAt,quantity:t.quantity*t.months,
   amount:t.quantity*t.months*t.unitFee
+ }));
+ if(productId==='PRD-S05')return (w.bankDeposits??[]).map(t=>({
+  ref:t.id,providerId:t.bankId,customerId:t.clientId,month:t.month,quantity:1,amount:0,principal:t.principal
  }));
  if(productId==='PRD-S06')return (w.externalLoanReceipts??[]).map(t=>({
   ref:t.id,providerId:null,customerId:t.borrowerId,month:t.month,quantity:1,amount:0,principal:t.principal
@@ -12355,6 +12365,104 @@ function worldDomesticWarehouseReservations(w,warehouseId){
   used+(t.warehouseId===warehouseId&&t.status==='IN_TRANSIT'?t.quantity:0),0);
  return inTransit+worldStoredAt(w,warehouseId).reduce((used,t)=>used+t.quantity,0);
 }
+// A first settlement path for demand deposits. The bank keeps the entire principal
+// in a restricted reserve outside spendable cash. Interest and lending are separate.
+const WORLD_BANK_DEPOSIT_PROFILE=Object.freeze({
+ country:'JP',siteId:'JP-TOK',opensAt:ym(1900,1),
+ source:'https://www.shibusawa.or.jp/english/eiichi/denki_shiryo/denki_toc04_en.html'
+});
+function worldBankCanReceive(s,bank){
+ const profile=WORLD_BANK_DEPOSIT_PROFILE;
+ return isActiveCorporateFirm(bank)&&bank.country===profile.country&&bank.industry==='service'
+  &&ym(s.year,s.month)>=profile.opensAt
+  &&bank.plants.some(plant=>worldDomesticSiteActive(plant,profile.siteId));
+}
+function worldOpenBankDeposit(s,clientId,bankId,principal){
+ const w=s.worldExpansion,client=company(clientId,s),bank=company(bankId,s);
+ if(!w||!isActiveCorporateFirm(client)||!worldBankCanReceive(s,bank)||client===bank||client.country!==bank.country
+  ||!controller(s,clientId)||!controller(s,bankId))
+  throw Error('同国内の預金者と東京で稼働するサービス法人の操作権限が必要です');
+ if(!Number.isSafeInteger(principal)||principal<1||acc(client,'cash')<principal
+  ||!Number.isSafeInteger(acc(bank,'worldBankReserve')+principal)
+  ||!Number.isSafeInteger(acc(client,'worldBankDeposits')+principal))
+  throw Error('預入金額または手元現金を確認してください');
+ const journal=s.seq,month=ym(s.year,s.month);
+ post(client,{worldBankDeposits:principal},{cash:principal},'銀行預金の元本を預入','investing',s);
+ post(bank,{worldBankReserve:principal},{worldDemandDeposits:principal},'預金元本を受入・全額分別','financing',s);
+ const receipt={id:'WBD-'+s.seq++,bankId,clientId,principal,month,journal,returnedAt:null,returnJournal:null};
+ (w.bankDeposits??=[]).push(receipt);
+ return receipt;
+}
+function worldReturnBankDeposit(s,deposit){
+ if(deposit.returnedAt!==null)throw Error('払戻し済みの銀行預金です');
+ const client=company(deposit.clientId,s),bank=company(deposit.bankId,s),principal=deposit.principal;
+ if(acc(bank,'worldBankReserve')<principal||-acc(bank,'worldDemandDeposits')<principal
+  ||acc(client,'worldBankDeposits')<principal)throw Error('預金と準備金の残高が一致しません');
+ deposit.returnJournal=s.seq;
+ post(bank,{worldDemandDeposits:principal},{worldBankReserve:principal},'銀行預金の分別元本を払戻','financing',s);
+ post(client,{cash:principal},{worldBankDeposits:principal},'銀行預金の元本を現金受領','investing',s);
+ deposit.returnedAt=ym(s.year,s.month);
+}
+function worldWithdrawBankDeposit(s,clientId,depositId){
+ const receipt=s.worldExpansion?.bankDeposits?.find(t=>t.id===depositId);
+ if(!receipt||receipt.clientId!==clientId||!controller(s,clientId))throw Error('自己の預金だけを払い戻せます');
+ worldReturnBankDeposit(s,receipt);
+}
+function worldReturnClosedBankDeposits(s,events=[]){
+ for(const receipt of s.worldExpansion?.bankDeposits??[]){
+  if(receipt.returnedAt!==null)continue;
+  if(worldBankCanReceive(s,company(receipt.bankId,s))&&isActiveCorporateFirm(company(receipt.clientId,s)))continue;
+  worldReturnBankDeposit(s,receipt);
+  events.push('預金の取扱終了・元本を払戻 '+receipt.id);
+ }
+}
+function worldInternalBankDeposits(s,ids,rate){
+ const byClient=new Map();
+ for(const receipt of s.worldExpansion?.bankDeposits??[]){
+  if(receipt.returnedAt===null&&ids.has(receipt.bankId)&&ids.has(receipt.clientId))
+   byClient.set(receipt.clientId,(byClient.get(receipt.clientId)??0)+receipt.principal);
+ }
+ let eliminated=0;
+ for(const [id,principal] of byClient)eliminated+=Math.round(principal*rate(company(id,s)));
+ return eliminated;
+}
+function worldBankDepositPanel(s,firm,edit){
+ const banks=s.firms.filter(bank=>bank!==firm&&bank.country===firm.country
+  &&worldBankCanReceive(s,bank)&&controller(s,bank.id));
+ const deposits=(s.worldExpansion.bankDeposits??[]).filter(t=>t.clientId===firm.id&&t.returnedAt===null);
+ if(!banks.length&&!deposits.length&&!worldBankCanReceive(s,firm)&&!acc(firm,'worldBankReserve'))return '';
+ const form=(action,fields,label)=>'<form class="row" data-world-bank="'+action+'">'+fields+
+  '<button class="btn sm" type="submit">'+label+'</button></form>';
+ const option=(id,label)=>'<option value="'+esc(id)+'">'+esc(label)+'</option>';
+ const open=edit&&banks.length&&acc(firm,'cash')>0?form('open',
+  '<label>預入先 <select name="bank" required>'+banks.map(bank=>option(bank.id,bank.name)).join('')+'</select></label>'
+  +'<label>預入額（通貨最小単位） <input name="principal" type="number" min="1" max="'+acc(firm,'cash')+'" required></label>',
+  '銀行に預ける'):'';
+ const close=edit&&deposits.length?form('withdraw',
+  '<label>払戻対象 <select name="receipt" required>'+deposits.map(t=>option(t.id,
+   company(t.bankId,s).name+' / '+fnum(firm,t.principal))).join('')+'</select></label>','全額を払い戻す'):'';
+ return '<section class="panel span12"><h2>銀行預金</h2>'
+  +rowstat('預けた元本',fnum(firm,acc(firm,'worldBankDeposits')))
+  +rowstat('分別した支払準備金',fnum(firm,acc(firm,'worldBankReserve')))
+  +rowstat('預金者への払戻債務',fnum(firm,-acc(firm,'worldDemandDeposits')))
+  +'<p>預金は無利息で、元本を全額分別します。 <a href="'+esc(WORLD_BANK_DEPOSIT_PROFILE.source)
+  +'" target="_blank" rel="noopener noreferrer">日本の預金取扱史</a></p>'+open+close+'</section>';
+}
+document.addEventListener('submit',event=>{
+ const form=event.target.closest('form[data-world-bank]');
+ if(!form)return;
+ event.preventDefault();
+ const firm=current(),fields=new FormData(form);
+ if(MONTH_RUNNING||!S?.worldExpansion||!canEdit(firm))return;
+ try{
+  if(form.dataset.worldBank==='open')worldOpenBankDeposit(S,firm.id,fields.get('bank'),Number(fields.get('principal')));
+  else if(form.dataset.worldBank==='withdraw')worldWithdrawBankDeposit(S,firm.id,fields.get('receipt'));
+  else return;
+  requestOperationSaveV037();
+  render();
+  toast('銀行預金の元本を記帳しました');
+ }catch(error){toast(error.message);}
+});
 function worldStartStorageService(s,clientId,plantId,warehouseId,productId,quantity,months,unitFee){
  const w=s.worldExpansion,client=company(clientId,s),plant=client?.plants.find(p=>p.id===plantId),
   warehouse=w?.domesticWarehouses?.[warehouseId],provider=company(warehouse?.ownerCompanyId,s),
@@ -12862,6 +12970,8 @@ function worldDomesticAssetBasis(s,ownerId){
 function worldDomesticBlocksReorganization(s,ownerId,plant=null){
  return worldDomesticOwnedAssets(s,ownerId).some(asset=>
   !plant||asset.plantId===plant.id||asset.fromSiteId===plant.siteId)
+  ||(s.worldExpansion?.bankDeposits??[]).some(t=>t.returnedAt===null&&(
+   (!plant&&t.clientId===ownerId)||(t.bankId===ownerId&&(!plant||plant.siteId===WORLD_BANK_DEPOSIT_PROFILE.siteId))))
   ||(s.worldExpansion?.passengerTrips??[]).some(t=>t.status==='BOOKED'&&t.firmId===ownerId
    &&(!plant||t.fromPlantId===plant.id||t.toPlantId===plant.id))
   ||(!plant&&(s.worldExpansion?.cargoInsurance??[]).some(t=>t.closedAt===null&&(t.providerId===ownerId||t.clientId===ownerId)))
@@ -13146,19 +13256,55 @@ function worldValidateStorageServices(s,transferByAsset){
   if(acc(f,'worldStoredStock')!==(balances.get(f.id)??0))throw Error('預託した現物の帳簿残高が一致しません');
  }
 }
-function worldValidatePassengerTrips(s){
- const rows=s.worldExpansion.passengerTrips??[];
- if(!Array.isArray(rows))throw Error('鉄道出張台帳が不正です');
- const month=ym(s.year,s.month),advances=new Map(),seats=new Map(),journalIndexes=new Map(),used=new Set();
- function matches(f,id,when,amount,debit,credit){
+function worldServiceJournalMatcher(s){
+ const journalIndexes=new Map(),used=new Set();
+ return (f,id,when,amount,debit,credit,kind='operating')=>{
   if(used.has(id)||!Number.isSafeInteger(id)||id<1||id>=s.seq)return false;
   used.add(id);
   if(!journalIndexes.has(f.id))journalIndexes.set(f.id,new Map(f.journals.map(j=>[j.id,j])));
   const j=journalIndexes.get(f.id).get(id);
   if(!j&&f.journals.length===10000&&id<f.journals[0].id)return true;
-  return j?.when===when&&j.kind==='operating'&&j.dr.length===1&&j.cr.length===1
+  return j?.when===when&&j.kind===kind&&j.dr.length===1&&j.cr.length===1
    &&j.dr[0][0]===debit&&j.dr[0][1]===amount&&j.cr[0][0]===credit&&j.cr[0][1]===amount;
+ };
+}
+function worldValidateBankDeposits(s){
+ const rows=s.worldExpansion.bankDeposits??[];
+ if(!Array.isArray(rows))throw Error('銀行預金台帳が不正です');
+ const profile=WORLD_BANK_DEPOSIT_PROFILE,month=ym(s.year,s.month);
+ const clientBalances=new Map(),bankBalances=new Map(),matches=worldServiceJournalMatcher(s);
+ let sequence=0;
+ for(const receipt of rows){
+  const id=Number(receipt?.id?.split('-')[1]),client=company(receipt?.clientId,s),bank=company(receipt?.bankId,s);
+  if(!client||!bank||client===bank||client.country!==profile.country||bank.country!==profile.country||bank.industry!=='service'
+   ||!/^WBD-\d+$/.test(receipt.id)||!Number.isSafeInteger(id)||id<=sequence||id>=s.seq||receipt.journal!==id-2
+   ||!Number.isSafeInteger(receipt.month)||receipt.month<profile.opensAt||receipt.month>month
+   ||!Number.isSafeInteger(receipt.principal)||receipt.principal<1
+   ||!matches(client,receipt.journal,receipt.month,receipt.principal,'worldBankDeposits','cash','investing')
+   ||!matches(bank,receipt.journal+1,receipt.month,receipt.principal,'worldBankReserve','worldDemandDeposits','financing'))
+   throw Error('銀行預金の元本・準備金の仕訳が不正です：'+receipt?.id);
+  if(receipt.returnedAt===null){
+   if(receipt.returnJournal!==null)throw Error('未払戻預金の仕訳参照が不正です：'+receipt.id);
+   clientBalances.set(client.id,(clientBalances.get(client.id)??0)+receipt.principal);
+   bankBalances.set(bank.id,(bankBalances.get(bank.id)??0)+receipt.principal);
+  }else if(!Number.isSafeInteger(receipt.returnedAt)||receipt.returnedAt<receipt.month||receipt.returnedAt>month
+   ||!Number.isSafeInteger(receipt.returnJournal)||receipt.returnJournal<=id
+   ||!matches(bank,receipt.returnJournal,receipt.returnedAt,receipt.principal,'worldDemandDeposits','worldBankReserve','financing')
+   ||!matches(client,receipt.returnJournal+1,receipt.returnedAt,receipt.principal,'cash','worldBankDeposits','investing')){
+   throw Error('銀行預金の払戻仕訳が不正です：'+receipt.id);
+  }
+  sequence=id;
  }
+ for(const f of s.firms){
+  const principal=bankBalances.get(f.id)??0;
+  if(acc(f,'worldBankReserve')!==principal||-acc(f,'worldDemandDeposits')!==principal
+   ||acc(f,'worldBankDeposits')!==(clientBalances.get(f.id)??0))throw Error('銀行預金・準備金・預金負債の残高が不一致：'+f.id);
+ }
+}
+function worldValidatePassengerTrips(s){
+ const rows=s.worldExpansion.passengerTrips??[];
+ if(!Array.isArray(rows))throw Error('鉄道出張台帳が不正です');
+ const month=ym(s.year,s.month),advances=new Map(),seats=new Map(),matches=worldServiceJournalMatcher(s);
  let sequence=0;
  for(const trip of rows){
   const id=Number(trip?.id?.split('-')[1]),firm=company(trip?.firmId,s),
@@ -13374,6 +13520,7 @@ function worldValidateDomesticLogistics(s){
  worldValidateStorageServices(s,transferByAsset);
  worldValidateCargoInsurance(s);
  worldValidatePassengerTrips(s);
+ worldValidateBankDeposits(s);
  worldValidateDomesticOrders(s,transferByAsset);
  worldValidateDomesticShipmentPostings(s,shipments);
  worldValidateDomesticCosts(s);
