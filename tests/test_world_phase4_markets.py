@@ -367,9 +367,19 @@ def main():
             "profile": "CO-US-CARTAGENA-COFFEE", "country": "CO", "site": "CO-CTG", "city": "CITY-32-04",
             "currency": "COP", "year": 1906, "offer": "CO-CTG-COFFEE", "authority": "CUSTOMS-US-NOLA-1897",
         })
+        test_steamship_export(page, {
+            "profile": "SE-UK-GOTHENBURG-TIMBER", "country": "SE", "site": "SE-GOT", "city": "CITY-10-02",
+            "currency": "SEK", "year": 1904, "offer": "SE-GOT-TIMBER", "authority": None,
+            "buyerCountry": "UK", "destination": "UK-HULL", "product": "PRD-R19", "departure": 6, "payMonth": 7,
+        })
+        test_steamship_export(page, {
+            "profile": "NL-US-ROTTERDAM-PULP", "country": "NL", "site": "NL-ROT", "city": "CITY-08-02",
+            "currency": "NLG", "year": 1907, "offer": "NL-ROT-PULP", "authority": None,
+            "buyerCountry": "US", "destination": "US-PHL", "product": "PRD-M13", "departure": 3, "payMonth": 4,
+        })
         assert not errors, errors
         browser.close()
-    print("PASS Phase 4 Canada, Australia, New Zealand, Mexico, Brazil, Argentina, Chile and Colombia: sourced cargo, loading, shipment and settlement")
+    print("PASS Phase 4 Canada, Australia, New Zealand, Mexico, Brazil, Argentina, Chile, Colombia, Sweden and Netherlands: sourced cargo, loading, shipment and settlement")
 
 
 if __name__ == "__main__":

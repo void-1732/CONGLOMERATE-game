@@ -678,6 +678,10 @@ const MANUAL_SAVE_PAGE_SIZE=20,AUTO_SAVE_MONTHS=3,MANUAL_ARCHIVE_PREFIX='manual:
 // Based on the OWID long-run population series (Gapminder before 1950; UN WPP since 1950).
 // Reference values are rounded and based on modern territorial boundaries, not historical sovereignty.
 const POPULATION_ANCHORS={
+ // 1900 national population baselines from Statistics Sweden and Statistics Netherlands;
+ // later interpolation points are provisional game calibration, not a census extrapolation.
+ SE:{1900:5.136441,1910:5.522403,1950:7.042,2020:10.38},
+ NL:{1900:5.104137,1910:5.858175,1950:10.027,2020:17.407},
  JP:{1900:43.8,1920:56.0,1950:83.6,1980:117.1,2020:126.6},
  US:{1900:76.3,1920:106.5,1950:157.8,1980:229.5,2020:339.1},
  UK:{1900:41.5,1920:43.7,1950:49.8,1980:56.3,2020:67.3},
@@ -710,7 +714,7 @@ function anchorPopulation(code,year){const anchors=POPULATION_ANCHORS[code];if(!
  if(year>=yrs[yrs.length-1])return anchors[yrs[yrs.length-1]];
  for(let i=1;i<yrs.length;i++){if(year<=yrs[i]){const lo=yrs[i-1],hi=yrs[i];return anchors[lo]+(anchors[hi]-anchors[lo])*(year-lo)/(hi-lo);}}return null;}
 
-const NAMES={JP:'日本',US:'アメリカ',UK:'イギリス',DE:'ドイツ',FR:'フランス',NO:'ノルウェー',CA:'カナダ',AU:'オーストラリア',NZ:'ニュージーランド',MX:'メキシコ',BR:'ブラジル',AR:'アルゼンチン',CL:'チリ',CO:'コロンビア'};
+const NAMES={JP:'日本',US:'アメリカ',UK:'イギリス',DE:'ドイツ',FR:'フランス',NO:'ノルウェー',CA:'カナダ',AU:'オーストラリア',NZ:'ニュージーランド',MX:'メキシコ',BR:'ブラジル',AR:'アルゼンチン',CL:'チリ',CO:'コロンビア',SE:'スウェーデン',NL:'オランダ'};
 const INITIAL_ENGINE_COUNTRIES=['JP','US','UK','DE','FR'];
 const COUNTRIES={
  JP:{currency:'JPY',fx:1,pop:44,wealth:1,wage:145,demand:115,steel:420,rubber:280,steelSupply:1100,rubberSupply:1050},
@@ -736,7 +740,12 @@ const COUNTRIES={
  CL:{currency:'CLP',fx:18,pop:anchorPopulation('CL',1900),wealth:.88,wage:130,demand:13,
   steel:483,rubber:318,steelSupply:100,rubberSupply:85},
  CO:{currency:'COP',fx:120,pop:anchorPopulation('CO',1900),wealth:.83,wage:123,demand:12,
-  steel:487,rubber:321,steelSupply:100,rubberSupply:90}
+  steel:487,rubber:321,steelSupply:100,rubberSupply:90},
+ // Fixed 1900 ledger units; all FX, industry, income and demand coefficients remain PROVISIONAL.
+ SE:{currency:'SEK',fx:14,pop:anchorPopulation('SE',1900),wealth:1.0,wage:142,demand:14,
+  steel:445,rubber:310,steelSupply:105,rubberSupply:95},
+ NL:{currency:'NLG',fx:65,pop:anchorPopulation('NL',1900),wealth:1.04,wage:146,demand:15,
+  steel:448,rubber:306,steelSupply:108,rubberSupply:98}
 };
 const ACCTYPE={cash:'asset',materials:'asset',materialsTransit:'asset',componentStock:'asset',componentTransit:'asset',wip:'asset',goods:'asset',goodsTransit:'asset',constructionAssets:'asset',ppe:'asset',accdep:'contra',investment:'asset',ar:'asset',loanrec:'asset',resourceRights:'asset',worldShipmentStock:'asset',worldImportDutyPrepaid:'asset',worldInternationalReceivable:'asset',worldStoredStock:'asset',worldInsuranceReserve:'asset',worldInsurancePrepaid:'asset',worldTravelAdvance:'asset',worldBankDeposits:'asset',worldBankRemittance:'asset',worldBankReserve:'asset',worldSupplierAdvances:'asset',partReceivable:'asset',partPayable:'liability',worldCustomerAdvances:'liability',worldInternationalPayable:'liability',worldInternationalDutyPayable:'liability',worldInsuranceUnearned:'liability',worldDemandDeposits:'liability',payable:'liability',wagesDue:'liability',debt:'liability',interestDue:'liability',taxDue:'liability',capital:'equity',treasuryStock:'contraEquity',sales:'revenue',serviceRevenue:'revenue',otherRevenue:'revenue',cogs:'expense',labor:'expense',rndExpense:'expense',advert:'expense',maintenance:'expense',interestExpense:'expense',depreciation:'expense',taxExpense:'expense',fxLoss:'expense',otherExpense:'expense'};
 const PAGES={dashboard:'経営概況',marketOwn:'自社グループ市場分析',market:'世界市場分析',product:'製品・開発',factory:'工場・調達',people:'研究・人事',finance:'財務・資金',group:'企業グループ',consolidated:'連結財務三表',reports:'月次レポート',save:'保存・設定'};
@@ -1518,7 +1527,9 @@ const SITE_CATALOG=[
   ['CA-MTL','CA','モントリオール港'],['AU-SYD','AU','シドニー港'],['NZ-WLG','NZ','ウェリントン港'],
   ['MX-VER','MX','ベラクルス港'],['BR-RIO','BR','リオデジャネイロ港'],
   ['AR-BUE','AR','ブエノスアイレス港'],['CL-VAP','CL','バルパライソ港'],
-  ['CO-CTG','CO','カルタヘナ港']].map(([id,country,name])=>(
+  ['CO-CTG','CO','カルタヘナ港'],
+  ['SE-GOT','SE','ヨーテボリ港'],['UK-HULL','UK','ハル港'],
+  ['NL-ROT','NL','ロッテルダム港'],['US-PHL','US','フィラデルフィア港']].map(([id,country,name])=>(
   {id,country,name,land:1,wage:1,infra:1,labor:1,freight:1,worldOnly:true}))
 ];
 const findSite=id=>SITE_CATALOG.find(x=>x.id===id);
@@ -10982,7 +10993,7 @@ const WORLD_TERRITORIES=new Map(WORLD_MARKETS.flatMap(m=>m.territories.map(t=>[t
 const WORLD_CITIES=new Map(WORLD_MARKETS.flatMap(m=>m.cities.map(c=>[c.id,c])));
 // Registry version zero is the saved pre-expansion world (five initial economies).
 // New onboarding data is additive and does not change the original scenario.
-const WORLD_MARKET_REGISTRY_VERSION=6;
+const WORLD_MARKET_REGISTRY_VERSION=7;
 const WORLD_MARKET_ONBOARDING=Object.freeze({
  CA:Object.freeze({introducedIn:1,territoryId:'TER-27-01',currencyId:'CUR-CAD',jurisdictionId:'JUR-CA',
   jurisdictionSource:'https://www.canada.ca/en/immigration-refugees-citizenship/corporate/publications-manuals/discover-canada/read-online/canadas-history.html',
@@ -11017,7 +11028,17 @@ const WORLD_MARKET_ONBOARDING=Object.freeze({
  CO:Object.freeze({introducedIn:6,territoryId:'TER-32-01',currencyId:'CUR-COP',jurisdictionId:'JUR-CO',
   jurisdictionSource:'https://babel.banrepcultural.org/digital/collection/p17054coll10/id/636/',
   currencySource:'https://repositorio.banrep.gov.co/bitstream/handle/20.500.12134/10721/LBR_2023-11i.pdf',
-  populationSource:'https://biblioteca.dane.gov.co/media/libros/LD_1050_1961_1963_EJ_4.PDF'})
+  populationSource:'https://biblioteca.dane.gov.co/media/libros/LD_1050_1961_1963_EJ_4.PDF'}),
+ SE:Object.freeze({introducedIn:7,territoryId:'TER-10-01',currencyId:'CUR-SEK',jurisdictionId:'JUR-SE',
+  jurisdictionSource:'https://www.riksbank.se/en-gb/about-the-riksbank/history/historical-timeline/',
+  currencySource:'https://www.riksbank.se/en-gb/about-the-riksbank/history/historical-timeline/1800-1899/sweden-gets-the-krona/',
+  populationSource:'https://www.regionfakta.com/norrbottens-lan/in-english-/population/population-in-1805-2025/'}),
+ // Benelux has a shared economic market ID; only the Netherlands territory is now
+ // connected to a playable legal entity. Belgium/Luxembourg remain unaudited.
+ NL:Object.freeze({introducedIn:7,territoryId:'TER-08-01',currencyId:'CUR-NLG',jurisdictionId:'JUR-NL',
+  jurisdictionSource:'https://www.government.nl/themes/government-and-democracy/constitution',
+  currencySource:'https://www.elibrary.imf.org/display/book/9781451949605/ch011.xml',
+  populationSource:'https://www.cbs.nl/en-gb/figures/detail/37556eng'})
 });
 function worldInitialEngineCountries(registryVersion){
  return [...INITIAL_ENGINE_COUNTRIES,...Object.entries(WORLD_MARKET_ONBOARDING)
@@ -11051,7 +11072,8 @@ const WORLD_SITE_CITIES={
  'FR-PAR':'CITY-02-01','FR-LYO':'CITY-02-02','FR-MAR':'CITY-02-03',
  'NO-OSL':'CITY-11-01','NO-BGO':'CITY-11-02','NO-TRD':'CITY-11-03','CA-MTL':'CITY-27-03',
  'AU-SYD':'CITY-24-01','NZ-WLG':'CITY-25-02','MX-VER':'CITY-28-04','BR-RIO':'CITY-29-01','AR-BUE':'CITY-30-01',
- 'CL-VAP':'CITY-31-02','CO-CTG':'CITY-32-04'
+ 'CL-VAP':'CITY-31-02','CO-CTG':'CITY-32-04',
+ 'SE-GOT':'CITY-10-02','NL-ROT':'CITY-08-02'
 };
 const WORLD_LOCATIONS=new Map(SITE_CATALOG.map(site=>[
  'LOC-'+site.id,{id:'LOC-'+site.id,territoryId:WORLD_ENGINE_TERRITORY[site.country],cityId:WORLD_SITE_CITIES[site.id]??null}
@@ -12500,6 +12522,15 @@ function worldSupplyOffer(siteId,productId,name,firstYear,quantity,priceBase,sou
   closesAt:lastYear===null?null:ym(lastYear+1,1),quantity,priceBase,source});
 }
 const WORLD_REGIONAL_SUPPLY=Object.freeze({
+ // Verified port trade categories; unit costs and finite purchase caps are game fixtures.
+ 'SE-GOT-TIMBER':worldSupplyOffer('SE-GOT','PRD-R19','ヨーテボリの木材輸出貨物',1904,135,20,
+  'https://academic.oup.com/past/advance-article/doi/10.1093/pastj/gtaf025/8264341',1904),
+ 'SE-GOT-BUNKER-COAL':worldSupplyOffer('SE-GOT','PRD-R04','ヨーテボリの船舶用輸入石炭',1904,130,18,
+  'https://portgot.maglr.com/history/20th-century',1904),
+ 'NL-ROT-PULP':worldSupplyOffer('NL-ROT','PRD-M13','ロッテルダム発フィラデルフィア向け紙パルプ',1907,130,32,
+  'https://upload.wikimedia.org/wikipedia/commons/4/46/Paper_Trade_Journal_1907-03-21-_Vol_44_Iss_12_%28IA_sim_paper-trade-journal_1907-03-21_44_12%29.pdf',1907),
+ 'NL-ROT-BUNKER-COAL':worldSupplyOffer('NL-ROT','PRD-R04','ロッテルダムの石炭船舶燃料',1907,130,18,
+  'https://stadsarchief.rotterdam.nl/mechanisering',1907),
  'CL-VAP-COPPER':worldSupplyOffer('CL-VAP','PRD-M05','バルパライソ港の輸出銅地金',1913,160,20,
   'https://upload.wikimedia.org/wikipedia/commons/0/01/Bulletin_of_the_Pan_American_Union_1911-04-_Vol_32_Iss_4_%28IA_sim_bulletin-of-the-pan-american-union_1911-04_32_4%29.pdf',1913),
  'CL-VAP-BUNKER-COAL':worldSupplyOffer('CL-VAP','PRD-R04','バルパライソ港の船舶用石炭',1913,165,14,
@@ -13534,6 +13565,10 @@ const WORLD_YOKOHAMA_TRANSFER_SOURCE='https://archive.lib.city.yokohama.lg.jp/mu
 const WORLD_NORTH_SHIELDS_SOURCE='https://kringom.no/nb/midthordland/bergen/om-englandsruta-bergen-newcastle';
 const WORLD_BERGEN_CARGO_SOURCE='https://snl.no/Det_Bergenske_Dampskibsselskab';
 const WORLD_INTERNATIONAL_CORRIDORS=Object.freeze({
+ 'SE-UK-GOTHENBURG-TIMBER':worldSteamshipProfile('SE-GOT','UK-HULL',ym(1904,6),950,22,20,2,
+  'https://portgot.maglr.com/history/20th-century'),
+ 'NL-US-ROTTERDAM-PULP':worldSteamshipProfile('NL-ROT','US-PHL',ym(1907,3),6000,30,26,2,
+  'https://upload.wikimedia.org/wikipedia/commons/4/46/Paper_Trade_Journal_1907-03-21-_Vol_44_Iss_12_%28IA_sim_paper-trade-journal_1907-03-21_44_12%29.pdf'),
  'CL-UK-VALPARAISO-COPPER':worldSteamshipProfile('CL-VAP','UK-LIV',ym(1913,5),15200,32,28,3,WORLD_VALPARAISO_CARGO_SOURCE),
  'CO-US-CARTAGENA-COFFEE':worldSteamshipProfile('CO-CTG','US-NEWORLEANS',ym(1906,5),2750,25,22,1,WORLD_CARTAGENA_CARGO_SOURCE),
  'AR-UK-BUENOSAIRES-WHEAT':worldSteamshipProfile('AR-BUE','UK-LIV',ym(1921,1),11300,32,28,3,WORLD_BUENOS_AIRES_WHEAT_SOURCE),
@@ -13630,6 +13665,15 @@ const WORLD_INTERNATIONAL_CORRIDORS=Object.freeze({
 // the modeled capacity, distance or cost. The playable dates conservatively
 // allow time to pass after dated sources; they are not claimed opening dates.
 const WORLD_INTERNATIONAL_ROUTE_EVIDENCE=Object.freeze({
+ // One documented month is enabled for reproducible testing; the end date
+ // is NOT a claim that the historical carrier ceased operation then.
+ 'SE-UK-GOTHENBURG-TIMBER':Object.freeze({untilMonth:ym(1904,7),
+  products:Object.freeze(['PRD-R19']),source:'https://portgot.maglr.com/history/20th-century',
+  operationSource:'https://www.norwayheritage.com/ships/calyp'}),
+ 'NL-US-ROTTERDAM-PULP':Object.freeze({untilMonth:ym(1907,4),
+  products:Object.freeze(['PRD-M13']),
+  source:'https://upload.wikimedia.org/wikipedia/commons/4/46/Paper_Trade_Journal_1907-03-21-_Vol_44_Iss_12_%28IA_sim_paper-trade-journal_1907-03-21_44_12%29.pdf',
+  operationSource:'https://www.ggarchives.com/IMM/Emigration/1903-09-23-EmigrationFromRotterdamToTheUnitedStates.html'}),
  'CL-UK-VALPARAISO-COPPER':Object.freeze({untilMonth:ym(1913,7),products:Object.freeze(['PRD-M05']),
   source:WORLD_VALPARAISO_CARGO_SOURCE,operationSource:'https://www.scielo.cl/scielo.php?pid=S0717-71942002003500004&script=sci_arttext'}),
  'CO-US-CARTAGENA-COFFEE':Object.freeze({untilMonth:ym(1906,7),products:Object.freeze(['PRD-R27']),
@@ -13839,7 +13883,7 @@ const WORLD_INTERNATIONAL_REMITTANCE=Object.freeze({
   source:'https://leicester.contentdm.oclc.org/digital/api/collection/p16445coll4/id/274979/download',
   branchSource:'https://leicester.contentdm.oclc.org/digital/api/collection/p16445coll4/id/34866/download'})
 });
-const WORLD_PHASE4_TARIFF_BPS=Object.freeze({JP:350,US:300,UK:250,FR:300,DE:300,NO:250,CA:300,AU:300,NZ:300,MX:300,BR:300,AR:300,CL:300,CO:300});
+const WORLD_PHASE4_TARIFF_BPS=Object.freeze({JP:350,US:300,UK:250,FR:300,DE:300,NO:250,CA:300,AU:300,NZ:300,MX:300,BR:300,AR:300,CL:300,CO:300,SE:250,NL:300});
 function worldInternationalTariffBps(s,country,profileId,productId){
  if(!s.world?.[country]||!Object.hasOwn(WORLD_PHASE4_TARIFF_BPS,country))
   throw Error('輸入国の関税制度が未接続です');
