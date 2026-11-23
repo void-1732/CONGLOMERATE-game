@@ -3497,7 +3497,7 @@ async function runMonth(){
   step('FACTORY_JOBS',()=>{advanceFactoryJobsV21(trial,events);advanceComponentLines(trial,events)});
   step('AI_PREPARE',()=>{for(const f of trial.firms){ensureFirmGameplay(f);f.marketThisMonth={};f._profitStart=financials(f).profit;rivalMonthlyStrategy(trial,f,events);planAI(f,trial);autoOperations(trial,f)}});
   step('PEOPLE',()=>processHumanResources(trial,events));
-  step('RESOURCE_PRODUCTION',()=>{laborAndPlant(trial,events,'resource');produceWorldDeposits(trial,events)});
+  step('RESOURCE_PRODUCTION',()=>{laborAndPlant(trial,events,'resource');produceWorldDeposits(trial,events);worldFulfillLocalSupplyPlans(trial,events)});
   step('NPC_PRODUCTION',()=>produceNpcV033(trial,events));
    step('PROCUREMENT',()=>{for(const f of trial.firms){ensureNetwork(f,trial);f.supply.monthFlow=Object.fromEntries(SUPPLY_TYPES.map(t=>[t,{month:ym(trial.year,trial.month),start:f.stock[t]?.q||0}]));}procureNetwork(trial,events)});
   step('NPC_SETTLEMENT',()=>settleNpcMarketV033(trial));
@@ -10836,7 +10836,7 @@ function makeWorldExpansion(){
   catalogVersion:WORLD_CATALOG_VERSION,
   territoryJurisdictions:Object.fromEntries([...WORLD_TERRITORIES.keys()].map(id=>[id,WORLD_INITIAL_JURISDICTIONS[id]??null])),
   openMarkets:Object.fromEntries(WORLD_MARKETS.map(m=>[m.id,INITIAL_ENGINE_COUNTRIES.includes(WORLD_ENGINE_BY_MARKET[m.id])?WORLD_START_MONTH:null])),
-  appliedEvents:[],companies:{},facilities:{},resourceDeposits:{},powerAllocations:{},powerGenerators:{},energyReceipts:[],physicalDeliveries:[]
+  appliedEvents:[],companies:{},facilities:{},resourceDeposits:{},powerAllocations:{},powerGenerators:{},energyReceipts:[],physicalDeliveries:[],powerLines:{},powerTransfers:[],localSupplyPlans:{}
  };
 }
 
@@ -11181,7 +11181,18 @@ const WORLD_SUPPLEMENTAL_RECIPES=Object.freeze([
  {id:'PRD-C09',year:1900,tech:'production-1',cost:20,unit:'個',plantKind:'assembly',powerKwh:0,inputs:[['PRD-M36',2]]},
  {id:'PRD-C11',year:1900,tech:'production-1',cost:24,unit:'個',plantKind:'assembly',powerKwh:0,inputs:[['PRD-M12',3]]},
  {id:'PRD-C12',year:1900,tech:'production-1',cost:22,unit:'個',plantKind:'assembly',powerKwh:0,inputs:[['PRD-M36',2],['PRD-M12',1]]},
- {id:'PRD-E01',year:1900,tech:'production-1',cost:110,unit:'台',plantKind:'integrated',powerKwh:0,inputs:[['PRD-M02',3],['PRD-M33',2]]}
+ {id:'PRD-E01',year:1900,tech:'production-1',cost:110,unit:'台',plantKind:'integrated',powerKwh:0,inputs:[['PRD-M02',3],['PRD-M33',2]]},
+ // Phase 2-E: physical-only PROVISIONAL BOMs; no new raw material sources.
+ {id:'PRD-M19',year:1940,tech:'materials-6',cost:36,unit:'kg',plantKind:'integrated',powerKwh:6,inputs:[['PRD-R05',3]]},
+ {id:'PRD-M23',year:1950,tech:'materials-6',cost:19,unit:'kg',plantKind:'integrated',powerKwh:3,inputs:[['PRD-M20',1],['PRD-R16',2]]},
+ {id:'PRD-M24',year:1960,tech:'materials-6',cost:25,unit:'kg',plantKind:'integrated',powerKwh:4,inputs:[['PRD-M20',2],['PRD-M23',1]]},
+ {id:'PRD-M43',year:1940,tech:'energy-1',cost:15,unit:'kg',plantKind:'integrated',powerKwh:5,inputs:[['PRD-R30',2]]},
+ {id:'PRD-C05',year:1910,tech:'production-1',cost:11,unit:'個',plantKind:'assembly',powerKwh:2,inputs:[['PRD-R30',2],['PRD-M03',1]]},
+ {id:'PRD-C10',year:1920,tech:'production-1',cost:18,unit:'個',plantKind:'assembly',powerKwh:0,inputs:[['PRD-M36',2],['PRD-R29',1]]},
+ {id:'PRD-E09',year:1930,tech:'production-1',cost:160,unit:'台',plantKind:'integrated',powerKwh:4,inputs:[['PRD-M03',4],['PRD-M20',2]]},
+ {id:'PRD-E10',year:1910,tech:'production-1',cost:160,unit:'台',plantKind:'integrated',powerKwh:0,inputs:[['PRD-M02',4],['PRD-M33',2]]},
+ {id:'PRD-E13',year:1920,tech:'production-1',cost:140,unit:'台',plantKind:'integrated',powerKwh:0,inputs:[['PRD-M03',4],['PRD-E01',1],['PRD-M32',2]]},
+ {id:'PRD-E22',year:1950,tech:'energy-1',cost:170,unit:'台',plantKind:'assembly',powerKwh:4,inputs:[['PRD-E03',2],['PRD-M03',3]]}
 
 ]);
 const WORLD_SUPPLEMENTAL_BY_ID=new Map(WORLD_SUPPLEMENTAL_RECIPES.map(r=>[r.id,r]));
@@ -11278,7 +11289,8 @@ function validateWorldResourceDeposits(s){
    ||d.initialReserve!==d.remaining+d.extracted
    ||!Number.isSafeInteger(d.availableFromYear)||d.availableFromYear<1900
    ||(d.requiredTech!==null&&!TECH_BY_ID[d.requiredTech])
-   ||(d.lastExtractedAt!==null&&!Number.isSafeInteger(d.lastExtractedAt)))
+   ||(d.lastExtractedAt!==null&&!Number.isSafeInteger(d.lastExtractedAt))
+   ||(d.lastExtractedQuantity!==undefined&&(!Number.isSafeInteger(d.lastExtractedQuantity)||d.lastExtractedQuantity<1||d.lastExtractedQuantity>d.extracted)))
    throw Error('鉱床の所有・所在地・埋蔵量が不正：'+key);
  }
  return true;
@@ -11308,7 +11320,7 @@ function worldExtractFromDeposit(s,firmId,plantId,depositId,wanted,unitCost,even
  post(f,{materials:cost},{cash:cost},'有限鉱床からの採掘 '+d.id,'operating',s);
  const stock=f.stock[d.productId]??={q:0,v:0};
  stock.q+=quantity;stock.v+=cost;
- d.remaining-=quantity;d.extracted+=quantity;d.lastExtractedAt=month;
+ d.remaining-=quantity;d.extracted+=quantity;d.lastExtractedAt=month;d.lastExtractedQuantity=quantity;
  events.push(WORLD_PRODUCT_BY_ID.get(d.productId).name+'を採掘：'+quantity);
  return quantity;
 }
@@ -11356,6 +11368,65 @@ function produceWorldDeposits(s,events){
   if(plan?.quantity>0)worldExtractFromDeposit(s,f.id,p.id,plan.depositId,plan.quantity,plan.unitCost,events);
  }
 }
+
+/* Explicit contract between known owner and on-site buyer. Pending contracts
+   never create material: only real same-month extracted units can settle. */
+function worldSetLocalSupplyPlan(s,depositId,buyerId,buyerPlantId,quantity,price){
+ if(!s.worldExpansion||!Number.isSafeInteger(quantity)||quantity<0||quantity>100000
+  ||!Number.isSafeInteger(price)||price<1||price>10000000)throw Error('現物供給契約が不正');
+ const d=s.worldExpansion.resourceDeposits?.[depositId],seller=d&&company(d.ownerCompanyId,s),
+  sp=seller?.plants.find(p=>p.id===d.plantId),buyer=company(buyerId,s),
+  bp=buyer?.plants.find(p=>p.id===buyerPlantId);
+ if(!d||d.status==='PROVISIONAL'||!sp||!bp||seller.id===buyer.id||sp.siteId!==bp.siteId
+  ||sp.paused||bp.paused||sp.construction||bp.construction)throw Error('実鉱床と同一地区検収施設が必要');
+ validateWorldResourceDeposits(s);
+ if(quantity)(s.worldExpansion.localSupplyPlans??={})[depositId]={
+  depositId,sellerId:seller.id,sellerPlantId:sp.id,buyerId,buyerPlantId,productId:d.productId,
+  quantity,unitPrice:price,createdAt:ym(s.year,s.month),lastDeliveredAt:null,receiptId:null
+ };
+ else delete s.worldExpansion.localSupplyPlans?.[depositId];
+}
+function worldValidateLocalSupply(s){
+ const plans=s.worldExpansion?.localSupplyPlans;
+ if(plans===undefined)return true;
+ if(!plans||typeof plans!=='object'||Array.isArray(plans))throw Error('現物供給台帳が不正');
+ for(const [id,p] of Object.entries(plans)){
+  const d=s.worldExpansion.resourceDeposits?.[id],f=d&&company(d.ownerCompanyId,s),
+   sp=f?.plants.find(v=>v.id===d.plantId),
+   buyer=company(p.buyerId,s),bp=buyer?.plants.find(v=>v.id===p.buyerPlantId),
+   r=(s.worldExpansion.physicalDeliveries??[]).find(x=>x.id===p.receiptId);
+  if(!d||d.status==='PROVISIONAL'||p.depositId!==id||p.sellerId!==f.id||p.sellerPlantId!==sp?.id
+   ||!bp||sp.siteId!==bp.siteId||p.buyerId===f.id||p.productId!==d.productId
+   ||!Number.isSafeInteger(p.quantity)||p.quantity<1||p.quantity>100000
+   ||!Number.isSafeInteger(p.unitPrice)||p.unitPrice<1||p.unitPrice>10000000
+   ||!Number.isSafeInteger(p.createdAt)||p.createdAt<WORLD_START_MONTH
+   ||(p.lastDeliveredAt!==null&&(!r||r.month!==p.lastDeliveredAt||r.sellerId!==p.sellerId
+     ||r.buyerId!==p.buyerId||r.productId!==p.productId)))
+   throw Error('有限鉱床と現物検収の参照不一致：'+id);
+ }
+ return true;
+}
+function worldFulfillLocalSupplyPlans(s,events=[]){
+ if(!s.worldExpansion)return;
+ worldValidateLocalSupply(s);
+ const month=ym(s.year,s.month);
+ for(const p of Object.values(s.worldExpansion.localSupplyPlans??{})){
+  if(p.lastDeliveredAt===month)continue;
+  const d=s.worldExpansion.resourceDeposits[p.depositId];
+  if(d.lastExtractedAt!==month||!(d.lastExtractedQuantity>0))continue;
+  const seller=company(p.sellerId,s),buyer=company(p.buyerId,s),
+   bp=buyer.plants.find(v=>v.id===p.buyerPlantId);
+  const available=Math.max(0,Math.floor(bp.capacity*10)-(buyer.stock[p.productId]?.q??0));
+  const q=Math.min(p.quantity,d.lastExtractedQuantity,seller.stock[p.productId]?.q??0,
+   Math.floor(Math.max(0,acc(buyer,'cash'))/p.unitPrice),available);
+  if(q<1)continue;
+  const r=worldLocalPhysicalDelivery(s,seller.id,p.sellerPlantId,buyer.id,p.buyerPlantId,
+   p.productId,q,p.unitPrice);
+  p.lastDeliveredAt=month;p.receiptId=r.id;
+  events.push('有限鉱床 '+d.id+' の現物受入 '+q);
+ }
+}
+
 /* Local, immediate acceptance of an existing physical lot. The two active
    plants MUST share a site: no imaginary international freight or sale before
    delivery. This does not implement the future contract/credit/shipping API. */
@@ -11370,7 +11441,8 @@ function worldLocalPhysicalDelivery(s,sellerId,sellerPlantId,buyerId,buyerPlantI
   ||seller.reorgStatus==='integrated'||buyer.reorgStatus==='integrated')
   throw Error('同一拠点にある稼働設備間の現物検収が必要です');
  const stock=seller.stock?.[productId],total=quantity*unitPrice;
- if(!Number.isSafeInteger(total)||!stock||stock.q<quantity||acc(buyer,'cash')<total)
+ const availableSpace=Math.max(0,Math.floor(bp.capacity*10)-(buyer.stock?.[productId]?.q??0));
+ if(!Number.isSafeInteger(total)||!stock||stock.q<quantity||acc(buyer,'cash')<total||quantity>availableSpace)
   throw Error('現物在庫または買手現預金が不足しています');
  const cost=consume(seller,productId,quantity);
  post(seller,{cash:total},{sales:total},'世界現物引渡・'+product.name,'operating',s);
@@ -11458,7 +11530,7 @@ function validateWorldPowerAllocations(state){
  for(const [plantId,budget] of Object.entries(allocations)){
   const owner=state.firms.find(f=>f.plants?.some(p=>p.id===plantId));
   if(!owner||budget?.plantId!==plantId
-   ||!['TEST_FIXTURE','FUEL_GENERATED'].includes(budget.source)
+   ||!['TEST_FIXTURE','FUEL_GENERATED','FUEL_TRANSFERRED'].includes(budget.source)
    ||typeof budget.receiptId!=='string'||allocated.has(budget.receiptId)
    ||!Number.isSafeInteger(budget.month)||budget.month<WORLD_START_MONTH
    ||!Number.isSafeInteger(budget.capacityKwh)||budget.capacityKwh<0
@@ -11467,10 +11539,16 @@ function validateWorldPowerAllocations(state){
    throw Error('工場電力割当の所有・時点・数量が不正：'+plantId);
   if(budget.source==='TEST_FIXTURE'){
    if(!/^TEST-[A-Za-z0-9-]+$/.test(budget.receiptId))throw Error('試験電力ID不正');
-  }else{
+  }else if(budget.source==='FUEL_GENERATED'){
    const r=receiptMap.get(budget.receiptId);
-   if(!r||r.plantId!==plantId||r.month!==budget.month||r.deliveredKwh!==budget.capacityKwh)
+   if(!r||r.plantId!==plantId||r.month!==budget.month||r.deliveredKwh!==budget.capacityKwh
+    ||(budget.capitalizedFuelCost??0)+(budget.transferredFuelCost??0)>r.fuelBookCost)
     throw Error('電力供給の燃料明細が存在しません');
+  }else{
+   const t=(world.powerTransfers??[]).find(x=>x.id===budget.receiptId);
+   if(!t||t.targetPlantId!==plantId||t.month!==budget.month||t.deliveredKwh!==budget.capacityKwh
+    ||(budget.capitalizedFuelCost??0)>t.fuelBookCost)
+    throw Error('受電した電力の燃料原価明細が存在しません');
   }
   allocated.add(budget.receiptId);
  }
@@ -11500,23 +11578,126 @@ function worldGeneratePower(s,firmId,plantId,fuelQty){
  (s.worldExpansion.energyReceipts??=[]).push(receipt);
  (s.worldExpansion.powerAllocations??={})[plantId]={
   plantId,source:'FUEL_GENERATED',receiptId:receipt.id,month,
-  capacityKwh:delivered,usedKwh:0
+  capacityKwh:delivered,usedKwh:0,capitalizedFuelCost:0,transferredFuelCost:0
  };
  return receipt;
 }
 function worldPowerAvailable(state,plantId){
  const b=state.worldExpansion?.powerAllocations?.[plantId];
- return b&&['TEST_FIXTURE','FUEL_GENERATED'].includes(b.source)&&b.month===ym(state.year,state.month)
+ return b&&['TEST_FIXTURE','FUEL_GENERATED','FUEL_TRANSFERRED'].includes(b.source)&&b.month===ym(state.year,state.month)
   ?Math.max(0,b.capacityKwh-b.usedKwh):0;
 }
 function worldConsumePower(state,plantId,kwh){
- if(kwh===0)return;
+ if(kwh===0)return 0;
  if(!Number.isSafeInteger(kwh)||kwh<0||worldPowerAvailable(state,plantId)<kwh)
   throw Error('確認された電力供給枠が不足しています：'+plantId);
- state.worldExpansion.powerAllocations[plantId].usedKwh+=kwh;
+ const budget=state.worldExpansion.powerAllocations[plantId],from=budget.usedKwh,to=from+kwh;
+ let costPool=0;
+ if(budget.source==='FUEL_GENERATED')
+  costPool=state.worldExpansion.energyReceipts.find(x=>x.id===budget.receiptId)?.fuelBookCost??0;
+ if(budget.source==='FUEL_TRANSFERRED')
+  costPool=state.worldExpansion.powerTransfers.find(x=>x.id===budget.receiptId)?.fuelBookCost??0;
+ const amount=costPool?Math.floor(to*costPool/budget.capacityKwh)-Math.floor(from*costPool/budget.capacityKwh):0;
+ if(amount){
+  const owner=state.firms.find(f=>f.plants.some(p=>p.id===plantId));
+  post(owner,{materials:amount},{otherExpense:amount},'実使用電力の製品原価振替','operating',state);
+  budget.capitalizedFuelCost=(budget.capitalizedFuelCost??0)+amount;
+ }
+ budget.usedKwh=to;
+ return amount;
+}
+
+
+function worldInstallPowerLine(s,firmId,sourceId,targetId){
+ const f=company(firmId,s),a=f?.plants.find(p=>p.id===sourceId),b=f?.plants.find(p=>p.id===targetId);
+ if(!s.worldExpansion||!a||!b||a.id===b.id||a.siteId!==b.siteId
+  ||a.construction||b.construction||a.paused||b.paused
+  ||s.year<1915||!f.research?.tree?.done.includes('energy-1')
+  ||s.worldExpansion.powerGenerators?.[sourceId]?.ownerCompanyId!==firmId
+  ||s.worldExpansion.powerLines?.[targetId])throw Error('同一所在地と所有発電機が必要');
+ if((f.stock['PRD-M06']?.q??0)<2)throw Error('実物銅線2単位が不足');
+ const value=consume(f,'PRD-M06',2);
+ if(value<1)throw Error('無原価設備を建設できません');
+ post(f,{ppe:value},{materials:value},'世界電力の実物送電線','investing',s);
+ const line={id:'LINE-'+targetId,ownerCompanyId:firmId,sourcePlantId:sourceId,
+  targetPlantId:targetId,productId:'PRD-M06',quantity:2,assetValue:value,
+  installedAt:ym(s.year,s.month),capacityKwh:20,lossBps:500};
+ (s.worldExpansion.powerLines??={})[targetId]=line;
+ return line;
+}
+function worldTransferPower(s,firmId,sourceId,targetId,sentKwh){
+ if(!s.worldExpansion||!Number.isSafeInteger(sentKwh)||sentKwh<2)throw Error('送電kWhが不正');
+ validateWorldPowerAllocations(s);worldValidatePhase2E(s);
+ const f=company(firmId,s),a=f?.plants.find(p=>p.id===sourceId),b=f?.plants.find(p=>p.id===targetId),
+  line=s.worldExpansion.powerLines?.[targetId],src=s.worldExpansion.powerAllocations?.[sourceId],
+  target=s.worldExpansion.powerAllocations?.[targetId],month=ym(s.year,s.month);
+ if(!a||!b||a.siteId!==b.siteId||a.paused||b.paused||a.construction||b.construction
+  ||a.renovation||b.renovation||line?.ownerCompanyId!==firmId
+  ||line.sourcePlantId!==sourceId||src?.source!=='FUEL_GENERATED'||src.month!==month
+  ||target?.month===month||worldPowerAvailable(s,sourceId)<sentKwh
+  ||sentKwh>Math.floor(line.capacityKwh*Math.min(a.condition,b.condition)/100))
+  throw Error('同一地区の送電線、実電力または設備容量が不足');
+ const loss=Math.ceil(sentKwh*line.lossBps/10000),delivered=sentKwh-loss,
+  receipt=s.worldExpansion.energyReceipts.find(x=>x.id===src.receiptId);
+ if(delivered<1)throw Error('送電損失により有効電力がありません');
+ const fuelCost=Math.floor((src.usedKwh+sentKwh)*receipt.fuelBookCost/src.capacityKwh)
+  -Math.floor(src.usedKwh*receipt.fuelBookCost/src.capacityKwh);
+ src.usedKwh+=sentKwh;src.transferredFuelCost=(src.transferredFuelCost??0)+fuelCost;
+ const t={id:'XFER-'+s.seq++,lineId:line.id,parentReceiptId:receipt.id,
+  month,ownerCompanyId:firmId,sourcePlantId:sourceId,targetPlantId:targetId,
+  sentKwh,lossKwh:loss,deliveredKwh:delivered,fuelBookCost:fuelCost};
+ (s.worldExpansion.powerTransfers??=[]).push(t);
+ s.worldExpansion.powerAllocations[targetId]={plantId:targetId,source:'FUEL_TRANSFERRED',
+  receiptId:t.id,month,capacityKwh:delivered,usedKwh:0,capitalizedFuelCost:0};
+ return t;
+}
+function worldValidatePhase2E(s){
+ if(!s.worldExpansion)return true;
+ const w=s.worldExpansion,lines=w.powerLines??{},transfers=w.powerTransfers??[];
+ if(!lines||typeof lines!=='object'||Array.isArray(lines)||!Array.isArray(transfers))
+  throw Error('送電線・送電記録の保存形式が不正');
+ const ids=new Set();
+ for(const [target,line] of Object.entries(lines)){
+  const owner=company(line.ownerCompanyId,s),
+   a=owner?.plants.find(p=>p.id===line.sourcePlantId),b=owner?.plants.find(p=>p.id===target);
+  if(!a||!b||a.id===b.id||a.siteId!==b.siteId||line.id!=='LINE-'+target
+   ||line.targetPlantId!==target||line.productId!=='PRD-M06'
+   ||line.quantity!==2||line.capacityKwh!==20||line.lossBps!==500
+   ||!Number.isSafeInteger(line.assetValue)||line.assetValue<1
+   ||w.powerGenerators?.[a.id]?.ownerCompanyId!==owner.id)
+   throw Error('送電設備の所有・所在地と設備在庫が不一致');
+ }
+ for(const t of transfers){
+  const l=lines[t.targetPlantId],r=(w.energyReceipts??[]).find(x=>x.id===t.parentReceiptId);
+  if(typeof t.id!=='string'||!t.id.startsWith('XFER-')||ids.has(t.id)||!l||!r
+   ||l.id!==t.lineId||l.sourcePlantId!==t.sourcePlantId
+   ||l.ownerCompanyId!==t.ownerCompanyId||r.plantId!==t.sourcePlantId
+   ||r.ownerCompanyId!==t.ownerCompanyId||r.month!==t.month
+   ||!Number.isSafeInteger(t.sentKwh)||t.sentKwh<2||t.sentKwh>l.capacityKwh
+   ||t.lossKwh!==Math.ceil(t.sentKwh*l.lossBps/10000)
+   ||t.deliveredKwh!==t.sentKwh-t.lossKwh||t.deliveredKwh<1
+   ||!Number.isSafeInteger(t.fuelBookCost)||t.fuelBookCost<0||t.fuelBookCost>r.fuelBookCost)
+   throw Error('送電の実電力・追加損失・燃料原価が不一致');
+  ids.add(t.id);
+ }
+ for(const [plantId,b] of Object.entries(w.powerAllocations??{})){
+  if(b.source==='FUEL_GENERATED'){
+   const r=w.energyReceipts.find(x=>x.id===b.receiptId);
+   if(!r||(b.transferredFuelCost??0)!==transfers.filter(x=>x.parentReceiptId===r.id).reduce((sum,x)=>sum+x.fuelBookCost,0))
+    throw Error('発電燃料の送電簿価予約が不一致');
+  }
+  if(b.source==='FUEL_TRANSFERRED'){
+   const t=transfers.find(x=>x.id===b.receiptId);
+   if(!t||t.targetPlantId!==plantId||(b.capitalizedFuelCost??0)>t.fuelBookCost)
+    throw Error('受電設備の電力原価の照合が不正');
+  }
+ }
+ return true;
 }
 
 function validateWorldSupplemental(state){
+ worldValidatePhase2E(state);
+ worldValidateLocalSupply(state);
  validateWorldPowerAllocations(state);
  validateWorldMiningPlans(state);
  validateWorldPhysicalDeliveries(state);
@@ -11579,9 +11760,9 @@ function produceWorldSupplemental(state,events){
    const processingCost=quantity*conversion;
    post(firm,{materials:processingCost},{cash:processingCost},
     '世界商品加工費・'+WORLD_PRODUCT_BY_ID.get(recipe.id).name,'operating',state);
-   if(recipe.powerKwh)worldConsumePower(state,plant.id,quantity*recipe.powerKwh);
+   const energyCost=recipe.powerKwh?worldConsumePower(state,plant.id,quantity*recipe.powerKwh):0;
    const output=firm.stock[recipe.id]??={q:0,v:0};
-   output.q+=quantity;output.v+=inputCost+processingCost;
+   output.q+=quantity;output.v+=inputCost+processingCost+energyCost;
    plant.worldProductionMonth=month;
    events.push(plant.name+'：'+WORLD_PRODUCT_BY_ID.get(recipe.id).name+'を'+quantity+recipe.unit+'生産');
   }
