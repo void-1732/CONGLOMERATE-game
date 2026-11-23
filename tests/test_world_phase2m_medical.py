@@ -105,10 +105,9 @@ def main():
           const full=final.quantity===6&&worldMedicalOpenSlots(S,S.worldExpansion.medicalClinics[f.clinicId])===0;
           const over=(()=>{try{worldRequestMedicalService(S,client.id,f.clinicId,client.plants[0].id,1);return false;}
             catch(e){return e.message.includes('診療枠');}})();
-          const report=consolidate(S),spot=accountingFxReview(S,S.playerId,report),total=8*worldMedicalFee(S);
+          const report=consolidate(S),total=8*worldMedicalFee(S);
           const ledger=!check(S).length&&report.errors.length===0
-            &&report.adjustments.internalSales===total
-            &&spot.periodPL.internalSalesEliminated>=total;
+            &&report.adjustments.internalSales===total;
           const saved=parsePayload(savePayload(S));
           const tampered=structuredClone(saved);
           tampered.worldExpansion.medicalRequests[0].performedQuantity++;
@@ -127,8 +126,9 @@ def main():
           const id=window.medicalFixture.clinicId,providerId=window.medicalFixture.providerId;
           await runMonth();
           const clinic=S.worldExpansion.medicalClinics[id],report=consolidate(S);
+          const spot=accountingFxReview(S,S.playerId,report);
           const depreciated=clinic.accumulatedDepreciation>0&&!report.errors.length
-            &&report.cf.reconciled;
+            &&report.cf.reconciled&&spot.periodPL.internalSalesEliminated>=window.medicalFixture.total;
           worldRetireDomesticAsset(S,providerId,'medical',id);
           const closed=clinic.retiredAt===ym(S.year,S.month)
             &&!check(parsePayload(savePayload(S))).length;
