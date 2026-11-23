@@ -29,9 +29,9 @@ def main():
           p.componentLines=[];p.wirePlan=0;p.lastProduced=0;
           const newlyAdded=['PRD-M01','PRD-M02','PRD-M09','PRD-M10','PRD-M12',
             'PRD-M13','PRD-M14','PRD-C17','PRD-C18','PRD-M29','PRD-M30'];
-          const count=WORLD_SUPPLEMENTAL_RECIPES.length===61
+          const count=WORLD_SUPPLEMENTAL_RECIPES.length===71
             &&newlyAdded.every(id=>WORLD_SUPPLEMENTAL_BY_ID.has(id))
-            &&WORLD_PRODUCTS.filter(x=>worldProductImplementation(x.id).implementation==='DATA_CANDIDATE').length===88;
+            &&WORLD_PRODUCTS.filter(x=>worldProductImplementation(x.id).implementation==='DATA_CANDIDATE').length===78;
           const graph=validateWorldRecipeGraph();
           const locked=!worldRecipeUnlocked(f,WORLD_SUPPLEMENTAL_BY_ID.get('PRD-M12'),1900);
           if(!f.research.tree.done.includes('materials-1'))f.research.tree.done.push('materials-1');

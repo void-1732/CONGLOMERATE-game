@@ -60,7 +60,7 @@ def main():
             validCatalog:WORLD_SUPPLEMENTAL_RECIPES.every(r=>WORLD_PRODUCT_BY_ID.has(r.id))
           };
         }""")
-        assert result.pop("count") == 61, result
+        assert result.pop("count") == 71, result
         assert all(result.values()), result
         integration = page.evaluate("""async () => {
           S=newWorldGame({country:'JP',name:'追加世界商品・月次統合試験'});
@@ -91,7 +91,7 @@ def main():
         assert all(integration.values()), integration
         assert not errors, errors
         browser.close()
-    print("PASS: 61 researched world recipes, factory, input, cash, duplicate processing, and save")
+    print("PASS: 71 researched world recipes, factory, input, cash, duplicate processing, and save")
 
 
 if __name__ == "__main__":

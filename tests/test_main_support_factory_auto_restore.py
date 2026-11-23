@@ -81,7 +81,7 @@ with sync_playwright() as playwright:
         assert second["assigned"] > 0 and second["staff"] == 172, second
 
         # Exercise the actual factory UI, not only the internal allocation helper.
-        page.evaluate("""()=>{PAGE='factory';render();}""")
+        page.evaluate("""()=>{PAGE='facilityProduction';render();}""")
         page.locator('[data-factory-select="P80367"]').click()
         assert page.evaluate("FACTORY_UI.selected") == "P80367"
         page.locator('[data-factory-view-v026="control"]').click()

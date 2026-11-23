@@ -163,7 +163,7 @@ with sync_playwright() as pw:
         VIEW_FIRM=S.playerId;
         const f=current();f.staff.production=150;
         f.plans[f.models[0].id]=60;
-        PAGE='distribution';render();
+        PAGE='marketExport';render();
         document.getElementById('salesCorpCountry').value='US';
         establishSalesCorporation();
     }""")

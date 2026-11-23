@@ -11786,17 +11786,26 @@ function worldResourceAndPowerPanel(firm,editable){
  }).join(''):'';
  const genRows=facilities.filter(canPlanWireProduction).map((p,i)=>{
   const g=world.powerGenerators?.[p.id],remaining=worldPowerAvailable(S,p.id);
+  const line=world.powerLines?.[p.id];
+  const sourceOptions=facilities.filter(x=>x.id!==p.id&&x.siteId===p.siteId&&world.powerGenerators?.[x.id]);
+  const choices=sourceOptions.map(x=>'<option value="'+esc(x.id)+'" '+(line?.sourcePlantId===x.id?'selected':'')+'>'+esc(x.name)+'</option>').join('');
   return '<div class="row between"><strong>'+esc(p.name)+'</strong>'
    +'<small>発電機 '+(g?'設置済':'未設置')+' / 当月利用可能 '+nfmt(remaining)+' kWh</small>'
    +'<button class="btn sm" data-world-generator-install="'+esc(p.id)+'" '
    +(editable&&!g?'':'disabled')+'>発電機（設備在庫1台）を設置</button>'
    +'<label>石炭投入<input type="number" id="world-fuel-'+i+'" min="1" value="1"></label>'
    +'<button class="btn sm" data-world-generate="'+esc(p.id)+'" data-world-fuel-input="world-fuel-'+i+'" '
-   +(editable&&g?'':'disabled')+'>燃料を消費して発電</button></div>';
+   +(editable&&g?'':'disabled')+'>燃料を消費して発電</button>'
+   +'<label>送電元<select id="world-source-'+i+'">'+choices+'</select></label>'
+   +'<button class="btn sm" data-world-line-install="'+esc(p.id)+'" data-world-source="world-source-'+i+'" '
+   +(editable&&sourceOptions.length&&!line?'':'disabled')+'>銅線2単位で送電線を設置</button>'
+   +'<label>送電量<input type="number" id="world-power-send-'+i+'" min="2" max="20" value="10"></label>'
+   +'<button class="btn sm" data-world-power-transfer="'+esc(p.id)+'" data-world-transfer-source="world-source-'+i+'" data-world-transfer-value="world-power-send-'+i+'" '
+   +(editable&&line?'':'disabled')+'>有限電力を送る</button></div>';
  }).join('');
- return '<section class="panel"><h3>有限資源採掘・実燃料発電（Phase 2-D）</h3>'
+ return '<section class="panel"><h3>有限資源採掘・実燃料発電・有線送電（Phase 2-E）</h3>'
   +'<p>鉱床は自動作成せず、登録された有限埋蔵量だけ採掘します。発電は設備在庫と石炭在庫を消費し、10%送電損失を記録。'
-  +'燃料/kWhの係数は暫定。B2B一般物流・サービス契約は未実装です。</p>'
+  +'燃料/kWhと送電容量・損失は暫定。実使用電力の燃料原価だけを製品原価へ配賦します。遠隔電力網・B2B一般物流・サービス契約は未実装です。</p>'
   +(mineRows||'<p>この企業の稼働可能な有限鉱床は登録されていません。</p>')
   +genRows+'</section>';
 }
@@ -11804,7 +11813,9 @@ document.addEventListener('click',event=>{
  const mine=event.target.closest('[data-world-mine-save]');
  const install=event.target.closest('[data-world-generator-install]');
  const generate=event.target.closest('[data-world-generate]');
- if(!mine&&!install&&!generate||!S?.worldExpansion||MONTH_RUNNING||!canEdit(current()))return;
+ const lineInstall=event.target.closest('[data-world-line-install]');
+ const transfer=event.target.closest('[data-world-power-transfer]');
+ if(!mine&&!install&&!generate&&!lineInstall&&!transfer||!S?.worldExpansion||MONTH_RUNNING||!canEdit(current()))return;
  try{
   const firm=current();
   if(mine){
@@ -11815,7 +11826,14 @@ document.addEventListener('click',event=>{
    if(!p||!depositId)throw Error('有限鉱床を選択してください');
    worldSetMiningPlan(S,firm.id,p.id,depositId,quantity,unitCost);
   }else if(install)worldInstallGenerator(S,firm.id,install.dataset.worldGeneratorInstall);
-  else{
+  else if(lineInstall){
+   const source=document.getElementById(lineInstall.dataset.worldSource)?.value;
+   worldInstallPowerLine(S,firm.id,source,lineInstall.dataset.worldLineInstall);
+  }else if(transfer){
+   const source=document.getElementById(transfer.dataset.worldTransferSource)?.value;
+   const kwh=Number(document.getElementById(transfer.dataset.worldTransferValue)?.value);
+   worldTransferPower(S,firm.id,source,transfer.dataset.worldPowerTransfer,kwh);
+  }else{
    const fuelQty=Number(document.getElementById(generate.dataset.worldFuelInput)?.value);
    worldGeneratePower(S,firm.id,generate.dataset.worldGenerate,fuelQty);
   }

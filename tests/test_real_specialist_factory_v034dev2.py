@@ -59,13 +59,13 @@ with sync_playwright() as pw:
             f.stock[t].q+=1000;f.stock[t].v+=val;
         }
         for(const m of f.models) f.plans[m.id]=0;
-        PAGE='factory';render();
+        PAGE='facilityExpansion';render();
     }""")
     verify(page,"before factory construction")
     factory_ids=[]
     for kind in ("engine","body","components"):
         # The actual production UI keeps new construction in a collapsed details panel.
-        page.get_by_text("新工場を建設する", exact=True).click()
+        assert page.locator("#factoryName").count()==1  # dedicated facilityExpansion builder
         page.locator("#factoryName").fill("実工場-"+kind)
         page.locator("#factoryScale").select_option("small")
         page.locator("#factoryKind").select_option(kind)
@@ -135,8 +135,8 @@ with sync_playwright() as pw:
     }""")
     assert legacy_after["mode"]=="legacy" and legacy_after["qty"]==8 and legacy_after["value"]==800,legacy_after
     assert legacy_after["plan"]>0 and legacy_after["worker"]>0,legacy_after
-    page.evaluate("PAGE='factory';render()")
-    page.get_by_text("専門部品の製造方式・輸送中在庫・一括管理",exact=True).click()
+    page.evaluate("PAGE='facilityProduction';render()")
+    page.get_by_text("専門部品の製造・自動配送・輸送中在庫",exact=True).click()
     page.locator("#factoryV21Mode").select_option("detailed")
     page.locator('[data-action="factoryModeV21"]').click()
     migration=page.evaluate("""()=>{
