@@ -360,6 +360,95 @@ def test_italy_coal_import(page):
     assert all(result.values()), result
 
 
+def test_ireland_textiles_import(page):
+    """Ireland: independent economy, fixed EUR ledger, monthly physical cargo."""
+    result = page.evaluate("""async () => {
+ const profile='UK-IE-HOLYHEAD-DUBLIN-TEXTILES',product='PRD-M36',city='CITY-01-04';
+ S=newWorldGame({country:'UK',name:'Holyhead textile exporter'});
+ VIEW_FIRM=S.playerId;VIEW_COUNTRY='UK';PAGE='reports';
+ let seller=company(S.playerId,S);
+ const before=!S.world.IE&&!worldCityLocation(S,city).marketOpen&&!worldInternationalRouteAvailable(S,profile);
+ const date=(y,m)=>{S.year=y;S.month=m;S.monthCommitted=ym(y,m)-1;applyWorldHistory(S);syncWorldIdentities(S)};
+ date(1922,12);
+ const preIndependence=!S.world.IE&&worldCityLocation(S,city).jurisdictionId==='JUR-UK';
+ date(1923,1);
+ const opened=S.world.IE?.currency==='EUR'&&S.world.IE.fx===S.world.FR.fx
+  &&worldCityLocation(S,city).marketOpen&&worldCityLocation(S,city).jurisdictionId==='JUR-IE'
+  &&S.worldExpansion.openMarkets['MKT-01']===ym(1900,1)&&WORLD_ENGINE_BY_MARKET['MKT-01']==='UK'
+  &&!worldInternationalRouteAvailable(S,profile);
+ const market=WORLD_MARKET_BY_ID.get('MKT-01'),irish=worldPhase3ConsumerQuoteForEngine(S,market,'PRD-C01','IE'),
+  british=worldPhase3ConsumerQuoteForEngine(S,market,'PRD-C01','UK');
+ const demand=irish.cities.length===1&&irish.cities[0].cityId===city
+  &&irish.cities[0].quantity===irish.nationalQuantity&&british.cities.every(c=>c.cityId!==city);
+ const legacy=structuredClone(S),old=makeWorldExpansion(20);
+ for(const event of worldHistoryThrough(ym(legacy.year,legacy.month),20))recordWorldEvent(old,event);
+ Object.assign(legacy.worldExpansion,{marketRegistryVersion:20,territoryJurisdictions:old.territoryJurisdictions,
+  openMarkets:old.openMarkets,appliedEvents:old.appliedEvents});
+ delete legacy.world.IE;delete legacy.npcSupplyV033.markets.IE;ensureSupplyNetwork(legacy);syncWorldIdentities(legacy);
+ const legacyAccepted=!check(legacy).length,restoredLegacy=parsePayload(savePayload(legacy));
+ const migration=legacyAccepted&&restoredLegacy.world.IE?.code==='IE'
+  &&JSON.stringify(restoredLegacy.firms.map(f=>[f.id,f.owners,f.journals,f.stock]))
+   ===JSON.stringify(legacy.firms.map(f=>[f.id,f.owners,f.journals,f.stock]))&&!check(restoredLegacy).length;
+ date(1932,5);
+ const capital=localFromBase(750000,seller.country),payer=S.seq;
+ post(seller,{investment:capital},{cash:capital},'アイルランド輸入会社への払込','investing',S);
+ let buyer=initFirm(S,{name:'Dublin textile importer',country:'IE',industry:'manufacturing',seedBase:750000,size:.5,publicOwnership:false});
+ buyer.owners=[{id:seller.id,econ:1,vote:1}];
+ registerEquityLink(S,{parentId:seller.id,childId:buyer.id,ratio:1,kind:'foundation',considerationLocal:capital,
+  buyerJournal:payer,childJournal:buyer.journals.find(j=>j.text==='創業資本').id,
+  bookEquityBase:baseFromLocal(financials(buyer).equity,buyer.country),cashAcquiredBase:baseFromLocal(acc(buyer,'cash'),buyer.country)});
+ const port=seller.plants[0],depot=buyer.plants[0];port.siteId='UK-HOL';
+ for(const f of [seller,buyer]){f.auto=false;f.research.tree.done=[...new Set([...f.research.tree.done,'production-1'])]}
+ for(const [f,id,v] of [[seller,'PRD-E18',2400],[buyer,'PRD-E20',700],[buyer,'PRD-E21',900]]){
+  post(f,{materials:v},{cash:v},'検証用の有償現物設備','operating',S);f.stock[id]={q:1,v};
+ }
+ syncWorldIdentities(S);
+ const identity=depot.siteId==='IE-DUB'&&firmCurrency(buyer,S)==='EUR'
+  &&S.worldExpansion.companies[buyer.id].jurisdictionId==='JUR-IE'
+  &&S.worldExpansion.companies[buyer.id].currencyId==='CUR-EUR'
+  &&worldCityLocation(S,city).historicalMoney.currencyId==='CUR-IEP';
+ const line=worldMapNetwork(S).routes.find(r=>r.id===profile);
+ const mapMatch=line.fromId===port.siteId&&line.toId===depot.siteId&&line.available
+  &&worldMapCityFacilityStatus(S,city).status==='CONNECTED';
+ const purchase=worldBuyRegionalSupply(S,seller.id,port.id,'UK-HOL-DUBLIN-TEXTILES',14);
+ worldBuyRegionalSupply(S,seller.id,port.id,'UK-HOL-BUNKER-COAL',20);
+ const route=worldInternationalRegisterRoute(S,seller.id,profile),h=worldInternationalInstallWarehouse(S,buyer.id,depot.id,profile);
+ const price=Math.ceil(seller.stock[product].v/seller.stock[product].q*1.25);
+ const quote=worldInternationalQuote(S,route,product,14,price,buyer.id,60,30);
+ if(quote.problem)throw Error('quote '+JSON.stringify(quote));
+ const order=worldInternationalPlaceOrder(S,buyer.id,{routeId:route.id,warehouseId:h.id,productId:product,
+  quantity:14,cargoLitres:30,unitPriceSeller:price,maxPaymentBuyer:Math.max(100000,quote.totalBuyer*2),paymentDays:60});
+ worldInternationalActOrder(S,seller.id,order.id,'approve');
+ saveAuto=async()=>true;
+ const close=async month=>{
+   await runMonth();
+   if(S.monthCommitted!==ym(1932,month)||LAST_MONTH_DIAGNOSTIC)
+    throw Error('アイルランド月次 '+month+' '+LAST_MONTH_DIAGNOSTIC?.message);
+   seller=company(seller.id,S);buyer=company(buyer.id,S);
+   return S.worldExpansion.internationalShipments.at(-1);
+ };
+ await close(5);
+ let cargo=await close(6);
+ if(!cargo)throw Error('allocation '+JSON.stringify({order:S.worldExpansion.internationalOrders.at(-1),quote,price,stock:seller.stock[product]}));
+ const shipped=purchase.quantity===14&&cargo.status==='IN_TRANSIT'&&cargo.loadKg===15
+  &&cargo.orderId===order.id&&acc(seller,'worldShipmentStock')===cargo.bookCost
+  &&!buyer.stock[product]?.q&&cargo.tariffBps===300&&cargo.sellerRate!==cargo.buyerRate;
+ cargo=await close(7);
+ const paid=cargo.status==='IN_TRANSIT'&&cargo.credit.paidAt===ym(1932,7)
+  &&acc(buyer,'worldSupplierAdvances')===cargo.prepaidBuyer&&S.consoHistory.at(-1).cf.reconciled;
+ cargo=await close(8);
+ const restored=parsePayload(savePayload(S)),consolidated=consolidate(restored);
+ const delivered=cargo.status==='DELIVERED'&&cargo.receivedAt===ym(1932,8)&&buyer.stock[product]?.q===14
+  &&buyer.stock[product].v===cargo.totalBuyer&&acc(buyer,'worldSupplierAdvances')===0&&acc(seller,'worldShipmentStock')===0
+  &&!check(restored).length&&!consolidated.errors.length&&consolidated.cf.reconciled;
+ if(!delivered)throw Error('receipt '+JSON.stringify({cargo,stock:buyer.stock[product],advance:acc(buyer,'worldSupplierAdvances'),sellerStock:acc(seller,'worldShipmentStock'),check:check(restored),consoErrors:consolidated.errors,cf:consolidated.cf.reconciled}));
+ const forged=structuredClone(restored);forged.worldExpansion.companies[buyer.id].currencyId='CUR-IEP';
+ let tamper=false;try{parsePayload(step7NativeSavePayload(forged))}catch{tamper=true}
+ return {before,preIndependence,opened,demand,migration,identity,mapMatch,shipped,paid,delivered,tamper};
+}""")
+    assert all(result.values()), result
+
+
 def test_portugal_coal_import(page):
     result = page.evaluate("""async () => {
       S=newWorldGame({country:'UK',name:'Cardiff to Lisbon coal'});
@@ -849,6 +938,8 @@ def test_dated_colonial_export(page, data):
         legacy.worldExpansion.marketRegistryVersion=17;
         delete legacy.world.BE;
         delete legacy.world.PT;
+        delete legacy.world.IE;
+        delete legacy.npcSupplyV033.markets.IE;
         legacy.worldExpansion.appliedEvents=worldHistoryThrough(ym(legacy.year,legacy.month),17);
         delete legacy.worldExpansion.weightDutyFromSeq;
         const upgradedBeforeDispatch=parsePayload(savePayload(legacy));
@@ -1233,6 +1324,7 @@ def main(observe_receipts=None):
         })
         test_italy_coal_import(page)
         test_portugal_coal_import(page)
+        test_ireland_textiles_import(page)
         test_steamship_export(page, {
             "profile": "IN-UK-BOMBAY-COTTON", "country": "IN", "site": "IN-BOM",
             "city": "CITY-16-02", "currency": "INR", "year": 1908, "offer": "IN-BOM-COTTON",

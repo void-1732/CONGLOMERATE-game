@@ -134,6 +134,8 @@ def main():
           delete legacy.npcSupplyV033.markets.BE;
           delete legacy.world.PT;
           delete legacy.npcSupplyV033.markets.PT;
+          delete legacy.world.IE;
+          delete legacy.npcSupplyV033.markets.IE;
           ensureSupplyNetwork(legacy);
           const belgiumLegacy=worldCityLocation(legacy,'CITY-08-03');
           const belgiumBeforeUpgrade=belgiumLegacy.jurisdictionId===null
@@ -158,9 +160,11 @@ def main():
             firstHistory,secondHistory:!secondHistory,rejectsConflict,
             irelandBefore:first.territoryId==='TER-01-02'
               &&first.marketId==='MKT-01'&&first.jurisdictionId==='JUR-UK'
-              &&!first.marketOpen&&!first.economicEngineConnected,
+              &&!first.marketOpen&&first.economicEngineConnected,
             irelandAfter:later.jurisdictionId==='JUR-IE'
-              &&later.marketId==='MKT-01'&&!later.marketOpen&&!later.economicEngineConnected,
+              &&later.marketId==='MKT-01'&&later.marketOpen&&later.economicEngineConnected
+              &&state.world.IE?.currency==='EUR'&&WORLD_ENGINE_BY_MARKET['MKT-01']==='UK'
+              &&upgraded.world.IE?.code==='IE',
             stableIdentity:identityBefore===identityAfter,
             roundTrip:worldCityLocation(restored,'CITY-01-04').jurisdictionId==='JUR-IE',
             allMarkets:Object.keys(restored.worldExpansion.openMarkets).length===40,

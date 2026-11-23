@@ -254,7 +254,7 @@ def main():
         assert coverage["valid"] and coverage["unchanged"], coverage
         assert coverage["total"] == sum(coverage["counts"].values()) == 155, coverage
         assert coverage["tokyo"] == "CONNECTED", coverage
-        assert coverage["dublin"] == "ENGINE_UNCONNECTED", coverage
+        assert coverage["dublin"] == "MARKET_CLOSED", coverage
         assert coverage["lisbon"] == "MARKET_CLOSED", coverage
         assert page.locator('[data-world-map-facility-count]').count() == len(coverage["counts"])
         # No network or gameplay mutations are necessary to inspect the live freight ledger.

@@ -744,3 +744,9 @@ python -B tests/test_step13_120_months.py --era 1900 --world
 - **仕様167・148・154:** 国・都市選択と港湾・鉄道・国際航路、実路線距離、投資拡張が対象。精密な歴史国境ポリゴンや全155都市に無条件の建設権を与えることは、原本の文言から追加必須条件と断定できない。開放時期・立地・権限・実物流IDの一致を優先して監査する。
 - **仕様168:** 旧形式セーブの移行は必須でない。既に開発した移行機能は維持し、新形式の保存復元・所有・契約・会計・長期再現性を必須とする。
 - 以上は原本の確認記録と受入条件の整理であり、今回のコミットではゲームコード・テスト・データを変更しない。前回引継ぎ文の拡張要件は原本に適合する範囲で進める。Phase 4・5の受入は依然未達、Phase 6は未着手。残る4法域の実経済接続と既存取引の回帰、未接続経路、実物流ID、37画面、保存・会計、長期耐久を引き続き検証する。
+
+### Phase 4・5 アイルランド・ホーリーヘッド発ダブリン向け織物（2026-11-24）
+
+- 1923年1月にIE法域を開放し、40市場・155都市・英国代表MKT-01を維持。仕様155に従い固定EUR元帳と史実IEP参照を区別し、為替をFRのゲームEURレートに連動。1926年人口2.97百万人はCSO、他の経済係数と輸入先国別3%はモデル値。[独立史料](https://data.oireachtas.ie/ie/oireachtas/communications/other/2021/2021-12-16_centenary-of-the-treaty-debates_en.pdf) · [人口](https://www.cso.ie/en/releasesandpublications/ep/p-tnli/thenandnowlifeinirelandin1926and2022/keyfindings/) · [紙幣](https://prelive.oireachtas.ie/en/visit-and-learn/history-and-buildings/historical-documents/in-the-display-case/)
+- 1932年4月LMS社内誌の貨物船運航と織物通関の記録から同年5〜12月のモデル経路を追加。実船・倉庫・有限有償仕入・燃料・重量容積・掛け・検収を共通台帳に接続。距離・容量・価格・燃料・月次期間はPROVISIONAL。[LMS誌](https://lmssociety.org.uk/topics/LMSinIFS1.php)
+- 全HTMLの実JavaScriptをDOMスタブ（描画・保存I/Oを代替）付きで実行し、開放前拒否、歴史開放、法域別需要、版20復元、法人施設、地図ID、5〜8月の実月次処理で現物出荷・前払・検収、連結CF・保存と改竄拒否の11判定合格。初回試験の販売単価と買手の設立規模を修正し、手動時刻移動でなく本来の月次処理にしてCFを再検証した。カタログ・法域・旧保存の既存評価も実JavaScriptで合格。実ブラウザ・全回帰・CIは未確定。43法域・50史料付き経路を登録（全件検収監査はCI待ち）。Phase 4・5未受入、Phase 6未着手。残りLU・旧ユーゴスラヴィア地域・AL。
