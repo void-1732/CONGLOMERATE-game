@@ -115,8 +115,29 @@ def main():
             state.worldExpansion.facilities
           ]);
           const restored=parsePayload(savePayload(state));
+          // Version 16 saves remain legal inputs. Upgrading to 17 must not
+          // rewrite firms, cash, ownership or historical pre-1910 events.
+          const legacy=structuredClone(state);
+          const oldWorld=makeWorldExpansion(16);
+          for(const event of worldHistoryThrough(ym(legacy.year,legacy.month),16))
+            recordWorldEvent(oldWorld,event);
+          Object.assign(legacy.worldExpansion,{
+            marketRegistryVersion:16,
+            territoryJurisdictions:oldWorld.territoryJurisdictions,
+            openMarkets:oldWorld.openMarkets,
+            appliedEvents:oldWorld.appliedEvents
+          });
+          syncWorldIdentities(legacy);
+          const oldAccepted=check(legacy).length===0;
+          const upgraded=parsePayload(savePayload(legacy));
+          const upgradePreservesLedger=oldAccepted
+            &&upgraded.worldExpansion.marketRegistryVersion===17
+            &&worldCityLocation(upgraded,'CITY-05-03').jurisdictionId==='JUR-PT-REPUBLIC'
+            &&JSON.stringify(upgraded.firms.map(f=>[f.id,f.owners,f.accounts]))
+              ===JSON.stringify(legacy.firms.map(f=>[f.id,f.owners,f.accounts]))
+            &&check(upgraded).length===0;
           return {
-            ...out,compositeClosed,compositeOpen,compositeLaw,portugalRepublic,
+            ...out,compositeClosed,compositeOpen,compositeLaw,portugalRepublic,upgradePreservesLedger,
             historicMoney,historicalMoneyIsNotLedger,
             firstHistory,secondHistory:!secondHistory,rejectsConflict,
             irelandBefore:first.territoryId==='TER-01-02'
