@@ -6593,7 +6593,8 @@ function consolidate(s,rootId=s.playerId){
   fromJournal:t.closeJournal+2,toJournal:t.closeJournal+1,fee:t.quantity*t.months*t.unitFee
  })).filter(t=>ids.has(t.seller)&&ids.has(t.buyer)&&insidePeriod(t));
  const phoneCash=worldTelephoneCashPairs(s).filter(t=>ids.has(t.seller)&&ids.has(t.buyer)&&insidePeriod(t));
- const serviceFees=[...storageCash,...phoneCash].reduce((sum,t)=>sum+baseFromLocal(t.fee,company(t.seller,s).country),0);
+ const medicalCash=worldMedicalCashPairs(s).filter(t=>ids.has(t.seller)&&ids.has(t.buyer)&&insidePeriod(t));
+ const serviceFees=[...storageCash,...phoneCash,...medicalCash].reduce((sum,t)=>sum+baseFromLocal(t.fee,company(t.seller,s).country),0);
  let insuranceInternalFees=0;
  const insuranceCash=[];
  for(const p of domestic?.cargoInsurance??[]){
@@ -6610,7 +6611,7 @@ function consolidate(s,rootId=s.playerId){
    if(insidePeriod(claim)){insuranceCash.push(claim);insuranceInternalFees+=value(p.payout);}
   }
  }
- const cashTx=[...(s.intercompanyTx||[]),...developmentCashPairs(s),...partCashPairs(s),...assetCash,...tradeCash,...storageCash,...phoneCash,...insuranceCash].filter(t=>ids.has(t.seller)&&ids.has(t.buyer)&&insidePeriod(t));
+ const cashTx=[...(s.intercompanyTx||[]),...developmentCashPairs(s),...partCashPairs(s),...assetCash,...tradeCash,...storageCash,...phoneCash,...medicalCash,...insuranceCash].filter(t=>ids.has(t.seller)&&ids.has(t.buyer)&&insidePeriod(t));
  const cashJournals=new Set();for(const t of cashTx)if(['loan','loanCash','interestCash','goods','developmentCash','partTradeCash','equityCash','domesticAssetCash','domesticTradeCash'].includes(t.kind))for(const id of [t.fromJournal,t.toJournal])if(id!==undefined)cashJournals.add(id);
  for(const l of activeLinks)if(l.kind==='foundation')for(const id of [l.buyerJournal,l.childJournal])if(id!==undefined)cashJournals.add(id);
  // Group assets minus group debts determine consolidated net equity. Subsidiary net
@@ -6699,7 +6700,7 @@ function computePeriodCF(s,rootId,g,bridge){
   if(entering.length)linksEntering.set(f.id,entering.sort((a,b)=>a.buyerJournal-b.buyerJournal)[0]);
  }
  const ignored=new Set();let loanPairs=0;
- for(const t of [...(s.intercompanyTx||[]),...developmentCashPairs(s),...partCashPairs(s),...worldTelephoneCashPairs(s)]){
+ for(const t of [...(s.intercompanyTx||[]),...developmentCashPairs(s),...partCashPairs(s),...worldTelephoneCashPairs(s),...worldMedicalCashPairs(s)]){
   if(!memberIds.has(t.seller)||!memberIds.has(t.buyer))continue;
   if(t.yearMonth<Math.max(opens[t.seller]??0,opens[t.buyer]??0))continue;
   if(['developmentCash','partTradeCash','domesticTradeCash'].includes(t.kind)){
@@ -6931,7 +6932,7 @@ function accountingFxReview(s,rootId,g){
  const preceding=[...(s.consoHistory||[])].reverse().find(h=>h.month===period-1);
  const previousDeferred=Number(preceding?.spotDeferredInventory??0);
  const deltaDeferred=inventoryProfit-previousDeferred+parts.periodDeferral;
- for(const call of s.worldExpansion?.telephoneCalls??[]){
+ for(const call of [...(s.worldExpansion?.telephoneCalls??[]),...(s.worldExpansion?.medicalTreatments??[])]){
   if(call.month!==period||!ids.has(call.clientId)||!ids.has(call.providerId))continue;
   const parties=[call.clientId,call.providerId],legs=[call.journal,call.journal+1];
   if(parties.some((id,index)=>call.month<(starts[id]??Number.MAX_SAFE_INTEGER)
@@ -10967,7 +10968,7 @@ function makeWorldExpansion(){
   catalogVersion:WORLD_CATALOG_VERSION,
   territoryJurisdictions:Object.fromEntries([...WORLD_TERRITORIES.keys()].map(id=>[id,WORLD_INITIAL_JURISDICTIONS[id]??null])),
   openMarkets:Object.fromEntries(WORLD_MARKETS.map(m=>[m.id,INITIAL_ENGINE_COUNTRIES.includes(WORLD_ENGINE_BY_MARKET[m.id])?WORLD_START_MONTH:null])),
-  appliedEvents:[],companies:{},facilities:{},resourceDeposits:{},powerAllocations:{},powerGenerators:{},energyReceipts:[],physicalDeliveries:[],powerLines:{},powerTransfers:[],localSupplyPlans:{},domesticRoutes:{},domesticShipments:[],domesticWarehouses:{},domesticAssetTransfers:[],domesticOrders:[],regionalSupplyPurchases:[],manufacturingTools:{},storageServices:[],agencyServiceReceipts:[],trainingServiceReceipts:[],externalLoanReceipts:[],cargoInsurance:[]
+  appliedEvents:[],companies:{},facilities:{},resourceDeposits:{},powerAllocations:{},powerGenerators:{},energyReceipts:[],physicalDeliveries:[],powerLines:{},powerTransfers:[],localSupplyPlans:{},domesticRoutes:{},domesticShipments:[],domesticWarehouses:{},domesticAssetTransfers:[],domesticOrders:[],regionalSupplyPurchases:[],manufacturingTools:{},medicalClinics:{},medicalRequests:[],medicalTreatments:[],storageServices:[],agencyServiceReceipts:[],trainingServiceReceipts:[],externalLoanReceipts:[],cargoInsurance:[]
  };
 }
 
@@ -11493,6 +11494,7 @@ const WORLD_VERIFIED_SERVICE_PATHS=Object.freeze({
  'PRD-S05':Object.freeze({revenueState:'DEPOSIT_PRINCIPAL_EXCLUDED',settlementState:'ON_DEPOSIT_OR_WITHDRAWAL',unit:'件'}),
  'PRD-S06':Object.freeze({revenueState:'EXTERNAL_PRINCIPAL_EXCLUDED',settlementState:'DISBURSED',unit:'件'}),
  'PRD-S07':Object.freeze({revenueState:'EARNED_PREMIUM',settlementState:'ON_CARGO_OUTCOME',unit:'件'}),
+ 'PRD-S08':Object.freeze({revenueState:'EARNED_FEE',settlementState:'AFTER_ACTUAL_TREATMENT',unit:'診療件数'}),
  'PRD-S09':Object.freeze({revenueState:'EXTERNAL_EXPENSE',settlementState:'AFTER_SKILL_TRAINING',unit:'人'}),
  'PRD-S10':Object.freeze({revenueState:'EARNED_FEE',settlementState:'ON_CONNECTION',unit:'通話'}),
  'PRD-S11':Object.freeze({revenueState:'EXTERNAL_EXPENSE',settlementState:'AFTER_SITE_COMPLETION',unit:'件'}),
@@ -11523,6 +11525,9 @@ function worldServiceActivity(s,productId){
  }));
  if(productId==='PRD-S06')return (w.externalLoanReceipts??[]).map(t=>({
   ref:t.id,providerId:null,customerId:t.borrowerId,month:t.month,quantity:1,amount:0,principal:t.principal
+ }));
+ if(productId==='PRD-S08')return (w.medicalTreatments??[]).map(t=>({
+  ref:t.id,providerId:t.providerId,customerId:t.clientId,month:t.month,quantity:t.quantity,amount:t.fee
  }));
  if(productId==='PRD-S10')return (w.telephoneCalls??[]).map(t=>({
   ref:t.id,providerId:t.providerId,customerId:t.clientId,month:t.month,quantity:1,amount:t.fee
@@ -12007,6 +12012,10 @@ function worldDepreciateInfrastructure(s){
   const owner=company(line.ownerCompanyId,s);
   if(!owner||!owner.plants.some(x=>x.id===p))throw Error('送電設備の所有工場が存在しません');
   worldDepreciateAsset(s,line,owner,month,'世界送電線の月次償却');
+ }
+ for(const clinic of Object.values(w.medicalClinics??{})){
+  if(clinic.retiredAt!=null)continue;
+  worldDepreciateAsset(s,clinic,company(clinic.ownerCompanyId,s),month,'医療機器の月次償却');
  }
  for(const exchange of Object.values(w.telephoneExchanges??{})){
   if(exchange.retiredAt!=null)continue;
@@ -12551,6 +12560,181 @@ function worldPlaceTelephoneCall(s,clientId,exchangeId,fromPlantId,toPlantId){
  (w.telephoneCalls??=[]).push(receipt);
  return receipt;
 }
+// Phase 2-M: a single-site Japanese medical-service pilot. Geography, staffing
+// coefficients, fees and license eligibility remain PROVISIONAL; no Phase 3 demand.
+const WORLD_MEDICAL_PROFILE=Object.freeze({
+ country:'JP',siteId:'JP-TOK',opensAt:ym(1950,1),equipment:'PRD-E27',
+ patientsPerWorker:4,patientsPerDevice:12,feeBase:90
+});
+function worldMedicalAssignedWorkers(s,providerId){
+ return Object.values(s.worldExpansion?.medicalClinics??{}).filter(t=>
+  t.ownerCompanyId===providerId&&t.retiredAt==null).reduce((n,t)=>n+t.workers,0);
+}
+function worldCanInstallMedicalClinic(s,provider,plant,workers=1){
+ const p=WORLD_MEDICAL_PROFILE;
+ return !!s.worldExpansion&&isActiveCorporateFirm(provider)&&provider.country===p.country
+  &&provider.industry==='service'&&worldDomesticSiteActive(plant,p.siteId)
+  &&ym(s.year,s.month)>=p.opensAt
+  &&worldRecipeUnlocked(provider,WORLD_SUPPLEMENTAL_BY_ID.get(p.equipment),s.year)
+  &&provider.stock?.[p.equipment]?.q>=1&&Number.isSafeInteger(workers)&&workers>0
+  &&workers<=Math.max(0,(provider.staff?.sales??0)-worldMedicalAssignedWorkers(s,provider.id))
+  &&!Object.values(s.worldExpansion.medicalClinics??{}).some(t=>t.plantId===plant.id&&t.retiredAt==null);
+}
+function worldInstallMedicalClinic(s,providerId,plantId,workers){
+ const provider=company(providerId,s),plant=provider?.plants.find(p=>p.id===plantId);
+ if(!controller(s,providerId)||!worldCanInstallMedicalClinic(s,provider,plant,workers))
+  throw Error('稼働中の東京施設・現物医療機器E27・研究・医療従事者割当枠が不足しています');
+ const journal=s.seq,asset=worldCapitalizeDomesticEquipment(s,provider,[WORLD_MEDICAL_PROFILE.equipment],
+  '医療機器E27の現物設置');
+ const clinic={...asset,id:'WMC-'+s.seq++,ownerCompanyId:providerId,plantId,workers,journal};
+ (s.worldExpansion.medicalClinics??={})[clinic.id]=clinic;
+ return clinic;
+}
+function worldMedicalFee(s){
+ return Math.max(1,localFromBase(WORLD_MEDICAL_PROFILE.feeBase*eraCostFactor(s.year),'JP'));
+}
+function worldMedicalOpenSlots(s,clinic,includeReservations=false){
+ const provider=company(clinic?.ownerCompanyId,s),month=ym(s.year,s.month),
+  plant=provider?.plants.find(p=>p.id===clinic?.plantId);
+ if(!provider||!isActiveCorporateFirm(provider)||clinic.retiredAt!=null
+  ||!worldDomesticSiteActive(plant,WORLD_MEDICAL_PROFILE.siteId)
+  ||worldMedicalAssignedWorkers(s,provider.id)>(provider.staff?.sales??0))return 0;
+ const staff=Math.min(clinic.workers,provider.staff.sales);
+ const capacity=Math.min(staff*WORLD_MEDICAL_PROFILE.patientsPerWorker,
+  Math.floor(WORLD_MEDICAL_PROFILE.patientsPerDevice*(clinic.condition??100)/100));
+ const used=(s.worldExpansion.medicalTreatments??[]).filter(t=>t.clinicId===clinic.id&&t.month===month)
+  .reduce((n,t)=>n+t.quantity,0);
+ const reserved=includeReservations?(s.worldExpansion.medicalRequests??[])
+  .filter(r=>r.clinicId===clinic.id&&r.month===month&&['OPEN','PARTIAL'].includes(r.status))
+  .reduce((n,r)=>n+r.quantity-r.performedQuantity,0):0;
+ return Math.max(0,capacity-used-reserved);
+}
+function worldRequestMedicalService(s,clientId,clinicId,plantId,quantity){
+ const clinic=s.worldExpansion?.medicalClinics?.[clinicId],provider=company(clinic?.ownerCompanyId,s),
+  client=company(clientId,s),site=WORLD_MEDICAL_PROFILE.siteId,month=ym(s.year,s.month);
+ if(!clinic||!provider||!client||client===provider||!isActiveCorporateFirm(client)
+  ||!controller(s,clientId)||!controller(s,provider.id)||client.country!=='JP'
+  ||!worldDomesticSiteActive(client.plants.find(p=>p.id===plantId),site))
+  throw Error('同一東京拠点の稼働施設と両法人の操作権限が必要です');
+ if(!Number.isSafeInteger(quantity)||quantity<1||quantity>(client.staff?.sales??0))
+  throw Error('実在する利用者人数が不足しています');
+ if(quantity>worldMedicalOpenSlots(s,clinic,true))
+  throw Error('医療従事者・医療機器の月間診療枠が不足しています');
+ const request={id:'WMR-'+s.seq++,clinicId,providerId:provider.id,clientId,plantId,
+  month,quantity,performedQuantity:0,unitFee:worldMedicalFee(s),status:'OPEN',cancelledAt:null};
+ (s.worldExpansion.medicalRequests??=[]).push(request);
+ return request;
+}
+function worldPerformMedicalService(s,providerId,requestId,quantity){
+ const request=(s.worldExpansion?.medicalRequests??[]).find(r=>r.id===requestId),
+  clinic=s.worldExpansion?.medicalClinics?.[request?.clinicId],
+  provider=company(providerId,s),client=company(request?.clientId,s),month=ym(s.year,s.month);
+ if(!request||!clinic||clinic.ownerCompanyId!==providerId||!provider||!client
+  ||!controller(s,providerId)||!controller(s,client.id)
+  ||!['OPEN','PARTIAL'].includes(request.status)
+  ||!worldDomesticSiteActive(client.plants.find(p=>p.id===request.plantId),WORLD_MEDICAL_PROFILE.siteId)
+  ||!isActiveCorporateFirm(client))
+  throw Error('医療依頼・利用者拠点・実施権限が不正です');
+ if(!Number.isSafeInteger(quantity)||quantity<1||quantity>request.quantity-request.performedQuantity)
+  throw Error('未実施の依頼件数を超過しています');
+ if(quantity>worldMedicalOpenSlots(s,clinic))
+  throw Error('医療従事者・医療機器の月間診療枠が不足しています');
+ const fee=quantity*request.unitFee;
+ if(!Number.isSafeInteger(fee)||acc(client,'cash')<fee)
+  throw Error('医療の実施費用を支払う現金が不足しています');
+ const journal=s.seq;
+ post(client,{otherExpense:fee},{cash:fee},'実施済み医療サービスの利用料','operating',s);
+ post(provider,{cash:fee},{serviceRevenue:fee},'実施済み医療サービスの提供料','operating',s);
+ const treatment={id:'WMT-'+s.seq++,requestId,clinicId:clinic.id,clientId:client.id,
+  providerId,month,quantity,fee,journal,workersAt:clinic.workers};
+ (s.worldExpansion.medicalTreatments??=[]).push(treatment);
+ request.performedQuantity+=quantity;
+ request.status=request.performedQuantity===request.quantity?'COMPLETE':'PARTIAL';
+ return treatment;
+}
+function worldCancelMedicalRequest(s,clientId,requestId){
+ const request=(s.worldExpansion?.medicalRequests??[]).find(r=>r.id===requestId);
+ if(!request||request.clientId!==clientId||!controller(s,clientId)
+  ||!['OPEN','PARTIAL'].includes(request.status))
+  throw Error('取り消せる未実施の医療依頼がありません');
+ request.status='CANCELLED';request.cancelledAt=ym(s.year,s.month);
+ return request;
+}
+function worldMedicalCashPairs(s){
+ return (s.worldExpansion?.medicalTreatments??[]).map(t=>({
+  kind:'domesticTradeCash',seller:t.providerId,buyer:t.clientId,yearMonth:t.month,
+  fromJournal:t.journal+1,toJournal:t.journal,fee:t.fee
+ }));
+}
+function worldValidateMedicalServices(s){
+ const w=s.worldExpansion,clinics=w.medicalClinics??{},requests=w.medicalRequests??[],
+  treatments=w.medicalTreatments??[],profile=WORLD_MEDICAL_PROFILE,now=ym(s.year,s.month);
+ if(!clinics||typeof clinics!=='object'||Array.isArray(clinics)
+  ||!Array.isArray(requests)||!Array.isArray(treatments))
+  throw Error('医療施設・依頼・実施台帳が不正です');
+ const matches=worldServiceJournalMatcher(s),installed=new Set(),requestsById=new Map(),totals=new Map(),slots=new Map();
+ for(const [id,c] of Object.entries(clinics)){
+  const owner=company(c?.ownerCompanyId,s),number=Number(id.split('-')[1]);
+  if(!c||c.id!==id||!/^WMC-\d+$/.test(id)||!Number.isSafeInteger(number)||number>=s.seq
+   ||c.journal!==number-1||!owner||owner.country!==profile.country||owner.industry!=='service'
+   ||!Number.isSafeInteger(c.workers)||c.workers<1||c.installedAt<profile.opensAt||c.installedAt>now
+   ||!owner.plants.some(p=>p.id===c.plantId&&p.siteId===profile.siteId)
+   ||(c.retiredAt===null&&installed.has(c.plantId))
+   ||!matches(owner,c.journal,c.installedAt,c.assetValue,'ppe','materials','investing'))
+   throw Error('医療機器E27の取得・施設・従事者割当が不正：'+id);
+  worldValidateEnergyAsset(c,s);
+  if(c.retiredAt==null)installed.add(c.plantId);
+ }
+ let previous=0;
+ for(const r of requests){
+  const number=Number(r?.id?.split('-')[1]),clinic=clinics[r?.clinicId],
+   provider=company(r?.providerId,s),client=company(r?.clientId,s);
+  if(!/^WMR-\d+$/.test(r?.id)||!Number.isSafeInteger(number)||number<=previous||number>=s.seq
+   ||requestsById.has(r.id)||!clinic||!provider||!client||provider===client
+   ||clinic.ownerCompanyId!==provider.id||client.country!==profile.country
+   ||!client.plants.some(p=>p.id===r.plantId&&p.siteId===profile.siteId)
+   ||!Number.isSafeInteger(r.month)||r.month<clinic.installedAt||r.month>now
+   ||!Number.isSafeInteger(r.quantity)||r.quantity<1
+   ||!Number.isSafeInteger(r.performedQuantity)||r.performedQuantity<0||r.performedQuantity>r.quantity
+   ||r.unitFee!==worldMedicalFee({year:Math.floor(r.month/12)})
+   ||!['OPEN','PARTIAL','COMPLETE','CANCELLED'].includes(r.status)
+   ||(r.status==='CANCELLED'&&(!Number.isSafeInteger(r.cancelledAt)||r.cancelledAt<r.month||r.cancelledAt>now))
+   ||(r.status!=='CANCELLED'&&r.cancelledAt!==null))
+   throw Error('医療依頼または未実施分の状態が不正：'+r?.id);
+  requestsById.set(r.id,r);previous=number;
+ }
+ previous=0;
+ for(const t of treatments){
+  const number=Number(t?.id?.split('-')[1]),r=requestsById.get(t?.requestId),clinic=clinics[t?.clinicId],
+   provider=company(t?.providerId,s),client=company(t?.clientId,s);
+  if(!/^WMT-\d+$/.test(t?.id)||!Number.isSafeInteger(number)||number<=previous||number>=s.seq
+   ||t.journal!==number-2||!r||!clinic||!provider||!client
+   ||t.clinicId!==r.clinicId||t.providerId!==r.providerId||t.clientId!==r.clientId
+   ||!Number.isSafeInteger(t.month)||t.month<r.month||t.month>now
+   ||(clinic.retiredAt!==null&&t.month>clinic.retiredAt)
+   ||!Number.isSafeInteger(t.quantity)||t.quantity<1||t.quantity>r.quantity
+   ||t.fee!==t.quantity*r.unitFee||!Number.isSafeInteger(t.fee)
+   ||!Number.isSafeInteger(t.workersAt)||t.workersAt<1||t.workersAt>clinic.workers
+   ||!matches(client,t.journal,t.month,t.fee,'otherExpense','cash')
+   ||!matches(provider,t.journal+1,t.month,t.fee,'cash','serviceRevenue'))
+   throw Error('医療の実施件数・売上仕訳が不正：'+t?.id);
+  const key=t.clinicId+'|'+t.month;
+  const quantity=(slots.get(key)??0)+t.quantity;
+  if(quantity>Math.min(t.workersAt*profile.patientsPerWorker,profile.patientsPerDevice))
+   throw Error('医療の月間診療枠が不正：'+t.id);
+  slots.set(key,quantity);
+  totals.set(r.id,(totals.get(r.id)??0)+t.quantity);
+  previous=number;
+ }
+ for(const r of requests){
+  const performed=totals.get(r.id)??0;
+  const status=performed===r.quantity?'COMPLETE':performed>0?'PARTIAL':'OPEN';
+  if(performed!==r.performedQuantity||performed>r.quantity
+   ||(r.status!=='CANCELLED'&&r.status!==status))
+   throw Error('医療の未実施件数・決済件数が一致しません：'+r.id);
+ }
+}
+
 function worldStartStorageService(s,clientId,plantId,warehouseId,productId,quantity,months,unitFee){
  const w=s.worldExpansion,client=company(clientId,s),plant=client?.plants.find(p=>p.id===plantId),
   warehouse=w?.domesticWarehouses?.[warehouseId],provider=company(warehouse?.ownerCompanyId,s),
@@ -13045,7 +13229,8 @@ function worldRefundDomesticShipment(s,shipmentId){
 function worldDomesticOwnedAssets(s,ownerId){
  const w=s.worldExpansion;
  return [...Object.values(w?.domesticRoutes??{}),...Object.values(w?.domesticWarehouses??{}),
-  ...Object.values(w?.manufacturingTools??{}),...Object.values(w?.telephoneExchanges??{})]
+  ...Object.values(w?.manufacturingTools??{}),...Object.values(w?.telephoneExchanges??{}),
+  ...Object.values(w?.medicalClinics??{})]
   .filter(asset=>asset.ownerCompanyId===ownerId&&asset.retiredAt==null);
 }
 function worldDomesticAssetBasis(s,ownerId){
@@ -13058,6 +13243,9 @@ function worldDomesticAssetBasis(s,ownerId){
 function worldDomesticBlocksReorganization(s,ownerId,plant=null){
  return worldDomesticOwnedAssets(s,ownerId).some(asset=>
   !plant||asset.plantId===plant.id||asset.fromSiteId===plant.siteId)
+  ||(s.worldExpansion?.medicalRequests??[]).some(r=>['OPEN','PARTIAL'].includes(r.status)
+   &&((r.clientId===ownerId&&(!plant||r.plantId===plant.id))
+    ||(r.providerId===ownerId&&(!plant||s.worldExpansion.medicalClinics[r.clinicId]?.plantId===plant.id))))
   ||(s.worldExpansion?.bankDeposits??[]).some(t=>t.returnedAt===null&&(
    (!plant&&t.clientId===ownerId)||(t.bankId===ownerId&&(!plant||plant.siteId===WORLD_BANK_DEPOSIT_PROFILE.siteId))))
   ||(s.worldExpansion?.passengerTrips??[]).some(t=>t.status==='BOOKED'&&t.firmId===ownerId
@@ -13074,8 +13262,10 @@ function worldRetireDomesticAsset(s,ownerId,kind,assetId){
  const w=s.worldExpansion,owner=company(ownerId,s);
  const asset=kind==='route'?w?.domesticRoutes?.[assetId]:
   kind==='warehouse'?w?.domesticWarehouses?.[assetId]:
-  kind==='telephone'?w?.telephoneExchanges?.[assetId]:null;
+  kind==='telephone'?w?.telephoneExchanges?.[assetId]:
+  kind==='medical'?w?.medicalClinics?.[assetId]:null;
  if(!asset||!owner||asset.ownerCompanyId!==ownerId||asset.retiredAt!=null
+  ||(kind==='medical'&&(w.medicalRequests??[]).some(r=>r.clinicId===assetId&&['OPEN','PARTIAL'].includes(r.status)))
   ||(kind==='warehouse'&&worldStoredAt(w,assetId).length)
   ||(w.domesticShipments??[]).some(t=>t.status==='IN_TRANSIT'
     &&(kind==='route'?t.routeId===assetId:t.warehouseId===assetId)))
@@ -13657,6 +13847,7 @@ function worldValidateDomesticLogistics(s){
  worldValidatePassengerTrips(s);
  worldValidateBankDeposits(s);
  worldValidateTelephoneCalls(s);
+ worldValidateMedicalServices(s);
  worldValidateDomesticOrders(s,transferByAsset);
  worldValidateDomesticShipmentPostings(s,shipments);
  worldValidateDomesticCosts(s);
@@ -13980,6 +14171,35 @@ function worldDomesticControls(firm,routes,warehouses,shipments,orders){
   exchangeSites.map(p=>option(p.id,p.name)).join(''))));
  if(ownedExchanges.length)actions.push(form('phone-retire','電話交換機を除却',select('exchange','設備',
   ownedExchanges.map(t=>option(t.id,t.id)).join(''))));
+ const medical=WORLD_MEDICAL_PROFILE;
+ const clinics=Object.values(w.medicalClinics??{}).filter(c=>c.retiredAt==null);
+ const serviceClinics=clinics.filter(c=>c.ownerCompanyId===firm.id);
+ const installClinics=firm.industry==='service'?firm.plants.filter(p=>
+  worldCanInstallMedicalClinic(S,firm,p,1)):[];
+ if(installClinics.length)actions.push('<h4>医療サービス（S08・東京試作）</h4>'+
+  form('medical-install','医療機器E27を設置',select('plant','稼働施設',installClinics.map(p=>option(p.id,p.name)).join(''))
+  +number('workers','医療業務へ割当する実在職員（営業・管理人員枠）',
+   Math.max(1,(firm.staff.sales??0)-worldMedicalAssignedWorkers(S,firm.id)))));
+ if(serviceClinics.length){
+  actions.push(form('medical-retire','医療施設を閉鎖',select('clinic','所有医療施設',
+   serviceClinics.map(c=>option(c.id,c.id+' / 医療従事者'+c.workers+'人')).join(''))));
+  const queued=(w.medicalRequests??[]).filter(r=>r.providerId===firm.id&&['OPEN','PARTIAL'].includes(r.status));
+  if(queued.length)actions.push(form('medical-perform','医療を実施して精算',
+   select('request','未実施の依頼',queued.map(r=>option(r.id,r.id+' / 残'+(r.quantity-r.performedQuantity)+'件')).join(''))
+   +number('quantity','実施件数',medical.patientsPerDevice)));
+ }
+ const availableClinics=clinics.filter(c=>c.ownerCompanyId!==firm.id&&canEdit(company(c.ownerCompanyId))
+  &&worldMedicalOpenSlots(S,c,true)>0);
+ const medicalOptions=availableClinics.flatMap(c=>firm.plants.filter(p=>
+  worldDomesticSiteActive(p,medical.siteId)).map(p=>
+  option(c.id+'|'+p.id,company(c.ownerCompanyId).name+' / '+p.name))).join('');
+ if(firm.country==='JP'&&firm.staff.sales>0&&medicalOptions)actions.push(
+  form('medical-request','診療を依頼（未実施は請求なし）',select('request','医療提供施設・利用拠点',medicalOptions)
+  +number('quantity','診療人数',Math.min(medical.patientsPerDevice,firm.staff.sales))
+  +'<small>1診療 '+fnum(firm,worldMedicalFee(S))+'、係数と職種資格は暫定モデル</small>'));
+ const ownMedicalRequests=(w.medicalRequests??[]).filter(r=>r.clientId===firm.id&&['OPEN','PARTIAL'].includes(r.status));
+ if(ownMedicalRequests.length)actions.push(form('medical-cancel','未実施の診療依頼を取消',
+  select('request','依頼',ownMedicalRequests.map(r=>option(r.id,r.id+' / 未実施'+(r.quantity-r.performedQuantity)+'件')).join(''))));
  const phone=WORLD_TELEPHONE_PROFILE;
  const phoneOptions=exchanges.filter(t=>{
   const provider=company(t.ownerCompanyId);
@@ -14046,6 +14266,23 @@ document.addEventListener('submit',event=>{
     break;
    case 'phone-retire':
     worldRetireDomesticAsset(S,firm.id,'telephone',values.get('exchange'));
+    break;
+   case 'medical-install':
+    worldInstallMedicalClinic(S,firm.id,values.get('plant'),Number(values.get('workers')));
+    break;
+   case 'medical-retire':
+    worldRetireDomesticAsset(S,firm.id,'medical',values.get('clinic'));
+    break;
+   case 'medical-request':{
+    const [clinicId,plantId]=values.get('request').split('|');
+    worldRequestMedicalService(S,firm.id,clinicId,plantId,Number(values.get('quantity')));
+    break;
+   }
+   case 'medical-perform':
+    worldPerformMedicalService(S,firm.id,values.get('request'),Number(values.get('quantity')));
+    break;
+   case 'medical-cancel':
+    worldCancelMedicalRequest(S,firm.id,values.get('request'));
     break;
    case 'phone-call':{
     const [exchangeId,from,to]=values.get('call').split('|');
