@@ -133,8 +133,8 @@ def main():
           const upgradePreservesLedger=oldAccepted
             &&upgraded.worldExpansion.marketRegistryVersion===17
             &&worldCityLocation(upgraded,'CITY-05-03').jurisdictionId==='JUR-PT-REPUBLIC'
-            &&JSON.stringify(upgraded.firms.map(f=>[f.id,f.owners,f.accounts]))
-              ===JSON.stringify(legacy.firms.map(f=>[f.id,f.owners,f.accounts]))
+            &&JSON.stringify(upgraded.firms.map(f=>[f.id,f.owners,f.journals,f.stock]))
+              ===JSON.stringify(legacy.firms.map(f=>[f.id,f.owners,f.journals,f.stock]))
             &&check(upgraded).length===0;
           return {
             ...out,compositeClosed,compositeOpen,compositeLaw,portugalRepublic,upgradePreservesLedger,
