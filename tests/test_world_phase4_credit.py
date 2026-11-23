@@ -90,6 +90,8 @@ def main():
             &&acc(buyer,'worldInternationalPayable')===-(b.prepaidBuyer+c.prepaidBuyer)
             &&acc(buyer,'worldInternationalDutyPayable')===-(b.dutyBuyer+c.dutyBuyer)
             &&-acc(seller,'sales')===a.goodsSeller+b.goodsSeller+c.goodsSeller&&!check(S).length;
+          const retirementWhileUnpaid=rejects(()=>worldRetireInternationalAsset(S,seller.id,route.id))
+            &&rejects(()=>worldRetireInternationalAsset(S,buyer.id,wh.id));
           const grouped=consolidate(S);
           const elimination=grouped.adjustments.internationalCreditEliminated===baseFromLocal(b.prepaidSeller+c.prepaidSeller,'FR')
             &&grouped.spot.internationalInternalCredit===Math.round(b.prepaidSeller*balanceFxRate(S,seller))
@@ -158,7 +160,7 @@ def main():
             &&rejects(()=>parsePayload(savePayload(invalidConfirmation)))
             &&rejects(()=>worldInternationalRefundShipment(S,prepaidMissing.id));
           return {paymentOptions,dates,noDispatchCash,creditSave,advance,saveAdvance,early,claims,
-            elimination,retry,blocksTamper,fixedCurrency,once,noDuplicate,paidAll,terminal,
+            retirementWhileUnpaid,elimination,retry,blocksTamper,fixedCurrency,once,noDuplicate,paidAll,terminal,
             fundedAndLost:prepaidMissing.credit.paidAt===ym(2001,5),unfundedLoss,dueRefund,refundNotForged,
             prepaidRepaid,refundsRestored};
         }""")

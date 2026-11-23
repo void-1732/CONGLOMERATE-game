@@ -109,3 +109,9 @@ Phase 4の残件を最優先とし、実輸送や会計の新しい前提を必�
 | Phase 6 | 既存試作はPhase 2系の回帰で検証 | Phase 4・5の正式受入後にPhase 6の実装・専用試験を開始 |
 
 年代別の会計通貨は `WORLD_TERRITORY_MONETARY_REFERENCES` に参照データがあり、現行の帳簿単位は `WORLD_ENGINE_CURRENCIES` と各国の会計・為替処理が使用している。通貨移行を設計するときは、通貨単位・換算の根拠・効力月を確認し、単体の残高と期中仕訳、未決済の契約、在庫原価、連結消去、固定した決済レートと旧保存を同じ試験で照合する。
+
+### 年代別帳簿通貨移行の史料確認（Phase 4）
+
+- フランス本土の1960年1月の切替は新1フラン＝旧100フラン。旧フラン表示の債権債務も新しい単位へ移行した。現在の史実参照は1960年の単位の違いを区別していないため、帳簿移行では両単位を明示する。[フランス通貨令第58-1341号](https://www.legifrance.gouv.fr/affichTexte.do?categorieLien=id&cidTexte=JORFTEXT000000339269) · [国民議会答弁](https://archives.assemblee-nationale.fr/4/cri/1968-1969-ordinaire1/102.pdf)
+- 1999年1月の法定換算は1 EUR＝6.55957 FRF、1 EUR＝1.95583 DEM。換算率を途中で丸めず、換算後の支払・計上額に端数処理を適用する。契約は継続する。ゲームで仕訳を実際に移すには、債権債務の明細合計と総勘定元帳の差額処理を決め、旧帳簿と連結の照合試験が必要。[換算率のEU規則2866/98](https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:31998R2866) · [契約継続と端数処理のEU規則1103/97](https://eur-lex.europa.eu/eli/reg/1997/1103/oj/eng)
+- 西ドイツの1948年改革は、給与・賃料等ではRMとDEMが1対1、現預金の主要部分には別の換算率が適用された。単一の為替係数で全科目を一括移行できない。適用法域、科目・契約別の例外、月次境界を確認してから仕訳移行に進む。[ドイツ連邦銀行の通貨改革資料](https://www.bundesbank.de/en/tasks/topics/dates-of-the-german-monetary-policy-detailed-version--626908)

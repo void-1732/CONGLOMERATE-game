@@ -14877,6 +14877,33 @@ function worldInternationalInstallWarehouse(s,firmId,plantId,profileId){
  (w.internationalWarehouses??={})[h.id]=h;
  return h;
 }
+function worldInternationalShipmentOutstanding(t){
+ return t.status==='IN_TRANSIT'||t.status==='REFUND_PENDING'
+  ||(t.status==='DELIVERED'&&!worldInternationalAdvanceFunded(t));
+}
+function worldInternationalAssetBusy(w,assetId){
+ const references=entry=>entry.routeId===assetId||entry.warehouseId===assetId;
+ return (w.internationalOrders??[]).some(o=>o.status==='OPEN'&&references(o))
+  ||(w.internationalShipments??[]).some(t=>references(t)&&worldInternationalShipmentOutstanding(t));
+}
+function worldRetireInternationalAsset(s,ownerId,assetId){
+ const w=s.worldExpansion,owner=company(ownerId,s);
+ const asset=w?.internationalRoutes?.[assetId]??w?.internationalWarehouses?.[assetId];
+ if(!asset||asset.ownerCompanyId!==ownerId||asset.retiredAt!=null||!controller(s,ownerId))
+  throw Error('所有する国際物流設備だけ除却できます');
+ if(worldInternationalAssetBusy(w,assetId))
+  throw Error('国際物流設備の未完了の注文・貨物・決済を処理してください');
+ worldValidateInternationalLogistics(s);
+ const dep=asset.accumulatedDepreciation??0;
+ if(acc(owner,'ppe')<asset.assetValue||-acc(owner,'accdep')<dep)
+  throw Error('除却前に国際物流設備の償却台帳を確認してください');
+ const journal=s.seq;
+ post(owner,{accdep:dep,otherExpense:asset.assetValue-dep},{ppe:asset.assetValue},
+  '国際物流の現物設備除却 '+asset.id,'investing',s);
+ asset.retirementJournal=journal;
+ asset.retiredAt=ym(s.year,s.month);
+ return asset;
+}
 function worldInternationalCargoAllowed(productId,profileId){
  const product=WORLD_PRODUCT_BY_ID.get(productId);
  const eligible=WORLD_INTERNATIONAL_ROUTE_EVIDENCE[profileId]?.products;
@@ -15381,15 +15408,49 @@ function worldValidateInternationalLogistics(s){
   ||!Array.isArray(orders)||!Array.isArray(shipments))
   throw Error('国際B2B台帳のデータ形式が不正');
  const month=ym(s.year,s.month),ordersById=new Map(),seenShipments=new Set();
- const assetKeys=new Set();
+ const journalIndex=new Map(),usedJournals=new Set();
+ function match(firm,id,when,dr,cr,fx=null,kind='operating',description=null){
+  if(!Number.isSafeInteger(id)||id<1||id>=s.seq||usedJournals.has(id))
+   throw Error('国際貨物の仕訳IDが無効か重複しています');
+  usedJournals.add(id);
+  if(!journalIndex.has(firm.id))
+   journalIndex.set(firm.id,new Map(firm.journals.map(j=>[j.id,j])));
+  const j=journalIndex.get(firm.id).get(id);
+  if(!j&&firm.journals.length===10000&&id<firm.journals[0].id)return;
+  const eq=(a,expected)=>a.length===Object.keys(expected).length
+   &&Object.entries(expected).every(([k,v])=>a.some(([key,value])=>key===k&&value===v));
+  if(!j||j.when!==when||j.kind!==kind||!eq(j.dr,dr)||!eq(j.cr,cr)
+   ||(description!==null&&j.text!==description)
+   ||(fx!==null&&Math.round(j.fxAtPost*100000)!==fx))
+   throw Error('国際物流台帳と仕訳が一致しません：'+id);
+ }
+ function checkAsset(asset,owner,id,sequence,key,history){
+  worldValidateEnergyAsset(asset,s);
+  const previous=history.get(key);
+  if(previous&&(previous.retiredAt==null||previous.retiredAt>asset.installedAt
+    ||previous.retirementJournal>=sequence))
+   throw Error('国際物流設備の稼働期間が重複しています：'+id);
+  history.set(key,asset);
+  if(asset.retiredAt==null){
+   if(Object.hasOwn(asset,'retirementJournal'))throw Error('稼働設備に除却仕訳があります：'+id);
+   return;
+  }
+  if(asset.retirementJournal<=sequence||asset.lastDepreciatedAt>asset.retiredAt)
+   throw Error('国際物流設備の除却時点が不正：'+id);
+  const dep=asset.accumulatedDepreciation??0,net=asset.assetValue-dep;
+  match(owner,asset.retirementJournal,asset.retiredAt,
+   {...(dep?{accdep:dep}:{}),...(net?{otherExpense:net}:{})},{ppe:asset.assetValue},
+   null,'investing','国際物流の現物設備除却 '+id);
+ }
+ const routeHistory=new Map(),warehouseHistory=new Map();
  for(const [id,r] of Object.entries(routes)){
   const p=worldDomesticProfile(WORLD_INTERNATIONAL_CORRIDORS,r.profileId),owner=company(r.ownerCompanyId,s);
   const sequence=Number(id.slice(3)),key=r.ownerCompanyId+'|'+r.profileId;
   if(id!==r.id||!/^IR-[1-9]\d*$/.test(id)||!Number.isSafeInteger(sequence)||sequence>=s.seq
-   ||!p||owner?.country!==findSite(p.from)?.country||r.plantId==null||assetKeys.has(key)
+   ||!p||owner?.country!==findSite(p.from)?.country||typeof r.plantId!=='string'
    ||r.fromSiteId!==p.from||r.toSiteId!==p.to||r.distanceKm!==p.distanceKm
    ||r.capacityKg!==p.capacityKg||r.installedAt<p.opensAt||r.installedAt>month
-   ||!owner.plants.some(plant=>plant.id===r.plantId&&plant.siteId===p.from)||r.retiredAt!=null)
+   ||(r.retiredAt==null&&!owner.plants.some(plant=>plant.id===r.plantId&&plant.siteId===p.from)))
    throw Error('国際輸送用の現物設備・経路が不正：'+id);
   if(p.transfer){
    const rail=WORLD_DOMESTIC_CORRIDORS[p.transfer.railId],sea=WORLD_INTERNATIONAL_CORRIDORS[p.transfer.seaId],
@@ -15400,19 +15461,17 @@ function worldValidateInternationalLogistics(s){
     ||rail.from!==p.from||rail.to!==sea.from||sea.to!==p.to)
     throw Error('鉄道と海運に接続する積替え倉庫の参照が不正：'+id);
   }else if(Object.hasOwn(r,'transferWarehouseId'))throw Error('積替えなしの路線に倉庫参照があります：'+id);
-  worldValidateEnergyAsset(r,s);
-  assetKeys.add(key);
+  checkAsset(r,owner,id,sequence,key,routeHistory);
  }
  for(const [id,h] of Object.entries(warehouses)){
   const p=worldDomesticProfile(WORLD_INTERNATIONAL_CORRIDORS,h.profileId),buyer=company(h.ownerCompanyId,s);
   const sequence=Number(id.slice(3)),key=h.ownerCompanyId+'|'+h.plantId;
   if(id!==h.id||!/^IW-[1-9]\d*$/.test(id)||!Number.isSafeInteger(sequence)||sequence>=s.seq
-   ||!p||buyer?.country!==findSite(p.to)?.country||assetKeys.has(key)
-   ||!buyer.plants.some(plant=>plant.id===h.plantId&&plant.siteId===p.to)
-   ||h.installedAt<p.opensAt||h.installedAt>month||h.retiredAt!=null)
+   ||!p||buyer?.country!==findSite(p.to)?.country||typeof h.plantId!=='string'
+   ||(h.retiredAt==null&&!buyer.plants.some(plant=>plant.id===h.plantId&&plant.siteId===p.to))
+   ||h.installedAt<p.opensAt||h.installedAt>month)
    throw Error('国際輸入用実倉庫の参照が不正：'+id);
-  worldValidateEnergyAsset(h,s);
-  assetKeys.add(key);
+  checkAsset(h,buyer,id,sequence,key,warehouseHistory);
  }
  let orderSequence=0,orderMonth=0;
  for(const o of orders){
@@ -15441,23 +15500,12 @@ function worldValidateInternationalLogistics(s){
    ||(accepted&&(o.closedAt<=o.placedAt||o.sellerDecision===null))
    ||(o.sellerDecision==='AI'&&(!accepted||o.decisionAt!==o.closedAt)))
    throw Error('国際B2B注文・成立台帳が不正：'+o.id);
+  for(const asset of [route,h]){
+   if(asset.retiredAt!=null&&(o.status==='OPEN'||o.closedAt>asset.retiredAt||seq>=asset.retirementJournal))
+    throw Error('除却済みの国際設備に注文があります：'+o.id);
+  }
   ordersById.set(o.id,o);
   orderSequence=seq;orderMonth=o.placedAt;
- }
- const journalIndex=new Map(),usedJournals=new Set();
- function match(firm,id,when,dr,cr,fx=null){
-  if(!Number.isSafeInteger(id)||id<1||id>=s.seq||usedJournals.has(id))
-   throw Error('国際貨物の仕訳IDが無効か重複しています');
-  usedJournals.add(id);
-  if(!journalIndex.has(firm.id))
-   journalIndex.set(firm.id,new Map(firm.journals.map(j=>[j.id,j])));
-  const j=journalIndex.get(firm.id).get(id);
-  if(!j&&firm.journals.length===10000&&id<firm.journals[0].id)return;
-  const eq=(a,expected)=>a.length===Object.keys(expected).length
-   &&Object.entries(expected).every(([k,v])=>a.some(([key,value])=>key===k&&value===v));
-  if(!j||j.when!==when||j.kind!=='operating'||!eq(j.dr,dr)||!eq(j.cr,cr)
-   ||(fx!==null&&Math.round(j.fxAtPost*100000)!==fx))
-   throw Error('国際貨物・外貨前払の仕訳が一致しません：'+id);
  }
  const routeMonths=new Map(),reservations=new Map();
  const receivable=new Map(),payable=new Map(),dutyPayable=new Map(),bankRemittances=new Map();
@@ -15502,6 +15550,15 @@ function worldValidateInternationalLogistics(s){
    ||(t.status==='REFUND_PENDING'&&(!t.refund||t.refundedAt!==null||t.receivedAt!==null))
    ||(t.refund&&t.status!=='REFUND_PENDING'&&t.status!=='REFUNDED'))
    throw Error('国際貨物・検収/返金・通貨換算記録が不正：'+t.id);
+  for(const asset of [r,h]){
+   if(asset.retiredAt==null)continue;
+   const lastMonth=Math.max(t.receivedAt??0,t.refundedAt??0,t.credit?.paidAt??0);
+   const lastJournal=Math.max(t.journals.terminal+(t.status==='DELIVERED'||worldInternationalAdvanceFunded(t)?2:0),
+    (t.credit?.journal??-1)+1,(t.refund?.journal??-1)+1);
+   if(worldInternationalShipmentOutstanding(t)||lastMonth>asset.retiredAt
+    ||asset.retirementJournal<=lastJournal)
+    throw Error('除却済み国際設備と貨物の決済履歴が不一致：'+t.id);
+  }
   worldValidateInternationalTransfer(s,t,r,profile,month);
   const rule=WORLD_INTERNATIONAL_CUSTOMS[r.profileId];
   if(rule){
@@ -15635,7 +15692,8 @@ function worldInternationalShipmentStage(t){
 function worldInternationalTradePanel(firm,editable){
  const w=S.worldExpansion,active=(w.internationalShipments??[]).filter(t=>t.buyerId===firm.id||t.sellerId===firm.id),
   orders=(w.internationalOrders??[]).filter(o=>o.buyerId===firm.id||o.sellerId===firm.id),
-  routes=Object.values(w.internationalRoutes??{}),wh=Object.values(w.internationalWarehouses??{});
+  routes=Object.values(w.internationalRoutes??{}).filter(a=>a.retiredAt==null),
+  wh=Object.values(w.internationalWarehouses??{}).filter(a=>a.retiredAt==null);
  const orderRows=orders.slice(-20).map(o=>'<tr><td>'+esc(o.id)+'</td><td>'+esc(WORLD_PRODUCT_BY_ID.get(o.productId)?.name)
   +'</td><td>'+nfmt(o.quantity)+' / '+nfmt(o.acceptedQty)+'</td><td>'+esc(o.status)+'</td></tr>').join('');
  const shipmentRows=active.slice(-20).map(t=>'<tr><td>'+esc(t.id)+'</td><td>'+esc(t.status)
@@ -15648,13 +15706,15 @@ function worldInternationalTradePanel(firm,editable){
     :ym(S.year,S.month)>t.credit.dueMonth?'延滞':'未決済'))
   +(t.customs?'</td><td>'+esc(t.customs.authorityId)+' ／ '
    +(t.customs.releasedAt!==null?'輸入許可':t.customs.arrivalAt!==null?'保税・通関審査中':'申告準備')
-   +' ／ '+(t.customs.duty?nfmt(t.customs.duty):'無税'):'</td><td>—')
+   +' ／ '+(t.customs.duty?nfmt(t.customs.duty):'無税')
+   :'</td><td>'+(t.tariffBps==null?'—':'暫定関税 '+nfmt(t.tariffBps/100)+'%'))
   +'</td></tr>').join('');
  const options=Object.entries(WORLD_INTERNATIONAL_CORRIDORS).filter(([id])=>worldInternationalRouteAvailable(S,id));
  const forms=[];
  if(editable){
   const labels={route:'現物輸送設備を国際経路へ登録',warehouse:'輸入倉庫を設置',order:'外貨建て発注',
-   approve:'売り手として承諾',reject:'売り手として辞退',cancel:'買い手として取り消す',refund:'未納終了・返金'};
+   approve:'売り手として承諾',reject:'売り手として辞退',cancel:'買い手として取り消す',refund:'未納終了・返金',
+   retire:'国際物流設備を除却'};
   const make=(kind,fields)=>'<form data-world-international="'+kind+'" class="row">'+fields
    +'<button type="submit" class="btn sm">'+labels[kind]+'</button></form>';
   const from=options.filter(([id,p])=>findSite(p.from).country===firm.country
@@ -15682,6 +15742,10 @@ function worldInternationalTradePanel(firm,editable){
    +'<input name="limit" type="number" min="1" max="1000000000" placeholder="買手通貨支払上限(銭)" required>'
    +'<label>支払条件 <select name="paymentDays"><option value="0">即時</option>'
    +[30,60,90].map(d=>'<option value="'+d+'">'+d+'日掛け</option>').join('')+'</select></label>'));
+  const retirement=[...routes,...wh].filter(a=>a.ownerCompanyId===firm.id&&!worldInternationalAssetBusy(w,a.id));
+  if(retirement.length)forms.push(make('retire','<label>除却する設備 <select name="asset">'
+   +retirement.map(a=>'<option value="'+esc(a.id)+'">'+esc(a.id)+' / '+esc(a.profileId)+'</option>').join('')
+   +'</select></label>'));
   const pending=orders.filter(o=>o.status==='OPEN');
   for(const [action,eligible] of [
    ['approve',o=>o.sellerId===firm.id&&o.sellerDecision===null],
@@ -15697,7 +15761,7 @@ function worldInternationalTradePanel(firm,editable){
    +refunds.map(t=>'<option value="'+t.id+'">'+t.id+'</option>').join('')+'</select>'));
  }
  return '<details id="world-international" class="panel"><summary>Phase 4 国際B2B物流・外貨決済（道路・鉄道・海運・航空）</summary>'
-  +'<p>史料確認済みの貨物区間を利用できます。距離・容量・運賃はゲーム内の暫定値です。到着検収後に売上を記帳します。</p>'
+  +'<p>距離・容量・運賃はゲーム内の暫定値です。関税の史料が未登録の貨物には暫定関税を適用します。到着検収後に売上を記帳します。</p>'
   +(options.length?'<ul>'+options.map(([id,p])=>{
    const evidence=WORLD_INTERNATIONAL_ROUTE_EVIDENCE[id];
    const operation=evidence.operationSource?' · <a href="'+esc(evidence.operationSource)
@@ -15740,7 +15804,9 @@ document.addEventListener('submit',event=>{
    const shipment=S.worldExpansion.internationalShipments.find(t=>t.id===data.get('shipment'));
    if(shipment?.sellerId!==firm.id)throw Error('売り手だけが未納貨物を終了できます');
    worldInternationalRefundShipment(S,shipment.id);
-  }else return;
+  }else if(form.dataset.worldInternational==='retire')
+   worldRetireInternationalAsset(S,firm.id,data.get('asset'));
+  else return;
   requestOperationSaveV037();render();
   const panel=document.getElementById('world-international');
   if(panel)panel.open=true;
@@ -15939,8 +16005,7 @@ function worldDomesticBlocksReorganization(s,ownerId,plant=null){
   ||(s.worldExpansion?.internationalOrders??[]).some(o=>o.status==='OPEN'
    &&((o.sellerId===ownerId&&(!plant||s.worldExpansion.internationalRoutes[o.routeId]?.plantId===plant.id))
     ||(o.buyerId===ownerId&&(!plant||s.worldExpansion.internationalWarehouses[o.warehouseId]?.plantId===plant.id))))
-  ||(s.worldExpansion?.internationalShipments??[]).some(t=>(t.status==='IN_TRANSIT'||t.status==='REFUND_PENDING'
-    ||(t.status==='DELIVERED'&&!worldInternationalAdvanceFunded(t)))
+  ||(s.worldExpansion?.internationalShipments??[]).some(t=>worldInternationalShipmentOutstanding(t)
    &&((t.sellerId===ownerId&&(!plant||t.sellerPlantId===plant.id))
     ||(t.buyerId===ownerId&&(!plant||t.buyerPlantId===plant.id))))
   ||(s.worldExpansion?.domesticShipments??[]).some(t=>t.status==='IN_TRANSIT'

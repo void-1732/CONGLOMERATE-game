@@ -67,6 +67,9 @@ def main():
             &&acc(buyer,'cash')===beforeBuyer&&acc(seller,'cash')===beforeSeller
             &&!S.worldExpansion.internationalShipments.length;
           const savedOrder=parsePayload(savePayload(S)).worldExpansion.internationalOrders[0].id===order.id;
+          const denied=action=>{try{action();return false;}catch{return true;}};
+          const retirementBlockedByOrder=denied(()=>worldRetireInternationalAsset(S,seller.id,route.id))
+            &&denied(()=>worldRetireInternationalAsset(S,buyer.id,warehouse.id));
           worldInternationalActOrder(S,seller.id,order.id,'approve');
           S.month++;
           worldInternationalResolveOrders(S);
@@ -85,6 +88,8 @@ def main():
           const refundDenied=(()=>{try{worldInternationalRefundShipment(S,cargo.id);return false}
             catch{return true}})();
           const inTransitValid=worldValidateInternationalLogistics(S)&&!check(S).length;
+          const retirementBlockedInTransit=denied(()=>worldRetireInternationalAsset(S,seller.id,route.id))
+            &&denied(()=>worldRetireInternationalAsset(S,buyer.id,warehouse.id));
           const held=structuredClone(S);
           held.month+=2;
           const refund=worldInternationalRefundShipment(held,cargo.id);
@@ -111,11 +116,67 @@ def main():
           const tamper=(()=>{try{parsePayload(savePayload(damaged));return false}
             catch{return true}})();
           const ui=worldInternationalTradePanel(buyer,true).includes('Phase 4')
-            &&worldInternationalTradePanel(buyer,true).includes(order.id);
+            &&worldInternationalTradePanel(buyer,true).includes(order.id)
+            &&worldInternationalTradePanel(buyer,true).includes('暫定関税 2.5%');
+          worldDepreciateInfrastructure(S);
+          const retirementBefore=(firm,asset)=>({
+            ppe:acc(firm,'ppe'),accdep:acc(firm,'accdep'),expense:acc(firm,'otherExpense'),
+            cash:acc(firm,'cash'),assetId:asset.id,gross:asset.assetValue,dep:asset.accumulatedDepreciation
+          });
+          window.beforeInternationalRetirement=[retirementBefore(buyer,warehouse),retirementBefore(seller,route)];
+          const wrongOwnerDenied=denied(()=>worldRetireInternationalAsset(S,buyer.id,route.id));
+          const outsideGroup=structuredClone(S);
+          company(seller.id,outsideGroup).owners=[{id:'PUBLIC',econ:1,vote:1}];
+          const outsideBefore=JSON.stringify(outsideGroup);
+          const unauthorizedDenied=!controller(outsideGroup,seller.id)
+            &&denied(()=>worldRetireInternationalAsset(outsideGroup,seller.id,route.id))
+            &&JSON.stringify(outsideGroup)===outsideBefore;
+          VIEW_FIRM=buyer.id;PAGE='logisticsHubs';render();
           return {assets,earlyDenied,queued,savedOrder,dispatched,refundDenied,
-            inTransitValid,refunded,delivered,restored,tamper,ui};
+            inTransitValid,refunded,delivered,restored,tamper,ui,wrongOwnerDenied,unauthorizedDenied,
+            retirementBlockedByOrder,retirementBlockedInTransit};
         }""")
         assert all(result.values()),result
+        page.locator('#world-international > summary').click()
+        retire = page.locator('form[data-world-international="retire"]')
+        retire.get_by_role('button', name='国際物流設備を除却').click()
+        page.evaluate("""() => {
+          VIEW_FIRM=S.worldExpansion.internationalShipments[0].sellerId;
+          render();
+        }""")
+        page.locator('#world-international > summary').click()
+        retire.get_by_role('button', name='国際物流設備を除却').click()
+        retirement = page.evaluate("""() => {
+          const persisted=parsePayload(savePayload(S)),w=persisted.worldExpansion;
+          const originals=[...Object.values(w.internationalWarehouses),...Object.values(w.internationalRoutes)];
+          const checks=originals.map((asset,i)=>{
+            const before=window.beforeInternationalRetirement[i],f=company(asset.ownerCompanyId,persisted);
+            return asset.id===before.assetId&&asset.retiredAt===ym(2000,3)&&before.dep>0
+              &&acc(f,'ppe')===before.ppe-before.gross&&acc(f,'accdep')===before.accdep+before.dep
+              &&acc(f,'otherExpense')===before.expense+before.gross-before.dep&&acc(f,'cash')===before.cash;
+          });
+          const depot=worldMapWarehouseLedger(persisted).find(row=>row.id===originals[0].id);
+          const route=worldMapNetwork(persisted).routes.find(row=>row.id===originals[1].profileId);
+          const damaged=structuredClone(persisted);
+          Object.values(damaged.worldExpansion.internationalRoutes)[0].retirementJournal++;
+          const rejects=action=>{try{action();return false;}catch{return true;}};
+          const tamper=rejects(()=>parsePayload(savePayload(damaged)));
+          const [oldWarehouse,oldRoute]=originals;
+          const buyer=company(oldWarehouse.ownerCompanyId,persisted),seller=company(oldRoute.ownerCompanyId,persisted);
+          for(const [firm,product,price] of [[buyer,'PRD-E20',200],[seller,'PRD-E15',2500]]){
+            post(firm,{materials:price},{cash:price},'交換用現物取得','operating',persisted);
+            firm.stock[product]={q:1,v:price};
+          }
+          const newRoute=worldInternationalRegisterRoute(persisted,seller.id,oldRoute.profileId);
+          const newWarehouse=worldInternationalInstallWarehouse(persisted,buyer.id,oldWarehouse.plantId,oldWarehouse.profileId);
+          const reopened=parsePayload(savePayload(persisted));
+          return {accounting:checks.every(Boolean),history:w.internationalShipments[0].status==='DELIVERED',
+            map:depot.status==='廃止済み'&&depot.available===0&&route.installed===0,
+            tamper,secondRetirement:rejects(()=>worldRetireInternationalAsset(persisted,seller.id,oldRoute.id)),
+            replacement:newRoute.id!==oldRoute.id&&newWarehouse.id!==oldWarehouse.id
+              &&!check(reopened).length&&!consolidate(reopened).errors.length};
+        }""")
+        assert all(retirement.values()),retirement
         multimodal=page.evaluate("""() => {
           const profiles=Object.entries(WORLD_INTERNATIONAL_CORRIDORS);
           const modes=new Set(profiles.map(([,p])=>p.mode));
