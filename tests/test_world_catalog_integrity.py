@@ -40,6 +40,20 @@ def main():
             catch{out.rejectMismatchedLocation=true}
           }finally{location.cityId=originalCityId}
           const state=newWorldGame({country:'JP',name:'Phase1検証'});
+          // A market may aggregate sovereign territories. An opened
+          // market must not implicitly open unregistered neighbouring
+          // jurisdictions (Portugal, Belgium, Luxembourg and the Balkans).
+          const unregistered=['CITY-05-03','CITY-05-04','CITY-08-03',
+            'CITY-08-04','CITY-13-01','CITY-13-04'];
+          const registered=['CITY-05-01','CITY-08-02','CITY-13-02'];
+          const compositeClosed=unregistered.every(id=>{
+            const city=worldCityLocation(state,id);
+            return city.jurisdictionId==null&&!city.marketOpen;
+          });
+          const compositeOpen=registered.every(id=>{
+            const city=worldCityLocation(state,id);
+            return city.jurisdictionId!=null&&city.marketOpen;
+          });
           const first=worldCityLocation(state,'CITY-01-04');
           const identityBefore=JSON.stringify([
             state.firms.map(f=>[f.id,f.owners,f.loans]),
@@ -62,7 +76,7 @@ def main():
           ]);
           const restored=parsePayload(savePayload(state));
           return {
-            ...out,
+            ...out,compositeClosed,compositeOpen,
             firstHistory,secondHistory:!secondHistory,rejectsConflict,
             irelandBefore:first.territoryId==='TER-01-02'
               &&first.marketId==='MKT-01'&&first.jurisdictionId==='JUR-UK',
