@@ -90,12 +90,19 @@ def main():
           const noPrematurePayments=first.requestedQty===5&&first.status==='OPEN'
             &&acc(buyer,'worldSupplierAdvances')===0&&seller.stock['PRD-R19'].q===8
             &&S.worldExpansion.domesticShipments.length===0;
+          const initialMarket=worldPhase3B2BMarketSnapshot(S,'MKT-14',ym(1970,1))
+            .find(r=>r.productId==='PRD-R19');
+          const marketOrders=initialMarket.requestedQty===15&&initialMarket.pendingQty===13
+            &&initialMarket.acceptedQty===0&&initialMarket.deliveredQty===0;
           const pendingRoundTrip=parsePayload(savePayload(S)).worldExpansion.domesticOrders[0].id===first.id;
           const reversed=structuredClone(S);reversed.worldExpansion.domesticOrders.reverse();
           const reordered=denied(()=>parsePayload(savePayload(reversed)));
           await runMonth();
           const holdsUntilNext=S.month===2&&S.worldExpansion.domesticShipments.length===0;
           await runMonth();
+          const acceptedMarket=worldPhase3B2BMarketSnapshot(S,'MKT-14',ym(1970,2))
+            .find(r=>r.productId==='PRD-R19');
+          const marketAllocation=acceptedMarket.acceptedQty===8&&acceptedMarket.deliveredQty===0;
           const settled=S.worldExpansion.domesticOrders;
           const by=id=>settled.find(o=>o.id===id);
           const sent=S.worldExpansion.domesticShipments;
@@ -116,6 +123,10 @@ def main():
           const badLink=structuredClone(S);badLink.worldExpansion.domesticOrders[0].shipmentId='DS-0';
           const protectedLink=denied(()=>parsePayload(savePayload(badLink)));
           await runMonth();
+          const deliveredMarket=worldPhase3B2BMarketSnapshot(S,'MKT-14',ym(1970,3))
+            .find(r=>r.productId==='PRD-R19');
+          const marketDelivery=deliveredMarket.deliveredQty===8&&deliveredMarket.deliveredAmount===128
+            &&deliveredMarket.realizedUnitPrice===16;
           const restored=parsePayload(savePayload(S));
           const auditIssue=structuredClone(restored),audited=auditIssue.worldExpansion.domesticShipments[0];
           const auditedJournal=company(audited.sellerId,auditIssue).journals.find(j=>j.id===audited.accounting.terminal);
@@ -148,7 +159,7 @@ def main():
           const spoofed=structuredClone(manualFixture);
           spoofed.worldExpansion.domesticShipments.find(t=>t.id===failed.id).accounting.terminal++;
           const alteredRefund=denied(()=>worldValidateDomesticLogistics(spoofed));
-          return {authority,noPrematurePayments,pendingRoundTrip,reordered,holdsUntilNext,fifo,
+          return {marketOrders,marketAllocation,marketDelivery,authority,noPrematurePayments,pendingRoundTrip,reordered,holdsUntilNext,fifo,
             rejected,funds,protectedLink,delivered,manualConsent,alteredPosting,refundProof,alteredRefund};
         }""")
         assert all(result.values()), result
