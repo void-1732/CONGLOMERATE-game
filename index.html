@@ -11291,6 +11291,60 @@ const WORLD_ENGINE_TERRITORY={UK:'TER-01-01',FR:'TER-02-01',DE:'TER-03-01',NO:'T
  ...Object.fromEntries(Object.entries(WORLD_MARKET_ONBOARDING).map(([code,row])=>[code,row.territoryId]))};
 const WORLD_ENGINE_CURRENCIES={UK:'CUR-GBP',FR:'CUR-EUR',DE:'CUR-EUR',NO:'CUR-NOK',JP:'CUR-JPY',US:'CUR-USD',
  ...Object.fromEntries(Object.entries(WORLD_MARKET_ONBOARDING).map(([code,row])=>[code,row.currencyId]))};
+// Sourced monetary units are references, NOT the simulated bookkeeping
+// denomination. Changing a company ledger without translating every journal,
+// historical balance and FX contract would corrupt existing save files.
+// Unknown eras/territories return null instead of fabricating a currency.
+const WORLD_TERRITORY_MONETARY_REFERENCES=Object.freeze({
+ 'TER-02-01':Object.freeze([
+  [ym(1900,1),'CUR-FRF','https://acpr.banque-france.fr/en/banque-de-france/institution-rooted-history/founding-history-banque-de-france'],
+  [ym(1999,1),'CUR-EUR','https://www.ecb.europa.eu/euro/intro/html/index.en.html']]),
+ 'TER-03-01':Object.freeze([
+  [ym(1900,1),'CUR-GMK','https://www.bundesbank.de/en/statistics/economic-activity-and-prices/national-producer-and-consumer-prices/purchasing-power-comparisons-of-historical-amounts-of-money-795290'],
+  [ym(1923,11),'CUR-REN','https://www.bundesbank.de/en/tasks/topics/inflation-lessons-learnt-from-history-666006'],
+  [ym(1924,10),'CUR-RMK','https://weimar.bundesarchiv.de/WEIMAR/DE/Content/Dokumente-zur-Zeitgeschichte/1924-10-11_einfuehrung-reichsmark.html'],
+  [ym(1948,7),'CUR-DEM','https://www.bundesbank.de/en/tasks/topics/dates-of-the-german-monetary-policy-detailed-version--626908'],
+  [ym(1999,1),'CUR-EUR','https://www.ecb.europa.eu/euro/intro/html/index.en.html']]),
+ 'TER-04-01':Object.freeze([
+  [ym(1900,1),'CUR-ITL','https://www.ecb.europa.eu/euro/intro/html/index.en.html'],
+  [ym(1999,1),'CUR-EUR','https://www.ecb.europa.eu/euro/intro/html/index.en.html']]),
+ 'TER-05-01':Object.freeze([
+  [ym(1900,1),'CUR-ESP','https://www.bde.es/wbe/en/sobre-banco/actividad-europea/eurosistema-sebc/historia-eurosistema/euro/introduccion-euro/'],
+  [ym(1999,1),'CUR-EUR','https://www.bde.es/wbe/en/sobre-banco/actividad-europea/eurosistema-sebc/historia-eurosistema/euro/introduccion-euro/']]),
+ 'TER-05-02':Object.freeze([
+  [ym(1900,1),'CUR-PTR','https://www.bportugal.pt/en/comunicado/dissemination-historical-time-series-portuguese-escudo'],
+  [ym(1911,6),'CUR-PTE','https://www.bportugal.pt/en/comunicado/dissemination-historical-time-series-portuguese-escudo'],
+  [ym(1999,1),'CUR-EUR','https://www.ecb.europa.eu/euro/intro/html/index.en.html']]),
+ 'TER-08-01':Object.freeze([
+  [ym(1900,1),'CUR-NLG','https://www.ecb.europa.eu/euro/intro/html/index.en.html'],
+  [ym(1999,1),'CUR-EUR','https://www.ecb.europa.eu/euro/intro/html/index.en.html']]),
+ 'TER-08-02':Object.freeze([
+  [ym(1900,1),'CUR-BEF','https://www.nbb.be/en/banknotes-and-coins/history-euro-and-belgian-franc/brief-history-belgian-franc'],
+  [ym(1999,1),'CUR-EUR','https://www.nbb.be/en/banknotes-and-coins/history-euro-and-belgian-franc/brief-history-euro']]),
+ 'TER-08-03':Object.freeze([
+  [ym(1900,1),'CUR-LUF','https://www.bcl.lu/en/About/histoire_monetaire/index.html'],
+  [ym(1999,1),'CUR-EUR','https://www.bcl.lu/en/About/histoire_monetaire/index.html']]),
+ 'TER-01-02':Object.freeze([
+  [ym(1900,1),'CUR-GBP','https://www.centralbank.ie/consumer-hub/notes-and-coins/historical-banknotes'],
+  [ym(1927,1),'CUR-IEP','https://www.centralbank.ie/consumer-hub/notes-and-coins/historical-banknotes'],
+  [ym(1999,1),'CUR-EUR','https://www.irishstatutebook.ie/eli/1998/act/38/section/6/enacted/en/html']]),
+ 'TER-24-01':Object.freeze([
+  [ym(1900,1),'CUR-AUP','https://www.ramint.gov.au/collect/coin-production/decimal-currency'],
+  [ym(1966,3),'CUR-AUD','https://www.ramint.gov.au/collect/coin-production/decimal-currency']]),
+ 'TER-25-01':Object.freeze([
+  [ym(1900,1),'CUR-NZP','https://www.rbnz.govt.nz/Statistics/series/reserve-bank/bank-notes-in-the-hands-of-the-public'],
+  [ym(1967,8),'CUR-NZD','https://www.rbnz.govt.nz/Statistics/series/reserve-bank/bank-notes-in-the-hands-of-the-public']]),
+ 'TER-33-01':Object.freeze([
+  [ym(1900,1),'CUR-ZAP','https://www.southafricanreservebank.co.za/en/home/what-we-do/banknotes-and-coin/history-of-banknotes-and-coin'],
+  [ym(1961,3),'CUR-ZAR','https://www.southafricanreservebank.co.za/en/home/what-we-do/banknotes-and-coin/history-of-banknotes-and-coin']])
+});
+function worldHistoricalMonetaryReference(territoryId,month){
+ if(!WORLD_TERRITORIES.has(territoryId)||!Number.isSafeInteger(month)||month<WORLD_START_MONTH)
+  throw Error('史実通貨参照の領域・年月が不正');
+ const timeline=WORLD_TERRITORY_MONETARY_REFERENCES[territoryId]??[];
+ const row=timeline.filter(entry=>entry[0]<=month).at(-1);
+ return row?{currencyId:row[1],effectiveMonth:row[0],source:row[2],kind:'REFERENCE_ONLY'}:null;
+}
 const WORLD_CURRENCIES=new Set(Object.values(WORLD_ENGINE_CURRENCIES));
 const WORLD_JURISDICTIONS=new Map([
  ['JUR-UK',{name:'イギリス',currencyId:'CUR-GBP'}],
@@ -11441,7 +11495,8 @@ function worldCityLocation(s,cityId){
  const territory=WORLD_TERRITORIES.get(city.territoryId);
  const market=WORLD_MARKET_BY_ID.get(territory.marketId);
  const jurisdictionId=s.worldExpansion.territoryJurisdictions[territory.id];
- return {cityId,territoryId:territory.id,marketId:market.id,jurisdictionId,
+ const historicalMoney=worldHistoricalMonetaryReference(territory.id,ym(s.year,s.month));
+ return {cityId,territoryId:territory.id,marketId:market.id,jurisdictionId,historicalMoney,
   // Composite markets share a market ID, not a legal jurisdiction. A city
   // is operable only when its own territory has a registered jurisdiction.
   marketOpen:s.worldExpansion.openMarkets[market.id]!==null&&jurisdictionId!=null};
