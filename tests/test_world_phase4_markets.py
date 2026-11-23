@@ -179,10 +179,10 @@ def test_new_zealand(page):
 
 def test_steamship_export(page, market_data):
     result = page.evaluate("""({profile,country,site,city,currency,year,departure,payMonth,buyerCountry,
-                              destination,product,offer,authority}) => {
+                              destination,product,offer,authority,customsCurrency}) => {
       S=newWorldGame({country,name:site+' exporter'});VIEW_FIRM=S.playerId;VIEW_COUNTRY=country;
       const seller=company(S.playerId),port=seller.plants[0],identity=worldCityLocation(S,city);
-      const market=identity.marketOpen&&identity.jurisdictionId==='JUR-'+country
+      const market=identity.marketOpen&&identity.jurisdictionId===WORLD_MARKET_ONBOARDING[country].jurisdictionId
         &&S.worldExpansion.openMarkets[identity.marketId]===ym(1900,1)
         &&port.siteId===site&&firmCurrency(seller,S)===currency
         &&!worldInternationalRouteAvailable(S,profile);
@@ -222,7 +222,8 @@ def test_steamship_export(page, market_data):
       S.month=arrival;worldInternationalReceiveShipments(S);
       const held=authority===null?!cargo.customs&&cargo.status==='DELIVERED':
         cargo.status==='IN_TRANSIT'&&cargo.customs?.arrivalAt===ym(year,arrival)
-        &&cargo.customs.authorityId===authority&&cargo.customs.currencyId==='CUR-USD'
+        &&cargo.customs.authorityId===authority
+        &&cargo.customs.currencyId===(customsCurrency??'CUR-USD')
         &&cargo.customs.releasedAt===null&&cargo.customs.duty===0
         &&!buyer.stock[product]?.q;
       if(authority!==null){S.month=arrival+1;worldInternationalReceiveShipments(S);}
@@ -539,9 +540,23 @@ def main():
             "product": "PRD-R20", "departure": 4, "payMonth": 5,
         })
         test_south_africa_union(page)
+        test_steamship_export(page, {
+            "profile": "TH-SG-BANGKOK-RICE", "country": "TH", "site": "TH-BKK",
+            "city": "CITY-20-01", "currency": "THB", "year": 1909,
+            "offer": "TH-BKK-RICE", "authority": "CUSTOMS-SG-1909",
+            "customsCurrency": "CUR-STS", "buyerCountry": "SG", "destination": "SG-SIN",
+            "product": "PRD-R23", "departure": 4, "payMonth": 5,
+        })
+        test_steamship_export(page, {
+            "profile": "SG-UK-SINGAPORE-RUBBER", "country": "SG", "site": "SG-SIN",
+            "city": "CITY-22-01", "currency": "STS", "year": 1911,
+            "offer": "SG-SIN-RUBBER", "authority": None,
+            "buyerCountry": "UK", "destination": "UK-LON",
+            "product": "PRD-R29", "departure": 3, "payMonth": 4,
+        })
         assert not errors, errors
         browser.close()
-    print("PASS Phase 4 Canada, Australia, New Zealand, Mexico, Brazil, Argentina, Chile, Colombia, Sweden, Netherlands, Italy, Egypt, India and South Africa: sourced cargo, loading, shipment and settlement")
+    print("PASS Phase 4 Canada, Australia, New Zealand, Mexico, Brazil, Argentina, Chile, Colombia, Sweden, Netherlands, Italy, Egypt, India, South Africa, Siam and Straits Singapore: sourced cargo, loading, shipment and settlement")
 
 
 if __name__ == "__main__":
