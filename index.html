@@ -11134,12 +11134,12 @@ function worldPhase3Preview(s,market,playable){
  }).join('');
  const cities=worldPhase3CityShares(market)
   .map(c=>`<li>${esc(c.name)}：${(c.shareBps/100).toFixed(2)}%</li>`).join('');
- return `<details data-phase3-market="${market.id}"><summary>Phase 3-A：国別消費需要・都市固定配分（暫定）</summary>
+ return `<section data-phase3-market="${market.id}"><h4>Phase 3：国別消費需要・都市固定配分（暫定）</h4>
   <p class="hint">30消費財の参考推計。価格は当地通貨の参考値で、受注・実在庫・売上・入金には反映しません。係数はPROVISIONALです。</p>
   <ul>${cities}</ul>
   <div class="scroll"><table><thead><tr><th>消費財（例）</th><th>国別月間推計</th><th>参考市場価格</th></tr></thead><tbody>${rows}</tbody></table></div>
   <p class="hint">推計対象 ${quotes.length}品目／登場済み ${quotes.filter(q=>q.available).length}品目。保存状態から決定的に再計算します。</p>
- </details>`;
+ </section>`;
 }
 
 function worldMarketPanel(s){
