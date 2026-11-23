@@ -702,7 +702,7 @@ const COUNTRIES={
  // Provisional game coefficients, independent of the sourced opening event.
  NO:{currency:'NOK',fx:14,pop:2.24,wealth:.94,wage:136,demand:13,steel:449,rubber:311,steelSupply:90,rubberSupply:80}
 };
-const ACCTYPE={cash:'asset',materials:'asset',materialsTransit:'asset',componentStock:'asset',componentTransit:'asset',wip:'asset',goods:'asset',goodsTransit:'asset',constructionAssets:'asset',ppe:'asset',accdep:'contra',investment:'asset',ar:'asset',loanrec:'asset',resourceRights:'asset',partReceivable:'asset',partPayable:'liability',payable:'liability',wagesDue:'liability',debt:'liability',interestDue:'liability',taxDue:'liability',capital:'equity',treasuryStock:'contraEquity',sales:'revenue',serviceRevenue:'revenue',otherRevenue:'revenue',cogs:'expense',labor:'expense',rndExpense:'expense',advert:'expense',maintenance:'expense',interestExpense:'expense',depreciation:'expense',taxExpense:'expense',fxLoss:'expense',otherExpense:'expense'};
+const ACCTYPE={cash:'asset',materials:'asset',materialsTransit:'asset',componentStock:'asset',componentTransit:'asset',wip:'asset',goods:'asset',goodsTransit:'asset',constructionAssets:'asset',ppe:'asset',accdep:'contra',investment:'asset',ar:'asset',loanrec:'asset',resourceRights:'asset',worldShipmentStock:'asset',worldSupplierAdvances:'asset',partReceivable:'asset',partPayable:'liability',worldCustomerAdvances:'liability',payable:'liability',wagesDue:'liability',debt:'liability',interestDue:'liability',taxDue:'liability',capital:'equity',treasuryStock:'contraEquity',sales:'revenue',serviceRevenue:'revenue',otherRevenue:'revenue',cogs:'expense',labor:'expense',rndExpense:'expense',advert:'expense',maintenance:'expense',interestExpense:'expense',depreciation:'expense',taxExpense:'expense',fxLoss:'expense',otherExpense:'expense'};
 const PAGES={dashboard:'経営概況',marketOwn:'自社グループ市場分析',market:'世界市場分析',product:'製品・開発',factory:'工場・調達',people:'研究・人事',finance:'財務・資金',group:'企業グループ',consolidated:'連結財務三表',reports:'月次レポート',save:'保存・設定'};
 /* STEP 2: navigation only. Every tab points to a current, fully functional PAGE.
    New specialized pages are created in STEP 3+, not silently replaced with placeholders.
@@ -3497,7 +3497,9 @@ async function runMonth(){
   step('FACTORY_JOBS',()=>{advanceFactoryJobsV21(trial,events);advanceComponentLines(trial,events)});
   step('AI_PREPARE',()=>{for(const f of trial.firms){ensureFirmGameplay(f);f.marketThisMonth={};f._profitStart=financials(f).profit;rivalMonthlyStrategy(trial,f,events);planAI(f,trial);autoOperations(trial,f)}});
   step('PEOPLE',()=>processHumanResources(trial,events));
+  step('WORLD_INFRA_DEPRECIATION',()=>worldDepreciateInfrastructure(trial));
   step('RESOURCE_PRODUCTION',()=>{laborAndPlant(trial,events,'resource');produceWorldDeposits(trial,events);worldFulfillLocalSupplyPlans(trial,events)});
+  step('DOMESTIC_WORLD_DELIVERIES',()=>worldReceiveDomesticShipments(trial,events));
   step('NPC_PRODUCTION',()=>produceNpcV033(trial,events));
    step('PROCUREMENT',()=>{for(const f of trial.firms){ensureNetwork(f,trial);f.supply.monthFlow=Object.fromEntries(SUPPLY_TYPES.map(t=>[t,{month:ym(trial.year,trial.month),start:f.stock[t]?.q||0}]));}procureNetwork(trial,events)});
   step('NPC_SETTLEMENT',()=>settleNpcMarketV033(trial));
@@ -10836,7 +10838,7 @@ function makeWorldExpansion(){
   catalogVersion:WORLD_CATALOG_VERSION,
   territoryJurisdictions:Object.fromEntries([...WORLD_TERRITORIES.keys()].map(id=>[id,WORLD_INITIAL_JURISDICTIONS[id]??null])),
   openMarkets:Object.fromEntries(WORLD_MARKETS.map(m=>[m.id,INITIAL_ENGINE_COUNTRIES.includes(WORLD_ENGINE_BY_MARKET[m.id])?WORLD_START_MONTH:null])),
-  appliedEvents:[],companies:{},facilities:{},resourceDeposits:{},powerAllocations:{},powerGenerators:{},energyReceipts:[],physicalDeliveries:[],powerLines:{},powerTransfers:[],localSupplyPlans:{}
+  appliedEvents:[],companies:{},facilities:{},resourceDeposits:{},powerAllocations:{},powerGenerators:{},energyReceipts:[],physicalDeliveries:[],powerLines:{},powerTransfers:[],localSupplyPlans:{},domesticRoutes:{},domesticShipments:[]
  };
 }
 
@@ -11192,7 +11194,17 @@ const WORLD_SUPPLEMENTAL_RECIPES=Object.freeze([
  {id:'PRD-E09',year:1930,tech:'production-1',cost:160,unit:'台',plantKind:'integrated',powerKwh:4,inputs:[['PRD-M03',4],['PRD-M20',2]]},
  {id:'PRD-E10',year:1910,tech:'production-1',cost:160,unit:'台',plantKind:'integrated',powerKwh:0,inputs:[['PRD-M02',4],['PRD-M33',2]]},
  {id:'PRD-E13',year:1920,tech:'production-1',cost:140,unit:'台',plantKind:'integrated',powerKwh:0,inputs:[['PRD-M03',4],['PRD-E01',1],['PRD-M32',2]]},
- {id:'PRD-E22',year:1950,tech:'energy-1',cost:170,unit:'台',plantKind:'assembly',powerKwh:4,inputs:[['PRD-E03',2],['PRD-M03',3]]}
+ {id:'PRD-E22',year:1950,tech:'energy-1',cost:170,unit:'台',plantKind:'assembly',powerKwh:4,inputs:[['PRD-E03',2],['PRD-M03',3]]},
+ // Phase 2-F: nine additional physically sourced routes. ALL BOM and era coefficients PROVISIONAL.
+ {id:'PRD-E02',year:1910,tech:'production-1',cost:130,unit:'台',plantKind:'integrated',powerKwh:0,inputs:[['PRD-M02',3],['PRD-M33',2],['PRD-M32',1]]},
+ {id:'PRD-E12',year:1920,tech:'production-1',cost:145,unit:'台',plantKind:'integrated',powerKwh:0,inputs:[['PRD-M03',3],['PRD-M33',2]]},
+ {id:'PRD-E14',year:1930,tech:'production-1',cost:180,unit:'台',plantKind:'integrated',powerKwh:0,inputs:[['PRD-M02',4],['PRD-E02',1]]},
+ {id:'PRD-E15',year:1940,tech:'production-1',cost:185,unit:'台',plantKind:'assembly',powerKwh:0,inputs:[['PRD-M03',3],['PRD-E02',1],['PRD-M22',2]]},
+ {id:'PRD-E16',year:1910,tech:'production-1',cost:220,unit:'台',plantKind:'integrated',powerKwh:0,inputs:[['PRD-E01',2],['PRD-M02',4],['PRD-M33',1]]},
+ {id:'PRD-E18',year:1900,tech:'production-1',cost:230,unit:'台',plantKind:'integrated',powerKwh:0,inputs:[['PRD-E01',1],['PRD-M12',3],['PRD-M02',4]]},
+ {id:'PRD-E27',year:1950,tech:'production-1',cost:145,unit:'台',plantKind:'assembly',powerKwh:0,inputs:[['PRD-M03',2],['PRD-M20',2],['PRD-M32',2]]},
+ {id:'PRD-E30',year:1980,tech:'energy-1',cost:190,unit:'台',plantKind:'integrated',powerKwh:5,inputs:[['PRD-M30',2],['PRD-M33',2],['PRD-E10',1]]},
+ {id:'PRD-C16',year:1940,tech:'materials-6',cost:38,unit:'個',plantKind:'assembly',powerKwh:0,inputs:[['PRD-M20',2],['PRD-M14',1]]}
 
 ]);
 const WORLD_SUPPLEMENTAL_BY_ID=new Map(WORLD_SUPPLEMENTAL_RECIPES.map(r=>[r.id,r]));
@@ -11493,7 +11505,7 @@ function worldInstallGenerator(s,firmId,plantId){
  if(!assetValue)throw Error('取得原価のない設備は設置できません');
  post(f,{ppe:assetValue},{materials:assetValue},'世界発電設備の設置','investing',s);
  const unit={id:'GEN-'+plantId,ownerCompanyId:firmId,plantId,
-  productId:equipment,assetValue,installedAt:ym(s.year,s.month),fuelProductId:'PRD-R04',kwhPerFuel:10,lossBps:1000};
+  productId:equipment,assetValue,installedAt:ym(s.year,s.month),fuelProductId:'PRD-R04',kwhPerFuel:10,lossBps:1000,accumulatedDepreciation:0,lastDepreciatedAt:null,condition:100,retiredAt:null};
  (s.worldExpansion.powerGenerators??={})[plantId]=unit;
  return unit;
 }
@@ -11559,13 +11571,13 @@ function worldGeneratePower(s,firmId,plantId,fuelQty){
   throw Error('発電量の指定が不正');
  validateWorldPowerAllocations(s);
  const f=company(firmId,s),p=f?.plants.find(p=>p.id===plantId),g=s.worldExpansion.powerGenerators?.[plantId];
- if(!f||!p||!g||g.ownerCompanyId!==firmId||p.construction||p.paused||p.renovation
+ if(!f||!p||!g||g.ownerCompanyId!==firmId||g.retiredAt!=null||p.construction||p.paused||p.renovation
   ||s.year<1915||!f.research?.tree?.done.includes('energy-1'))
   throw Error('稼働中の所有発電機、研究または年代の条件が不正');
  const month=ym(s.year,s.month),prev=s.worldExpansion.powerAllocations?.[plantId];
  if(prev?.month===month||(s.worldExpansion.energyReceipts??[]).some(r=>r.plantId===plantId&&r.month===month))
   throw Error('同月の発電・電力割当は既に登録されています');
- const rated=Math.floor(p.capacity*p.condition/100)*10;
+ const rated=Math.floor(p.capacity*p.condition*(g.condition??100)/10000)*10;
  if(fuelQty*10>rated||!f.stock[g.fuelProductId]||f.stock[g.fuelProductId].q<fuelQty)
   throw Error('発電設備能力または実燃料が不足しています');
  const gross=fuelQty*10,loss=Math.floor(gross/10),delivered=gross-loss;
@@ -11614,6 +11626,7 @@ function worldInstallPowerLine(s,firmId,sourceId,targetId){
   ||a.construction||b.construction||a.paused||b.paused
   ||s.year<1915||!f.research?.tree?.done.includes('energy-1')
   ||s.worldExpansion.powerGenerators?.[sourceId]?.ownerCompanyId!==firmId
+  ||s.worldExpansion.powerGenerators?.[sourceId]?.retiredAt!=null
   ||s.worldExpansion.powerLines?.[targetId])throw Error('同一所在地と所有発電機が必要');
  if((f.stock['PRD-M06']?.q??0)<2)throw Error('実物銅線2単位が不足');
  const value=consume(f,'PRD-M06',2);
@@ -11621,7 +11634,7 @@ function worldInstallPowerLine(s,firmId,sourceId,targetId){
  post(f,{ppe:value},{materials:value},'世界電力の実物送電線','investing',s);
  const line={id:'LINE-'+targetId,ownerCompanyId:firmId,sourcePlantId:sourceId,
   targetPlantId:targetId,productId:'PRD-M06',quantity:2,assetValue:value,
-  installedAt:ym(s.year,s.month),capacityKwh:20,lossBps:500};
+  installedAt:ym(s.year,s.month),capacityKwh:20,lossBps:500,accumulatedDepreciation:0,lastDepreciatedAt:null,condition:100,retiredAt:null};
  (s.worldExpansion.powerLines??={})[targetId]=line;
  return line;
 }
@@ -11633,9 +11646,11 @@ function worldTransferPower(s,firmId,sourceId,targetId,sentKwh){
   target=s.worldExpansion.powerAllocations?.[targetId],month=ym(s.year,s.month);
  if(!a||!b||a.siteId!==b.siteId||a.paused||b.paused||a.construction||b.construction
   ||a.renovation||b.renovation||line?.ownerCompanyId!==firmId
-  ||line.sourcePlantId!==sourceId||src?.source!=='FUEL_GENERATED'||src.month!==month
+  ||line.sourcePlantId!==sourceId||line.retiredAt!=null
+  ||s.worldExpansion.powerGenerators?.[sourceId]?.retiredAt!=null
+  ||src?.source!=='FUEL_GENERATED'||src.month!==month
   ||target?.month===month||worldPowerAvailable(s,sourceId)<sentKwh
-  ||sentKwh>Math.floor(line.capacityKwh*Math.min(a.condition,b.condition)/100))
+  ||sentKwh>Math.floor(line.capacityKwh*Math.min(a.condition,b.condition)*(line.condition??100)/10000))
   throw Error('同一地区の送電線、実電力または設備容量が不足');
  const loss=Math.ceil(sentKwh*line.lossBps/10000),delivered=sentKwh-loss,
   receipt=s.worldExpansion.energyReceipts.find(x=>x.id===src.receiptId);
@@ -11651,13 +11666,79 @@ function worldTransferPower(s,firmId,sourceId,targetId,sentKwh){
   receiptId:t.id,month,capacityKwh:delivered,usedKwh:0,capitalizedFuelCost:0};
  return t;
 }
+
+/* Phase 2-F: physical energy-asset cost is recognized once per closed month.
+   The underlying PPE keeps historical acquisition cost; accdep is its contra.
+   All coefficients (120-month life, -1 condition/month) are PROVISIONAL. */
+function worldValidateEnergyAsset(asset,s){
+ const dep=asset.accumulatedDepreciation??0,condition=asset.condition??100;
+ if(!Number.isSafeInteger(asset.assetValue)||asset.assetValue<1
+  ||!Number.isSafeInteger(dep)||dep<0||dep>asset.assetValue
+  ||!Number.isSafeInteger(condition)||condition<0||condition>100
+  ||(asset.lastDepreciatedAt!=null&&(!Number.isSafeInteger(asset.lastDepreciatedAt)
+    ||asset.lastDepreciatedAt<asset.installedAt||asset.lastDepreciatedAt>ym(s.year,s.month)))
+  ||(asset.retiredAt!=null&&(!Number.isSafeInteger(asset.retiredAt)
+    ||asset.retiredAt<asset.installedAt||asset.retiredAt>ym(s.year,s.month))))
+  throw Error('電力・物流設備の取得原価・減価償却・閉鎖日不正');
+}
+function worldDepreciateAsset(s,asset,owner,month,desc){
+ worldValidateEnergyAsset(asset,s);
+ if(asset.retiredAt!=null||asset.lastDepreciatedAt===month
+   ||month<asset.installedAt)return 0;
+ const old=asset.accumulatedDepreciation??0;
+ const expense=Math.min(asset.assetValue-old,Math.max(1,Math.ceil(asset.assetValue/120)));
+ if(expense)post(owner,{depreciation:expense},{accdep:expense},desc,'operating',s);
+ asset.accumulatedDepreciation=old+expense;
+ asset.lastDepreciatedAt=month;asset.condition=Math.max(10,(asset.condition??100)-1);
+ return expense;
+}
+function worldDepreciateInfrastructure(s){
+ const w=s.worldExpansion;if(!w)return;
+ const month=ym(s.year,s.month);
+ for(const [p,g] of Object.entries(w.powerGenerators??{})){
+  const owner=company(g.ownerCompanyId,s);
+  if(!owner||!owner.plants.some(x=>x.id===p))throw Error('発電設備の所有工場が存在しません');
+  worldDepreciateAsset(s,g,owner,month,'世界発電機の月次償却');
+ }
+ for(const [p,line] of Object.entries(w.powerLines??{})){
+  const owner=company(line.ownerCompanyId,s);
+  if(!owner||!owner.plants.some(x=>x.id===p))throw Error('送電設備の所有工場が存在しません');
+  worldDepreciateAsset(s,line,owner,month,'世界送電線の月次償却');
+ }
+ for(const route of Object.values(w.domesticRoutes??{})){
+  const carrier=company(route.ownerCompanyId,s);
+  if(!carrier)throw Error('国内物流設備の所有法人が存在しません');
+  worldDepreciateAsset(s,route,carrier,month,'世界国内物流設備の月次償却');
+ }
+}
+/* The equipment remains in the immutable historical evidence ledgers. A
+   retirement writes off the remaining net PPE, never fabricating a resale or
+   transferring ownership to a different firm. */
+function worldRetireEnergyAsset(s,ownerId,plantId,assetKind){
+ if(!s.worldExpansion||!['generator','line'].includes(assetKind))throw Error('設備廃止対象が不正');
+ const w=s.worldExpansion,asset=assetKind==='generator'
+  ?w.powerGenerators?.[plantId]:w.powerLines?.[plantId];
+ const owner=company(ownerId,s),plant=owner?.plants.find(p=>p.id===plantId);
+ if(!asset||!owner||!plant||asset.ownerCompanyId!==ownerId||asset.retiredAt!=null)
+  throw Error('所有する稼働中の世界電力資産のみ廃止できます');
+ if(assetKind==='generator'&&Object.values(w.powerLines??{}).some(x=>x.sourcePlantId===plantId&&x.retiredAt==null))
+  throw Error('送電線を先に廃止してください');
+ const accumulated=asset.accumulatedDepreciation??0,net=asset.assetValue-accumulated;
+ post(owner,{accdep:accumulated,otherExpense:net},{ppe:asset.assetValue},
+   '世界設備の物理廃止・残存簿価','investing',s);
+ asset.retiredAt=ym(s.year,s.month);
+ return {assetId:asset.id,retiredAt:asset.retiredAt,remainingValue:net};
+}
+
 function worldValidatePhase2E(s){
  if(!s.worldExpansion)return true;
  const w=s.worldExpansion,lines=w.powerLines??{},transfers=w.powerTransfers??[];
  if(!lines||typeof lines!=='object'||Array.isArray(lines)||!Array.isArray(transfers))
   throw Error('送電線・送電記録の保存形式が不正');
  const ids=new Set();
+ for(const g of Object.values(w.powerGenerators??{}))worldValidateEnergyAsset(g,s);
  for(const [target,line] of Object.entries(lines)){
+  worldValidateEnergyAsset(line,s);
   const owner=company(line.ownerCompanyId,s),
    a=owner?.plants.find(p=>p.id===line.sourcePlantId),b=owner?.plants.find(p=>p.id===target);
   if(!a||!b||a.id===b.id||a.siteId!==b.siteId||line.id!=='LINE-'+target
@@ -11698,6 +11779,7 @@ function worldValidatePhase2E(s){
 function validateWorldSupplemental(state){
  worldValidatePhase2E(state);
  worldValidateLocalSupply(state);
+ worldValidateDomesticLogistics(state);
  validateWorldPowerAllocations(state);
  validateWorldMiningPlans(state);
  validateWorldPhysicalDeliveries(state);
