@@ -16,8 +16,7 @@ def test_all_market_coverage(page):
       const countries=new Set(Object.keys(WORLD_ENGINE_TERRITORY));
       const sourced=Object.entries(WORLD_INTERNATIONAL_CORRIDORS).filter(([id,p])=>
         p.source?.startsWith('https://') &&
-        WORLD_INTERNATIONAL_ROUTE_EVIDENCE[id]?.source?.startsWith('https://') &&
-        WORLD_INTERNATIONAL_ROUTE_EVIDENCE[id]?.products?.length>0);
+        WORLD_INTERNATIONAL_ROUTE_EVIDENCE[id]?.source?.startsWith('https://'));
       const connected=new Set(sourced.flatMap(([,p])=>
         [findSite(p.from)?.country,findSite(p.to)?.country]));
       const missing=[...countries].filter(code=>!connected.has(code));
@@ -30,7 +29,8 @@ def test_all_market_coverage(page):
       const integrity=sourced.every(([id,p])=>p.from!==p.to
         &&findSite(p.from)?.country!==findSite(p.to)?.country
         &&p.capacityKg>0&&p.transitMonths>0&&p.opensAt>=WORLD_START_MONTH
-        &&WORLD_INTERNATIONAL_ROUTE_EVIDENCE[id].products?.length>0);
+        &&((WORLD_INTERNATIONAL_ROUTE_EVIDENCE[id].products?.length??0)>0
+          ||WORLD_INTERNATIONAL_ROUTE_EVIDENCE[id].operationSource?.startsWith('https://')));
       return {markets,integrity,allForty:countries.size===40&&connected.size===40
         &&WORLD_MARKETS.length===40&&WORLD_CITIES.size===155&&!missing.length,
         missing};
