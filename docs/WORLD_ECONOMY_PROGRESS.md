@@ -483,4 +483,10 @@ python -B tests/test_step13_120_months.py --era 1900 --world
 - 掛け取引の支払期限に買主の現金を外部銀行の送金預け金へ振り替える。銀行送金の完了後のみ売り手が受領し、未納かつ銀行送金が未決済なら預け金を買主へ返す。送金額・決済日・返金日を独立した照合対象にした。送金の1か月はゲーム用の暫定値。[当時の送金業務](https://leicester.contentdm.oclc.org/digital/api/collection/p16445coll4/id/274979/download) · [ロンドン・ウェリントンの拠点](https://leicester.contentdm.oclc.org/digital/api/collection/p16445coll4/id/34866/download)
 - 開発CI #45141517212 の120か月試験は史実イベントの総数を1件に固定した旧アサーションで失敗した。ノルウェーの対象イベントIDが重複していないことを確認するよう修正した。新しい1,200か月試験には、拡張世界での国際貨物・外部銀行預託・送金・受領と連結キャッシュフローの検算を含む。
 - 連携済みは9市場、残り31市場。各市場の史料付き貨物、実設備、通関、銀行送金の対象通貨・制度を増やし、港での積替え、全貨物の重量・容積、関税率、貿易金融を完成させてからPhase 5へ進む。
+
+### Phase 4 追加市場 — メキシコと米国通関
+
+- 1900年の開放市場にメキシコ `MKT-28` を追加。既存都市 `CITY-28-04` のベラクルス港に、管轄 `JUR-MX` と歴史的ペソを表す帳簿単位 `CUR-MXP` を接続した。人口に国勢調査値を使用する。ペソの制度変更とゲーム内為替係数は別管理とする。[独立後の管轄資料](https://archivos.gob.mx/InstrumentosConsulta/MexicoIndependiente.html) · [国勢調査](https://www.inegi.org.mx/programas/ccpv/1900/) · [通貨史](https://www.banxico.org.mx/billetes-y-monedas/d/%7B1EEDFA6C-8EDB-B7AD-11B2-528C7B69CC76%7D.pdf)
+- ベラクルス発ニューオーリンズ向けコーヒー豆を追加した。同じ両港間の汽船貨物とメキシコからのコーヒー入荷の史料を組み合わせ、1906年6月の運航記録を再現できる注文期間を設けた。この貨物のニューオーリンズでの無税申告・保税・輸入許可を記録する。[汽船の出港記録](https://stacks.cdc.gov/view/cdc/66996/cdc_66996_DS1.pdf) · [領事報告](https://upload.wikimedia.org/wikipedia/commons/9/92/Pan_American_Union_Bulletin_1902-10-_Vol_13_Iss_4_%28IA_sim_bulletin-of-the-pan-american-union_1902-10_13_4%29.pdf) · [米国1897年関税法](https://fraser.stlouisfed.org/title/tariff-1897-dingley-tariff-5862/fulltext)
+- 経済エンジンと国際貨物を接続した10市場は、英国、フランス、ドイツ、ノルウェー、日本、米国、カナダ、オーストラリア、ニュージーランド、メキシコ。残り30市場は接続・実取引検証待ち。
 - 再開時はDraft PR #29の最新HEADで開発CIと1,200か月5ジョブを確認し、34未接続市場の管轄・通貨・施設と具体的な史料付き区間を、実出荷・検収・決済試験と対にして追加する。

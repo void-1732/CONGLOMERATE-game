@@ -14,6 +14,9 @@ def test_australia(page):
       const buyerConfig={country:'JP',name:'Yokohama wool importer'};
       const old=newWorldGame(buyerConfig);
       old.worldExpansion=makeWorldExpansion(1);syncWorldIdentities(old);
+      for(const code of Object.keys(old.world)){
+        if(!worldInitialEngineCountries(1).includes(code))delete old.world[code];
+      }
       old.year=1906;old.month=1;old.monthCommitted=ym(1906,1)-1;
       applyWorldHistory(old);syncWorldIdentities(old);
       const restored=parsePayload(savePayload(old));
@@ -174,6 +177,60 @@ def test_new_zealand(page):
     assert all(result.values()), result
 
 
+def test_mexico(page):
+    result = page.evaluate("""() => {
+      const profile='MX-US-VERACRUZ-COFFEE';
+      S=newWorldGame({country:'MX',name:'Veracruz coffee exporter'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='MX';
+      const seller=company(S.playerId),port=seller.plants[0],identity=worldCityLocation(S,'CITY-28-04');
+      const market=identity.marketOpen&&identity.jurisdictionId==='JUR-MX'
+        &&S.worldExpansion.openMarkets[identity.marketId]===ym(1900,1)
+        &&port.siteId==='MX-VER'&&firmCurrency(seller,S)==='MXP'
+        &&!worldInternationalRouteAvailable(S,profile);
+      S.year=1906;S.month=5;S.monthCommitted=ym(1906,5)-1;
+      applyWorldHistory(S);syncWorldIdentities(S);
+      PAGE='corporateSubsidiaries';render();
+      document.querySelector('#subName').value='New Orleans coffee importer';
+      document.querySelector('#subCountry').value='US';
+      document.querySelector('#subIndustry').value='manufacturing';
+      document.querySelector('#subCapital').value='650000';
+      createSub();
+      const buyer=S.firms.find(f=>f.name==='New Orleans coffee importer'),depot=buyer.plants[0];
+      depot.siteId='US-NEWORLEANS';syncWorldIdentities(S);
+      for(const firm of [buyer,seller]){
+        firm.auto=false;firm.research.tree.done=[...new Set([...firm.research.tree.done,'production-1'])];
+      }
+      for(const [firm,id,value] of [[seller,'PRD-E18',2400],[buyer,'PRD-E20',700],[buyer,'PRD-E21',900]]){
+        post(firm,{materials:value},{cash:value},'検証用の有償現物設備','operating',S);
+        firm.stock[id]={q:1,v:value};
+      }
+      const purchase=worldBuyRegionalSupply(S,seller.id,port.id,'MX-VER-COFFEE',14);
+      worldBuyRegionalSupply(S,seller.id,port.id,'MX-VER-BUNKER-COAL',10);
+      const route=worldInternationalRegisterRoute(S,seller.id,profile);
+      const warehouse=worldInternationalInstallWarehouse(S,buyer.id,depot.id,profile);
+      const order=worldInternationalPlaceOrder(S,buyer.id,{routeId:route.id,warehouseId:warehouse.id,
+        productId:'PRD-R27',quantity:14,cargoLitres:30,unitPriceSeller:40,maxPaymentBuyer:100000,paymentDays:60});
+      worldInternationalActOrder(S,seller.id,order.id,'approve');
+      S.month=6;worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
+      const [cargo]=S.worldExpansion.internationalShipments;
+      const shipped=purchase.quantity===14&&cargo?.status==='IN_TRANSIT'&&cargo.loadKg===15
+        &&cargo.prepaidSeller!==cargo.prepaidBuyer&&acc(seller,'worldShipmentStock')===cargo.bookCost;
+      S.month=7;worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
+      const held=cargo.status==='IN_TRANSIT'&&cargo.customs?.arrivalAt===ym(1906,7)
+        &&cargo.customs.authorityId==='CUSTOMS-US-NOLA-1897'&&cargo.customs.currencyId==='CUR-USD'
+        &&cargo.customs.releasedAt===null&&cargo.customs.duty===0
+        &&cargo.credit.paidAt===ym(1906,7)&&!buyer.stock['PRD-R27']?.q
+        &&!worldInternationalRouteAvailable(S,profile);
+      S.month=8;worldInternationalReceiveShipments(S);
+      const reopened=parsePayload(savePayload(S));
+      const done=cargo.status==='DELIVERED'&&buyer.stock['PRD-R27'].q===14
+        &&buyer.stock['PRD-R27'].v===cargo.totalBuyer&&!acc(seller,'worldShipmentStock')
+        &&reopened.worldExpansion.internationalShipments[0].customs.releasedAt===ym(1906,8)
+        &&!check(reopened).length&&!consolidate(reopened).errors.length;
+      return {market,shipped,held,done};
+    }""")
+    assert all(result.values()), result
+
+
 def main():
     with sync_playwright() as pw:
         browser = pw.chromium.launch(
@@ -278,9 +335,10 @@ def main():
         assert all(result.values()), result
         test_australia(page)
         test_new_zealand(page)
+        test_mexico(page)
         assert not errors, errors
         browser.close()
-    print("PASS Phase 4 Canada, Australia and New Zealand: historical opening, registry upgrade, verified sourcing, loading, shipment and settlement")
+    print("PASS Phase 4 Canada, Australia, New Zealand and Mexico: historical opening, sourced cargo, loading, shipment and settlement")
 
 
 if __name__ == "__main__":
