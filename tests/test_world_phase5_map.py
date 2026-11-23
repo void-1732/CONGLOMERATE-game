@@ -234,6 +234,29 @@ def main():
         assert audit["routeGraphics"] == audit["routes"], audit
         assert audit["noMutation"] and audit["check"] == 0, audit
         assert audit["noPhantomWarehouses"] and audit["noPhantomEquipment"], audit
+        # Classify every catalog city by the actual legal and build-site gate,
+        # without creating a site, unlocking a market or changing the save.
+        coverage = page.evaluate("""() => {
+          const before=JSON.stringify(S),a=worldMapCityFacilityCoverage(S);
+          const valid=a.rows.every(row=>{
+            const loc=worldCityLocation(S,row.cityId);
+            const code=WORLD_ENGINE_BY_TERRITORY.get(loc.territoryId);
+            return row.sites.every(site=>site.country===code
+              &&WORLD_SITE_CITIES[site.id]===row.cityId&&loc.marketOpen&&siteVisibleInGame(site,S))
+              &&(row.status==='CONNECTED')===(row.sites.length>0);
+          });
+          return {valid,total:a.rows.length,counts:a.counts,
+            unchanged:JSON.stringify(S)===before,
+            tokyo:a.rows.find(x=>x.cityId==='CITY-14-01').status,
+            dublin:a.rows.find(x=>x.cityId==='CITY-01-04').status,
+            lisbon:a.rows.find(x=>x.cityId==='CITY-05-03').status};
+        }""")
+        assert coverage["valid"] and coverage["unchanged"], coverage
+        assert coverage["total"] == sum(coverage["counts"].values()) == 155, coverage
+        assert coverage["tokyo"] == "CONNECTED", coverage
+        assert coverage["dublin"] == "ENGINE_UNCONNECTED", coverage
+        assert coverage["lisbon"] == "MARKET_CLOSED", coverage
+        assert page.locator('[data-world-map-facility-count]').count() == len(coverage["counts"])
         # No network or gameplay mutations are necessary to inspect the live freight ledger.
         page.evaluate("window.__phase5PreUiState=JSON.stringify(S);")
 
@@ -305,6 +328,7 @@ def main():
         assert page.locator('[data-world-map-city-detail="CITY-14-01"]').count() == 1
         assert page.locator('[data-world-map-city-selected="true"]').count() == 1
         assert "JUR-JP" in page.locator('[data-world-map-city-detail]').inner_text()
+        assert page.locator('[data-world-map-city-facility-status="CONNECTED"]').count() == 1
         # City-circle selection toggles its corresponding read-only legal panel.
         page.locator('[data-world-map-city="CITY-14-01"]').click()
         assert page.locator('[data-world-map-city-detail]').count() == 0

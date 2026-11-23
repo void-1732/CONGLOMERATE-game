@@ -1062,6 +1062,24 @@ def main(observe_receipts=None):
         page.wait_for_function("STORAGE_READY")
         if observe_receipts is not None:
             observe_receipts(page)
+        # A newly connected exporter does not imply an imported tariff
+        # schedule. Missing entries must fail closed before allocating cargo.
+        tariff_guard = page.evaluate("""() => {
+          const s=newWorldGame({country:'BE',name:'Belgian tariff guard'});
+          const buyer=company(s.playerId,s);
+          const before=JSON.stringify(s);
+          const q=worldInternationalQuote(s,{ownerCompanyId:buyer.id,
+            profileId:'UK-PT-CARDIFF-LISBON-COAL'},'PRD-R04',1,100,buyer.id);
+          const missing=Object.keys(WORLD_INTERNATIONAL_ROUTE_EVIDENCE)
+            .filter(id=>!Object.hasOwn(WORLD_PHASE4_TARIFF_BPS,
+              findSite(WORLD_INTERNATIONAL_CORRIDORS[id].to)?.country));
+          return {blocked:!worldInternationalImportTariffAvailable(s,'BE')
+             &&q.problem==='輸入国の関税制度が未接続です',
+            supported:worldInternationalImportTariffAvailable(s,'UK'),
+            noMutation:before===JSON.stringify(s),missing};
+        }""")
+        assert tariff_guard["blocked"] and tariff_guard["supported"] and tariff_guard["noMutation"], tariff_guard
+        assert not tariff_guard["missing"], tariff_guard
         # These cargo scenarios jump directly to dispatch, arrival, and payment
         # months. Apply the same world history as the normal monthly close.
         page.evaluate("""() => {

@@ -9434,6 +9434,7 @@ function worldMapNetwork(s=S){
  ...Object.entries(WORLD_INTERNATIONAL_CORRIDORS).map(([id,p])=>({
   id,kind:'international',mode:p.mode??'sea',fromId:p.from,toId:p.to,transfer:p.transfer,
   documented:Object.hasOwn(WORLD_INTERNATIONAL_ROUTE_EVIDENCE,id),
+  importTariffRegistered:Object.hasOwn(WORLD_PHASE4_TARIFF_BPS,bySite.get(p.to)?.country),
   name:id,opensAt:worldInternationalOpeningMonth(p,WORLD_INTERNATIONAL_ROUTE_EVIDENCE[id]),
   untilMonth:WORLD_INTERNATIONAL_ROUTE_EVIDENCE[id]?.untilMonth,
   distanceKm:p.distanceKm,capacityKg:p.capacityKg,
@@ -9710,7 +9711,8 @@ function worldMapCityDetail(s,city){
  const state=worldCityLocation(s,city.id),market=WORLD_MARKET_BY_ID.get(state.marketId),
   jurisdiction=state.jurisdictionId?WORLD_JURISDICTIONS.get(state.jurisdictionId):null,
   money=state.historicalMoney;
- const sites=worldMapCityBuildSites(s,city.id),firm=company(VIEW_FIRM,s)??company(s.playerId,s);
+ const facility=worldMapCityFacilityStatus(s,city.id),sites=facility.sites,
+  firm=company(VIEW_FIRM,s)??company(s.playerId,s);
  const controlled=controlSet(s);
  const build=isActiveCorporateFirm(firm)&&controlled.has(firm.id)&&['auto','manufacturing'].includes(firm.industry)
   ?sites.map(site=>'<button type="button" class="btn sm" data-world-map-build="'+esc(site.id)
@@ -9728,6 +9730,9 @@ function worldMapCityDetail(s,city){
   +' / 法域 '+esc(jurisdiction?.name??'未登録')+' ['+esc(state.jurisdictionId??'なし')+']</p>'
   +'<p class="hint">経済エンジン '+esc(state.marketOpen?'開放済み':'未開放・未接続')
   +' / 領域内の実経済接続 '+esc(state.economicEngineConnected?'あり':'なし')+'</p>'
+  +'<p data-world-map-city-facility-status="'+facility.status+'" class="hint">施設接続: '
+  +esc(WORLD_MAP_CITY_FACILITY_LABELS[facility.status])+' / 登録立地 '+facility.registered
+  +'件 / 開放済み立地 '+sites.length+'件。建設は別途資金・法人権限・設備条件に従います。</p>'
   +'<p class="hint">年代別の史実通貨参照: '+esc(money?.currencyId??'未確認')
   +(money?' ('+esc(money.kind)+')':'')
   +'。参照通貨は企業の帳簿や既存契約の会計通貨を変更しません。'
@@ -9740,19 +9745,45 @@ function worldMapCityDetail(s,city){
   +(build?'<div class="row">'+build+'</div>':'')
   +'</section>';
 }
+function worldMapCityFacilityStatus(s,cityId){
+ const location=worldCityLocation(s,cityId);
+ const code=WORLD_ENGINE_BY_TERRITORY.get(location.territoryId);
+ const registered=SITE_CATALOG.filter(site=>WORLD_SITE_CITIES[site.id]===cityId);
+ const matching=registered.filter(site=>site.country===code);
+ const sites=location.marketOpen?matching.filter(site=>
+  Object.hasOwn(s.world,site.country)&&siteVisibleInGame(site,s)):[];
+ const status=!location.economicEngineConnected?'ENGINE_UNCONNECTED':
+  !location.marketOpen?'MARKET_CLOSED':
+  !registered.length?'SITE_UNREGISTERED':
+  !matching.length?'TERRITORY_MISMATCH':
+  !sites.length?'SITE_NOT_OPEN':'CONNECTED';
+ return {cityId,status,sites,registered:registered.length};
+}
+const WORLD_MAP_CITY_FACILITY_LABELS=Object.freeze({
+ ENGINE_UNCONNECTED:'経済エンジン未接続',MARKET_CLOSED:'市場・年代未開放',
+ SITE_UNREGISTERED:'施設立地未登録',TERRITORY_MISMATCH:'法域と施設所在地の不一致',
+ SITE_NOT_OPEN:'施設立地の年代待ち',CONNECTED:'建設立地接続済み'
+});
+function worldMapCityFacilityCoverage(s){
+ const rows=[...WORLD_CITIES.keys()].map(id=>worldMapCityFacilityStatus(s,id));
+ const counts=Object.fromEntries(Object.keys(WORLD_MAP_CITY_FACILITY_LABELS)
+  .map(key=>[key,rows.filter(row=>row.status===key).length]));
+ return {rows,counts};
+}
 function worldMapCityBuildSites(s,cityId){
- if(!cityId||!worldCityLocation(s,cityId).marketOpen)return [];
- return SITE_CATALOG.filter(site=>WORLD_SITE_CITIES[site.id]===cityId
-  &&Object.hasOwn(s.world,site.country)&&siteVisibleInGame(site,s));
+ return cityId?worldMapCityFacilityStatus(s,cityId).sites:[];
 }
 function worldMapRouteStatus(route,month){
  if(!route.documented)return '未接続・運航史料未登録';
  if(route.untilMonth!=null&&month>=route.untilMonth)return '登録運行期間終了';
+ if(route.kind==='international'&&route.importTariffRegistered===false)return '輸入関税未接続';
  if(!route.available)return '年代・航路条件待ち';
  return route.installed?'開通・設備登録あり':'開通・設備未登録';
 }
 function worldMapTransportPanel(s){
- const network=worldMapNetwork(s),options=[['all','すべて'],['sea','海運'],['rail','鉄道'],
+ const network=worldMapNetwork(s),facilityCoverage=worldMapCityFacilityCoverage(s),
+  facilityByCity=new Map(facilityCoverage.rows.map(row=>[row.cityId,row])),
+  options=[['all','すべて'],['sea','海運'],['rail','鉄道'],
   ['road','道路'],['air','航空'],['rail+sea','鉄道＋海運'],['road+rail-shuttle','道路＋鉄道']];
  const activity=[['all','全路線'],['registered','設備登録あり'],['transit','輸送中あり']];
  const selectedCode=worldSelectedCode();
@@ -9789,8 +9820,11 @@ function worldMapTransportPanel(s){
   +'</div><div class="row"><label>都市・法域を照合 <select data-world-map-city-select aria-label="都市と法域の照合">'
   +'<option value="">都市を選択（155地点）</option>'
   +network.cities.map(c=>'<option value="'+esc(c.id)+'"'+(c.id===WORLD_MAP_SELECTED_CITY_ID?' selected':'')+'>'
-   +esc(c.name)+' / '+esc(c.id)+'</option>').join('')
-  +'</select></label></div><div class="phase5-map-frame">'+worldMapSvg(network.cities,filtered,freightSites)+'</div>'
+   +esc(c.name)+' / '+esc(c.id)+' / '+esc(WORLD_MAP_CITY_FACILITY_LABELS[facilityByCity.get(c.id).status])+'</option>').join('')
+  +'</select></label></div><div data-world-map-facility-coverage class="row" aria-label="都市別施設接続状況">'
+  +Object.entries(facilityCoverage.counts).map(([key,count])=>'<span data-world-map-facility-count="'+key+'">'
+   +esc(WORLD_MAP_CITY_FACILITY_LABELS[key])+' '+count+'都市</span>').join('')
+  +'</div><div class="phase5-map-frame">'+worldMapSvg(network.cities,filtered,freightSites)+'</div>'
   +'<p class="hint">水色は海運、黄は鉄道、赤は道路、紫は航空、緑は複合輸送。'
   +'実線は年代・航路条件成立、点線は条件待ちまたは未接続。太線は登録設備、強調線は選択経路です。'
   +'金色の輪は選択経路で積替えや通関を待つ貨物の記録拠点です。'
@@ -14996,7 +15030,10 @@ function worldInternationalRouteAvailable(s,id){
  if(!p||!evidence||month<worldInternationalOpeningMonth(p,evidence)
   ||(evidence.untilMonth!=null&&month>=evidence.untilMonth)
   ||(evidence.sailingMonths&&!evidence.sailingMonths.includes(s.month)))return false;
- return !!s.world?.[findSite(p.from)?.country]&&!!s.world?.[findSite(p.to)?.country];
+ // Do not allow a new route, warehouse or dispatch to reach the monthly
+ // close with a missing destination tariff dictionary entry.
+ return !!s.world?.[findSite(p.from)?.country]
+  &&worldInternationalImportTariffAvailable(s,findSite(p.to)?.country);
 }
 function worldInternationalTransferWarehouse(s,firm,profile,warehouseId=null){
  if(!profile.transfer||!firm)return null;
@@ -15256,8 +15293,11 @@ function worldInternationalCustomsRule(s,profileId,productId,importMonth,dispatc
  if(rule.centsPerHundredweight!=null&&!(dispatchSequence>=s.worldExpansion.weightDutyFromSeq))return null;
  return rule;
 }
+function worldInternationalImportTariffAvailable(s,country){
+ return !!s.world?.[country]&&Object.hasOwn(WORLD_PHASE4_TARIFF_BPS,country);
+}
 function worldInternationalTariffBps(s,country,rule){
- if(!s.world?.[country]||!Object.hasOwn(WORLD_PHASE4_TARIFF_BPS,country))
+ if(!worldInternationalImportTariffAvailable(s,country))
   throw Error('輸入国の関税制度が未接続です');
  return rule?rule.tariffBps:WORLD_PHASE4_TARIFF_BPS[country];
 }
@@ -15291,7 +15331,9 @@ function worldInternationalFuelRequired(profile,quantity){
 function worldInternationalQuote(s,route,productId,quantity,unitPriceSeller,buyerId,paymentDays=0,cargoLitres=0){
  const seller=company(route.ownerCompanyId,s),buyer=company(buyerId,s),
   profile=worldInternationalProfile(route.profileId),
-  cargo=seller.stock?.[productId],fuel=seller.stock?.[profile.fuel];
+  cargo=seller?.stock?.[productId],fuel=seller?.stock?.[profile.fuel];
+ if(!seller||!buyer||!worldInternationalImportTariffAvailable(s,buyer.country))
+  return {problem:'輸入国の関税制度が未接続です'};
  const load=worldInternationalLoad(profile,quantity,cargoLitres);
  const fuelRequired=worldInternationalFuelRequired(profile,load.loadKg);
  if(!worldInternationalValidVolume(cargoLitres)||!cargo||cargo.q<quantity||!cargo.v||!fuel||fuel.q<fuelRequired||!fuel.v
