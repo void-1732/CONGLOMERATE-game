@@ -199,7 +199,10 @@ def test_steamship_export(page, market_data):
       for(const firm of [buyer,seller]){
         firm.auto=false;firm.research.tree.done=[...new Set([...firm.research.tree.done,'production-1'])];
       }
-      for(const [firm,id,value] of [[seller,'PRD-E18',2400],[buyer,'PRD-E20',700],[buyer,'PRD-E21',900]]){
+      const tractionAssets=worldInternationalProfile(profile).mode==='rail'
+        ?[[seller,'PRD-E16',2400],[seller,'PRD-E17',2500]]
+        :[[seller,'PRD-E18',2400]];
+      for(const [firm,id,value] of [...tractionAssets,[buyer,'PRD-E20',700],[buyer,'PRD-E21',900]]){
         post(firm,{materials:value},{cash:value},'検証用の有償現物設備','operating',S);
         firm.stock[id]={q:1,v:value};
       }
@@ -213,7 +216,8 @@ def test_steamship_export(page, market_data):
       worldInternationalActOrder(S,seller.id,order.id,'approve');
       S.month=departure;worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
       const [cargo]=S.worldExpansion.internationalShipments;
-      const shipped=purchase.quantity===14&&cargo?.status==='IN_TRANSIT'&&cargo.loadKg===15
+      const shipped=purchase.quantity===14&&cargo?.status==='IN_TRANSIT'
+        &&cargo.loadKg===worldInternationalLoad(worldInternationalProfile(profile),14,30).loadKg
         &&cargo.prepaidSeller!==cargo.prepaidBuyer&&acc(seller,'worldShipmentStock')===cargo.bookCost;
       S.month=payMonth;worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
       const prepaid=cargo.status==='IN_TRANSIT'&&cargo.credit.paidAt===ym(year,payMonth)
@@ -897,9 +901,37 @@ def main():
             "buyerCountry": "FR", "destination": "FR-MAR", "product": "PRD-R22",
             "departure": 5, "payMonth": 6,
         })
+        test_steamship_export(page, {
+            "profile": "CH-DE-BASEL-TEXTILES", "country": "CH", "site": "CH-BAS",
+            "city": "CITY-09-04", "currency": "CHF", "year": 1906,
+            "offer": "CH-BAS-TEXTILES", "authority": None,
+            "buyerCountry": "DE", "destination": "DE-FRE", "product": "PRD-M36",
+            "departure": 4, "payMonth": 5,
+        })
+        test_steamship_export(page, {
+            "profile": "AT-DE-VIENNA-TIMBER", "country": "AT", "site": "AT-VIE",
+            "city": "CITY-12-01", "currency": "AHK", "year": 1905,
+            "offer": "AT-VIE-TIMBER", "authority": None,
+            "buyerCountry": "DE", "destination": "DE-MUN", "product": "PRD-R19",
+            "departure": 4, "payMonth": 5,
+        })
+        test_steamship_export(page, {
+            "profile": "GR-FR-PIRAEUS-OLIVE", "country": "GR", "site": "GR-PIR",
+            "city": "CITY-13-02", "currency": "GRD", "year": 1907,
+            "offer": "GR-PIR-OLIVE-OIL", "authority": None,
+            "buyerCountry": "FR", "destination": "FR-MAR", "product": "PRD-M39",
+            "departure": 5, "payMonth": 6,
+        })
+        test_dated_colonial_export(page, {
+            "profile": "PL-UK-GDYNIA-COAL", "country": "PL", "site": "PL-GDY",
+            "city": "CITY-07-01", "currency": "PLN", "year": 1928,
+            "opensYear": 1924, "opensMonth": 5, "offer": "PL-GDY-COAL",
+            "buyerCountry": "UK", "destination": "UK-HULL", "product": "PRD-R04",
+            "departure": 5, "payMonth": 6,
+        })
         assert not errors, errors
         browser.close()
-    print("PASS Phase 4 Canada, Australia, New Zealand, Mexico, Brazil, Argentina, Chile, Colombia, Sweden, Netherlands, Italy, Egypt, India, South Africa, Siam, Straits Singapore, Qing China, Netherlands East Indies and Colonial Nigeria, Spain, Philippines, Russian Empire, Colonial Korea, Ottoman Empire, British Malaya, Kenya and Morocco: sourced cargo, loading, shipment and settlement")
+    print("PASS Phase 4 Canada, Australia, New Zealand, Mexico, Brazil, Argentina, Chile, Colombia, Sweden, Netherlands, Italy, Egypt, India, South Africa, Siam, Straits Singapore, Qing China, Netherlands East Indies and Colonial Nigeria, Spain, Philippines, Russian Empire, Colonial Korea, Ottoman Empire, British Malaya, Kenya, Morocco, Switzerland, Austria, Poland and Greece: sourced cargo, loading, shipment and settlement")
 
 
 if __name__ == "__main__":
