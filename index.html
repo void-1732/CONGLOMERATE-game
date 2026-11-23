@@ -13246,7 +13246,71 @@ const WORLD_INTERNATIONAL_CORRIDORS=Object.freeze({
  'UK-FR-CHANNEL-1994':Object.freeze({from:'UK-LON',to:'FR-PAR',opensAt:ym(1994,7),
   distanceKm:470,mode:'road+rail-shuttle',capacityKg:10,warehouseCapacityKg:8,
   transitMonths:1,fuel:'PRD-M16',truck:'PRD-E15',
-  source:'https://www.getlinkgroup.com/en/our-group/history/',status:'PROVISIONAL'})
+  source:'https://www.getlinkgroup.com/en/our-group/history/',status:'PROVISIONAL'}),
+ 'UK-US-SEA-1900':Object.freeze({from:'UK-LIV',to:'US-NEWORLEANS',opensAt:ym(1900,1),
+  distanceKm:6500,mode:'sea',capacityKg:40,warehouseCapacityKg:35,
+  transitMonths:2,fuel:'PRD-M17',truck:'PRD-E18',vehicles:['PRD-E18'],
+  terminals:['PRD-E20','PRD-E21'],fuelScale:18000,source:'PROVISIONAL-MULTIMODAL-CORRIDOR',status:'PROVISIONAL'}),
+ 'US-UK-SEA-1900':Object.freeze({from:'US-NEWORLEANS',to:'UK-LIV',opensAt:ym(1900,1),
+  distanceKm:6500,mode:'sea',capacityKg:40,warehouseCapacityKg:35,
+  transitMonths:2,fuel:'PRD-M17',truck:'PRD-E18',vehicles:['PRD-E18'],
+  terminals:['PRD-E20','PRD-E21'],fuelScale:18000,source:'PROVISIONAL-MULTIMODAL-CORRIDOR',status:'PROVISIONAL'}),
+ 'JP-US-SEA-1900':Object.freeze({from:'JP-YOK',to:'US-LAX',opensAt:ym(1900,1),
+  distanceKm:9000,mode:'sea',capacityKg:35,warehouseCapacityKg:30,
+  transitMonths:3,fuel:'PRD-M17',truck:'PRD-E18',vehicles:['PRD-E18'],
+  terminals:['PRD-E20','PRD-E21'],fuelScale:18000,source:'PROVISIONAL-MULTIMODAL-CORRIDOR',status:'PROVISIONAL'}),
+ 'US-JP-SEA-1900':Object.freeze({from:'US-LAX',to:'JP-YOK',opensAt:ym(1900,1),
+  distanceKm:9000,mode:'sea',capacityKg:35,warehouseCapacityKg:30,
+  transitMonths:3,fuel:'PRD-M17',truck:'PRD-E18',vehicles:['PRD-E18'],
+  terminals:['PRD-E20','PRD-E21'],fuelScale:18000,source:'PROVISIONAL-MULTIMODAL-CORRIDOR',status:'PROVISIONAL'}),
+ 'FR-UK-SEA-1900':Object.freeze({from:'FR-MAR',to:'UK-LIV',opensAt:ym(1900,1),
+  distanceKm:3000,mode:'sea',capacityKg:30,warehouseCapacityKg:25,
+  transitMonths:2,fuel:'PRD-M17',truck:'PRD-E18',vehicles:['PRD-E18'],
+  terminals:['PRD-E20','PRD-E21'],fuelScale:18000,source:'PROVISIONAL-MULTIMODAL-CORRIDOR',status:'PROVISIONAL'}),
+ 'UK-FR-SEA-1900':Object.freeze({from:'UK-LIV',to:'FR-MAR',opensAt:ym(1900,1),
+  distanceKm:3000,mode:'sea',capacityKg:30,warehouseCapacityKg:25,
+  transitMonths:2,fuel:'PRD-M17',truck:'PRD-E18',vehicles:['PRD-E18'],
+  terminals:['PRD-E20','PRD-E21'],fuelScale:18000,source:'PROVISIONAL-MULTIMODAL-CORRIDOR',status:'PROVISIONAL'}),
+ 'DE-UK-SEA-1900':Object.freeze({from:'DE-HAM',to:'UK-LIV',opensAt:ym(1900,1),
+  distanceKm:1200,mode:'sea',capacityKg:25,warehouseCapacityKg:20,
+  transitMonths:1,fuel:'PRD-M17',truck:'PRD-E18',vehicles:['PRD-E18'],
+  terminals:['PRD-E20','PRD-E21'],fuelScale:18000,source:'PROVISIONAL-MULTIMODAL-CORRIDOR',status:'PROVISIONAL'}),
+ 'UK-DE-SEA-1900':Object.freeze({from:'UK-LIV',to:'DE-HAM',opensAt:ym(1900,1),
+  distanceKm:1200,mode:'sea',capacityKg:25,warehouseCapacityKg:20,
+  transitMonths:1,fuel:'PRD-M17',truck:'PRD-E18',vehicles:['PRD-E18'],
+  terminals:['PRD-E20','PRD-E21'],fuelScale:18000,source:'PROVISIONAL-MULTIMODAL-CORRIDOR',status:'PROVISIONAL'}),
+ 'NO-UK-SEA-1905':Object.freeze({from:'NO-BGO',to:'UK-LIV',opensAt:ym(1905,1),
+  distanceKm:1050,mode:'sea',capacityKg:20,warehouseCapacityKg:18,
+  transitMonths:1,fuel:'PRD-M17',truck:'PRD-E18',vehicles:['PRD-E18'],
+  terminals:['PRD-E20','PRD-E21'],fuelScale:18000,source:'PROVISIONAL-MULTIMODAL-CORRIDOR',status:'PROVISIONAL'}),
+ 'UK-NO-SEA-1905':Object.freeze({from:'UK-LIV',to:'NO-BGO',opensAt:ym(1905,1),
+  distanceKm:1050,mode:'sea',capacityKg:20,warehouseCapacityKg:18,
+  transitMonths:1,fuel:'PRD-M17',truck:'PRD-E18',vehicles:['PRD-E18'],
+  terminals:['PRD-E20','PRD-E21'],fuelScale:18000,source:'PROVISIONAL-MULTIMODAL-CORRIDOR',status:'PROVISIONAL'}),
+ 'FR-DE-RAIL-1900':Object.freeze({from:'FR-PAR',to:'DE-BER',opensAt:ym(1900,1),
+  distanceKm:1150,mode:'rail',capacityKg:20,warehouseCapacityKg:18,
+  transitMonths:1,fuel:'PRD-R04',truck:'PRD-E16',vehicles:['PRD-E16','PRD-E17'],
+  terminals:['PRD-E20'],fuelScale:1800,source:'PROVISIONAL-MULTIMODAL-CORRIDOR',status:'PROVISIONAL'}),
+ 'DE-FR-RAIL-1900':Object.freeze({from:'DE-BER',to:'FR-PAR',opensAt:ym(1900,1),
+  distanceKm:1150,mode:'rail',capacityKg:20,warehouseCapacityKg:18,
+  transitMonths:1,fuel:'PRD-R04',truck:'PRD-E16',vehicles:['PRD-E16','PRD-E17'],
+  terminals:['PRD-E20'],fuelScale:1800,source:'PROVISIONAL-MULTIMODAL-CORRIDOR',status:'PROVISIONAL'}),
+ 'UK-FR-AIR-1950':Object.freeze({from:'UK-LON',to:'FR-PAR',opensAt:ym(1950,1),
+  distanceKm:350,mode:'air',capacityKg:8,warehouseCapacityKg:8,
+  transitMonths:1,fuel:'PRD-M18',truck:'PRD-E19',vehicles:['PRD-E19'],
+  terminals:['PRD-E20'],fuelScale:12000,source:'PROVISIONAL-MULTIMODAL-CORRIDOR',status:'PROVISIONAL'}),
+ 'FR-UK-AIR-1950':Object.freeze({from:'FR-PAR',to:'UK-LON',opensAt:ym(1950,1),
+  distanceKm:350,mode:'air',capacityKg:8,warehouseCapacityKg:8,
+  transitMonths:1,fuel:'PRD-M18',truck:'PRD-E19',vehicles:['PRD-E19'],
+  terminals:['PRD-E20'],fuelScale:12000,source:'PROVISIONAL-MULTIMODAL-CORRIDOR',status:'PROVISIONAL'}),
+ 'JP-US-AIR-1965':Object.freeze({from:'JP-TOK',to:'US-LAX',opensAt:ym(1965,1),
+  distanceKm:8750,mode:'air',capacityKg:12,warehouseCapacityKg:10,
+  transitMonths:1,fuel:'PRD-M18',truck:'PRD-E19',vehicles:['PRD-E19'],
+  terminals:['PRD-E20'],fuelScale:12000,source:'PROVISIONAL-MULTIMODAL-CORRIDOR',status:'PROVISIONAL'}),
+ 'US-JP-AIR-1965':Object.freeze({from:'US-LAX',to:'JP-TOK',opensAt:ym(1965,1),
+  distanceKm:8750,mode:'air',capacityKg:12,warehouseCapacityKg:10,
+  transitMonths:1,fuel:'PRD-M18',truck:'PRD-E19',vehicles:['PRD-E19'],
+  terminals:['PRD-E20'],fuelScale:12000,source:'PROVISIONAL-MULTIMODAL-CORRIDOR',status:'PROVISIONAL'})
 });
 function worldInternationalProfile(id){
  const profile=WORLD_INTERNATIONAL_CORRIDORS[id];
@@ -13262,7 +13326,7 @@ function worldInternationalRegisterRoute(s,firmId,profileId){
   ||!firm.research?.tree?.done?.includes('production-1')
   ||Object.values(w.internationalRoutes??{}).some(r=>r.ownerCompanyId===firmId&&r.profileId===profileId&&r.retiredAt==null))
   throw Error('国際物流には史実開通済みの拠点・法人・研究・輸送機材が必要です');
- const asset=worldCapitalizeDomesticEquipment(s,firm,[profile.truck],'国際道路・海峡輸送用トラックを取得');
+ const asset=worldCapitalizeDomesticEquipment(s,firm,profile.vehicles??[profile.truck],'国際輸送方式別の現物車両・船舶・航空機を取得');
  const route={...asset,id:'IR-'+s.seq++,ownerCompanyId:firmId,plantId:plant.id,profileId,
   fromSiteId:profile.from,toSiteId:profile.to,distanceKm:profile.distanceKm,
   capacityKg:profile.capacityKg};
@@ -13278,7 +13342,7 @@ function worldInternationalInstallWarehouse(s,firmId,plantId,profileId){
   ||!firm.research?.tree?.done?.includes('production-1')
   ||Object.values(w.internationalWarehouses??{}).some(h=>h.ownerCompanyId===firmId&&h.plantId===plantId&&h.retiredAt==null))
   throw Error('外国貨物の実物受入拠点・設備・研究または年代が不正');
- const asset=worldCapitalizeDomesticEquipment(s,firm,['PRD-E20'],'国際貨物受入倉庫を取得');
+ const asset=worldCapitalizeDomesticEquipment(s,firm,profile.terminals??['PRD-E20'],'国際受入倉庫・港湾設備を取得');
  const h={...asset,id:'IW-'+s.seq++,ownerCompanyId:firmId,plantId,profileId};
  (w.internationalWarehouses??={})[h.id]=h;
  return h;
@@ -13324,7 +13388,7 @@ function worldInternationalQuote(s,route,productId,quantity,unitPriceSeller,buye
  const seller=company(route.ownerCompanyId,s),buyer=company(buyerId,s),
   profile=worldInternationalProfile(route.profileId),
   cargo=seller.stock?.[productId],fuel=seller.stock?.[profile.fuel];
- const fuelRequired=Math.ceil(profile.distanceKm*quantity/600);
+ const fuelRequired=Math.ceil(profile.distanceKm*quantity/(profile.fuelScale??600));
  if(!cargo||cargo.q<quantity||!cargo.v||!fuel||fuel.q<fuelRequired||!fuel.v
   ||!Number.isSafeInteger(quantity)||quantity<1)
   return {problem:'国際貨物または実使用燃料が不足'};
@@ -13366,8 +13430,8 @@ function worldInternationalResolveOrders(s,events=[]){
    .reduce((n,t)=>n+t.quantity,0);
   const reserved=(w.internationalShipments??[]).filter(t=>t.warehouseId===h.id&&t.status==='IN_TRANSIT')
    .reduce((n,t)=>n+t.quantity,0);
-  const limit=Math.min(o.quantity,10,profile.capacityKg-occupied,
-   profile.warehouseCapacityKg-reserved,seller.stock?.[o.productId]?.q??0);
+  const limit=Math.min(o.quantity,Math.floor(route.capacityKg*(route.condition??100)/100)-occupied,
+   Math.floor(profile.warehouseCapacityKg*(h.condition??100)/100)-reserved,seller.stock?.[o.productId]?.q??0);
   for(let q=limit;q>=1;q--){
    const quote=worldInternationalQuote(s,route,o.productId,q,o.unitPriceSeller,buyer.id);
    if(quote.problem||quote.prepaidBuyer>o.maxPaymentBuyer||quote.goodsSeller<quote.bookCost)continue;
@@ -13518,7 +13582,7 @@ function worldValidateInternationalLogistics(s){
    ||r.plantId!==t.sellerPlantId||h.plantId!==t.buyerPlantId
    ||!['FILLED','PARTIAL'].includes(order.status)
    ||!['IN_TRANSIT','DELIVERED','REFUNDED'].includes(t.status)
-   ||!Number.isSafeInteger(t.quantity)||t.quantity<1||t.quantity>10
+   ||!Number.isSafeInteger(t.quantity)||t.quantity<1||t.quantity>WORLD_INTERNATIONAL_CORRIDORS[r.profileId].capacityKg
    ||t.unitPriceSeller!==order.unitPriceSeller
    ||t.goodsSeller!==t.quantity*t.unitPriceSeller
    ||!Number.isSafeInteger(t.bookCost)||t.bookCost<1
@@ -13603,8 +13667,8 @@ function worldInternationalTradePanel(firm,editable){
   if(refunds.length)forms.push(make('refund',refunds,'<select name="shipment">'
    +refunds.map(t=>'<option value="'+t.id+'">'+t.id+'</option>').join('')+'</select>'));
  }
- return '<details id="world-international" class="panel"><summary>Phase 4 国際B2B物流・外貨決済（英仏試作）</summary>'
-  +'<p>1994年開業の海峡輸送を利用する現物物流です。実機材・実燃料、売手/買手の現地通貨、到着検収後の売上を記録します。距離・容量・運賃係数は暫定値です。</p>'
+ return '<details id="world-international" class="panel"><summary>Phase 4 国際B2B物流・外貨決済（道路・鉄道・海運・航空）</summary>'
+  +'<p>開放市場の実物流：船舶・航空機・機関車・貨車・倉庫・港湾設備・実燃料。距離・容量・航路年月・運賃はPROVISIONALです。到着検収後売上を記帳します。</p>'
   +'<table><thead><tr><th>注文</th><th>貨物</th><th>申込/受注</th><th>状態</th></tr></thead><tbody>'
   +(orderRows||'<tr><td colspan="4">国際注文なし</td></tr>')+'</tbody></table>'
   +'<table><thead><tr><th>輸送</th><th>状態</th><th>数量</th><th>買手前払(銭)</th><th>売手前受(銭)</th></tr></thead><tbody>'
