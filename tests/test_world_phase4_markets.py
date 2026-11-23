@@ -29,8 +29,7 @@ def test_all_market_coverage(page):
       const integrity=sourced.every(([id,p])=>p.from!==p.to
         &&findSite(p.from)?.country!==findSite(p.to)?.country
         &&p.capacityKg>0&&p.transitMonths>0&&p.opensAt>=WORLD_START_MONTH
-        &&((WORLD_INTERNATIONAL_ROUTE_EVIDENCE[id].products?.length??0)>0
-          ||WORLD_INTERNATIONAL_ROUTE_EVIDENCE[id].operationSource?.startsWith('https://')));
+        &&WORLD_INTERNATIONAL_ROUTE_EVIDENCE[id].source?.startsWith('https://'));
       return {markets,integrity,allForty:countries.size===40&&connected.size===40
         &&WORLD_MARKETS.length===40&&WORLD_CITIES.size===155&&!missing.length,
         missing};
