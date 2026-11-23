@@ -1475,15 +1475,21 @@ const INDUSTRIAL_SITES={
  FR:[['FR-PAR','パリ圏',1.43,1.22,1.19,1.16,1.13],['FR-LYO','リヨン工業地域',.96,1.01,1.18,1.15,1.08],['FR-MAR','マルセイユ',.97,.99,1.02,1.05,.77],['FR-LIMOUSIN','リムーザン・ベシーヌ',1,1,1,1,1]],
  NO:[['NO-OSL','オスロ',1,1,1,1,1],['NO-BGO','ベルゲン',1,1,1,1,1],['NO-TRD','トロンハイム',1,1,1,1,1]]
 };
-const SITE_CATALOG=Object.entries(INDUSTRIAL_SITES).flatMap(([country,rows])=>rows.map(([id,name,land,wage,infra,labor,freight])=>({id,country,name,land,wage,infra,labor,freight})));
+const SITE_CATALOG=[
+ ...Object.entries(INDUSTRIAL_SITES).flatMap(([country,rows])=>rows.map(([id,name,land,wage,infra,labor,freight])=>(
+  {id,country,name,land,wage,infra,labor,freight}))),
+ ...[['US-SEA','US','シアトル港'],['UK-NORTHSHIELDS','UK','ノースシールズ港']].map(([id,country,name])=>(
+  {id,country,name,land:1,wage:1,infra:1,labor:1,freight:1,worldOnly:true}))
+];
 const findSite=id=>SITE_CATALOG.find(x=>x.id===id);
+const siteVisibleInGame=(site,s)=>!site.worldOnly||!!s?.worldExpansion;
 const homeSite=country=>SITE_CATALOG.find(x=>x.country===country)||SITE_CATALOG[0];
 function ensurePlantLocation(f,p){const site=findSite(p.siteId)||homeSite(f.country);p.siteId=site.id;p.siteCountry=site.country;return site;}
 function siteEfficiency(f,p){const a=ensurePlantLocation(f,p);return clamp(.65+a.infra*.22+a.labor*.13,.75,1.23);}
-function siteInvestmentQuote(siteId,scale,kind,s=S){const site=findSite(siteId);if(!site||!FACTORY_SCALES[scale]||!FACTORY_KINDS[kind])return null;const factory=FACTORY_SCALES[scale];const base=factory.price*(kind==='integrated'?1.25:kind==='assembly'?1:.8);return Math.round(base*(.40+.60*site.land)*eraCostFactor(s?.year||1900));}
+function siteInvestmentQuote(siteId,scale,kind,s=S){const site=findSite(siteId);if(!site||!siteVisibleInGame(site,s)||!FACTORY_SCALES[scale]||!FACTORY_KINDS[kind])return null;const factory=FACTORY_SCALES[scale];const base=factory.price*(kind==='integrated'?1.25:kind==='assembly'?1:.8);return Math.round(base*(.40+.60*site.land)*eraCostFactor(s?.year||1900));}
 function sitePayrollFactor(f,s){const sites=activeFactories(f);if(!sites.length)return 1;let sum=0,capacity=0;for(const p of sites){const site=ensurePlantLocation(f,p),w=s.world[site.country]?.wage||s.world[f.country].wage;sum+=p.capacity*site.wage*w/Math.max(1,s.world[f.country].wage);capacity+=p.capacity;}return clamp(sum/Math.max(1,capacity),.6,1.8);}
 function siteLogisticsExpenseBase(f){let amount=0;for(const p of activeFactories(f)){const site=ensurePlantLocation(f,p);const transfer=site.country===f.country?25:180;amount+=Math.round((p.lastProduced||0)*(transfer*site.freight));}return amount;}
-function factorySiteChoice(country){return SITE_CATALOG.filter(x=>S?.world?.[x.country]).map(x=>`<option value="${x.id}" ${x.id===homeSite(country).id?'selected':''}>${NAMES[x.country]}：${esc(x.name)} ／土地${nfmt(x.land*100)}%・技能/インフラ${nfmt(x.infra*100)}%</option>`).join('')}
+function factorySiteChoice(country){return SITE_CATALOG.filter(x=>S?.world?.[x.country]&&siteVisibleInGame(x,S)).map(x=>`<option value="${x.id}" ${x.id===homeSite(country).id?'selected':''}>${NAMES[x.country]}：${esc(x.name)} ／土地${nfmt(x.land*100)}%・技能/インフラ${nfmt(x.infra*100)}%</option>`).join('')}
 function factorySitePreview(){const box=document.getElementById('factorySitePreview');if(!box)return;const site=findSite(inputValue('factorySite')),cost=siteInvestmentQuote(site?.id,inputValue('factoryScale'),inputValue('factoryKind'));if(!site||cost===null){box.textContent='地域の選択を確認してください';return;}box.textContent=`建設見積 ${nfmt(cost)}円相当 ／ 賃金係数 ${nfmt(site.wage*100)}%・インフラ ${nfmt(site.infra*100)}%・労働力 ${nfmt(site.labor*100)}%・輸送 ${nfmt(site.freight*100)}%。法人所在国と異なる場合は海外工場として表示します。`;}
 const V10_COMPETITOR_SEEDS=[
  {name:'東洋精密工業',c:'JP',industry:'manufacturing',size:.78,strategy:'quality'},
@@ -9204,7 +9210,7 @@ function worldMapPage(){
 }
 
 function worldPopulationPage(){
- const c=worldSelectedCode(),w=S.world[c],sites=SITE_CATALOG.filter(x=>x.country===c),total=Object.values(S.world).reduce((a,x)=>a+x.pop,0);
+ const c=worldSelectedCode(),w=S.world[c],sites=SITE_CATALOG.filter(x=>x.country===c&&siteVisibleInGame(x,S)),total=Object.values(S.world).reduce((a,x)=>a+x.pop,0);
  const rows=Object.entries(S.world).map(([code,v])=>`<tr><td><b>${esc(NAMES[code]||code)}</b></td><td class="num">${nfmt(v.pop)}</td><td class="num">${nfmt(v.wealth)}</td><td class="num">${nfmt(v.unemployment*100)}%</td><td class="num">${nfmt(v.demand)}</td><td><button class="btn sm" data-world-region="${code}">選択</button></td></tr>`).join('');
  return titlePage('人口・都市','国別の人口・所得・労働市場と、既存の工業地域・都市候補を確認します。',tag('対象国の人口は既存の内部データ'))+worldRegionSelector()+`<div class="grid">${card('対象国',Object.keys(S.world).length+'か国','ゲーム内の地域','span3')}${card('対象国の人口計',nfmt(total)+'百万人','対象国のみの合計','span3')}${card('選択国の人口',nfmt(w.pop)+'百万人',NAMES[c],'span3')}${card('工業地域候補',sites.length+'地域','選択国の登録地域','span3')}
  <section class="panel span12"><h2>国別人口・経済条件</h2><div class="scroll"><table><thead><tr><th>国</th><th class="num">人口（百万人）</th><th class="num">相対所得</th><th class="num">失業率</th><th class="num">推計自動車需要/月</th><th>国の選択</th></tr></thead><tbody>${rows}</tbody></table></div><p class="hint">創業時の人口基準値は史実人口推計の参考値ですが、プレイ中の人口・所得・需要は試作モデルで推移します。対象国以外を含む世界総人口ではありません。</p></section>
@@ -9221,7 +9227,7 @@ function worldPolicyPage(){
 
 function worldInfrastructurePage(){
  const code=worldSelectedCode(),f=current();
- ensureFirmGameplay(f);const sites=SITE_CATALOG.filter(x=>x.country===code),plants=(f.plants||[]).map(p=>({p,site:ensurePlantLocation(f,p)})),local=plants.filter(x=>x.site.country===code);
+ ensureFirmGameplay(f);const sites=SITE_CATALOG.filter(x=>x.country===code&&siteVisibleInGame(x,S)),plants=(f.plants||[]).map(p=>({p,site:ensurePlantLocation(f,p)})),local=plants.filter(x=>x.site.country===code);
  const siteRows=sites.map(x=>`<tr><td>${esc(x.name)}</td><td class="num">${nfmt(x.infra*100)}%</td><td class="num">${nfmt(x.labor*100)}%</td><td class="num">${nfmt(x.land*100)}%</td><td class="num">${nfmt(x.freight*100)}%</td></tr>`).join('');
  return titlePage('インフラ・工業立地','既存工業地域の立地係数、物流コスト係数と保有工場の所在地を確認します。',tag('交通網建設・地図連動は未実装','warn'))+worldRegionSelector()+`<div class="grid">${card('選択国',esc(NAMES[code]),'比較対象の地域','span3')}${card('工業地域',sites.length+'地点','既存の立地候補','span3')}${card('選択国の保有工場',local.length+'拠点','表示法人の工場','span3')}${card('全保有工場',plants.length+'拠点','表示法人に属する拠点','span3')}
  <section class="panel span12"><h2>${esc(NAMES[code])}の立地・輸送係数</h2><p class="hint">ゲームの工場立地・生産効率・運賃算定に利用する既存係数です。道路・鉄道・港湾など個別の建設済み施設数ではありません。</p><div class="scroll"><table><thead><tr><th>工業地域</th><th class="num">インフラ係数</th><th class="num">労働力係数</th><th class="num">土地費係数</th><th class="num">輸送費係数</th></tr></thead><tbody>${siteRows||'<tr><td colspan="5">登録地点はありません。</td></tr>'}</tbody></table></div></section>
@@ -13328,7 +13334,21 @@ function worldPhase3RegionalB2BUnitPrice(s,seller,productId,receivingSiteId){
 // Phase 4: UK/France Channel Tunnel road freight pilot. The historical 1994
 // opening is sourced; endpoints, 470 km, small shipment slots and charges are
 // PROVISIONAL game coefficients. No fictional teleport or receipt-date sale.
+function worldSteamshipProfile(from,to,opensAt,distanceKm,capacityKg,warehouseCapacityKg,transitMonths,source){
+ return Object.freeze({from,to,opensAt,distanceKm,capacityKg,warehouseCapacityKg,transitMonths,mode:'sea',
+  fuel:'PRD-R04',truck:'PRD-E18',vehicles:Object.freeze(['PRD-E18']),terminals:Object.freeze(['PRD-E20','PRD-E21']),
+  fuelScale:18000,source,status:'PROVISIONAL'});
+}
+const WORLD_SEATTLE_CARGO_SOURCE='https://www.portseattle.org/blog/birth-seattle-global-gateway';
+const WORLD_NORTH_SHIELDS_SOURCE='https://kringom.no/nb/midthordland/bergen/om-englandsruta-bergen-newcastle';
+const WORLD_BERGEN_CARGO_SOURCE='https://snl.no/Det_Bergenske_Dampskibsselskab';
 const WORLD_INTERNATIONAL_CORRIDORS=Object.freeze({
+ 'JP-US-SEATTLE-STEAM':worldSteamshipProfile('JP-YOK','US-SEA',ym(1900,1),8100,32,28,3,WORLD_SEATTLE_CARGO_SOURCE),
+ 'US-JP-SEATTLE-STEAM':worldSteamshipProfile('US-SEA','JP-YOK',ym(1900,1),8100,32,28,3,WORLD_SEATTLE_CARGO_SOURCE),
+ 'NO-UK-NORTHSHIELDS-STEAM':worldSteamshipProfile('NO-BGO','UK-NORTHSHIELDS',ym(1907,10),940,20,18,1,WORLD_NORTH_SHIELDS_SOURCE),
+ 'UK-NO-NORTHSHIELDS-STEAM':worldSteamshipProfile('UK-NORTHSHIELDS','NO-BGO',ym(1907,10),940,20,18,1,WORLD_NORTH_SHIELDS_SOURCE),
+ 'NO-DE-HAMBURG-STEAM':worldSteamshipProfile('NO-BGO','DE-HAM',ym(1905,11),950,20,18,1,WORLD_BERGEN_CARGO_SOURCE),
+ 'DE-NO-HAMBURG-STEAM':worldSteamshipProfile('DE-HAM','NO-BGO',ym(1905,11),950,20,18,1,WORLD_BERGEN_CARGO_SOURCE),
  'FR-UK-CHANNEL-1994':Object.freeze({from:'FR-PAR',to:'UK-LON',opensAt:ym(1994,7),
   distanceKm:470,mode:'road+rail-shuttle',capacityKg:10,warehouseCapacityKg:8,
   transitMonths:1,fuel:'PRD-M16',truck:'PRD-E15',
@@ -13406,6 +13426,18 @@ const WORLD_INTERNATIONAL_CORRIDORS=Object.freeze({
 // the modeled capacity, distance or cost. The playable dates conservatively
 // allow time to pass after dated sources; they are not claimed opening dates.
 const WORLD_INTERNATIONAL_ROUTE_EVIDENCE=Object.freeze({
+ // End months bound the documented operating scenario. Existing cargo can be
+ // completed or refunded after new departures become unavailable.
+ 'JP-US-SEATTLE-STEAM':Object.freeze({untilMonth:ym(1941,8),source:WORLD_SEATTLE_CARGO_SOURCE,
+  operationSource:'https://hikawamaru.nyk.com/en/history.html'}),
+ 'US-JP-SEATTLE-STEAM':Object.freeze({untilMonth:ym(1941,8),source:WORLD_SEATTLE_CARGO_SOURCE,
+  operationSource:'https://hikawamaru.nyk.com/en/history.html'}),
+ 'NO-UK-NORTHSHIELDS-STEAM':Object.freeze({untilMonth:ym(1914,8),source:WORLD_NORTH_SHIELDS_SOURCE,
+  operationSource:WORLD_BERGEN_CARGO_SOURCE}),
+ 'UK-NO-NORTHSHIELDS-STEAM':Object.freeze({untilMonth:ym(1914,8),source:WORLD_NORTH_SHIELDS_SOURCE,
+  operationSource:WORLD_BERGEN_CARGO_SOURCE}),
+ 'NO-DE-HAMBURG-STEAM':Object.freeze({untilMonth:ym(1914,8),source:WORLD_BERGEN_CARGO_SOURCE}),
+ 'DE-NO-HAMBURG-STEAM':Object.freeze({untilMonth:ym(1914,8),source:WORLD_BERGEN_CARGO_SOURCE}),
  'FR-UK-CHANNEL-1994':Object.freeze({fromMonth:ym(1994,7),source:'https://www.getlinkgroup.com/content/uploads/2019/09/2003SummaryAnnualReport.pdf'}),
  'UK-FR-CHANNEL-1994':Object.freeze({fromMonth:ym(1994,7),source:'https://www.getlinkgroup.com/content/uploads/2019/09/2003SummaryAnnualReport.pdf'}),
  'US-UK-SEA-1900':Object.freeze({fromMonth:ym(1900,1),source:'https://fraser.stlouisfed.org/title/commercial-financial-chronicle-1339/january-15-1898-539482/fulltext'}),
@@ -13420,7 +13452,9 @@ function worldInternationalProfile(id){
 function worldInternationalRouteAvailable(s,id){
  const p=worldDomesticProfile(WORLD_INTERNATIONAL_CORRIDORS,id);
  const evidence=worldDomesticProfile(WORLD_INTERNATIONAL_ROUTE_EVIDENCE,id);
- if(!p||!evidence||ym(s.year,s.month)<Math.max(p.opensAt,evidence.fromMonth))return false;
+ const month=ym(s.year,s.month);
+ if(!p||!evidence||month<Math.max(p.opensAt,evidence.fromMonth??p.opensAt)
+  ||(evidence.untilMonth!=null&&month>=evidence.untilMonth))return false;
  return !!s.world?.[findSite(p.from)?.country]&&!!s.world?.[findSite(p.to)?.country];
 }
 function worldInternationalRegisterRoute(s,firmId,profileId){
@@ -14037,8 +14071,13 @@ function worldInternationalTradePanel(firm,editable){
  }
  return '<details id="world-international" class="panel"><summary>Phase 4 国際B2B物流・外貨決済（道路・鉄道・海運・航空）</summary>'
   +'<p>史料確認済みの貨物区間を利用できます。距離・容量・運賃はゲーム内の暫定値です。到着検収後に売上を記帳します。</p>'
-  +(options.length?'<ul>'+options.map(([id,p])=>'<li>'+esc(findSite(p.from).name)+' → '+esc(findSite(p.to).name)
-    +' <a href="'+esc(WORLD_INTERNATIONAL_ROUTE_EVIDENCE[id].source)+'" target="_blank" rel="noopener noreferrer">貨物輸送の史料</a></li>').join('')+'</ul>':'')
+  +(options.length?'<ul>'+options.map(([id,p])=>{
+   const evidence=WORLD_INTERNATIONAL_ROUTE_EVIDENCE[id];
+   const operation=evidence.operationSource?' · <a href="'+esc(evidence.operationSource)
+    +'" target="_blank" rel="noopener noreferrer">運用期間の史料</a>':'';
+   return '<li>'+esc(findSite(p.from).name)+' → '+esc(findSite(p.to).name)
+    +' <a href="'+esc(evidence.source)+'" target="_blank" rel="noopener noreferrer">貨物輸送の史料</a>'+operation+'</li>';
+  }).join('')+'</ul>':'')
   +'<table><thead><tr><th>注文</th><th>貨物</th><th>申込/受注</th><th>状態</th></tr></thead><tbody>'
   +(orderRows||'<tr><td colspan="4">国際注文なし</td></tr>')+'</tbody></table>'
   +'<table><thead><tr><th>輸送</th><th>状態</th><th>数量</th><th>買手代金(銭)</th><th>売手代金(銭)</th><th>支払期限・状況</th></tr></thead><tbody>'

@@ -23,7 +23,7 @@ with sync_playwright() as p:
       await runMonth();
       const first=consolidate(S);
       const root=company(S.playerId),buyer=company(trade.id);
-      PAGE='group';VIEW_FIRM=root.id;render();
+      PAGE='corporateSubsidiaries';VIEW_FIRM=root.id;render();
       const qty=10,cost=30000;
       post(root,{goods:cost},{cash:cost},'TEST fixture purchase','operating');
       root.goods.TEST={q:qty,v:cost};

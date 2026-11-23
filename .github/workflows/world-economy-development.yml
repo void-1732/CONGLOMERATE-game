@@ -31,6 +31,8 @@ on:
       - tests/test_world_phase3_market_b2b.py
       - tests/test_world_phase4_international.py
       - tests/test_world_phase4_credit.py
+      - tests/test_world_phase4_corridors.py
+      - tests/test_fx_book_and_period_pl.py
       - tests/test_vehicle_discontinuation.py
       - .github/workflows/world-economy-development.yml
   pull_request:
@@ -98,10 +100,12 @@ jobs:
         run: |
           python -B tests/test_world_phase4_international.py
           python -B tests/test_world_phase4_credit.py
+          python -B tests/test_world_phase4_corridors.py
       - name: Existing UI, trade and save regression
         run: |
           python -B tests/test_step10_37_pages.py
           python -B tests/test_v029_trade.py
+          python -B tests/test_fx_book_and_period_pl.py
           python -B tests/test_autosave_retention.py
       - name: 120 months world simulation
         run: python -B tests/test_step13_120_months.py --era 1900 --world
