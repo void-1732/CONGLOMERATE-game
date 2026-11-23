@@ -78,8 +78,8 @@ def main():
             ...after1,rejectsInconsistent,rejectsWrongOwner,capped,saved,clean,
             mined2, remaining};
         }""")
-        assert result.pop("finance") == 3, result
-        assert result.pop("freight") == 4, result
+        assert result.pop("finance") is True, result
+        assert result.pop("freight") is True, result
         assert result.pop("mined2") >= 0, result
         assert result.pop("remaining") >= 0, result
         assert all(result.values()), result
