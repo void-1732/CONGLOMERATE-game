@@ -3543,6 +3543,7 @@ async function runMonth(){
   step('RESOURCE_PRODUCTION',()=>{laborAndPlant(trial,events,'resource');produceWorldDeposits(trial,events);worldFulfillLocalSupplyPlans(trial,events)});
   step('DOMESTIC_WORLD_DELIVERIES',()=>{
    worldReceiveDomesticShipments(trial,events);
+   worldInternationalReceiveShipments(trial,events);
    worldFinishStorageServices(trial,events);
    worldFinishPassengerTrips(trial,events);
   });
@@ -3561,6 +3562,7 @@ async function runMonth(){
   step('VEHICLE_PRODUCTION',()=>{for(const i of ['auto','manufacturing','trade','service','sales'])laborAndPlant(trial,events,i);produceWorldWire(trial,events);produceWorldSupplemental(trial,events);for(const f of trial.firms)for(const t of SUPPLY_TYPES){const fl=f.supply?.monthFlow?.[t];if(!fl)continue;fl.end=f.stock[t]?.q||0;fl.received=(f.supply.history||[]).filter(x=>x.type===t&&x.month===fl.month).reduce((n,x)=>n+x.qty,0);fl.consumed=Math.max(0,Math.round((fl.start+fl.received-fl.end)*1000)/1000);}});
   step('DOMESTIC_WORLD_ORDERS',()=>{
    worldResolveDomesticOrders(trial,events);
+   worldInternationalResolveOrders(trial,events);
    worldPlanDomesticPurchases(trial,events);
   });
   step('EXPORTS',()=>deliverExports(trial,events));
@@ -10968,7 +10970,7 @@ function makeWorldExpansion(){
   catalogVersion:WORLD_CATALOG_VERSION,
   territoryJurisdictions:Object.fromEntries([...WORLD_TERRITORIES.keys()].map(id=>[id,WORLD_INITIAL_JURISDICTIONS[id]??null])),
   openMarkets:Object.fromEntries(WORLD_MARKETS.map(m=>[m.id,INITIAL_ENGINE_COUNTRIES.includes(WORLD_ENGINE_BY_MARKET[m.id])?WORLD_START_MONTH:null])),
-  appliedEvents:[],companies:{},facilities:{},resourceDeposits:{},powerAllocations:{},powerGenerators:{},energyReceipts:[],physicalDeliveries:[],powerLines:{},powerTransfers:[],localSupplyPlans:{},domesticRoutes:{},domesticShipments:[],domesticWarehouses:{},domesticAssetTransfers:[],domesticOrders:[],regionalSupplyPurchases:[],manufacturingTools:{},medicalClinics:{},medicalRequests:[],medicalTreatments:[],storageServices:[],agencyServiceReceipts:[],trainingServiceReceipts:[],externalLoanReceipts:[],cargoInsurance:[]
+  appliedEvents:[],companies:{},facilities:{},resourceDeposits:{},powerAllocations:{},powerGenerators:{},energyReceipts:[],physicalDeliveries:[],powerLines:{},powerTransfers:[],localSupplyPlans:{},domesticRoutes:{},domesticShipments:[],domesticWarehouses:{},domesticAssetTransfers:[],domesticOrders:[],internationalRoutes:{},internationalWarehouses:{},internationalOrders:[],internationalShipments:[],regionalSupplyPurchases:[],manufacturingTools:{},medicalClinics:{},medicalRequests:[],medicalTreatments:[],storageServices:[],agencyServiceReceipts:[],trainingServiceReceipts:[],externalLoanReceipts:[],cargoInsurance:[]
  };
 }
 
@@ -12146,6 +12148,11 @@ function worldDepreciateInfrastructure(s){
   if(!carrier)throw Error('国内物流設備の所有法人が存在しません');
   worldDepreciateAsset(s,route,carrier,month,'世界国内物流設備の月次償却');
  }
+ for(const asset of [...Object.values(w.internationalRoutes??{}),...Object.values(w.internationalWarehouses??{})]){
+  const owner=company(asset.ownerCompanyId,s);
+  if(!owner)throw Error('国際設備の所有法人が存在しません');
+  worldDepreciateAsset(s,asset,owner,month,'世界国際物流設備の月次償却');
+ }
  for(const warehouse of Object.values(w.domesticWarehouses??{})){
   const owner=company(warehouse.ownerCompanyId,s);
   if(!owner)throw Error('国内倉庫の所有法人が存在しません');
@@ -13227,6 +13234,412 @@ function worldPhase3RegionalB2BUnitPrice(s,seller,productId,receivingSiteId){
  return Math.max(1,Math.ceil(stock.v/stock.q*Math.max(1.05,premium)));
 }
 
+
+// Phase 4: UK/France Channel Tunnel road freight pilot. The historical 1994
+// opening is sourced; endpoints, 470 km, small shipment slots and charges are
+// PROVISIONAL game coefficients. No fictional teleport or receipt-date sale.
+const WORLD_INTERNATIONAL_CORRIDORS=Object.freeze({
+ 'FR-UK-CHANNEL-1994':Object.freeze({from:'FR-PAR',to:'UK-LON',opensAt:ym(1994,7),
+  distanceKm:470,mode:'road+rail-shuttle',capacityKg:10,warehouseCapacityKg:8,
+  transitMonths:1,fuel:'PRD-M16',truck:'PRD-E15',
+  source:'https://www.getlinkgroup.com/en/our-group/history/',status:'PROVISIONAL'}),
+ 'UK-FR-CHANNEL-1994':Object.freeze({from:'UK-LON',to:'FR-PAR',opensAt:ym(1994,7),
+  distanceKm:470,mode:'road+rail-shuttle',capacityKg:10,warehouseCapacityKg:8,
+  transitMonths:1,fuel:'PRD-M16',truck:'PRD-E15',
+  source:'https://www.getlinkgroup.com/en/our-group/history/',status:'PROVISIONAL'})
+});
+function worldInternationalProfile(id){
+ const profile=WORLD_INTERNATIONAL_CORRIDORS[id];
+ if(!profile)throw Error('国際実経路の登録がありません');
+ return profile;
+}
+function worldInternationalRegisterRoute(s,firmId,profileId){
+ const w=s.worldExpansion,profile=worldInternationalProfile(profileId),firm=company(firmId,s);
+ const plant=firm?.plants.find(p=>p.siteId===profile.from&&worldDomesticSiteActive(p,p.siteId));
+ if(!w||!firm||!plant||firm.country!==findSite(profile.from).country
+  ||!isActiveCorporateFirm(firm)||!controller(s,firmId)
+  ||ym(s.year,s.month)<profile.opensAt
+  ||!firm.research?.tree?.done?.includes('production-1')
+  ||Object.values(w.internationalRoutes??{}).some(r=>r.ownerCompanyId===firmId&&r.profileId===profileId&&r.retiredAt==null))
+  throw Error('国際物流には史実開通済みの拠点・法人・研究・輸送機材が必要です');
+ const asset=worldCapitalizeDomesticEquipment(s,firm,[profile.truck],'国際道路・海峡輸送用トラックを取得');
+ const route={...asset,id:'IR-'+s.seq++,ownerCompanyId:firmId,plantId:plant.id,profileId,
+  fromSiteId:profile.from,toSiteId:profile.to,distanceKm:profile.distanceKm,
+  capacityKg:profile.capacityKg};
+ (w.internationalRoutes??={})[route.id]=route;
+ return route;
+}
+function worldInternationalInstallWarehouse(s,firmId,plantId,profileId){
+ const w=s.worldExpansion,profile=worldInternationalProfile(profileId),firm=company(firmId,s),
+  plant=firm?.plants.find(p=>p.id===plantId);
+ if(!w||!firm||!plant||plant.siteId!==profile.to
+  ||firm.country!==findSite(profile.to).country||!worldDomesticSiteActive(plant,plant.siteId)
+  ||ym(s.year,s.month)<profile.opensAt||!controller(s,firmId)
+  ||!firm.research?.tree?.done?.includes('production-1')
+  ||Object.values(w.internationalWarehouses??{}).some(h=>h.ownerCompanyId===firmId&&h.plantId===plantId&&h.retiredAt==null))
+  throw Error('外国貨物の実物受入拠点・設備・研究または年代が不正');
+ const asset=worldCapitalizeDomesticEquipment(s,firm,['PRD-E20'],'国際貨物受入倉庫を取得');
+ const h={...asset,id:'IW-'+s.seq++,ownerCompanyId:firmId,plantId,profileId};
+ (w.internationalWarehouses??={})[h.id]=h;
+ return h;
+}
+function worldInternationalPlaceOrder(s,buyerId,{routeId,warehouseId,productId,quantity,unitPriceSeller,maxPaymentBuyer}){
+ const w=s.worldExpansion,route=w?.internationalRoutes?.[routeId],
+  warehouse=w?.internationalWarehouses?.[warehouseId],
+  profile=WORLD_INTERNATIONAL_CORRIDORS[route?.profileId],
+  seller=company(route?.ownerCompanyId,s),buyer=company(buyerId,s),
+  product=WORLD_PRODUCT_BY_ID.get(productId);
+ if(!route||route.retiredAt!=null||!warehouse||warehouse.retiredAt!=null
+  ||warehouse.profileId!==route.profileId||warehouse.ownerCompanyId!==buyerId
+  ||!buyer||!seller||!controller(s,buyerId)||buyer.country===seller.country
+  ||!isActiveCorporateFirm(buyer)||!isActiveCorporateFirm(seller)
+  ||!worldDomesticSiteActive(seller.plants.find(p=>p.id===route.plantId),profile.from)
+  ||!worldDomesticSiteActive(buyer.plants.find(p=>p.id===warehouse.plantId),profile.to)
+  ||ym(s.year,s.month)<profile.opensAt||!s.world?.[buyer.country]||!s.world?.[seller.country]
+  ||!product||!['resource','material'].includes(product.category)
+  ||worldProductUnitClass(productId)!=='mass'||!worldDomesticDryCargo(productId,{})
+  ||!Number.isSafeInteger(quantity)||quantity<1||quantity>100000
+  ||!Number.isSafeInteger(unitPriceSeller)||unitPriceSeller<1||unitPriceSeller>10000000
+  ||!Number.isSafeInteger(maxPaymentBuyer)||maxPaymentBuyer<1||maxPaymentBuyer>1000000000)
+  throw Error('国際注文の実経路・受入設備・物理貨物・数量・外貨上限が不正');
+ const order={id:'IO-'+s.seq++,routeId,warehouseId,sellerId:seller.id,buyerId,
+  productId,quantity,unitPriceSeller,maxPaymentBuyer,placedAt:ym(s.year,s.month),
+  status:'OPEN',sellerDecision:null,decisionAt:null,closedAt:null,acceptedQty:0,shipmentId:null,result:null};
+ (w.internationalOrders??=[]).push(order);
+ return order;
+}
+function worldInternationalActOrder(s,actorId,orderId,action){
+ const o=(s.worldExpansion?.internationalOrders??[]).find(x=>x.id===orderId);
+ if(!o||o.status!=='OPEN'||!controller(s,actorId))throw Error('承認可能な国際注文がありません');
+ if(action==='approve'&&o.sellerId===actorId&&o.sellerDecision===null){
+  o.sellerDecision='MANUAL';o.decisionAt=ym(s.year,s.month);
+ }else if(action==='cancel'&&o.buyerId===actorId){
+  o.status='CANCELLED';o.closedAt=ym(s.year,s.month);o.result='BUYER_CANCELLED';
+ }else if(action==='reject'&&o.sellerId===actorId){
+  o.status='REJECTED';o.closedAt=ym(s.year,s.month);o.result='SELLER_DECLINED';
+ }else throw Error('国際注文の権限・決定状態が不正');
+ return o;
+}
+function worldInternationalQuote(s,route,productId,quantity,unitPriceSeller,buyerId){
+ const seller=company(route.ownerCompanyId,s),buyer=company(buyerId,s),
+  profile=worldInternationalProfile(route.profileId),
+  cargo=seller.stock?.[productId],fuel=seller.stock?.[profile.fuel];
+ const fuelRequired=Math.ceil(profile.distanceKm*quantity/600);
+ if(!cargo||cargo.q<quantity||!cargo.v||!fuel||fuel.q<fuelRequired||!fuel.v
+  ||!Number.isSafeInteger(quantity)||quantity<1)
+  return {problem:'国際貨物または実使用燃料が不足'};
+ const bookCost=Math.round(cargo.v*quantity/cargo.q);
+ const fuelCost=Math.round(fuel.v*fuelRequired/fuel.q);
+ const goodsSeller=quantity*unitPriceSeller,prepaidSeller=goodsSeller+fuelCost;
+ const sellerRate=Math.round(s.world[seller.country].fx*100000),
+  buyerRate=Math.round(s.world[buyer.country].fx*100000);
+ const prepaidBuyer=Math.round(prepaidSeller*sellerRate/buyerRate);
+ if(!Number.isSafeInteger(bookCost)||bookCost<1||!Number.isSafeInteger(fuelCost)||fuelCost<1
+  ||!Number.isSafeInteger(goodsSeller)||goodsSeller<1||!Number.isSafeInteger(prepaidBuyer)
+  ||prepaidBuyer<1||!sellerRate||!buyerRate||acc(seller,'materials')<bookCost+fuelCost
+  ||acc(buyer,'cash')<prepaidBuyer)
+  return {problem:'国際取引の原価・通貨換算・実残高が不足'};
+ return {quantity,unitPriceSeller,bookCost,fuelRequired,fuelCost,goodsSeller,
+  prepaidSeller,prepaidBuyer,sellerRate,buyerRate};
+}
+function worldInternationalResolveOrders(s,events=[]){
+ const w=s.worldExpansion;if(!w)return;
+ worldValidateInternationalLogistics(s);
+ const month=ym(s.year,s.month),controlled=controlSet(s);
+ for(const o of w.internationalOrders??[]){
+  if(o.status!=='OPEN'||o.placedAt>=month)continue;
+  const route=w.internationalRoutes[o.routeId],h=w.internationalWarehouses[o.warehouseId],
+   seller=company(o.sellerId,s),buyer=company(o.buyerId,s),
+   profile=WORLD_INTERNATIONAL_CORRIDORS[route?.profileId];
+  o.closedAt=month;o.status='REJECTED';
+  if(!route||route.retiredAt!=null||!h||h.retiredAt!=null||!profile
+   ||h.profileId!==route.profileId||h.ownerCompanyId!==o.buyerId
+   ||!isActiveCorporateFirm(seller)||!isActiveCorporateFirm(buyer)
+   ||!worldDomesticSiteActive(seller.plants.find(p=>p.id===route.plantId),profile.from)
+   ||!worldDomesticSiteActive(buyer.plants.find(p=>p.id===h.plantId),profile.to)){
+    o.result='UNAVAILABLE';continue;
+  }
+  if(o.sellerDecision!=='MANUAL'&&!(seller.auto&&!controlled.has(seller.id))){
+   o.result='NO_CONSENT';continue;
+  }
+  const occupied=(w.internationalShipments??[]).filter(t=>t.routeId===route.id&&t.dispatchedAt===month)
+   .reduce((n,t)=>n+t.quantity,0);
+  const reserved=(w.internationalShipments??[]).filter(t=>t.warehouseId===h.id&&t.status==='IN_TRANSIT')
+   .reduce((n,t)=>n+t.quantity,0);
+  const limit=Math.min(o.quantity,10,profile.capacityKg-occupied,
+   profile.warehouseCapacityKg-reserved,seller.stock?.[o.productId]?.q??0);
+  for(let q=limit;q>=1;q--){
+   const quote=worldInternationalQuote(s,route,o.productId,q,o.unitPriceSeller,buyer.id);
+   if(quote.problem||quote.prepaidBuyer>o.maxPaymentBuyer||quote.goodsSeller<quote.bookCost)continue;
+   const start=s.seq,provenance={},fuelProvenance={};
+   consume(seller,o.productId,q,provenance);
+   const spentFuel=consume(seller,profile.fuel,quote.fuelRequired,fuelProvenance);
+   if(spentFuel!==quote.fuelCost)throw Error('国際輸送の実燃料簿価が一致しません');
+   post(seller,{worldShipmentStock:quote.bookCost},{materials:quote.bookCost},
+    '国際貨物の所有権留保・輸送中在庫','operating',s);
+   post(seller,{otherExpense:quote.fuelCost},{materials:quote.fuelCost},
+    '国際実貨物・車両燃料消費','operating',s);
+   post(buyer,{worldSupplierAdvances:quote.prepaidBuyer},{cash:quote.prepaidBuyer},
+    '国際貨物の外貨換算前払','operating',s);
+   post(seller,{cash:quote.prepaidSeller},{worldCustomerAdvances:quote.prepaidSeller},
+    '国際貨物の検収前前受金','operating',s);
+   const t={id:'IS-'+s.seq++,orderId:o.id,routeId:route.id,warehouseId:h.id,
+    sellerId:seller.id,buyerId:buyer.id,sellerPlantId:route.plantId,buyerPlantId:h.plantId,
+    productId:o.productId,dispatchedAt:month,dueAt:month+profile.transitMonths,
+    status:'IN_TRANSIT',receivedAt:null,refundedAt:null,
+    ...quote,journals:{dispatch:start,terminal:null}};
+   (w.internationalShipments??=[]).push(t);
+   o.acceptedQty=q;o.shipmentId=t.id;o.status=q===o.quantity?'FILLED':'PARTIAL';
+   o.result=q===o.quantity?'FILLED':'REMAINDER_UNFILLED';
+   o.sellerDecision??='AI';o.decisionAt??=month;
+   events.push('国際B2B '+o.id+' 出荷 '+q+'/'+o.quantity+' kg');
+   break;
+  }
+  if(!o.result)o.result='NO_ALLOCATION';
+ }
+}
+function worldInternationalReceiveShipments(s,events=[]){
+ const w=s.worldExpansion;if(!w)return;
+ worldValidateInternationalLogistics(s);
+ const month=ym(s.year,s.month);
+ for(const t of w.internationalShipments??[]){
+  if(t.status!=='IN_TRANSIT'||month<t.dueAt)continue;
+  const route=w.internationalRoutes[t.routeId],h=w.internationalWarehouses[t.warehouseId],
+   profile=WORLD_INTERNATIONAL_CORRIDORS[route?.profileId],
+   seller=company(t.sellerId,s),buyer=company(t.buyerId,s),
+   bp=buyer?.plants.find(p=>p.id===t.buyerPlantId);
+  if(!route||route.retiredAt!=null||!h||h.retiredAt!=null||!profile
+   ||!worldDomesticSiteActive(seller?.plants.find(p=>p.id===t.sellerPlantId),profile.from)
+   ||!worldDomesticSiteActive(bp,profile.to)
+   ||(buyer.stock[t.productId]?.q??0)+t.quantity>Math.floor(bp.capacity*10))continue;
+  const start=s.seq;
+  post(seller,{worldCustomerAdvances:t.prepaidSeller},
+   {sales:t.goodsSeller,otherExpense:t.fuelCost},
+   '国際貨物の現物検収・売上と実燃料精算','operating',s);
+  post(seller,{cogs:t.bookCost},{worldShipmentStock:t.bookCost},
+   '国際貨物の検収済売上原価','operating',s);
+  post(buyer,{materials:t.prepaidBuyer},{worldSupplierAdvances:t.prepaidBuyer},
+   '国際貨物の換算取得原価・実物検収','operating',s);
+  const stock=buyer.stock[t.productId]??={q:0,v:0};
+  stock.q+=t.quantity;stock.v+=t.prepaidBuyer;
+  t.status='DELIVERED';t.receivedAt=month;t.journals.terminal=start;
+  // Foreign-currency group profit elimination requires later common-currency
+  // provenance. External cross-border cargo never inherits domestic cost lots.
+  events.push('国際現物貨物検収 '+t.id+' '+t.quantity+' kg');
+ }
+}
+function worldInternationalRefundShipment(s,shipmentId){
+ const w=s.worldExpansion,t=(w?.internationalShipments??[]).find(x=>x.id===shipmentId);
+ if(!t||t.status!=='IN_TRANSIT'||ym(s.year,s.month)<=t.dueAt)
+  throw Error('期限超過した国際未検収貨物だけ返金できます');
+ worldValidateInternationalLogistics(s);
+ const seller=company(t.sellerId,s),buyer=company(t.buyerId,s);
+ if(acc(seller,'cash')<t.prepaidSeller)
+  throw Error('輸出者に外貨建て返金に必要な現預金がありません');
+ const start=s.seq;
+ post(seller,{worldCustomerAdvances:t.prepaidSeller},{cash:t.prepaidSeller},
+  '国際未納貨物の輸出者返金','operating',s);
+ post(buyer,{cash:t.prepaidBuyer},{worldSupplierAdvances:t.prepaidBuyer},
+  '国際未納貨物の輸入者返金','operating',s);
+ post(seller,{otherExpense:t.bookCost},{worldShipmentStock:t.bookCost},
+  '国際未配達貨物の現物損失','operating',s);
+ t.status='REFUNDED';t.refundedAt=ym(s.year,s.month);t.journals.terminal=start;
+ return t;
+}
+function worldValidateInternationalLogistics(s){
+ const w=s.worldExpansion;if(!w)return true;
+ const routes=w.internationalRoutes??{},warehouses=w.internationalWarehouses??{},
+  orders=w.internationalOrders??[],shipments=w.internationalShipments??[];
+ if(!routes||typeof routes!=='object'||Array.isArray(routes)
+  ||!warehouses||typeof warehouses!=='object'||Array.isArray(warehouses)
+  ||!Array.isArray(orders)||!Array.isArray(shipments))
+  throw Error('国際B2B台帳のデータ形式が不正');
+ const month=ym(s.year,s.month),seenOrders=new Set(),seenShipments=new Set();
+ for(const [id,r] of Object.entries(routes)){
+  const p=WORLD_INTERNATIONAL_CORRIDORS[r.profileId],owner=company(r.ownerCompanyId,s);
+  if(id!==r.id||!/^IR-\d+$/.test(id)||!p||!owner||r.plantId==null
+   ||r.fromSiteId!==p.from||r.toSiteId!==p.to||r.distanceKm!==p.distanceKm
+   ||r.capacityKg!==p.capacityKg||r.installedAt<p.opensAt
+   ||!owner.plants.some(plant=>plant.id===r.plantId&&plant.siteId===p.from)
+   ||!Number.isSafeInteger(r.assetValue)||r.assetValue<1
+   ||r.retiredAt!=null)
+   throw Error('国際輸送用の現物トラック・ルートが不正：'+id);
+ }
+ for(const [id,h] of Object.entries(warehouses)){
+  const p=WORLD_INTERNATIONAL_CORRIDORS[h.profileId],buyer=company(h.ownerCompanyId,s);
+  if(id!==h.id||!/^IW-\d+$/.test(id)||!p||!buyer
+   ||!buyer.plants.some(plant=>plant.id===h.plantId&&plant.siteId===p.to)
+   ||h.installedAt<p.opensAt||!Number.isSafeInteger(h.assetValue)||h.assetValue<1
+   ||h.retiredAt!=null)throw Error('国際輸入用実倉庫の参照が不正：'+id);
+ }
+ for(const o of orders){
+  const route=routes[o.routeId],h=warehouses[o.warehouseId],
+   buyer=company(o.buyerId,s),seller=company(o.sellerId,s);
+  if(!/^IO-\d+$/.test(o.id)||seenOrders.has(o.id)
+   ||!route||!h||route.profileId!==h.profileId||route.ownerCompanyId!==o.sellerId
+   ||h.ownerCompanyId!==o.buyerId||!buyer||!seller||buyer.country===seller.country
+   ||!Number.isSafeInteger(o.quantity)||o.quantity<1||o.quantity>100000
+   ||!Number.isSafeInteger(o.unitPriceSeller)||o.unitPriceSeller<1||o.unitPriceSeller>10000000
+   ||!Number.isSafeInteger(o.maxPaymentBuyer)||o.maxPaymentBuyer<1
+   ||!Number.isSafeInteger(o.placedAt)||o.placedAt>month
+   ||!['OPEN','FILLED','PARTIAL','REJECTED','CANCELLED'].includes(o.status)
+   ||!Number.isSafeInteger(o.acceptedQty)||o.acceptedQty<0||o.acceptedQty>o.quantity
+   ||(o.status==='OPEN'&&(o.closedAt!==null||o.acceptedQty!==0))
+   ||(o.status!=='OPEN'&&(!Number.isSafeInteger(o.closedAt)||o.closedAt>month))
+   ||((o.status==='FILLED'||o.status==='PARTIAL')!==!!o.shipmentId)
+   ||(o.status==='FILLED'&&o.acceptedQty!==o.quantity)
+   ||(o.status==='PARTIAL'&&(o.acceptedQty===0||o.acceptedQty===o.quantity))
+   ||(o.status==='REJECTED'&&o.acceptedQty!==0))
+   throw Error('国際B2B注文・成立台帳が不正：'+o.id);
+  seenOrders.add(o.id);
+ }
+ const journalIndex=new Map(),usedJournals=new Set();
+ function match(firm,id,when,dr,cr){
+  if(usedJournals.has(id))throw Error('国際貨物の仕訳IDが重複');
+  usedJournals.add(id);
+  if(!journalIndex.has(firm.id))
+   journalIndex.set(firm.id,new Map(firm.journals.map(j=>[j.id,j])));
+  const j=journalIndex.get(firm.id).get(id);
+  if(!j&&firm.journals.length===10000&&id<firm.journals[0].id)return;
+  const eq=(a,expected)=>a.length===Object.keys(expected).length
+   &&Object.entries(expected).every(([k,v])=>a.some(([key,value])=>key===k&&value===v));
+  if(!j||j.when!==when||j.kind!=='operating'||!eq(j.dr,dr)||!eq(j.cr,cr))
+   throw Error('国際貨物・外貨前払の仕訳が一致しません：'+id);
+ }
+ for(const t of shipments){
+  const order=orders.find(o=>o.id===t.orderId),r=routes[t.routeId],h=warehouses[t.warehouseId],
+   seller=company(t.sellerId,s),buyer=company(t.buyerId,s);
+  const seq=Number(t.id?.split('-')[1]);
+  if(!/^IS-\d+$/.test(t.id)||seenShipments.has(t.id)||!Number.isSafeInteger(seq)
+   ||seq>=s.seq||!order||order.shipmentId!==t.id
+   ||order.routeId!==t.routeId||order.warehouseId!==t.warehouseId
+   ||order.productId!==t.productId||order.acceptedQty!==t.quantity
+   ||!r||!h||!seller||!buyer||r.ownerCompanyId!==seller.id||h.ownerCompanyId!==buyer.id
+   ||r.plantId!==t.sellerPlantId||h.plantId!==t.buyerPlantId
+   ||!['FILLED','PARTIAL'].includes(order.status)
+   ||!['IN_TRANSIT','DELIVERED','REFUNDED'].includes(t.status)
+   ||!Number.isSafeInteger(t.quantity)||t.quantity<1||t.quantity>10
+   ||t.unitPriceSeller!==order.unitPriceSeller
+   ||t.goodsSeller!==t.quantity*t.unitPriceSeller
+   ||!Number.isSafeInteger(t.bookCost)||t.bookCost<1
+   ||!Number.isSafeInteger(t.fuelCost)||t.fuelCost<1
+   ||!Number.isSafeInteger(t.fuelRequired)||t.fuelRequired<1
+   ||t.prepaidSeller!==t.goodsSeller+t.fuelCost
+   ||!Number.isSafeInteger(t.sellerRate)||t.sellerRate<1
+   ||!Number.isSafeInteger(t.buyerRate)||t.buyerRate<1
+   ||t.prepaidBuyer!==Math.round(t.prepaidSeller*t.sellerRate/t.buyerRate)
+   ||t.prepaidBuyer>order.maxPaymentBuyer
+   ||!Number.isSafeInteger(t.dispatchedAt)||t.dispatchedAt<=order.placedAt
+   ||t.dispatchedAt>month||t.dueAt!==t.dispatchedAt+WORLD_INTERNATIONAL_CORRIDORS[r.profileId].transitMonths
+   ||t.journals?.dispatch!==seq-4
+   ||(t.status==='IN_TRANSIT'&&t.journals.terminal!==null)
+   ||(t.status!=='IN_TRANSIT'&&(!Number.isSafeInteger(t.journals.terminal)||t.journals.terminal<=seq))
+   ||(t.status==='DELIVERED'&&(!Number.isSafeInteger(t.receivedAt)||t.receivedAt<t.dueAt
+      ||t.receivedAt>month||t.refundedAt!==null))
+   ||(t.status==='REFUNDED'&&(!Number.isSafeInteger(t.refundedAt)||t.refundedAt<=t.dueAt
+      ||t.refundedAt>month||t.receivedAt!==null)))
+   throw Error('国際貨物・検収/返金・通貨換算記録が不正：'+t.id);
+  seenShipments.add(t.id);
+  const d=t.journals.dispatch,c=t.journals.terminal;
+  match(seller,d,t.dispatchedAt,{worldShipmentStock:t.bookCost},{materials:t.bookCost});
+  match(seller,d+1,t.dispatchedAt,{otherExpense:t.fuelCost},{materials:t.fuelCost});
+  match(buyer,d+2,t.dispatchedAt,{worldSupplierAdvances:t.prepaidBuyer},{cash:t.prepaidBuyer});
+  match(seller,d+3,t.dispatchedAt,{cash:t.prepaidSeller},{worldCustomerAdvances:t.prepaidSeller});
+  if(t.status==='DELIVERED'){
+   match(seller,c,t.receivedAt,{worldCustomerAdvances:t.prepaidSeller},
+    {sales:t.goodsSeller,otherExpense:t.fuelCost});
+   match(seller,c+1,t.receivedAt,{cogs:t.bookCost},{worldShipmentStock:t.bookCost});
+   match(buyer,c+2,t.receivedAt,{materials:t.prepaidBuyer},{worldSupplierAdvances:t.prepaidBuyer});
+  }else if(t.status==='REFUNDED'){
+   match(seller,c,t.refundedAt,{worldCustomerAdvances:t.prepaidSeller},{cash:t.prepaidSeller});
+   match(buyer,c+1,t.refundedAt,{cash:t.prepaidBuyer},{worldSupplierAdvances:t.prepaidBuyer});
+   match(seller,c+2,t.refundedAt,{otherExpense:t.bookCost},{worldShipmentStock:t.bookCost});
+  }
+ }
+ return true;
+}
+function worldInternationalTradePanel(firm,editable){
+ const w=S.worldExpansion,active=(w.internationalShipments??[]).filter(t=>t.buyerId===firm.id||t.sellerId===firm.id),
+  orders=(w.internationalOrders??[]).filter(o=>o.buyerId===firm.id||o.sellerId===firm.id),
+  routes=Object.values(w.internationalRoutes??{}),wh=Object.values(w.internationalWarehouses??{});
+ const orderRows=orders.slice(-20).map(o=>'<tr><td>'+esc(o.id)+'</td><td>'+esc(WORLD_PRODUCT_BY_ID.get(o.productId)?.name)
+  +'</td><td>'+nfmt(o.quantity)+' / '+nfmt(o.acceptedQty)+'</td><td>'+esc(o.status)+'</td></tr>').join('');
+ const shipmentRows=active.slice(-20).map(t=>'<tr><td>'+esc(t.id)+'</td><td>'+esc(t.status)
+  +'</td><td>'+nfmt(t.quantity)+' kg</td><td>'+nfmt(t.prepaidBuyer)+'</td><td>'+nfmt(t.prepaidSeller)+'</td></tr>').join('');
+ const options=Object.entries(WORLD_INTERNATIONAL_CORRIDORS).filter(([,p])=>ym(S.year,S.month)>=p.opensAt);
+ const forms=[];
+ if(editable){
+  const make=(kind,items,fields)=>'<form data-world-international="'+kind+'" class="row">'+fields
+   +'<button type="submit" class="btn sm">'+(kind==='route'?'実トラックを国際経路へ登録':kind==='warehouse'?'輸入倉庫を設置':kind==='order'?'外貨建て発注':kind==='approve'?'売手として承諾':'返金')+'</button></form>';
+  const from=options.filter(([,p])=>findSite(p.from).country===firm.country
+   &&firm.plants.some(plant=>worldDomesticSiteActive(plant,p.from))
+   &&!routes.some(r=>r.ownerCompanyId===firm.id&&r.profileId===Object.entries(WORLD_INTERNATIONAL_CORRIDORS).find(([,k])=>k===p)?.[0]));
+  if(from.length)forms.push(make('route',from,'<select name="profile">'
+    +from.map(([id])=>'<option value="'+id+'">'+id+'</option>').join('')+'</select>'));
+  const dest=options.flatMap(([id,p])=>findSite(p.to).country!==firm.country?[]:
+   firm.plants.filter(plant=>worldDomesticSiteActive(plant,p.to)&&!wh.some(h=>h.plantId===plant.id&&h.ownerCompanyId===firm.id))
+    .map(plant=>[id,plant.id]));
+  if(dest.length)forms.push(make('warehouse',dest,'<select name="target">'
+   +dest.map(([id,p])=>'<option value="'+id+'|'+esc(p)+'">'+id+' / '+esc(p)+'</option>').join('')+'</select>'));
+  const choices=wh.filter(h=>h.ownerCompanyId===firm.id).flatMap(h=>routes.filter(r=>r.profileId===h.profileId
+   &&r.ownerCompanyId!==firm.id).flatMap(r=>{
+    const seller=company(r.ownerCompanyId);
+    return Object.keys(seller?.stock??{}).filter(productId=>
+     WORLD_PRODUCT_BY_ID.has(productId)
+     &&['resource','material'].includes(WORLD_PRODUCT_BY_ID.get(productId).category)
+     &&worldProductUnitClass(productId)==='mass'
+     &&worldDomesticDryCargo(productId,{}))
+     .map(productId=>[r.id,h.id,productId]);
+   }));
+  if(choices.length)forms.push(make('order',choices,'<select name="choice">'
+   +choices.map(([r,h,p])=>'<option value="'+r+'|'+h+'|'+p+'">'+esc(WORLD_PRODUCT_BY_ID.get(p).name)+'</option>').join('')+'</select>'
+   +'<input name="quantity" type="number" min="1" max="100000" placeholder="数量kg" required>'
+   +'<input name="price" type="number" min="1" max="10000000" placeholder="売手通貨単価(銭)" required>'
+   +'<input name="limit" type="number" min="1" max="1000000000" placeholder="買手通貨支払上限(銭)" required>'));
+  const approvals=orders.filter(o=>o.sellerId===firm.id&&o.status==='OPEN'&&o.sellerDecision===null);
+  if(approvals.length)forms.push(make('approve',approvals,'<select name="order">'
+   +approvals.map(o=>'<option value="'+o.id+'">'+o.id+'</option>').join('')+'</select>'));
+  const refunds=active.filter(t=>t.sellerId===firm.id&&t.status==='IN_TRANSIT'&&ym(S.year,S.month)>t.dueAt);
+  if(refunds.length)forms.push(make('refund',refunds,'<select name="shipment">'
+   +refunds.map(t=>'<option value="'+t.id+'">'+t.id+'</option>').join('')+'</select>'));
+ }
+ return '<details id="world-international" class="panel"><summary>Phase 4 国際B2B物流・外貨決済（英仏試作）</summary>'
+  +'<p>1994年開業の海峡輸送を利用する現物物流です。実機材・実燃料、売手/買手の現地通貨、到着検収後の売上を記録します。距離・容量・運賃係数は暫定値です。</p>'
+  +'<table><thead><tr><th>注文</th><th>貨物</th><th>申込/受注</th><th>状態</th></tr></thead><tbody>'
+  +(orderRows||'<tr><td colspan="4">国際注文なし</td></tr>')+'</tbody></table>'
+  +'<table><thead><tr><th>輸送</th><th>状態</th><th>数量</th><th>買手前払(銭)</th><th>売手前受(銭)</th></tr></thead><tbody>'
+  +(shipmentRows||'<tr><td colspan="5">国際検収なし</td></tr>')+'</tbody></table>'
+  +forms.join('')+'</details>';
+}
+document.addEventListener('submit',event=>{
+ const form=event.target.closest('form[data-world-international]');
+ if(!form)return;
+ event.preventDefault();
+ if(MONTH_RUNNING||!S?.worldExpansion)return;
+ const firm=current(),data=new FormData(form);
+ if(!canEdit(firm))return;
+ try{
+  if(form.dataset.worldInternational==='route')worldInternationalRegisterRoute(S,firm.id,data.get('profile'));
+  else if(form.dataset.worldInternational==='warehouse'){
+   const [id,plant]=data.get('target').split('|');
+   worldInternationalInstallWarehouse(S,firm.id,plant,id);
+  }else if(form.dataset.worldInternational==='order'){
+   const [routeId,warehouseId,productId]=data.get('choice').split('|');
+   worldInternationalPlaceOrder(S,firm.id,{routeId,warehouseId,productId,
+    quantity:Number(data.get('quantity')),unitPriceSeller:Number(data.get('price')),
+    maxPaymentBuyer:Number(data.get('limit'))});
+  }else if(form.dataset.worldInternational==='approve')
+   worldInternationalActOrder(S,firm.id,data.get('order'),'approve');
+  else if(form.dataset.worldInternational==='refund')
+   worldInternationalRefundShipment(S,data.get('shipment'));
+  else return;
+  requestOperationSaveV037();render();
+  const panel=document.getElementById('world-international');
+  if(panel)panel.open=true;
+  toast('国際物流・外貨決済の実台帳を更新しました');
+ }catch(error){toast(error.message);}
+});
+
 function worldPlanDomesticPurchases(s,events=[]){
  const w=s.worldExpansion,warehouses=Object.values(w?.domesticWarehouses??{}).filter(h=>h.retiredAt==null);
  if(!warehouses.length)return;
@@ -13389,7 +13802,8 @@ function worldDomesticOwnedAssets(s,ownerId){
  const w=s.worldExpansion;
  return [...Object.values(w?.domesticRoutes??{}),...Object.values(w?.domesticWarehouses??{}),
   ...Object.values(w?.manufacturingTools??{}),...Object.values(w?.telephoneExchanges??{}),
-  ...Object.values(w?.medicalClinics??{})]
+  ...Object.values(w?.medicalClinics??{}),...Object.values(w?.internationalRoutes??{}),
+  ...Object.values(w?.internationalWarehouses??{})]
   .filter(asset=>asset.ownerCompanyId===ownerId&&asset.retiredAt==null);
 }
 function worldDomesticAssetBasis(s,ownerId){
@@ -13413,6 +13827,12 @@ function worldDomesticBlocksReorganization(s,ownerId,plant=null){
   ||(s.worldExpansion?.storageServices??[]).some(t=>t.closedAt===null
     &&((t.clientId===ownerId&&(!plant||t.plantId===plant.id))
      ||(t.providerId===ownerId&&(!plant||s.worldExpansion.domesticWarehouses[t.warehouseId]?.plantId===plant.id))))
+  ||(s.worldExpansion?.internationalOrders??[]).some(o=>o.status==='OPEN'
+   &&((o.sellerId===ownerId&&(!plant||s.worldExpansion.internationalRoutes[o.routeId]?.plantId===plant.id))
+    ||(o.buyerId===ownerId&&(!plant||s.worldExpansion.internationalWarehouses[o.warehouseId]?.plantId===plant.id))))
+  ||(s.worldExpansion?.internationalShipments??[]).some(t=>t.status==='IN_TRANSIT'
+   &&((t.sellerId===ownerId&&(!plant||t.sellerPlantId===plant.id))
+    ||(t.buyerId===ownerId&&(!plant||t.buyerPlantId===plant.id))))
   ||(s.worldExpansion?.domesticShipments??[]).some(t=>t.status==='IN_TRANSIT'
    &&((t.sellerId===ownerId&&(!plant||t.sellerPlantId===plant.id))
      ||(t.buyerId===ownerId&&(!plant||t.buyerPlantId===plant.id))));
@@ -14089,6 +14509,7 @@ function validateWorldSupplemental(state){
  worldValidatePhase2E(state);
  worldValidateLocalSupply(state);
  worldValidateDomesticLogistics(state);
+ worldValidateInternationalLogistics(state);
  validateWorldPowerAllocations(state);
  validateWorldMiningPlans(state);
  validateWorldPhysicalDeliveries(state);
@@ -14219,7 +14640,8 @@ function worldDomesticLogisticsPanel(firm,editable){
   +(rows||'<tr><td colspan="6">出荷・前払・検収の記録なし</td></tr>')+'</tbody></table>'
   +'<table><thead><tr><th>発注ID</th><th>相手先</th><th>物理貨物</th><th>発注 / 成立</th><th>結果</th></tr></thead><tbody>'
   +(orderRows||'<tr><td colspan="5">発注の記録なし</td></tr>')+'</tbody></table>'
-  +worldServiceHistory(S,firm)+(editable?worldDomesticControls(firm,owned,warehouses,active,orders):'')+'</details>';
+  +worldServiceHistory(S,firm)+(editable?worldDomesticControls(firm,owned,warehouses,active,orders):'')+'</details>'
+  +worldInternationalTradePanel(firm,editable);
 }
 function worldDomesticControls(firm,routes,warehouses,shipments,orders){
  const w=S.worldExpansion,actions=[],option=(value,label)=>'<option value="'+esc(value)+'">'+esc(label)+'</option>',
