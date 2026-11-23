@@ -35,7 +35,7 @@ def main():
           const implementations=WORLD_PRODUCTS.map(p=>worldProductImplementation(p.id));
           const catalogStatus=implementations.filter(x=>x.implementation==='RECIPE_PROTOTYPE').length===104
             &&implementations.filter(x=>x.implementation==='WIRE_PILOT').length===1
-            &&implementations.filter(x=>x.implementation==='DATA_CANDIDATE').length===4;
+            &&implementations.filter(x=>x.implementation==='DATA_CANDIDATE').length===3;
           const services=implementations.filter(x=>!x.physical);
           const serviceMetadata=services.length===15&&services.every(x=>x.unitClass==='service');
           const volumeUnits=worldProductUnitClass('PRD-M15')==='volume';

@@ -159,8 +159,8 @@ def main():
 
           const stored=parsePayload(savePayload(S));
           const coverage=worldPhase2ExecutableCoverage();
-          const unknown=coverage.pending.join(',')==='PRD-S08,PRD-S10,PRD-S12,PRD-S14'
-            &&coverage.counts.SERVICE_PROTOTYPE===11&&allServicesNonphysical(stored);
+          const unknown=coverage.pending.join(',')==='PRD-S08,PRD-S12,PRD-S14'
+            &&coverage.counts.SERVICE_PROTOTYPE===12&&allServicesNonphysical(stored);
           function allServicesNonphysical(s){
             return s.firms.every(f=>[...WORLD_PRODUCT_SERVICE_IDS].every(id=>!f.stock[id]&&!f.goods[id]));
           }

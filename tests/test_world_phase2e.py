@@ -63,7 +63,7 @@ def main():
           corrupt.worldExpansion.powerTransfers[0].sentKwh++;
           let rejectsTampering=false;try{validateWorldExpansion(corrupt)}catch{rejectsTampering=true}
           const catalog=WORLD_SUPPLEMENTAL_RECIPES.length===104&&
-            WORLD_PRODUCTS.filter(x=>worldProductImplementation(x.id).implementation==='DATA_CANDIDATE').length===4;
+            WORLD_PRODUCTS.filter(x=>worldProductImplementation(x.id).implementation==='DATA_CANDIDATE').length===3;
           const noService=WORLD_PRODUCTS.filter(x=>x.category==='service')
             .every(x=>!worldServiceTerms(x.id).physicalInventory&&!f.stock[x.id]);
           const ledger=check(S).length===0&&consolidate(S).errors.length===0;
