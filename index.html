@@ -14992,7 +14992,7 @@ function worldInternationalBuyerPaymentSources(t){
   ?{worldBankRemittance:t.prepaidBuyer,...(t.dutyBuyer?{cash:t.dutyBuyer}:{})}
   :{cash:t.totalBuyer};
 }
-function worldInternationalPlaceOrder(s,buyerId,{routeId,warehouseId,productId,quantity,unitPriceSeller,maxPaymentBuyer,paymentDays=0,cargoLitres=0}){
+function worldInternationalPlaceOrder(s,buyerId,{routeId,warehouseId,productId,quantity,unitPriceSeller,maxPaymentBuyer,paymentDays=0,cargoLitres=0,bankId}){
  const w=s.worldExpansion,route=w?.internationalRoutes?.[routeId],
   warehouse=w?.internationalWarehouses?.[warehouseId],
   profile=WORLD_INTERNATIONAL_CORRIDORS[route?.profileId],
@@ -15011,9 +15011,12 @@ function worldInternationalPlaceOrder(s,buyerId,{routeId,warehouseId,productId,q
   ||!Number.isSafeInteger(maxPaymentBuyer)||maxPaymentBuyer<1||maxPaymentBuyer>1000000000
   ||!WORLD_INTERNATIONAL_PAYMENT_DAYS.has(paymentDays))
   throw Error('国際注文の実経路・受入設備・物理貨物・数量・外貨上限が不正');
+ if(!worldInternationalBankChoiceValid(route.profileId,paymentDays,bankId))
+  throw Error('この外部銀行送金には対応経路と掛け日数が必要です');
  const order={id:'IO-'+s.seq++,routeId,warehouseId,sellerId:seller.id,buyerId,
   productId,quantity,unitPriceSeller,maxPaymentBuyer,paymentDays,cargoLitres,placedAt:ym(s.year,s.month),
   status:'OPEN',sellerDecision:null,decisionAt:null,closedAt:null,acceptedQty:0,shipmentId:null,result:null};
+ if(bankId!==undefined)order.bankId=bankId;
  (w.internationalOrders??=[]).push(order);
  return order;
 }
@@ -15060,13 +15063,26 @@ const WORLD_INTERNATIONAL_CUSTOMS=Object.freeze({
   authority:'横浜税関',authoritySource:'https://www.customs.go.jp/english/zeikan/history_e.htm',
   tariffSource:'https://www.mofa.go.jp/mofaj/annai/honsho/shiryo/archives/pdfs/meiji_joyaku_bessatsu_hensen_04.pdf'})
 });
-// A separately held GBP remittance for the documented London–Wellington draft
-// service. Each receipt carries its own principal. Clearing lag is a game rule.
+// Documented GBP draft services. Each remittance carries its own principal.
+// Clearing lag is a game rule.
 const WORLD_INTERNATIONAL_REMITTANCE=Object.freeze({
  'NZ-UK-WELLINGTON-WOOL':Object.freeze({id:'BANK-BNZ-GBP',currencyId:'CUR-GBP',delayMonths:1,
   source:'https://leicester.contentdm.oclc.org/digital/api/collection/p16445coll4/id/274979/download',
-  branchSource:'https://leicester.contentdm.oclc.org/digital/api/collection/p16445coll4/id/34866/download'})
+  branchSource:'https://leicester.contentdm.oclc.org/digital/api/collection/p16445coll4/id/34866/download'}),
+ 'ZA-UK-CAPE-WOOL':Object.freeze({id:'BANK-STANDARD-ZA-GBP',name:'南アフリカ・スタンダード銀行',
+  currencyId:'CUR-GBP',delayMonths:1,selectable:true,
+  source:'https://upload.wikimedia.org/wikipedia/commons/a/a7/The_Economist_1874-09-05-_Vol_32_Iss_1619_%28IA_sim_economist_1874-09-05_32_1619%29.pdf#page=28',
+  branchSource:'https://www.wcnumsoc.com/_files/ugd/3e597b_7ec4228362234765ba2b483044fbec4b.pdf?index=true#page=286'})
 });
+function worldInternationalBankChoiceValid(profileId,paymentDays,bankId){
+ if(bankId===undefined)return true;
+ const bank=WORLD_INTERNATIONAL_REMITTANCE[profileId];
+ return paymentDays>0&&bank?.selectable===true&&bankId===bank.id;
+}
+function worldInternationalOrderBank(profileId,order){
+ const bank=WORLD_INTERNATIONAL_REMITTANCE[profileId];
+ return bank&&order.paymentDays>0&&(!bank.selectable||order.bankId===bank.id)?bank:null;
+}
 const WORLD_PHASE4_TARIFF_BPS=Object.freeze({JP:350,US:300,UK:250,FR:300,DE:300,NO:250,CA:300,AU:300,NZ:300,MX:300,BR:300,AR:300,CL:300,CO:300,SE:250,NL:300,IT:300,EG:300,IN:300,ZA:250,TH:300,SG:0,CN:300,ID:300,NG:250,ES:250,PH:300,RU:300,KR:300,TR:300,MY:250,KE:250,MA:300,CH:300,AT:300,PL:250,GR:300,VN:300,IR:300,SA:300});
 function worldInternationalTariffBps(s,country,profileId,productId){
  if(!s.world?.[country]||!Object.hasOwn(WORLD_PHASE4_TARIFF_BPS,country))
@@ -15195,7 +15211,7 @@ function worldInternationalResolveOrders(s,events=[]){
      railDueAt:month+Math.max(1,Math.ceil(rail.km/400)),arrivedAt:null,boardedAt:null,
      fuelRail,fuelSea:quote.fuelRequired-fuelRail};
    }
-   const bank=WORLD_INTERNATIONAL_REMITTANCE[route.profileId];
+   const bank=worldInternationalOrderBank(route.profileId,o);
    if(bank&&t.credit)t.credit.remittance={bankId:bank.id,currencyId:bank.currencyId,
     principal:t.prepaidBuyer,sentAt:null,sentJournal:null,returnedAt:null,returnJournal:null};
    const rule=WORLD_INTERNATIONAL_CUSTOMS[route.profileId];
@@ -15519,6 +15535,7 @@ function worldValidateInternationalLogistics(s){
    ||!Number.isSafeInteger(o.maxPaymentBuyer)||o.maxPaymentBuyer<1||o.maxPaymentBuyer>1000000000
    ||!worldInternationalCargoAllowed(o.productId,route.profileId)
    ||!WORLD_INTERNATIONAL_PAYMENT_DAYS.has(o.paymentDays??0)||!worldInternationalValidVolume(o.cargoLitres??0)
+   ||!worldInternationalBankChoiceValid(route.profileId,o.paymentDays,o.bankId)
    ||!Number.isSafeInteger(o.placedAt)||o.placedAt<orderMonth||o.placedAt<Math.max(route.installedAt,h.installedAt)||o.placedAt>month
    ||!['OPEN','FILLED','PARTIAL','REJECTED','CANCELLED'].includes(o.status)
    ||!Number.isSafeInteger(o.acceptedQty)||o.acceptedQty<0||o.acceptedQty>o.quantity
@@ -15625,7 +15642,7 @@ function worldValidateInternationalLogistics(s){
   const paidBeforeDelivery=!credit||(paid&&(c===null||credit.journal<c));
   const failed=t.status==='REFUNDED'||t.status==='REFUND_PENDING';
   const failureMonth=refund?.confirmedAt??t.refundedAt;
-  const bank=WORLD_INTERNATIONAL_REMITTANCE[r.profileId],remittance=credit?.remittance;
+  const bank=worldInternationalOrderBank(r.profileId,order),remittance=credit?.remittance;
   if(bank&&credit){
    const sent=remittance?.sentAt!==null;
    const returned=remittance?.returnedAt!==null;
@@ -15728,7 +15745,8 @@ function worldInternationalTradePanel(firm,editable){
   routes=Object.values(w.internationalRoutes??{}).filter(a=>a.retiredAt==null),
   wh=Object.values(w.internationalWarehouses??{}).filter(a=>a.retiredAt==null);
  const orderRows=orders.slice(-20).map(o=>'<tr><td>'+esc(o.id)+'</td><td>'+esc(WORLD_PRODUCT_BY_ID.get(o.productId)?.name)
-  +'</td><td>'+nfmt(o.quantity)+' / '+nfmt(o.acceptedQty)+'</td><td>'+esc(o.status)+'</td></tr>').join('');
+  +'</td><td>'+nfmt(o.quantity)+' / '+nfmt(o.acceptedQty)+'</td><td>'+esc(o.status)
+  +(o.bankId?' / '+esc(o.bankId):'')+'</td></tr>').join('');
  const shipmentRows=active.slice(-20).map(t=>'<tr><td>'+esc(t.id)+'</td><td>'+esc(t.status)
   +(t.status==='IN_TRANSIT'?' ／ '+worldInternationalShipmentStage(t):'')
   +'</td><td>'+nfmt(t.quantity)+' kg'+(t.cargoLitres?' ／ '+nfmt(t.cargoLitres)+' L（換算 '+nfmt(t.loadKg)+' kg）':'')
@@ -15736,7 +15754,8 @@ function worldInternationalTradePanel(firm,editable){
   +'</td><td>'+(t.status==='REFUND_PENDING'?'返金未払':t.status==='REFUNDED'?'未納終了'
    :!t.credit?'受注時決済':esc(t.credit.dueDate)+' / '
    +(t.credit.paidAt!==null?'決済済':t.credit.remittance?.sentAt!=null?'外部銀行で送金中'
-    :ym(S.year,S.month)>t.credit.dueMonth?'延滞':'未決済'))
+    :ym(S.year,S.month)>t.credit.dueMonth?'延滞':'未決済')
+   +(t.credit.remittance?' / '+esc(t.credit.remittance.bankId):''))
   +(t.customs?'</td><td>'+esc(t.customs.authorityId)+' ／ '
    +(t.customs.releasedAt!==null?'輸入許可':t.customs.arrivalAt!==null?'保税・通関審査中':'申告準備')
    +' ／ '+(t.customs.duty?nfmt(t.customs.duty):'無税')
@@ -15765,10 +15784,16 @@ function worldInternationalTradePanel(firm,editable){
    .flatMap(h=>routes.filter(r=>r.profileId===h.profileId&&r.ownerCompanyId!==firm.id).flatMap(r=>{
     const seller=company(r.ownerCompanyId);
     return Object.keys(seller?.stock??{}).filter(productId=>worldInternationalCargoAllowed(productId,r.profileId))
-     .map(productId=>[r.id,h.id,productId]);
+     .map(productId=>[r.id,h.id,productId,r.profileId]);
    }));
   if(choices.length)forms.push(make('order','<select name="choice">'
-   +choices.map(([r,h,p])=>'<option value="'+r+'|'+h+'|'+p+'">'+esc(WORLD_PRODUCT_BY_ID.get(p).name)+'</option>').join('')+'</select>'
+   +choices.map(([r,h,p,profileId])=>{
+    const value=r+'|'+h+'|'+p,label=esc(WORLD_PRODUCT_BY_ID.get(p).name);
+    const bank=WORLD_INTERNATIONAL_REMITTANCE[profileId];
+    return '<option value="'+value+'">'+label+'</option>'
+     +(bank?.selectable?'<option value="'+value+'|'+esc(bank.id)+'">'+label+' / '+esc(bank.name)
+      +'（30・60・90日掛け）</option>':'');
+   }).join('')+'</select>'
    +'<label>実重量（kg） <input name="quantity" type="number" min="1" max="100000" required></label>'
    +'<label>荷姿の外寸容積（L） <input name="cargoLitres" type="number" min="1" max="'+WORLD_MAX_CONSIGNMENT_LITRES+'" required></label>'
    +'<input name="price" type="number" min="1" max="10000000" placeholder="売手通貨単価(銭)" required>'
@@ -15827,8 +15852,8 @@ document.addEventListener('submit',event=>{
    const [id,plant]=data.get('target').split('|');
    worldInternationalInstallWarehouse(S,firm.id,plant,id);
   }else if(form.dataset.worldInternational==='order'){
-   const [routeId,warehouseId,productId]=data.get('choice').split('|');
-   worldInternationalPlaceOrder(S,firm.id,{routeId,warehouseId,productId,
+   const [routeId,warehouseId,productId,bankId]=data.get('choice').split('|');
+   worldInternationalPlaceOrder(S,firm.id,{routeId,warehouseId,productId,bankId,
     quantity:Number(data.get('quantity')),cargoLitres:Number(data.get('cargoLitres')),unitPriceSeller:Number(data.get('price')),
     maxPaymentBuyer:Number(data.get('limit')),paymentDays:Number(data.get('paymentDays'))});
   }else if(['approve','reject','cancel'].includes(form.dataset.worldInternational))

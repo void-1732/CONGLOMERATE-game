@@ -405,9 +405,11 @@ def test_south_africa_union(page):
       worldBuyRegionalSupply(S,seller.id,port.id,'ZA-CPT-BUNKER-COAL',22);
       const route=worldInternationalRegisterRoute(S,seller.id,profile);
       const wh=worldInternationalInstallWarehouse(S,buyer.id,depot.id,profile);
-      const order=worldInternationalPlaceOrder(S,buyer.id,{
+      const terms={
         routeId:route.id,warehouseId:wh.id,productId:'PRD-R21',
-        quantity:14,cargoLitres:30,unitPriceSeller:45,maxPaymentBuyer:100000,paymentDays:60});
+        quantity:14,cargoLitres:30,unitPriceSeller:45,maxPaymentBuyer:100000,paymentDays:60};
+      const bankFixture=structuredClone(S);
+      const order=worldInternationalPlaceOrder(S,buyer.id,terms);
       worldInternationalActOrder(S,seller.id,order.id,'approve');
       advanceFreightFixtureMonth(6);worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
       const cargo=S.worldExpansion.internationalShipments.at(-1);
@@ -420,7 +422,7 @@ def test_south_africa_union(page):
       const tampered=structuredClone(S);tampered.worldExpansion.internationalShipments.at(-1).loadKg++;
       const tamperRejected=fail(()=>parsePayload(savePayload(tampered)));
       advanceFreightFixtureMonth(7);worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
-      const paid=cargo.credit.paidAt===ym(1911,7);
+      const paid=cargo.credit.paidAt===ym(1911,7)&&!cargo.credit.remittance;
       advanceFreightFixtureMonth(9);worldInternationalReceiveShipments(S);
       const saved=parsePayload(savePayload(S));
       const delivered=cargo.status==='DELIVERED'&&buyer.stock['PRD-R21'].q===14
@@ -428,8 +430,53 @@ def test_south_africa_union(page):
         &&acc(seller,'worldShipmentStock')===0
         &&!check(saved).length&&!consolidate(saved).errors.length;
       advanceFreightFixtureMonth(10);
+      const expired=!worldInternationalRouteAvailable(S,profile);
+
+      S=bankFixture;
+      const importer=company(buyer.id),exporter=company(seller.id);
+      const bankId='BANK-STANDARD-ZA-GBP';
+      const invalidBankRejected=fail(()=>worldInternationalPlaceOrder(S,importer.id,
+        {...terms,bankId:'BANK-BNZ-GBP'}))&&fail(()=>worldInternationalPlaceOrder(S,importer.id,
+        {...terms,bankId,paymentDays:0}));
+      VIEW_FIRM=importer.id;VIEW_COUNTRY='UK';PAGE='logisticsHubs';render();
+      const form=document.querySelector('form[data-world-international="order"]');
+      for(const [name,value] of [
+        ['choice',[route.id,wh.id,terms.productId,bankId].join('|')],
+        ['quantity',terms.quantity],['cargoLitres',terms.cargoLitres],['price',terms.unitPriceSeller],
+        ['limit',terms.maxPaymentBuyer],['paymentDays',terms.paymentDays]
+      ])form.elements.namedItem(name).value=String(value);
+      form.requestSubmit();
+      const bankOrder=S.worldExpansion.internationalOrders[0];
+      const submitted=bankOrder?.bankId===bankId&&bankOrder.paymentDays===60;
+      worldInternationalActOrder(S,exporter.id,bankOrder.id,'approve');
+      advanceFreightFixtureMonth(6);worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
+      const [bankCargo]=S.worldExpansion.internationalShipments;
+      const payment=bankCargo.credit.remittance;
+      const cashBefore=acc(importer,'cash'),sellerBefore=acc(exporter,'cash');
+      advanceFreightFixtureMonth(7);worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
+      const pending=parsePayload(savePayload(S));
+      const pendingPayment=pending.worldExpansion.internationalShipments[0].credit.remittance;
+      const escrow=payment?.bankId===bankId&&payment.currencyId==='CUR-GBP'
+        &&pendingPayment.sentAt===ym(1911,7)&&payment.principal===bankCargo.prepaidBuyer
+        &&bankCargo.credit.paidAt===null&&acc(importer,'worldBankRemittance')===payment.principal
+        &&acc(importer,'cash')===cashBefore-payment.principal&&acc(exporter,'cash')===sellerBefore
+        &&!check(pending).length&&!consolidate(pending).errors.length;
+      const altered=structuredClone(pending);
+      delete altered.worldExpansion.internationalOrders[0].bankId;
+      const bankTamperRejected=fail(()=>parsePayload(savePayload(altered)));
+      advanceFreightFixtureMonth(8);worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
+      const remitted=bankCargo.credit.paidAt===ym(1911,8)&&bankCargo.status==='IN_TRANSIT'
+        &&acc(importer,'worldBankRemittance')===0&&acc(importer,'cash')===cashBefore-bankCargo.totalBuyer
+        &&acc(exporter,'cash')===sellerBefore+bankCargo.prepaidSeller
+        &&worldInternationalTradePanel(importer,true).includes(bankId);
+      advanceFreightFixtureMonth(9);worldInternationalReceiveShipments(S);
+      const final=parsePayload(savePayload(S));
+      const bankDelivered=bankCargo.status==='DELIVERED'
+        &&importer.stock['PRD-R21'].v===bankCargo.totalBuyer
+        &&final.worldExpansion.internationalShipments[0].credit.remittance.bankId===bankId
+        &&!check(final).length&&!consolidate(final).errors.length;
       return {closed,beforeUnion,opened,jurisdictions,freight,tamperRejected,paid,delivered,
-        expired:!worldInternationalRouteAvailable(S,profile)};
+        expired,invalidBankRejected,submitted,escrow,bankTamperRejected,remitted,bankDelivered};
     }""")
     assert all(result.values()), result
 
