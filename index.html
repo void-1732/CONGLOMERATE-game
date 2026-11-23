@@ -11133,7 +11133,7 @@ function worldPhase3Preview(s,market,playable){
   return `<tr><td>${esc(p.name)}</td><td class="num">${nfmt(q.nationalQuantity)} ${esc(q.unit)}</td><td class="num">${nfmt(q.referencePrice)}</td></tr>`;
  }).join('');
  const cities=worldPhase3CityShares(market)
-  .map(c=>`<li>${esc(c.name)}：${(c.shareBps/100).toFixed(2)}%</li>`).join('');
+  .map((c,i)=>`<li>第${i+1}都市（上記の順）：${(c.shareBps/100).toFixed(2)}%</li>`).join('');
  return `<section data-phase3-market="${market.id}"><h4>Phase 3：国別消費需要・都市固定配分（暫定）</h4>
   <p class="hint">30消費財の参考推計。価格は当地通貨の参考値で、受注・実在庫・売上・入金には反映しません。係数はPROVISIONALです。</p>
   <ul>${cities}</ul>
