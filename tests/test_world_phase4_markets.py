@@ -87,7 +87,7 @@ def test_australia(page):
         firm.stock[id]={q:1,v:value};
       }
       syncWorldIdentities(S);
-      const identities=firmCurrency(seller,S)==='AUP'
+      const identities=firmCurrency(seller,S)==='AUD'
         &&S.worldExpansion.companies[seller.id].jurisdictionId==='JUR-AU'
         &&S.worldExpansion.facilities['FAC-'+plant.id].locationId==='LOC-AU-SYD';
       const purchase=worldBuyRegionalSupply(S,seller.id,plant.id,'AU-SYD-WOOL',12);
@@ -1370,16 +1370,16 @@ def main(observe_receipts=None):
         test_steamship_export(page, {
             **gulf_coffee,
             "profile": "MX-US-VERACRUZ-COFFEE", "country": "MX", "site": "MX-VER", "city": "CITY-28-04",
-            "currency": "MXP", "year": 1906, "offer": "MX-VER-COFFEE", "authority": "CUSTOMS-US-NOLA-1897",
+            "currency": "MXN", "year": 1906, "offer": "MX-VER-COFFEE", "authority": "CUSTOMS-US-NOLA-1897",
         })
         test_steamship_export(page, {
             **gulf_coffee,
             "profile": "BR-US-RIO-COFFEE", "country": "BR", "site": "BR-RIO", "city": "CITY-29-01",
-            "currency": "BRM", "year": 1910, "offer": "BR-RIO-COFFEE", "authority": "CUSTOMS-US-NOLA-1909",
+            "currency": "BRL", "year": 1910, "offer": "BR-RIO-COFFEE", "authority": "CUSTOMS-US-NOLA-1909",
         })
         test_steamship_export(page, {
             "profile": "AR-UK-BUENOSAIRES-WHEAT", "country": "AR", "site": "AR-BUE", "city": "CITY-30-01",
-            "currency": "ARM", "year": 1921, "offer": "AR-BUE-WHEAT", "authority": None,
+            "currency": "ARS", "year": 1921, "offer": "AR-BUE-WHEAT", "authority": None,
             "buyerCountry": "UK", "destination": "UK-LIV", "product": "PRD-R22", "departure": 2, "payMonth": 4,
         })
         test_steamship_export(page, {
@@ -1442,7 +1442,7 @@ def main(observe_receipts=None):
         })
         test_steamship_export(page, {
             "profile": "CN-UK-HANKOW-SOY", "country": "CN", "site": "CN-HAN",
-            "city": "CITY-15-04", "currency": "CNT", "year": 1907,
+            "city": "CITY-15-04", "currency": "CNY", "year": 1907,
             "offer": "CN-HAN-SOY", "authority": None,
             "buyerCountry": "UK", "destination": "UK-LIV", "product": "PRD-R25",
             "departure": 5, "payMonth": 6,
@@ -1465,14 +1465,14 @@ def main(observe_receipts=None):
         test_philippines_sugar_customs(page)
         test_steamship_export(page, {
             "profile": "RU-UK-PETERSBURG-TIMBER", "country": "RU", "site": "RU-SPB",
-            "city": "CITY-06-02", "currency": "RUR", "year": 1904,
+            "city": "CITY-06-02", "currency": "RUB", "year": 1904,
             "offer": "RU-SPB-TIMBER", "authority": None,
             "buyerCountry": "UK", "destination": "UK-LON", "product": "PRD-R19",
             "departure": 5, "payMonth": 6,
         })
         test_steamship_export(page, {
             "profile": "TR-UK-SMYRNA-COTTON", "country": "TR", "site": "TR-IZM",
-            "city": "CITY-38-03", "currency": "OTL", "year": 1909,
+            "city": "CITY-38-03", "currency": "TRY", "year": 1909,
             "offer": "TR-IZM-COTTON", "authority": None,
             "buyerCountry": "UK", "destination": "UK-LIV", "product": "PRD-R20",
             "departure": 5, "payMonth": 6,
@@ -1494,7 +1494,7 @@ def main(observe_receipts=None):
         })
         test_dated_colonial_export(page, {
             "profile": "MA-FR-CASABLANCA-WHEAT", "country": "MA", "site": "MA-CAS",
-            "city": "CITY-37-02", "currency": "MAF", "year": 1923,
+            "city": "CITY-37-02", "currency": "MAD", "year": 1923,
             "opensYear": 1920, "opensMonth": 7, "offer": "MA-CAS-WHEAT",
             "buyerCountry": "FR", "destination": "FR-MAR", "product": "PRD-R22",
             "departure": 5, "payMonth": 6,
@@ -1529,14 +1529,14 @@ def main(observe_receipts=None):
         })
         test_steamship_export(page, {
             "profile": "VN-FR-SAIGON-RICE", "country": "VN", "site": "VN-SGN",
-            "city": "CITY-19-02", "currency": "ICP", "year": 1907,
+            "city": "CITY-19-02", "currency": "VND", "year": 1907,
             "offer": "VN-SGN-RICE", "authority": None,
             "buyerCountry": "FR", "destination": "FR-MAR", "product": "PRD-R23",
             "departure": 5, "payMonth": 6,
         })
         test_steamship_export(page, {
             "profile": "IR-IN-BANDARABBAS-WOOL", "country": "IR", "site": "IR-BND",
-            "city": "CITY-40-01", "currency": "IRK", "year": 1905,
+            "city": "CITY-40-01", "currency": "IRR", "year": 1905,
             "offer": "IR-BND-WOOL", "authority": None,
             "buyerCountry": "IN", "destination": "IN-BOM", "product": "PRD-R21",
             "departure": 5, "payMonth": 6,

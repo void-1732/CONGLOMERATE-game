@@ -149,6 +149,28 @@ def main():
             &&worldMapDistanceNotice('JP-US-SEATTLE-STEAM',oldDistanceState).includes('LEGACY_MODEL');
           const distanceNotInvented=!worldRouteDistanceReference('UK-FR-HOUNSLOW-LEATHER',state).matched
             &&worldMapDistanceNotice('UK-FR-HOUNSLOW-LEATHER',state).includes('PROVISIONAL');
+          const modernExpected={AU:'AUD',MX:'MXN',BR:'BRL',AR:'ARS',CN:'CNY',RU:'RUB',TR:'TRY',MA:'MAD',VN:'VND',IR:'IRR'};
+          out.modernIndependentCurrencies=Object.entries(modernExpected).every(([code,id])=>
+            state.world[code]?.currency===id&&firmCurrency({country:code},state)===id);
+          const modernFx=structuredClone(state);
+          modernFx.world.AU.fx*=1.01;
+          const independentFx=modernFx.world.AU.fx;
+          worldMatchLedgerCurrencyRates(modernFx);
+          out.modernIndependentFx=modernFx.world.AU.fx===independentFx
+            &&modernFx.world.AU.fx!==state.world.AU.fx;
+          const oldCurrency=structuredClone(state);
+          delete oldCurrency.worldExpansion.modernIndependentCurrencyVersion;
+          for(const code of Object.keys(modernExpected)){
+            oldCurrency.world[code].currency=WORLD_ENGINE_CURRENCIES[code].slice(4);
+          }
+          syncWorldIdentities(oldCurrency);
+          const oldCurrencyLoaded=parsePayload(savePayload(oldCurrency));
+          out.oldCurrencyPreserved=Object.keys(modernExpected).every(code=>
+            oldCurrencyLoaded.world[code].currency===oldCurrency.world[code].currency)
+            &&JSON.stringify(oldCurrencyLoaded.firms)===JSON.stringify(oldCurrency.firms);
+          const badCurrency=structuredClone(state);badCurrency.world.AU.currency='AUP';
+          try{parsePayload(savePayload(badCurrency));out.rejectModernCurrencyTamper=false}
+          catch{out.rejectModernCurrencyTamper=true}
           const restored=parsePayload(savePayload(state));
           // Version 16 saves remain legal inputs. Upgrading must not
           // rewrite firms, cash, ownership or historical pre-1910 events.

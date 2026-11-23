@@ -916,7 +916,7 @@ const cents=n=>Math.round(n*100);
 const moneyLocal=(v,cur='JPY')=>new Intl.NumberFormat('ja-JP',{maximumFractionDigits:2}).format((v||0)/100)+' '+cur;
 const nfmt=n=>new Intl.NumberFormat('ja-JP',{maximumFractionDigits:2}).format(n||0);
 const firmCurrency=(f,s=S)=>s?.config?.scenario==='world'
- ?WORLD_ENGINE_CURRENCIES[f.country].slice(4):COUNTRIES[f.country]?.currency||'JPY';
+ ?worldLedgerCurrencyId(s,f.country).slice(4):COUNTRIES[f.country]?.currency||'JPY';
 const fnum=(f,v)=>moneyLocal(v,firmCurrency(f));
 const baseMoney=v=>moneyLocal(v,'円相当');
 const localFromBase=(base,code)=>cents(base/COUNTRIES[code].fx);
@@ -12026,6 +12026,17 @@ const WORLD_ENGINE_TERRITORY={UK:'TER-01-01',FR:'TER-02-01',DE:'TER-03-01',NO:'T
  ...Object.fromEntries(Object.entries(WORLD_MARKET_ONBOARDING).map(([code,row])=>[code,row.territoryId]))};
 const WORLD_ENGINE_CURRENCIES={UK:'CUR-GBP',FR:'CUR-EUR',DE:'CUR-EUR',NO:'CUR-NOK',JP:'CUR-JPY',US:'CUR-USD',
  ...Object.fromEntries(Object.entries(WORLD_MARKET_ONBOARDING).map(([code,row])=>[code,row.currencyId]))};
+// SPEC-155: these currencies have independent model FX series. New books
+// use modern ISO codes; the calibrated synthetic reference rates are retained.
+// https://docs.ted.europa.eu/eforms/latest/reference/code-lists/currency.html
+const WORLD_MODERN_INDEPENDENT_CURRENCIES=Object.freeze({
+ AU:'CUR-AUD',MX:'CUR-MXN',BR:'CUR-BRL',AR:'CUR-ARS',CN:'CUR-CNY',
+ RU:'CUR-RUB',TR:'CUR-TRY',MA:'CUR-MAD',VN:'CUR-VND',IR:'CUR-IRR'
+});
+function worldLedgerCurrencyId(s,code){
+ return (s?.worldExpansion?.modernIndependentCurrencyVersion===1
+  ?WORLD_MODERN_INDEPENDENT_CURRENCIES[code]:null)??WORLD_ENGINE_CURRENCIES[code];
+}
 // Sourced monetary units are references, NOT the simulated bookkeeping
 // denomination. Changing a company ledger without translating every journal,
 // historical balance and FX contract would corrupt existing save files.
@@ -12100,6 +12111,7 @@ function worldLedgerCurrencyNotice(s,firm){
   +'" target="_blank" rel="noopener noreferrer">通貨史料</a></p>';
 }
 const WORLD_CURRENCIES=new Set([...Object.values(WORLD_ENGINE_CURRENCIES),
+ ...Object.values(WORLD_MODERN_INDEPENDENT_CURRENCIES),
  ...Object.values(WORLD_TERRITORY_MONETARY_REFERENCES).flatMap(entries=>entries.map(row=>row[1]))]);
 const WORLD_JURISDICTIONS=new Map([
  ['JUR-UK',{name:'イギリス',currencyId:'CUR-GBP'}],
@@ -12184,6 +12196,10 @@ function worldHistoryThrough(month,registryVersion){
  return WORLD_EVENTS.filter(event=>event.month<=month&&(event.registryVersion??0)<=registryVersion);
 }
 function worldMatchLedgerCurrencyRates(s){
+ if(s.worldExpansion?.modernIndependentCurrencyVersion===1){
+  for(const [code,id] of Object.entries(WORLD_MODERN_INDEPENDENT_CURRENCIES))
+   if(s.world[code])s.world[code].currency=id.slice(4);
+ }
  if(s.worldExpansion?.euroFxUnified&&s.world.FR){
   for(const code of ['FR','DE','IE','LU'])if(s.world[code]){
    s.world[code].currency='EUR';s.world[code].fx=s.world.FR.fx;
@@ -12301,6 +12317,7 @@ function newWorldGame(setup){
  state.worldExpansion.freightRateFromSeq=1;
  // Existing saves keep their booked exchange-rate histories. New games share the EUR rate.
  state.worldExpansion.euroFxUnified=true;
+ state.worldExpansion.modernIndependentCurrencyVersion=1;
  state.worldExpansion.routeDistanceVersion=1;
  applyWorldHistory(state);syncWorldIdentities(state);validateWorldExpansion(state);
  return state;
@@ -12388,7 +12405,7 @@ function syncWorldIdentities(s){
   const headquartersId=previous?.headquartersId??'HQ-'+firm.id;
   const locationId=previous?.locationId??'LOC-'+homeSite(firm.country).id;
   companies[firm.id]={companyId:firm.id,headquartersId,locationId,territoryId,
-   jurisdictionId:world.territoryJurisdictions[territoryId],currencyId:WORLD_ENGINE_CURRENCIES[firm.country]};
+   jurisdictionId:world.territoryJurisdictions[territoryId],currencyId:worldLedgerCurrencyId(s,firm.country)};
   for(const plant of firm.plants){
    const key='FAC-'+plant.id;
    const plantLocation='LOC-'+plant.siteId;
@@ -12422,6 +12439,8 @@ function validateWorldExpansion(s){
  if(Object.hasOwn(world,'freightRateFromSeq')&&(!Number.isSafeInteger(world.freightRateFromSeq)
   ||world.freightRateFromSeq<1||world.freightRateFromSeq>s.seq))throw Error('方式別運賃の適用開始が不正');
  if(Object.hasOwn(world,'routeDistanceVersion')&&world.routeDistanceVersion!==1)throw Error('路線距離の版が不正');
+ if(Object.hasOwn(world,'modernIndependentCurrencyVersion')&&world.modernIndependentCurrencyVersion!==1)throw Error('現代通貨制度の版が不正');
+ if(world.modernIndependentCurrencyVersion===1&&Object.entries(WORLD_MODERN_INDEPENDENT_CURRENCIES).some(([code,id])=>s.world[code]&&s.world[code].currency!==id.slice(4)))throw Error('現代帳簿通貨が一致しません');
  if(Object.hasOwn(world,'euroFxUnified')&&world.euroFxUnified!==true)throw Error('EUR為替制度の識別が不正');
  if(world.euroFxUnified&&['FR','DE','IE','LU'].some(code=>s.world[code]&&
   (s.world[code].currency!=='EUR'||s.world[code].fx!==s.world.FR?.fx)))throw Error('共通EURの帳簿為替が一致しません');
@@ -12438,7 +12457,7 @@ function validateWorldExpansion(s){
   if(!row||row.companyId!==firm.id||row.headquartersId!=='HQ-'+firm.id||!site
       ||row.territoryId!==WORLD_ENGINE_TERRITORY[firm.country]||site.territoryId!==row.territoryId
       ||row.jurisdictionId!==world.territoryJurisdictions[row.territoryId]
-      ||row.currencyId!==WORLD_ENGINE_CURRENCIES[firm.country]||!WORLD_CURRENCIES.has(row.currencyId)){
+      ||row.currencyId!==worldLedgerCurrencyId(s,firm.country)||!WORLD_CURRENCIES.has(row.currencyId)){
    throw Error('法人の本拠・管轄・帳簿通貨の参照が不正です：'+firm.id);
   }
   for(const plant of firm.plants){
