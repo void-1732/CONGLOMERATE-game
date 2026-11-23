@@ -17,7 +17,6 @@ def main():
         page.wait_for_function("STORAGE_READY")
         result=page.evaluate("""() => {
           S=newWorldGame({country:'UK',name:'Phase 4 Channel freight'});
-          S.year=2000;S.month=1;S.monthCommitted=ym(2000,1)-1;
           const buyer=company(S.playerId),bp=buyer.plants[0];
           const capital=300000,parentJournal=S.seq;
           post(buyer,{investment:capital},{cash:capital},'検証用海外法人の正式設立','investing',S);
@@ -44,6 +43,8 @@ def main():
           put(seller,'PRD-M16',30,300);
           put(seller,'PRD-R19',12,600);
           put(buyer,'PRD-E20',1,200);
+          // Found the foreign subsidiary with balanced 1900 books; travel begins after 1994.
+          S.year=2000;S.month=1;S.monthCommitted=ym(2000,1)-1;
           applyWorldHistory(S);syncWorldIdentities(S);
           const route=worldInternationalRegisterRoute(S,seller.id,'FR-UK-CHANNEL-1994');
           const warehouse=worldInternationalInstallWarehouse(S,buyer.id,bp.id,'FR-UK-CHANNEL-1994');
