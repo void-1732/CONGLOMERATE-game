@@ -15044,6 +15044,14 @@ function worldInternationalBuyerPaymentSources(t){
   ?{worldBankRemittance:t.prepaidBuyer,...(t.dutyBuyer?{cash:t.dutyBuyer}:{})}
   :{cash:t.totalBuyer};
 }
+function worldInternationalBuyerRefundAccounts(t,pending){
+ const debits=pending?{worldInternationalReceivable:t.prepaidBuyer}:{cash:t.prepaidBuyer};
+ if(t.dutyBuyer){
+  if(t.unassessedDutyReturned)debits.cash=(debits.cash??0)+t.dutyBuyer;
+  else debits.otherExpense=t.dutyBuyer;
+ }
+ return debits;
+}
 function worldInternationalPlaceOrder(s,buyerId,{routeId,warehouseId,productId,quantity,unitPriceSeller,maxPaymentBuyer,paymentDays=0,cargoLitres=0,bankId}){
  const w=s.worldExpansion,route=w?.internationalRoutes?.[routeId],
   warehouse=w?.internationalWarehouses?.[warehouseId],
@@ -15419,11 +15427,12 @@ function worldInternationalRefundShipment(s,shipmentId){
  const start=s.seq;
  if(paid){
   const sellerRefund=refundPending?'worldInternationalPayable':'cash';
-  const buyerRefund=refundPending?'worldInternationalReceivable':'cash';
+  if(t.customs?.centsPerHundredweight!=null&&t.customs.arrivalAt===null&&t.dutyBuyer)
+   t.unassessedDutyReturned=true;
   post(seller,{worldCustomerAdvances:t.prepaidSeller},{[sellerRefund]:t.prepaidSeller},
    '国際未納貨物の輸出者返金義務','operating',s);
-  post(buyer,{[buyerRefund]:t.prepaidBuyer,...(t.dutyBuyer?{otherExpense:t.dutyBuyer}:{})},
-   worldInternationalBuyerSettlementAccounts(t,true),'国際未納貨物の輸入者返金・関税損失','operating',s);
+  post(buyer,worldInternationalBuyerRefundAccounts(t,refundPending),worldInternationalBuyerSettlementAccounts(t,true),
+   t.unassessedDutyReturned?'国際未納貨物の輸入者返金・未査定関税返戻':'国際未納貨物の輸入者返金・関税損失','operating',s);
  }
  post(seller,{otherExpense:t.bookCost},{worldShipmentStock:t.bookCost},
   '国際未配達貨物の現物損失','operating',s);
@@ -15719,6 +15728,9 @@ function worldValidateInternationalLogistics(s){
   const paidBeforeDelivery=!credit||(paid&&(c===null||credit.journal<c));
   const failed=t.status==='REFUNDED'||t.status==='REFUND_PENDING';
   const failureMonth=refund?.confirmedAt??t.refundedAt;
+  if(Object.hasOwn(t,'unassessedDutyReturned')&&(t.unassessedDutyReturned!==true||!failed||!paid||!t.dutyBuyer
+    ||rule?.centsPerHundredweight==null||t.customs.arrivalAt!==null))
+   throw Error('未査定関税の返戻記録が不正：'+t.id);
   const bank=worldInternationalOrderBank(r.profileId,order),remittance=credit?.remittance;
   if(bank&&credit){
    const sent=remittance?.sentAt!==null;
@@ -15782,9 +15794,8 @@ function worldValidateInternationalLogistics(s){
     throw Error('国際貨物の返金債権・債務の確定時点が不正：'+t.id);
    if(paid){
     const sellerRefund=refund?'worldInternationalPayable':'cash';
-    const buyerRefund=refund?'worldInternationalReceivable':'cash';
     match(seller,c,failureMonth,{worldCustomerAdvances:t.prepaidSeller},{[sellerRefund]:t.prepaidSeller});
-    match(buyer,c+1,failureMonth,{[buyerRefund]:t.prepaidBuyer,...(t.dutyBuyer?{otherExpense:t.dutyBuyer}:{})},
+    match(buyer,c+1,failureMonth,worldInternationalBuyerRefundAccounts(t,!!refund),
      worldInternationalBuyerSettlementAccounts(t,true));
    }
    match(seller,c+(paid?2:0),failureMonth,{otherExpense:t.bookCost},{worldShipmentStock:t.bookCost});
@@ -15837,7 +15848,7 @@ function worldInternationalTradePanel(firm,editable){
   +(t.customs?'</td><td>'+esc(t.customs.authorityId)+' ／ '
    +(t.customs.releasedAt!==null?'輸入許可':t.customs.arrivalAt!==null?'保税・通関審査中':'申告準備')
    +(t.customs.centsPerHundredweight!=null?' ／ 通常重量税（原産地特恵未適用）':'')
-   +' ／ '+(t.customs.duty?nfmt(t.customs.duty):'無税')
+   +' ／ '+(t.customs.duty?nfmt(t.customs.duty):'無税')+(t.unassessedDutyReturned?'（返戻済み）':'')
    :'</td><td>'+(t.tariffBps==null?'—':'暫定関税 '+nfmt(t.tariffBps/100)+'%'))
   +'</td></tr>').join('');
  const options=Object.entries(WORLD_INTERNATIONAL_CORRIDORS).filter(([id])=>worldInternationalRouteAvailable(S,id));
