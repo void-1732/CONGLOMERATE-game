@@ -166,6 +166,13 @@ def main():
         page.locator('[data-world-map-focus="global"]').click()
         assert page.locator('[data-world-map-route-row]').count() == audit["routes"]
 
+        provisional = page.locator('[data-world-map-route-row="JP-US-AIR-1965"]')
+        assert '未接続・運航史料未登録' in provisional.inner_text()
+        assert '年代・航路条件待ち' in page.locator('[data-world-map-route-row="FR-UK-CHANNEL-1994"]').inner_text()
+        provisional.get_by_role('button').click()
+        assert '未接続・運航史料未登録' in page.locator('[data-world-map-detail="JP-US-AIR-1965"]').inner_text()
+        provisional.get_by_role('button').click()
+
         first_route = page.locator('[data-world-map-select-route]').first
         selected_id = first_route.get_attribute("data-world-map-select-route")
         first_route.click()

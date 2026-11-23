@@ -9408,7 +9408,7 @@ function worldMapNetwork(s=S){
  });
  const bySite=new Map(sites.map(x=>[x.id,x]));
  const routes=[...Object.entries(WORLD_DOMESTIC_CORRIDORS).map(([id,p])=>({
-  id,kind:'domestic',mode:p.mode,fromId:p.from,toId:p.to,
+  id,kind:'domestic',mode:p.mode,fromId:p.from,toId:p.to,documented:true,
   name:p.name??id,opensAt:p.opensAt,distanceKm:p.km,capacityKg:p.capacity,
   installed:Object.values(s?.worldExpansion?.domesticRoutes??{}).filter(x=>x.profileId===id&&x.retiredAt==null).length,
   shipments:(s?.worldExpansion?.domesticShipments??[]).filter(x=>s.worldExpansion.domesticRoutes?.[x.routeId]?.profileId===id&&x.status==='IN_TRANSIT').length,
@@ -9416,6 +9416,7 @@ function worldMapNetwork(s=S){
  })),
  ...Object.entries(WORLD_INTERNATIONAL_CORRIDORS).map(([id,p])=>({
   id,kind:'international',mode:p.mode??'sea',fromId:p.from,toId:p.to,transfer:p.transfer,
+  documented:Object.hasOwn(WORLD_INTERNATIONAL_ROUTE_EVIDENCE,id),
   name:id,opensAt:p.opensAt,distanceKm:p.distanceKm,capacityKg:p.capacityKg,
   installed:Object.values(s?.worldExpansion?.internationalRoutes??{}).filter(x=>x.profileId===id&&x.retiredAt==null).length,
   shipments:(s?.worldExpansion?.internationalShipments??[]).filter(x=>s.worldExpansion.internationalRoutes?.[x.routeId]?.profileId===id&&x.status==='IN_TRANSIT').length,
@@ -9642,7 +9643,7 @@ function worldMapRouteDetail(s,r){
   +esc(r.to.name)+' / '+nfmt(r.distanceKm)
   +' km / マスター積載上限 '+nfmt(r.capacityKg)+' kg。'
   +'設備や貨物の登録がない場合は架空の輸送実績を表示しません。</p>'
-  +'<p class="hint">時期・航路条件: '+esc(r.available?'経路条件を満たす':'経路条件待ち')
+  +'<p class="hint">運用条件 '+esc(worldMapRouteStatus(r))
   +' / 稼働登録設備 '+r.installed+' / 輸送中件数 '+r.shipments
   +(source?' / <a href="'+esc(source)+'" target="_blank" rel="noopener noreferrer">路線・品目の史料</a>':'')+'</p>'
   +'<div class="scroll"><table><thead><tr><th>実設備ID</th><th>所有会社</th><th>設備状態</th>'
@@ -9695,6 +9696,11 @@ function worldMapCityBuildSites(s,cityId){
  return SITE_CATALOG.filter(site=>WORLD_SITE_CITIES[site.id]===cityId
   &&Object.hasOwn(s.world,site.country)&&siteVisibleInGame(site,s));
 }
+function worldMapRouteStatus(route){
+ if(!route.documented)return '未接続・運航史料未登録';
+ if(!route.available)return '年代・航路条件待ち';
+ return route.installed?'開通・設備登録あり':'開通・設備未登録';
+}
 function worldMapTransportPanel(s){
  const network=worldMapNetwork(s),options=[['all','すべて'],['sea','海運'],['rail','鉄道'],
   ['road','道路'],['air','航空'],['rail+sea','鉄道＋海運'],['road+rail-shuttle','道路＋鉄道']];
@@ -9712,7 +9718,7 @@ function worldMapTransportPanel(s){
   +'" aria-pressed="'+(r.id===WORLD_MAP_SELECTED_ROUTE_ID)+'">'+esc(r.id)+'</button></td>'
   +'<td>'+esc(r.from.name)+' → '+(r.via?esc(r.via.name)+' → ':'')+esc(r.to.name)+'</td><td>'+esc(r.mode)
   +'</td><td>'+Math.floor(r.opensAt/12)+'年</td><td class="num">'+nfmt(r.distanceKm)
-  +' km</td><td>'+esc(!r.available?'年代・航路条件待ち':r.installed?'開通・設備登録あり':'開通・設備未登録')
+  +' km</td><td>'+esc(worldMapRouteStatus(r))
   +'</td><td class="num">'+r.installed+' / '+r.shipments+'</td></tr>').join('');
  return '<section class="panel span12" aria-label="Phase 5 オフライン交通地図">'
   +'<h2>オフライン世界地図・貨物輸送網</h2>'
@@ -9733,7 +9739,7 @@ function worldMapTransportPanel(s){
    +esc(c.name)+' / '+esc(c.id)+'</option>').join('')
   +'</select></label></div><div class="phase5-map-frame">'+worldMapSvg(network.cities,filtered)+'</div>'
   +'<p class="hint">水色は海運、黄は鉄道、赤は道路、紫は航空、緑は複合輸送。'
-  +'実線は時代・航路条件成立、点線は条件待ち。太線は登録設備、強調線は選択経路です。'
+  +'実線は年代・航路条件成立、点線は条件待ちまたは未接続。太線は登録設備、強調線は選択経路です。'
   +'経路が開通していても設備未登録なら出荷できません。</p>'
   +'<div class="grid">'+card('登録都市',network.cities.length+'地点','40経済市場','span3')
   +card('貨物ルート',network.routes.length+'路線','国内・国際の既存ID','span3')

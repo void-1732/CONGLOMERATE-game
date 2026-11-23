@@ -1,4 +1,4 @@
-"""Documented steam freight through Pacific and North Sea ports in both directions."""
+"""Documented sea and Channel freight with real equipment and historical closure."""
 import os
 import shutil
 from pathlib import Path
@@ -27,7 +27,9 @@ def main():
           const sample=[
             ['JP-US-SEATTLE-STEAM',1941,6],['US-JP-SEATTLE-STEAM',1910,1],
             ['NO-UK-NORTHSHIELDS-STEAM',1910,1],['UK-NO-NORTHSHIELDS-STEAM',1910,1],
-            ['NO-DE-HAMBURG-STEAM',1910,1],['DE-NO-HAMBURG-STEAM',1910,1]
+            ['NO-DE-HAMBURG-STEAM',1910,1],['DE-NO-HAMBURG-STEAM',1910,1],
+            ['UK-FR-SEA-1900',1901,1],['UK-FR-CHANNEL-1994',1994,7],
+            ['US-UK-SEA-1900',1900,1]
           ];
           const checks={legacyPortHidden};
           function setMonth(period){
@@ -59,8 +61,10 @@ def main():
             const seller=from.country===home?root:other,buyer=to.country===home?root:other;
             seller.plants[0].siteId=from.id;buyer.plants[0].siteId=to.id;
             for(const f of [seller,buyer])f.research.tree.done=[...new Set([...f.research.tree.done,'production-1'])];
-            for(const [f,id,q,value] of [[seller,'PRD-E18',1,2500],[buyer,'PRD-E20',1,600],
-              [buyer,'PRD-E21',1,900],[seller,'PRD-R04',10,500],[seller,'PRD-R19',5,200]]){
+            const vehicles=(profile.vehicles??[profile.truck]).map(id=>[seller,id,1,2500]);
+            const terminals=(profile.terminals??['PRD-E20']).map(id=>[buyer,id,1,600]);
+            for(const [f,id,q,value] of [...vehicles,...terminals,
+              [seller,profile.fuel,10,500],[seller,'PRD-R19',5,200]]){
               post(f,{materials:value},{cash:value},'検証用の有償現物調達','operating',S);
               f.stock[id]={q,v:value};
             }
@@ -76,10 +80,10 @@ def main():
             if(!t)throw Error(profileId+' '+order.result+' '+JSON.stringify(
               {quote:worldInternationalQuote(S,route,order.productId,order.quantity,order.unitPriceSeller,buyer.id),
                 cash:acc(buyer,'cash'),materials:acc(seller,'materials'),fx:[S.world[seller.country].fx,S.world[buyer.country].fx],
-                stock:[seller.stock['PRD-R19'],seller.stock['PRD-R04']]}));
+                stock:[seller.stock['PRD-R19'],seller.stock[profile.fuel]]}));
             const pending=t?.status==='IN_TRANSIT'&&t.fuelRequired>0&&t.fuelCost>0
               &&t.dutyBuyer>0&&route.fromSiteId===from.id&&route.toSiteId===to.id
-              &&seller.stock['PRD-R04'].q===10-t.fuelRequired&&!check(S).length;
+              &&seller.stock[profile.fuel].q===10-t.fuelRequired&&!check(S).length;
             setMonth(t.dueAt);
             const currentMonth=ym(S.year,S.month),window= WORLD_INTERNATIONAL_ROUTE_EVIDENCE[profileId];
             const expired=currentMonth>=window.untilMonth;
@@ -99,7 +103,7 @@ def main():
         assert all(result.values()), result
         assert not errors, errors
         browser.close()
-    print("PASS Phase 4: six documented steamship directions, finite cargo, customs, historical closure and save")
+    print("PASS Phase 4: nine documented sea and Channel directions, finite cargo, customs, closure and save")
 
 
 if __name__ == "__main__":
