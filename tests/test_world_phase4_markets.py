@@ -16,7 +16,8 @@ def test_all_market_coverage(page):
       const countries=new Set(Object.keys(WORLD_ENGINE_TERRITORY));
       const sourced=Object.entries(WORLD_INTERNATIONAL_CORRIDORS).filter(([id,p])=>
         p.source?.startsWith('https://') &&
-        WORLD_INTERNATIONAL_ROUTE_EVIDENCE[id]?.source?.startsWith('https://'));
+        WORLD_INTERNATIONAL_ROUTE_EVIDENCE[id]?.source?.startsWith('https://') &&
+        WORLD_INTERNATIONAL_ROUTE_EVIDENCE[id]?.products?.length>0);
       const connected=new Set(sourced.flatMap(([,p])=>
         [findSite(p.from)?.country,findSite(p.to)?.country]));
       const missing=[...countries].filter(code=>!connected.has(code));
