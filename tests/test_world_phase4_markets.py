@@ -744,6 +744,8 @@ def test_dated_colonial_export(page, data):
         cargoLitres:30,unitPriceSeller:localFromBase(40,country),
         maxPaymentBuyer:100000,paymentDays:60});
       worldInternationalActOrder(S,seller.id,o.id,'approve');
+      const weightDuty=profile==='KE-UK-MOMBASA-COFFEE';
+      const legacy=weightDuty?structuredClone(S):null;
       advanceFreightFixtureMonth(departure);worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
       const cargo=S.worldExpansion.internationalShipments.at(-1);
       const shipped=cargo?.status==='IN_TRANSIT'&&cargo.quantity===14&&cargo.loadKg===15
@@ -755,13 +757,56 @@ def test_dated_colonial_export(page, data):
       advanceFreightFixtureMonth(payMonth);worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
       const prepaid=cargo.status==='IN_TRANSIT'&&cargo.credit.paidAt===ym(year,payMonth)
         &&!worldInternationalRouteAvailable(S,profile);
-      advanceFreightFixtureMonth(departure+worldInternationalProfile(profile).transitMonths);
+      const arrival=departure+worldInternationalProfile(profile).transitMonths;
+      let protectedBasis=true,heldForRelease=true,safeDelay=true;
+      if(weightDuty){
+        legacy.worldExpansion.marketRegistryVersion=17;
+        delete legacy.worldExpansion.weightDutyFromSeq;
+        const upgradedBeforeDispatch=parsePayload(savePayload(legacy));
+        upgradedBeforeDispatch.month=departure;
+        worldInternationalResolveOrders(upgradedBeforeDispatch);
+        const newCargo=upgradedBeforeDispatch.worldExpansion.internationalShipments[0];
+        legacy.month=departure;syncWorldIdentities(legacy);
+        worldInternationalResolveOrders(legacy);
+        const oldCargo=legacy.worldExpansion.internationalShipments[0];
+        const migrated=parsePayload(savePayload(legacy));
+        protectedBasis=oldCargo.tariffBps===250&&!oldCargo.customs
+          &&migrated.worldExpansion.weightDutyFromSeq===legacy.seq
+          &&JSON.stringify(migrated.worldExpansion.internationalShipments[0])===JSON.stringify(oldCargo)
+          &&newCargo?.dutyBuyer===39&&newCargo.customs?.centsPerHundredweight===140;
+        migrated.month=arrival;worldInternationalReceiveShipments(migrated);
+        worldInternationalSettleCredit(migrated);
+        const oldDelivery=parsePayload(savePayload(migrated)).worldExpansion.internationalShipments[0];
+        protectedBasis&&=oldDelivery.receivedAt===ym(year,arrival)&&!oldDelivery.customs
+          &&oldDelivery.dutyBuyer===oldCargo.dutyBuyer;
+        const late=structuredClone(S);
+        late.year=1924;late.month=5;late.monthCommitted=ym(1924,5)-1;
+        applyWorldHistory(late);syncWorldIdentities(late);worldInternationalReceiveShipments(late);
+        late.month=6;late.monthCommitted=ym(1924,6)-1;
+        worldInternationalReceiveShipments(late);
+        const outOfWindow=parsePayload(savePayload(late)).worldExpansion.internationalShipments[0];
+        safeDelay=outOfWindow.status==='IN_TRANSIT'&&outOfWindow.customs.arrivalAt===ym(1924,5)
+          &&outOfWindow.customs.releasedAt===null&&outOfWindow.dutyBuyer===39;
+      }
+      advanceFreightFixtureMonth(arrival);
       worldInternationalReceiveShipments(S);
+      if(weightDuty){
+        const forged=structuredClone(S);
+        forged.worldExpansion.internationalShipments[0].customs.centsPerHundredweight++;
+        const rejectsWeightTampering=(()=>{try{parsePayload(savePayload(forged));return false;}catch{return true;}})();
+        heldForRelease=cargo.status==='IN_TRANSIT'&&cargo.tariffBps===undefined&&cargo.dutyBuyer===39
+          &&cargo.customs?.centsPerHundredweight===140&&cargo.customs.weightKg===14
+          &&cargo.customs.arrivalAt===ym(year,arrival)&&cargo.customs.releasedAt===null
+          &&cargo.customs.authorityId==='CUSTOMS-UK-LONDON-1922-COFFEE'
+          &&acc(buyer,'worldImportDutyPrepaid')===39&&!buyer.stock[product]?.q&&rejectsWeightTampering;
+        advanceFreightFixtureMonth(arrival+1);worldInternationalReceiveShipments(S);
+      }
       const saved=parsePayload(savePayload(S));
       const done=cargo.status==='DELIVERED'&&buyer.stock[product]?.q===14
         &&buyer.stock[product].v===cargo.totalBuyer&&!acc(seller,'worldShipmentStock')
         &&!check(saved).length&&!consolidate(saved).errors.length;
-      return {initiallyClosed,before,opened,identities,shipped,tamper,prepaid,done};
+      return {initiallyClosed,before,opened,identities,shipped,tamper,prepaid,
+        protectedBasis,heldForRelease,safeDelay,done};
     }""",data)
     assert all(result.values()), (data["country"],result)
 
@@ -857,6 +902,7 @@ def main():
           legacy.config.scenario='world';
           legacy.worldExpansion=makeWorldExpansion(0);
           delete legacy.worldExpansion.marketRegistryVersion;
+          delete legacy.worldExpansion.weightDutyFromSeq;
           syncWorldIdentities(legacy);
           const legacyRaw=savePayload(legacy);
           const upgraded=parsePayload(legacyRaw);

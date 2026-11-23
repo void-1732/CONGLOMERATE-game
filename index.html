@@ -9648,7 +9648,9 @@ function worldMapRouteDetail(s,r,shipments){
   if(t.status==='IN_TRANSIT'){
    stage=domestic?'輸送中':worldInternationalShipmentStage(t);
    if(t.customs?.arrivalAt!=null){
-    month=t.customs.releasedAt??(t.customs.arrivalAt+WORLD_INTERNATIONAL_CUSTOMS[r.id].reviewMonths);
+    const rule=WORLD_INTERNATIONAL_CUSTOMS[r.id];
+    month=t.customs.releasedAt??(worldInternationalCustomsMonthAllowed(rule,t.customs.arrivalAt)
+     ?t.customs.arrivalAt+rule.reviewMonths:null);
    }else if(t.transfer?.boardedAt===null){
     month=t.transfer.arrivedAt===null?t.transfer.railDueAt:null;
    }
@@ -11661,7 +11663,8 @@ const WORLD_TERRITORIES=new Map(WORLD_MARKETS.flatMap(m=>m.territories.map(t=>[t
 const WORLD_CITIES=new Map(WORLD_MARKETS.flatMap(m=>m.cities.map(c=>[c.id,c])));
 // Registry version zero is the saved pre-expansion world (five initial economies).
 // New onboarding data is additive and does not change the original scenario.
-const WORLD_MARKET_REGISTRY_VERSION=17;
+const WORLD_MARKET_REGISTRY_VERSION=18;
+const WORLD_WEIGHT_DUTY_REGISTRY_VERSION=18;
 const WORLD_MARKET_ONBOARDING=Object.freeze({
  CA:Object.freeze({introducedIn:1,territoryId:'TER-27-01',currencyId:'CUR-CAD',jurisdictionId:'JUR-CA',
   jurisdictionSource:'https://www.canada.ca/en/immigration-refugees-citizenship/corporate/publications-manuals/discover-canada/read-online/canadas-history.html',
@@ -12098,6 +12101,7 @@ function makeWorldExpansion(registryVersion=WORLD_MARKET_REGISTRY_VERSION){
  const initial=new Set(worldInitialEngineCountries(registryVersion));
  return {
   catalogVersion:WORLD_CATALOG_VERSION,marketRegistryVersion:registryVersion,
+  ...(registryVersion>=WORLD_WEIGHT_DUTY_REGISTRY_VERSION?{weightDutyFromSeq:1}:{}),
   territoryJurisdictions:Object.fromEntries([...WORLD_TERRITORIES.keys()].map(id=>[id,jurisdictions[id]??null])),
   openMarkets:Object.fromEntries(WORLD_MARKETS.map(m=>[m.id,initial.has(WORLD_ENGINE_BY_MARKET[m.id])?WORLD_START_MONTH:null])),
   appliedEvents:[],companies:{},facilities:{},resourceDeposits:{},powerAllocations:{},powerGenerators:{},energyReceipts:[],physicalDeliveries:[],powerLines:{},powerTransfers:[],localSupplyPlans:{},domesticRoutes:{},domesticShipments:[],domesticWarehouses:{},domesticAssetTransfers:[],domesticOrders:[],internationalRoutes:{},internationalWarehouses:{},internationalOrders:[],internationalShipments:[],regionalSupplyPurchases:[],manufacturingTools:{},medicalClinics:{},medicalRequests:[],medicalTreatments:[],storageServices:[],agencyServiceReceipts:[],trainingServiceReceipts:[],externalLoanReceipts:[],cargoInsurance:[]
@@ -12149,6 +12153,8 @@ function upgradeWorldMarketRegistry(s){
   const marketId=WORLD_TERRITORIES.get(row.territoryId).marketId;
   if(world.openMarkets[marketId]!==null)s.world[code]=seedEngineMarket(code,s.year);
  }
+ // Existing dispatches retain their agreed duty and historical journals.
+ if(previous<WORLD_WEIGHT_DUTY_REGISTRY_VERSION)world.weightDutyFromSeq=s.seq;
  world.marketRegistryVersion=WORLD_MARKET_REGISTRY_VERSION;
  worldMatchLedgerCurrencyRates(s);
  for(const firm of s.firms)ensureNetwork(firm,s);
@@ -12192,6 +12198,10 @@ function validateWorldExpansion(s){
  const registryVersion=world.marketRegistryVersion??0;
  if(!Number.isSafeInteger(registryVersion)||registryVersion<0||registryVersion>WORLD_MARKET_REGISTRY_VERSION)
   throw Error('世界市場レジストリの版が不正です');
+ if(registryVersion>=WORLD_WEIGHT_DUTY_REGISTRY_VERSION
+  ?!Number.isSafeInteger(world.weightDutyFromSeq)||world.weightDutyFromSeq<1||world.weightDutyFromSeq>s.seq
+  :Object.hasOwn(world,'weightDutyFromSeq'))
+  throw Error('重量関税の適用開始が不正です');
  const expected=makeWorldExpansion(registryVersion);
  for(const event of worldHistoryThrough(ym(s.year,s.month),registryVersion))recordWorldEvent(expected,event);
  if(JSON.stringify(world.territoryJurisdictions)!==JSON.stringify(expected.territoryJurisdictions)
@@ -15058,6 +15068,13 @@ const WORLD_INTERNATIONAL_CUSTOMS=Object.freeze({
  'MX-US-VERACRUZ-COFFEE':WORLD_NEW_ORLEANS_COFFEE_1897,
  'BR-US-RIO-COFFEE':Object.freeze({...WORLD_NEW_ORLEANS_COFFEE_1897,id:'CUSTOMS-US-NOLA-1909',
   tariffSource:'https://fraser.stlouisfed.org/title/tariff-1909-payne-aldrich-tariff-5874/fulltext'}),
+ // Finance Act 1922 s. 3: GBP 1 8s per imperial cwt. Standard rate unless
+ // the shipment can prove origin under the 1919 preference scheme.
+ 'KE-UK-MOMBASA-COFFEE':Object.freeze({id:'CUSTOMS-UK-LONDON-1922-COFFEE',siteId:'UK-LON',
+  jurisdictionId:'JUR-UK',currencyId:'CUR-GBP',productId:'PRD-R27',centsPerHundredweight:140,
+  fromImportMonth:ym(1922,6),untilImportMonth:ym(1924,5),reviewMonths:1,
+  authority:'ロンドン税関',authoritySource:'https://historicengland.org.uk/education/schools-resources/educational-images/custom-house-lower-thames-street-city-of-london-greater-london-op15947',
+  tariffSource:'https://api.parliament.uk/historic-hansard/commons/1922/jun/19/clause-3-reduced-duties-on-coffee'}),
  'AU-JP-SYDNEY-WOOL':Object.freeze({id:'CUSTOMS-JP-YOK-1911',siteId:'JP-YOK',jurisdictionId:'JUR-JP',
   currencyId:'CUR-JPY',productId:'PRD-R21',tariffBps:0,reviewMonths:1,
   authority:'横浜税関',authoritySource:'https://www.customs.go.jp/english/zeikan/history_e.htm',
@@ -15084,16 +15101,32 @@ function worldInternationalOrderBank(profileId,order){
  return bank&&order.paymentDays>0&&(!bank.selectable||order.bankId===bank.id)?bank:null;
 }
 const WORLD_PHASE4_TARIFF_BPS=Object.freeze({JP:350,US:300,UK:250,FR:300,DE:300,NO:250,CA:300,AU:300,NZ:300,MX:300,BR:300,AR:300,CL:300,CO:300,SE:250,NL:300,IT:300,EG:300,IN:300,ZA:250,TH:300,SG:0,CN:300,ID:300,NG:250,ES:250,PH:300,RU:300,KR:300,TR:300,MY:250,KE:250,MA:300,CH:300,AT:300,PL:250,GR:300,VN:300,IR:300,SA:300});
-function worldInternationalTariffBps(s,country,profileId,productId){
+function worldInternationalCustomsMonthAllowed(rule,month){
+ return (rule.fromImportMonth==null||month>=rule.fromImportMonth)
+  &&(rule.untilImportMonth==null||month<rule.untilImportMonth);
+}
+function worldInternationalCustomsRule(s,profileId,productId,importMonth,dispatchSequence){
+ const rule=WORLD_INTERNATIONAL_CUSTOMS[profileId];
+ if(!rule||rule.productId!==productId||!worldInternationalCustomsMonthAllowed(rule,importMonth))return null;
+ if(rule.centsPerHundredweight!=null&&!(dispatchSequence>=s.worldExpansion.weightDutyFromSeq))return null;
+ return rule;
+}
+function worldInternationalTariffBps(s,country,rule){
  if(!s.world?.[country]||!Object.hasOwn(WORLD_PHASE4_TARIFF_BPS,country))
   throw Error('輸入国の関税制度が未接続です');
- const rule=WORLD_INTERNATIONAL_CUSTOMS[profileId];
- if(rule&&rule.productId===productId)return rule.tariffBps;
- return WORLD_PHASE4_TARIFF_BPS[country];
+ return rule?rule.tariffBps:WORLD_PHASE4_TARIFF_BPS[country];
+}
+function worldInternationalDutyBuyer(rule,tariffBps,goodsSeller,sellerRate,buyerRate,quantity){
+ // An imperial hundredweight is 112 avoirdupois pounds. The engine rounds
+ // the converted amount once, in the buyer's existing GBP cent unit.
+ const kgPerHundredweight=112*0.45359237;
+ if(rule?.centsPerHundredweight!=null)return Math.round(quantity*rule.centsPerHundredweight/kgPerHundredweight);
+ return Math.round(goodsSeller*sellerRate/buyerRate*(tariffBps??0)/10000);
 }
 function worldInternationalDeclaration(rule,t,arrivalAt=null,releasedAt=null){
  return {authorityId:rule.id,siteId:rule.siteId,jurisdictionId:rule.jurisdictionId,currencyId:rule.currencyId,
   importerId:t.buyerId,warehouseId:t.warehouseId,productId:t.productId,weightKg:t.quantity,
+  ...(rule.centsPerHundredweight!=null?{centsPerHundredweight:rule.centsPerHundredweight}:{}),
   cargoLitres:t.cargoLitres,dutiableValue:Math.round(t.goodsSeller*t.sellerRate/t.buyerRate),
   duty:t.dutyBuyer,arrivalAt,releasedAt};
 }
@@ -15122,7 +15155,8 @@ function worldInternationalQuote(s,route,productId,quantity,unitPriceSeller,buye
  const sellerRate=Math.round(s.world[seller.country].fx*100000),
   buyerRate=Math.round(s.world[buyer.country].fx*100000);
  const prepaidBuyer=Math.round(prepaidSeller*sellerRate/buyerRate);
- const customsRule=WORLD_INTERNATIONAL_CUSTOMS[route.profileId];
+ const customsRule=worldInternationalCustomsRule(s,route.profileId,productId,
+  ym(s.year,s.month)+profile.transitMonths,s.seq);
  if(customsRule?.annualQuotaKg!=null){
   const yearStart=ym(s.year,1),yearEnd=ym(s.year+1,1);
   const used=(s.worldExpansion?.internationalShipments??[])
@@ -15131,8 +15165,8 @@ function worldInternationalQuote(s,route,productId,quantity,unitPriceSeller,buye
    .reduce((n,t)=>n+t.quantity,0);
   if(used+quantity>customsRule.annualQuotaKg)return {problem:'史料上の年間無税輸入枠を超過'};
  }
- const tariffBps=worldInternationalTariffBps(s,buyer.country,route.profileId,productId);
- const dutyBuyer=Math.round(goodsSeller*sellerRate/buyerRate*tariffBps/10000);
+ const tariffBps=worldInternationalTariffBps(s,buyer.country,customsRule);
+ const dutyBuyer=worldInternationalDutyBuyer(customsRule,tariffBps,goodsSeller,sellerRate,buyerRate,quantity);
  const totalBuyer=prepaidBuyer+dutyBuyer;
  if(!Number.isSafeInteger(totalBuyer)||totalBuyer<1||!Number.isSafeInteger(dutyBuyer)||dutyBuyer<0
   ||!Number.isSafeInteger(bookCost)||bookCost<1||!Number.isSafeInteger(fuelCost)||fuelCost<1
@@ -15141,7 +15175,8 @@ function worldInternationalQuote(s,route,productId,quantity,unitPriceSeller,buye
   ||(!paymentDays&&acc(buyer,'cash')<totalBuyer))
   return {problem:'国際取引の原価・通貨換算・実残高が不足'};
  return {quantity,...load,unitPriceSeller,bookCost,fuelRequired,fuelCost,goodsSeller,
-  prepaidSeller,prepaidBuyer,sellerRate,buyerRate,tariffBps,dutyBuyer,totalBuyer};
+  prepaidSeller,prepaidBuyer,sellerRate,buyerRate,
+  ...(tariffBps===undefined?{}:{tariffBps}),dutyBuyer,totalBuyer};
 }
 function worldInternationalResolveOrders(s,events=[]){
  const w=s.worldExpansion;if(!w)return;
@@ -15214,7 +15249,7 @@ function worldInternationalResolveOrders(s,events=[]){
    const bank=worldInternationalOrderBank(route.profileId,o);
    if(bank&&t.credit)t.credit.remittance={bankId:bank.id,currencyId:bank.currencyId,
     principal:t.prepaidBuyer,sentAt:null,sentJournal:null,returnedAt:null,returnJournal:null};
-   const rule=WORLD_INTERNATIONAL_CUSTOMS[route.profileId];
+   const rule=worldInternationalCustomsRule(s,route.profileId,t.productId,t.dueAt,start);
    if(rule)t.customs=worldInternationalDeclaration(rule,t);
    if(provenance.internationalCostLayers)t.internationalCostLayers=provenance.internationalCostLayers;
    (w.internationalShipments??=[]).push(t);
@@ -15262,6 +15297,7 @@ function worldInternationalReceiveShipments(s,events=[]){
     t.customs.arrivalAt=month;
     events.push(rule.authority+' 保税貨物の搬入 '+t.id);
    }
+   if(!worldInternationalCustomsMonthAllowed(rule,t.customs.arrivalAt))continue;
    if(month<t.customs.arrivalAt+rule.reviewMonths)continue;
    if(t.customs.releasedAt===null){
     t.customs.releasedAt=month;
@@ -15565,6 +15601,7 @@ function worldValidateInternationalLogistics(s){
    seller=company(t.sellerId,s),buyer=company(t.buyerId,s),profile=WORLD_INTERNATIONAL_CORRIDORS[r?.profileId];
   const seq=Number(t.id?.slice(3));
   const load=profile&&order?worldInternationalLoad(profile,t.quantity,order.cargoLitres??0,order.quantity):null;
+  const rule=worldInternationalCustomsRule(s,r?.profileId,t.productId,t.dueAt,t.journals?.dispatch);
   if(!/^IS-[1-9]\d*$/.test(t.id)||!Number.isSafeInteger(seq)||seq<=shipmentSequence
    ||seq>=s.seq||!order||order.shipmentId!==t.id
    ||order.routeId!==t.routeId||order.warehouseId!==t.warehouseId
@@ -15585,8 +15622,8 @@ function worldValidateInternationalLogistics(s){
    ||!Number.isSafeInteger(t.sellerRate)||t.sellerRate<1
    ||!Number.isSafeInteger(t.buyerRate)||t.buyerRate<1
    ||t.prepaidBuyer!==Math.round(t.prepaidSeller*t.sellerRate/t.buyerRate)
-   ||(t.tariffBps!==undefined&&t.tariffBps!==worldInternationalTariffBps(s,buyer.country,r.profileId,t.productId))
-   ||(t.dutyBuyer??0)!==Math.round(t.goodsSeller*t.sellerRate/t.buyerRate*(t.tariffBps??0)/10000)
+   ||(t.tariffBps!==undefined&&t.tariffBps!==worldInternationalTariffBps(s,buyer.country,rule))
+   ||(t.dutyBuyer??0)!==worldInternationalDutyBuyer(rule,t.tariffBps,t.goodsSeller,t.sellerRate,t.buyerRate,t.quantity)
    ||(t.totalBuyer??t.prepaidBuyer)!==t.prepaidBuyer+(t.dutyBuyer??0)
    ||(t.totalBuyer??t.prepaidBuyer)>order.maxPaymentBuyer
    ||t.dispatchedAt!==order.closedAt||(!profile.transfer&&t.dueAt!==t.dispatchedAt+profile.transitMonths)
@@ -15610,7 +15647,6 @@ function worldValidateInternationalLogistics(s){
     throw Error('除却済み国際設備と貨物の決済履歴が不一致：'+t.id);
   }
   worldValidateInternationalTransfer(s,t,r,profile,month);
-  const rule=WORLD_INTERNATIONAL_CUSTOMS[r.profileId];
   if(rule){
    const {arrivalAt,releasedAt}=t.customs??{};
    const declaration=worldInternationalDeclaration(rule,t,arrivalAt,releasedAt);
@@ -15620,7 +15656,7 @@ function worldValidateInternationalLogistics(s){
     ||Object.keys(t.customs).length!==Object.keys(declaration).length
     ||Object.keys(declaration).some(key=>!Object.hasOwn(t.customs,key)||t.customs[key]!==declaration[key])
     ||(arrivalAt!==null&&(!Number.isSafeInteger(arrivalAt)||arrivalAt<t.dueAt||arrivalAt>terminal))
-    ||(releasedAt!==null&&(arrivalAt===null||!Number.isSafeInteger(releasedAt)
+    ||(releasedAt!==null&&(arrivalAt===null||!worldInternationalCustomsMonthAllowed(rule,arrivalAt)||!Number.isSafeInteger(releasedAt)
       ||releasedAt<arrivalAt+rule.reviewMonths||releasedAt>terminal))
     ||(t.status==='DELIVERED'&&releasedAt===null))
     throw Error('税関の貨物申告・搬入・輸入許可の記録が不正：'+t.id);
@@ -15665,7 +15701,8 @@ function worldValidateInternationalLogistics(s){
   if(credit){
    const deadline=worldInternationalCreditDeadline(t.dispatchedAt,order.paymentDays);
    if(credit.dueDate!==deadline.dueDate||credit.dueMonth!==deadline.dueMonth
-    ||t.tariffBps===undefined||t.totalBuyer===undefined||t.dutyBuyer===undefined
+    ||(rule?.centsPerHundredweight==null&&t.tariffBps===undefined)
+    ||t.totalBuyer===undefined||t.dutyBuyer===undefined
     ||(paid&&(!Number.isSafeInteger(credit.paidAt)||credit.paidAt<credit.dueMonth||credit.paidAt>month
       ||!Number.isSafeInteger(credit.journal)||credit.journal<=seq
       ||!Number.isSafeInteger(credit.buyerFx)||credit.buyerFx<1
@@ -15758,6 +15795,7 @@ function worldInternationalTradePanel(firm,editable){
    +(t.credit.remittance?' / '+esc(t.credit.remittance.bankId):''))
   +(t.customs?'</td><td>'+esc(t.customs.authorityId)+' ／ '
    +(t.customs.releasedAt!==null?'輸入許可':t.customs.arrivalAt!==null?'保税・通関審査中':'申告準備')
+   +(t.customs.centsPerHundredweight!=null?' ／ 通常重量税（原産地特恵未適用）':'')
    +' ／ '+(t.customs.duty?nfmt(t.customs.duty):'無税')
    :'</td><td>'+(t.tariffBps==null?'—':'暫定関税 '+nfmt(t.tariffBps/100)+'%'))
   +'</td></tr>').join('');

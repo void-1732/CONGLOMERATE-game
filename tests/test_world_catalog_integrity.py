@@ -115,7 +115,7 @@ def main():
             state.worldExpansion.facilities
           ]);
           const restored=parsePayload(savePayload(state));
-          // Version 16 saves remain legal inputs. Upgrading to 17 must not
+          // Version 16 saves remain legal inputs. Upgrading must not
           // rewrite firms, cash, ownership or historical pre-1910 events.
           const legacy=structuredClone(state);
           const oldWorld=makeWorldExpansion(16);
@@ -127,11 +127,12 @@ def main():
             openMarkets:oldWorld.openMarkets,
             appliedEvents:oldWorld.appliedEvents
           });
+          delete legacy.worldExpansion.weightDutyFromSeq;
           syncWorldIdentities(legacy);
           const oldAccepted=check(legacy).length===0;
           const upgraded=parsePayload(savePayload(legacy));
           const upgradePreservesLedger=oldAccepted
-            &&upgraded.worldExpansion.marketRegistryVersion===17
+            &&upgraded.worldExpansion.marketRegistryVersion===WORLD_MARKET_REGISTRY_VERSION
             &&worldCityLocation(upgraded,'CITY-05-03').jurisdictionId==='JUR-PT-REPUBLIC'
             &&JSON.stringify(upgraded.firms.map(f=>[f.id,f.owners,f.journals,f.stock]))
               ===JSON.stringify(legacy.firms.map(f=>[f.id,f.owners,f.journals,f.stock]))
