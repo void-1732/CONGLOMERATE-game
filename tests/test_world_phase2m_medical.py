@@ -16,12 +16,12 @@ def main():
         page.on("pageerror",lambda error:errors.append(str(error)))
         page.set_content((ROOT/"index.html").read_text(encoding="utf-8"))
         page.wait_for_function("STORAGE_READY")
-        first=page.evaluate("""() => {
+        first=page.evaluate("""async () => {
           S=newWorldGame({country:'JP',name:'Medical service acceptance'});
           requestOperationSaveV037=()=>true;saveAuto=async()=>true;
-          const parent=company(S.playerId),capital=60000000,payer=S.seq;
+          let parent=company(S.playerId);const capital=60000000,payer=S.seq;
           post(parent,{investment:capital},{cash:capital},'検証用の設立','investing',S);
-          const clinicFirm=initFirm(S,{name:'東京医療試作法人',country:'JP',industry:'service',
+          let clinicFirm=initFirm(S,{name:'東京医療試作法人',country:'JP',industry:'service',
             seedBase:600000,publicOwnership:false});
           clinicFirm.owners=[{id:parent.id,econ:1,vote:1}];
           registerEquityLink(S,{parentId:parent.id,childId:clinicFirm.id,ratio:1,kind:'foundation',
@@ -30,8 +30,14 @@ def main():
             bookEquityBase:baseFromLocal(capital,'JP'),
             cashAcquiredBase:baseFromLocal(acc(clinicFirm,'cash'),'JP')});
           clinicFirm.research.tree.done=[...new Set([...clinicFirm.research.tree.done,'production-1'])];
-          S.year=1950;S.month=1;S.monthCommitted=ym(1950,1)-1;
+          // Seed the immediately preceding committed month. Period CF needs a
+          // genuine December closing cash snapshot, not a fabricated balance.
+          S.year=1949;S.month=12;S.monthCommitted=ym(1949,12)-1;
           applyWorldHistory(S);syncWorldIdentities(S);
+          await runMonth();
+          if(S.year!==1950||S.month!==1||S.monthCommitted!==ym(1949,12))
+            throw Error('Expected the 1949-12 cash-flow baseline');
+          parent=company(parent.id);clinicFirm=company(clinicFirm.id);
           const rejects=(fn,term)=>{try{fn();return false;}catch(e){return e.message.includes(term);}};
           const pre=rejects(()=>worldInstallMedicalClinic(S,clinicFirm.id,clinicFirm.plants[0].id,2),'現物医療機器');
           const noPhantom=worldServiceActivity(S,'PRD-S08').length===0
