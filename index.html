@@ -9385,7 +9385,7 @@ function worldSelectedCode(){return Object.hasOwn(S.world,VIEW_COUNTRY)?VIEW_COU
 // All gameplay capacity, distances, schedules and money stay in the existing ledgers.
 const WORLD_MAP_CITY_COORDS=Object.freeze({"MKT-01":[51.51,-0.13,53.48,-2.24,52.49,-1.89,53.35,-6.26],"MKT-02":[48.86,2.35,45.76,4.84,43.3,5.37,50.63,3.06],"MKT-03":[52.52,13.4,53.55,10,51.45,7,48.14,11.58],"MKT-04":[41.9,12.5,45.46,9.19,45.07,7.69,40.85,14.27],"MKT-05":[40.42,-3.7,41.39,2.17,38.72,-9.14,41.15,-8.61],"MKT-06":[55.76,37.62,59.94,30.31,55.03,82.92,43.12,131.89],"MKT-07":[52.23,21,50.06,19.94,51.76,19.46,54.35,18.65],"MKT-08":[52.37,4.9,51.92,4.48,50.85,4.35,49.61,6.13],"MKT-09":[46.95,7.45,47.37,8.54,46.2,6.14,47.56,7.59],"MKT-10":[59.33,18.06,57.71,11.97,55.61,13],"MKT-11":[59.91,10.75,60.39,5.32,63.43,10.4],"MKT-12":[48.21,16.37,47.07,15.44,48.31,14.29],"MKT-13":[44.79,20.45,37.98,23.73,45.81,15.98,41.33,19.82,43.85,18.41],"MKT-14":[35.68,139.76,34.69,135.5,35.18,136.9,34.69,135.2],"MKT-15":[39.9,116.4,31.23,121.47,23.13,113.26,30.6,114.3],"MKT-16":[28.61,77.21,19.08,72.88,22.57,88.36,13.08,80.27],"MKT-17":[37.57,126.98,35.18,129.07,37.46,126.7,35.87,128.6],"MKT-18":[-6.21,106.85,-7.26,112.75,-6.91,107.61,3.59,98.67],"MKT-19":[21.03,105.85,10.82,106.63,20.85,106.68,16.05,108.2],"MKT-20":[13.76,100.5,18.79,98.99,14.98,102.1],"MKT-21":[3.14,101.69,5.41,100.33,1.46,103.76],"MKT-22":[1.35,103.82,1.33,103.7,1.44,103.79],"MKT-23":[14.6,120.98,10.32,123.89,7.07,125.61,10.72,122.56],"MKT-24":[-33.87,151.21,-37.81,144.96,-27.47,153.03,-31.95,115.86],"MKT-25":[-36.85,174.76,-41.29,174.78,-43.53,172.63],"MKT-26":[38.91,-77.04,40.71,-74.01,41.88,-87.63,34.05,-118.24,29.76,-95.37],"MKT-27":[45.42,-75.7,43.65,-79.38,45.5,-73.57,49.28,-123.12],"MKT-28":[19.43,-99.13,25.69,-100.31,20.67,-103.35,19.17,-96.14],"MKT-29":[-22.91,-43.2,-23.55,-46.63,-12.98,-38.5,-30.03,-51.23],"MKT-30":[-34.6,-58.38,-31.42,-64.18,-32.95,-60.65,-32.89,-68.84],"MKT-31":[-33.45,-70.67,-33.05,-71.62,-36.82,-73.05,-23.65,-70.4],"MKT-32":[4.71,-74.07,6.24,-75.58,3.45,-76.53,10.4,-75.5],"MKT-33":[-25.75,28.19,-26.2,28.05,-33.92,18.42,-29.86,31.03],"MKT-34":[30.04,31.24,31.2,29.92,29.97,32.55,31.27,32.31],"MKT-35":[6.52,3.38,12,8.52,7.38,3.93,6.34,5.63],"MKT-36":[-1.29,36.82,-4.05,39.67,-0.09,34.76,-0.3,36.08],"MKT-37":[34.02,-6.84,33.57,-7.59,34.06,-4.98,35.78,-5.81],"MKT-38":[41.01,28.98,39.93,32.85,38.42,27.14,40.19,29.06],"MKT-39":[24.71,46.67,21.49,39.19,26.42,50.09,21.39,39.86],"MKT-40":[35.69,51.42,32.65,51.68,38.08,46.29,36.26,59.6]});
 const WORLD_MAP_EXTRA_SITES=Object.freeze({"DE-FRE":[48,7.85],"ES-BIL":[43.26,-2.93],"IR-BND":[27.19,56.28],"IT-GEN":[44.41,8.93],"JP-YOK":[35.45,139.64],"PL-GDY":[54.52,18.54],"UK-CDF":[51.48,-3.18],"UK-HULL":[53.74,-0.34],"UK-LIV":[53.4,-2.98],"UK-NORTHSHIELDS":[55.01,-1.45],"US-NEWORLEANS":[29.95,-90.07],"US-PHL":[39.95,-75.17],"US-SEA":[47.61,-122.33],"US-SFO":[37.77,-122.42]});
-let WORLD_MAP_TRANSPORT_MODE='all',WORLD_MAP_FOCUS='global',WORLD_MAP_ACTIVITY='all',WORLD_MAP_SELECTED_ROUTE_ID=null;
+let WORLD_MAP_TRANSPORT_MODE='all',WORLD_MAP_FOCUS='global',WORLD_MAP_ACTIVITY='all',WORLD_MAP_SELECTED_ROUTE_ID=null,WORLD_MAP_SELECTED_CITY_ID=null;
 const WORLD_MAP_WIDTH=1152,WORLD_MAP_HEIGHT=594;
 function worldMapProject(lat,lon){
  if(!Number.isFinite(lat)||!Number.isFinite(lon)||lat>90||lat< -90||lon>180||lon< -180)
@@ -9463,8 +9463,13 @@ function worldMapSvg(nodes,routes){
  const polygons=land.map(poly=>'<polygon points="'+poly.map(([lat,lon])=>{
   const p=worldMapProject(lat,lon);return p.x+','+p.y}).join(' ')
   +'" fill="#23445c" stroke="#3a5c72" stroke-width="1.1"/>').join('');
- const circles=nodes.map(n=>'<circle data-world-map-city="'+esc(n.id)+'" cx="'+n.x+'" cy="'+n.y
-  +'" r="2.3" fill="#b7d4e9" opacity=".9"><title>'+esc(n.name)+' / '+esc(n.id)+'</title></circle>').join('');
+ const circles=nodes.map(n=>{
+  const selected=n.id===WORLD_MAP_SELECTED_CITY_ID;
+  return '<circle data-world-map-city="'+esc(n.id)+'"'+(selected?' data-world-map-city-selected="true"':'')
+   +' tabindex="0" role="button" aria-label="'+esc(n.name)+' の都市・管轄情報"'
+   +' cx="'+n.x+'" cy="'+n.y+'" r="'+(selected?5:2.3)+'" fill="'+(selected?'#ffd275':'#b7d4e9')
+   +'" opacity=".95"><title>'+esc(n.name)+' / '+esc(n.id)+'</title></circle>';
+ }).join('');
  const emphasized=[...new Map(routes.flatMap(r=>[[r.from.id,r.from],[r.to.id,r.to]])).values()]
   .map(site=>'<circle data-world-map-site="'+esc(site.id)+'" cx="'+site.x+'" cy="'+site.y
   +'" r="3.4" fill="#eaf7fc" stroke="#0c2539" stroke-width="1"><title>'+esc(site.name)
@@ -9508,6 +9513,35 @@ function worldMapRouteDetail(s,r){
   +(freight||'<tr><td colspan="5">出荷履歴なし</td></tr>')+'</tbody></table></div>'
   +'</section>';
 }
+// Legal territory and monetary references are intentionally distinct
+// from the historical denomination of a firm's actual accounting ledger.
+function worldMapCityDetail(s,city){
+ if(!city)return '';
+ const state=worldCityLocation(s,city.id),market=WORLD_MARKET_BY_ID.get(state.marketId),
+  jurisdiction=state.jurisdictionId?WORLD_JURISDICTIONS.get(state.jurisdictionId):null,
+  money=state.historicalMoney;
+ const plants=s.firms.flatMap(f=>f.plants.filter(p=>WORLD_SITE_CITIES[p.siteId]===city.id)
+  .map(p=>({company:f,plant:p})));
+ const rows=plants.map(({company:f,plant:p})=>'<tr><td>'+esc(f.name)+'</td><td><code>'+esc(f.id)
+  +'</code></td><td>'+esc(p.name)+'</td><td><code>'+esc(p.siteId)+'</code></td>'
+  +'<td>'+esc(worldDomesticSiteActive(p,p.siteId)?'施設稼働':'施設休止・建設中')+'</td></tr>').join('');
+ return '<section class="panel" aria-label="Phase 5 都市管轄・実施設" data-world-map-city-detail="'+esc(city.id)+'">'
+  +'<h3>都市情報: '+esc(city.name)+' ('+esc(city.id)+')</h3>'
+  +'<p class="hint">市場 '+esc(market?.name??state.marketId)+' ['+esc(state.marketId)+'] / 領域 '+esc(state.territoryId)
+  +' / 法域 '+esc(jurisdiction?.name??'未登録')+' ['+esc(state.jurisdictionId??'なし')+']</p>'
+  +'<p class="hint">経済エンジン '+esc(state.marketOpen?'開放済み':'未開放・未接続')
+  +' / 領域内の実経済接続 '+esc(state.economicEngineConnected?'あり':'なし')+'</p>'
+  +'<p class="hint">年代別の史実通貨参照: '+esc(money?.currencyId??'未確認')
+  +(money?' ('+esc(money.kind)+')':'')
+  +'。参照通貨は企業の帳簿や既存契約の会計通貨を変更しません。'
+  +(typeof money?.source==='string'?' <a href="'+esc(money.source)
+   +'" target="_blank" rel="noopener noreferrer">通貨史料</a>':'')+'</p>'
+  +'<div class="scroll"><table><thead><tr><th>会社</th><th>法人ID</th><th>現存施設</th>'
+  +'<th>拠点ID</th><th>施設状態</th></tr></thead><tbody>'
+  +(rows||'<tr><td colspan="5">この都市に登録済みの既存施設はありません。</td></tr>')
+  +'</tbody></table></div>'
+  +'</section>';
+}
 function worldMapTransportPanel(s){
  const network=worldMapNetwork(s),options=[['all','すべて'],['sea','海運'],['rail','鉄道'],
   ['road','道路'],['air','航空'],['rail+sea','鉄道＋海運'],['road+rail-shuttle','道路＋鉄道']];
@@ -9519,6 +9553,7 @@ function worldMapTransportPanel(s){
   &&(WORLD_MAP_ACTIVITY==='all'||WORLD_MAP_ACTIVITY==='registered'&&r.installed>0
    ||WORLD_MAP_ACTIVITY==='transit'&&r.shipments>0));
  const selected=filtered.find(r=>r.id===WORLD_MAP_SELECTED_ROUTE_ID)??null;
+ const selectedCity=network.cities.find(c=>c.id===WORLD_MAP_SELECTED_CITY_ID)??null;
  const rows=filtered.map(r=>'<tr data-world-map-route-row="'+esc(r.id)+'"><td>'
   +'<button type="button" class="btn sm" data-world-map-select-route="'+esc(r.id)
   +'" aria-pressed="'+(r.id===WORLD_MAP_SELECTED_ROUTE_ID)+'">'+esc(r.id)+'</button></td>'
@@ -9539,7 +9574,11 @@ function worldMapTransportPanel(s){
   +'</div><div class="row" role="group" aria-label="経路の実稼働台帳で絞り込む">'
   +activity.map(([id,label])=>'<button type="button" class="btn sm" data-world-map-activity="'+id
     +'" aria-pressed="'+(WORLD_MAP_ACTIVITY===id?'true':'false')+'">'+label+'</button>').join('')
-  +'</div><div class="phase5-map-frame">'+worldMapSvg(network.cities,filtered)+'</div>'
+  +'</div><div class="row"><label>都市・法域を照合 <select data-world-map-city-select aria-label="都市と法域の照合">'
+  +'<option value="">都市を選択（155地点）</option>'
+  +network.cities.map(c=>'<option value="'+esc(c.id)+'"'+(c.id===WORLD_MAP_SELECTED_CITY_ID?' selected':'')+'>'
+   +esc(c.name)+' / '+esc(c.id)+'</option>').join('')
+  +'</select></label></div><div class="phase5-map-frame">'+worldMapSvg(network.cities,filtered)+'</div>'
   +'<p class="hint">水色は海運、黄は鉄道、赤は道路、紫は航空、緑は複合輸送。'
   +'実線は時代・航路条件成立、点線は条件待ち。太線は登録設備、強調線は選択経路です。'
   +'経路が開通していても設備未登録なら出荷できません。</p>'
@@ -9553,14 +9592,19 @@ function worldMapTransportPanel(s){
   +(rows?'':'<tr><td colspan="7">現在の絞込条件に該当する経路はありません。</td></tr>')
   +'</tbody></table></div>'
   +worldMapRouteDetail(s,selected)
+  +worldMapCityDetail(s,selectedCity)
   +worldMapWarehousePanel(s)
   +'<div class="row"><button type="button" class="btn" data-page="transportNetwork">輸送網管理</button>'
   +'<button type="button" class="btn" data-page="logisticsHubs">物流拠点管理</button></div></section>';
 }
 document.addEventListener('click',event=>{
- const btn=event.target.closest('[data-world-map-mode],[data-world-map-focus],[data-world-map-activity],[data-world-map-select-route]');
+ const btn=event.target.closest('[data-world-map-mode],[data-world-map-focus],[data-world-map-activity],[data-world-map-select-route],[data-world-map-city]');
  if(!btn||!S||PAGE!=='worldMap')return;
- if(btn.dataset.worldMapSelectRoute){
+ if(btn.dataset.worldMapCity){
+  const id=btn.dataset.worldMapCity;
+  if(!WORLD_CITIES.has(id))return;
+  WORLD_MAP_SELECTED_CITY_ID=WORLD_MAP_SELECTED_CITY_ID===id?null:id;
+ }else if(btn.dataset.worldMapSelectRoute){
   const id=btn.dataset.worldMapSelectRoute;
   if(!Object.hasOwn(WORLD_DOMESTIC_CORRIDORS,id)&&!Object.hasOwn(WORLD_INTERNATIONAL_CORRIDORS,id))return;
   WORLD_MAP_SELECTED_ROUTE_ID=WORLD_MAP_SELECTED_ROUTE_ID===id?null:id;
@@ -9575,6 +9619,22 @@ document.addEventListener('click',event=>{
   if(!['all','sea','rail','road','air','rail+sea','road+rail-shuttle'].includes(mode))return;
   WORLD_MAP_TRANSPORT_MODE=mode;
  }
+ render();
+});
+document.addEventListener('change',event=>{
+ const field=event.target.closest('[data-world-map-city-select]');
+ if(!field||!S||PAGE!=='worldMap')return;
+ if(field.value&&!WORLD_CITIES.has(field.value))return;
+ WORLD_MAP_SELECTED_CITY_ID=field.value||null;
+ render();
+});
+document.addEventListener('keydown',event=>{
+ const city=event.target.closest('[data-world-map-city]');
+ if(!city||!S||PAGE!=='worldMap'||!['Enter',' '].includes(event.key))return;
+ event.preventDefault();
+ const id=city.dataset.worldMapCity;
+ if(!WORLD_CITIES.has(id))return;
+ WORLD_MAP_SELECTED_CITY_ID=WORLD_MAP_SELECTED_CITY_ID===id?null:id;
  render();
 });
 

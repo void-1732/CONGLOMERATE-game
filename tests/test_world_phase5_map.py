@@ -96,6 +96,29 @@ def main():
         page.locator('[data-world-map-select-route]').first().click()
         assert page.locator('[data-world-map-detail]').count() == 0
 
+        page.locator('[data-world-map-city-select]').select_option('CITY-14-01')
+        assert page.locator('[data-world-map-city-detail="CITY-14-01"]').count() == 1
+        assert page.locator('[data-world-map-city-selected="true"]').count() == 1
+        assert "JUR-JP" in page.locator('[data-world-map-city-detail]').inner_text()
+        # City-circle selection toggles its corresponding read-only legal panel.
+        page.locator('[data-world-map-city="CITY-14-01"]').click()
+        assert page.locator('[data-world-map-city-detail]').count() == 0
+        page.locator('[data-world-map-city="CITY-14-01"]').focus()
+        page.keyboard.press('Enter')
+        assert page.locator('[data-world-map-city-detail="CITY-14-01"]').count() == 1
+        assert page.locator('[data-world-map-city-selected="true"]').count() == 1
+
+        # Portugal has a recorded historical jurisdiction, not an approved
+        # independent engine or silently redenominated accounting books.
+        territory_reference = page.evaluate("""() => {
+          const city=worldMapNetwork().cities.find(c=>c.territoryId==='TER-05-02');
+          const state=city&&worldCityLocation(S,city.id);
+          const panel=city&&worldMapCityDetail(S,city);
+          return !!city&&state.jurisdictionId==='JUR-PT-KINGDOM'
+            &&!state.marketOpen&&panel.includes('REFERENCE_ONLY')
+            &&panel.includes('未開放・未接続');
+        }""")
+        assert territory_reference
         # Registry views must not report retired infrastructure as installed.
         live_only = page.evaluate("""() => {
           const copy=structuredClone(S),id=Object.keys(WORLD_DOMESTIC_CORRIDORS)[0];
