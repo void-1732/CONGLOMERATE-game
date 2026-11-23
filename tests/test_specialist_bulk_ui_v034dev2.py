@@ -1,5 +1,5 @@
 """Actual browser use of the accordion:
-専門部品の製造方式・輸送中在庫・一括管理
+専門部品の製造・自動配送・輸送中在庫
 Mode switching -> per-plant quantities -> all routes saved -> monthly utilization,
 on-site stock and in-transit inventory. Also test the one-click bulk setup.
 """
@@ -33,12 +33,12 @@ def seed(page):
         f.factoryOps.plans['BULK-'+k]=0;
         f.factoryOps.staffAssignments['BULK-'+k]=0;
       }
-      PAGE='factory';render();
+      PAGE='facilityProduction';render();
     }""")
     assert not page.evaluate("check(S)")
 
 def open_accordion(page):
-    page.get_by_text("専門部品の製造方式・輸送中在庫・一括管理",exact=True).click()
+    page.get_by_text("専門部品の製造・自動配送・輸送中在庫",exact=True).click()
 
 def month(page):
     old=page.evaluate("S.monthCommitted")
@@ -72,7 +72,7 @@ with sync_playwright() as pw:
     before=month(page)
     assert all(x["utilization"]==0 for x in before["factory"].values()),before
     # Month-close navigation sends the user to Monthly Report. Return to Factory.
-    page.evaluate("PAGE='factory';render()")
+    page.evaluate("PAGE='facilityProduction';render()")
     open_accordion(page)
     assert page.locator("#factoryV21Mode").input_value()=="legacy"
     page.locator("#factoryV21Mode").select_option("detailed")
