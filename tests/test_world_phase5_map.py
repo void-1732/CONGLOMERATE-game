@@ -13,7 +13,8 @@ def main():
             executable_path=os.getenv("CHROMIUM_EXECUTABLE") or shutil.which("chromium") or None,
             args=["--no-sandbox"],
         )
-        page = browser.new_page(viewport={"width": 1366, "height": 900})
+        context = browser.new_context(offline=True, viewport={"width": 1366, "height": 900})
+        page = context.new_page()
         errors = []
         page.on("pageerror", lambda err: errors.append(str(err)))
         page.set_content((ROOT / "index.html").read_text(encoding="utf-8"),
@@ -55,6 +56,8 @@ def main():
         assert audit["routeGraphics"] == audit["routes"], audit
         assert audit["noMutation"] and audit["check"] == 0, audit
         assert audit["noPhantomWarehouses"] and audit["noPhantomEquipment"], audit
+        # No network or gameplay mutations are necessary to inspect the live freight ledger.
+        page.evaluate("window.__phase5PreUiState=JSON.stringify(S);")
 
         page.locator('[data-world-map-mode="rail"]').click()
         rail_count = page.evaluate("""() => Object.values(WORLD_INTERNATIONAL_CORRIDORS)
@@ -104,11 +107,13 @@ def main():
           return r.installed===1&&worldMapNetwork(S).routes.find(x=>x.id===id).installed===0;
         }""")
         assert live_only
+        assert page.evaluate("JSON.stringify(S)===window.__phase5PreUiState")
 
         page.evaluate("PAGE='logisticsHubs';render();")
         assert page.locator('[aria-label="Phase 5 現物物流拠点"]').count() == 1
         assert page.locator("text=国内・国際物流の登録・発注操作").count() >= 1
         assert page.locator('[data-page="worldMap"]').count() >= 1
+        assert page.evaluate("JSON.stringify(S)===window.__phase5PreUiState")
         assert not errors, errors
         browser.close()
     print("PASS Phase 5: 40 markets, 155 city dots, exact routes, "
