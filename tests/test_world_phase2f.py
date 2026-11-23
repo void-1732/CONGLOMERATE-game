@@ -57,8 +57,8 @@ def main():
           const saved=persisted.worldExpansion.powerGenerators[src.id].retiredAt===ym(S.year,S.month)
             &&persisted.worldExpansion.powerLines[target.id].accumulatedDepreciation===1;
           const balanced=!check(S).length&&!consolidate(S).errors.length;
-          const catalog=WORLD_SUPPLEMENTAL_RECIPES.length===80
-            &&WORLD_PRODUCTS.filter(p=>worldProductImplementation(p.id).implementation==='DATA_CANDIDATE').length===69;
+          const catalog=WORLD_SUPPLEMENTAL_RECIPES.length===83
+            &&WORLD_PRODUCTS.filter(p=>worldProductImplementation(p.id).implementation==='DATA_CANDIDATE').length===66;
           const services=WORLD_PRODUCTS.filter(p=>p.category==='service')
             .every(p=>worldServiceTerms(p.id).revenueState==='NOT_IMPLEMENTED'&&!f.stock[p.id]);
           return {real,depreciation,forbidsGeneratorRetireFirst,closed,refusesRestart,

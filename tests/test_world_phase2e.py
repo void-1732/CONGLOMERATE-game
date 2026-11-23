@@ -62,8 +62,8 @@ def main():
           const corrupt=structuredClone(S);
           corrupt.worldExpansion.powerTransfers[0].sentKwh++;
           let rejectsTampering=false;try{validateWorldExpansion(corrupt)}catch{rejectsTampering=true}
-          const catalog=WORLD_SUPPLEMENTAL_RECIPES.length===80&&
-            WORLD_PRODUCTS.filter(x=>worldProductImplementation(x.id).implementation==='DATA_CANDIDATE').length===69;
+          const catalog=WORLD_SUPPLEMENTAL_RECIPES.length===83&&
+            WORLD_PRODUCTS.filter(x=>worldProductImplementation(x.id).implementation==='DATA_CANDIDATE').length===66;
           const noService=WORLD_PRODUCTS.filter(x=>x.category==='service')
             .every(x=>worldServiceTerms(x.id).revenueState==='NOT_IMPLEMENTED'&&!f.stock[x.id]);
           const ledger=check(S).length===0&&consolidate(S).errors.length===0;
