@@ -357,9 +357,19 @@ def main():
             "currency": "ARM", "year": 1921, "offer": "AR-BUE-WHEAT", "authority": None,
             "buyerCountry": "UK", "destination": "UK-LIV", "product": "PRD-R22", "departure": 2, "payMonth": 4,
         })
+        test_steamship_export(page, {
+            "profile": "CL-UK-VALPARAISO-COPPER", "country": "CL", "site": "CL-VAP", "city": "CITY-31-02",
+            "currency": "CLP", "year": 1913, "offer": "CL-VAP-COPPER", "authority": None,
+            "buyerCountry": "UK", "destination": "UK-LIV", "product": "PRD-M05", "departure": 6, "payMonth": 7,
+        })
+        test_steamship_export(page, {
+            **gulf_coffee,
+            "profile": "CO-US-CARTAGENA-COFFEE", "country": "CO", "site": "CO-CTG", "city": "CITY-32-04",
+            "currency": "COP", "year": 1906, "offer": "CO-CTG-COFFEE", "authority": "CUSTOMS-US-NOLA-1897",
+        })
         assert not errors, errors
         browser.close()
-    print("PASS Phase 4 Canada, Australia, New Zealand, Mexico, Brazil and Argentina: sourced cargo, loading, shipment and settlement")
+    print("PASS Phase 4 Canada, Australia, New Zealand, Mexico, Brazil, Argentina, Chile and Colombia: sourced cargo, loading, shipment and settlement")
 
 
 if __name__ == "__main__":

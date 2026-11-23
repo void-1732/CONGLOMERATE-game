@@ -697,7 +697,11 @@ const POPULATION_ANCHORS={
  BR:{1890:14.333915,1900:17.438434,1920:30.635605,1940:41.165289,1950:51.941767,
   1960:70.070457,1970:93.139037,1980:119.002706,1991:146.825475,2000:169.799170,
   2010:190.755799,2022:203.062512},
- AR:{1895:4.0,1914:7.9,1947:15.9,1960:20.0,1970:23.4,1980:27.9,1991:32.6,2001:36.3,2010:40.1,2022:46.0}
+ AR:{1895:4.0,1914:7.9,1947:15.9,1960:20.0,1970:23.4,1980:27.9,1991:32.6,2001:36.3,2010:40.1,2022:46.0},
+ CL:{1895:2.695625,1907:3.231022,1920:3.720235,1930:4.287445,1940:5.023539,1952:5.932995,
+  1960:7.374115,1970:8.884768,1982:11.329736,1992:13.348401,2002:15.116435},
+ CO:{1905:4.143632,1912:5.072604,1918:5.855777,1938:8.701816,1951:11.548172,
+  1964:17.484508,1973:20.666920,1985:27.837932,1993:33.109840,2005:41.468384,2018:48.258494}
 };
 const POP_SOURCE='https://ourworldindata.org/grapher/population';
 function anchorPopulation(code,year){const anchors=POPULATION_ANCHORS[code];if(!anchors)return null;
@@ -706,7 +710,7 @@ function anchorPopulation(code,year){const anchors=POPULATION_ANCHORS[code];if(!
  if(year>=yrs[yrs.length-1])return anchors[yrs[yrs.length-1]];
  for(let i=1;i<yrs.length;i++){if(year<=yrs[i]){const lo=yrs[i-1],hi=yrs[i];return anchors[lo]+(anchors[hi]-anchors[lo])*(year-lo)/(hi-lo);}}return null;}
 
-const NAMES={JP:'日本',US:'アメリカ',UK:'イギリス',DE:'ドイツ',FR:'フランス',NO:'ノルウェー',CA:'カナダ',AU:'オーストラリア',NZ:'ニュージーランド',MX:'メキシコ',BR:'ブラジル',AR:'アルゼンチン'};
+const NAMES={JP:'日本',US:'アメリカ',UK:'イギリス',DE:'ドイツ',FR:'フランス',NO:'ノルウェー',CA:'カナダ',AU:'オーストラリア',NZ:'ニュージーランド',MX:'メキシコ',BR:'ブラジル',AR:'アルゼンチン',CL:'チリ',CO:'コロンビア'};
 const INITIAL_ENGINE_COUNTRIES=['JP','US','UK','DE','FR'];
 const COUNTRIES={
  JP:{currency:'JPY',fx:1,pop:44,wealth:1,wage:145,demand:115,steel:420,rubber:280,steelSupply:1100,rubberSupply:1050},
@@ -728,7 +732,11 @@ const COUNTRIES={
  BR:{currency:'BRM',fx:30,pop:anchorPopulation('BR',1900),wealth:.84,wage:128,demand:22,
   steel:475,rubber:310,steelSupply:150,rubberSupply:145},
  AR:{currency:'ARM',fx:64,pop:anchorPopulation('AR',1900),wealth:.98,wage:142,demand:16,
-  steel:449,rubber:315,steelSupply:140,rubberSupply:125}
+  steel:449,rubber:315,steelSupply:140,rubberSupply:125},
+ CL:{currency:'CLP',fx:18,pop:anchorPopulation('CL',1900),wealth:.88,wage:130,demand:13,
+  steel:483,rubber:318,steelSupply:100,rubberSupply:85},
+ CO:{currency:'COP',fx:120,pop:anchorPopulation('CO',1900),wealth:.83,wage:123,demand:12,
+  steel:487,rubber:321,steelSupply:100,rubberSupply:90}
 };
 const ACCTYPE={cash:'asset',materials:'asset',materialsTransit:'asset',componentStock:'asset',componentTransit:'asset',wip:'asset',goods:'asset',goodsTransit:'asset',constructionAssets:'asset',ppe:'asset',accdep:'contra',investment:'asset',ar:'asset',loanrec:'asset',resourceRights:'asset',worldShipmentStock:'asset',worldImportDutyPrepaid:'asset',worldInternationalReceivable:'asset',worldStoredStock:'asset',worldInsuranceReserve:'asset',worldInsurancePrepaid:'asset',worldTravelAdvance:'asset',worldBankDeposits:'asset',worldBankRemittance:'asset',worldBankReserve:'asset',worldSupplierAdvances:'asset',partReceivable:'asset',partPayable:'liability',worldCustomerAdvances:'liability',worldInternationalPayable:'liability',worldInternationalDutyPayable:'liability',worldInsuranceUnearned:'liability',worldDemandDeposits:'liability',payable:'liability',wagesDue:'liability',debt:'liability',interestDue:'liability',taxDue:'liability',capital:'equity',treasuryStock:'contraEquity',sales:'revenue',serviceRevenue:'revenue',otherRevenue:'revenue',cogs:'expense',labor:'expense',rndExpense:'expense',advert:'expense',maintenance:'expense',interestExpense:'expense',depreciation:'expense',taxExpense:'expense',fxLoss:'expense',otherExpense:'expense'};
 const PAGES={dashboard:'経営概況',marketOwn:'自社グループ市場分析',market:'世界市場分析',product:'製品・開発',factory:'工場・調達',people:'研究・人事',finance:'財務・資金',group:'企業グループ',consolidated:'連結財務三表',reports:'月次レポート',save:'保存・設定'};
@@ -1509,7 +1517,8 @@ const SITE_CATALOG=[
  ...[['US-SEA','US','シアトル港'],['UK-NORTHSHIELDS','UK','ノースシールズ港'],
   ['CA-MTL','CA','モントリオール港'],['AU-SYD','AU','シドニー港'],['NZ-WLG','NZ','ウェリントン港'],
   ['MX-VER','MX','ベラクルス港'],['BR-RIO','BR','リオデジャネイロ港'],
-  ['AR-BUE','AR','ブエノスアイレス港']].map(([id,country,name])=>(
+  ['AR-BUE','AR','ブエノスアイレス港'],['CL-VAP','CL','バルパライソ港'],
+  ['CO-CTG','CO','カルタヘナ港']].map(([id,country,name])=>(
   {id,country,name,land:1,wage:1,infra:1,labor:1,freight:1,worldOnly:true}))
 ];
 const findSite=id=>SITE_CATALOG.find(x=>x.id===id);
@@ -10973,7 +10982,7 @@ const WORLD_TERRITORIES=new Map(WORLD_MARKETS.flatMap(m=>m.territories.map(t=>[t
 const WORLD_CITIES=new Map(WORLD_MARKETS.flatMap(m=>m.cities.map(c=>[c.id,c])));
 // Registry version zero is the saved pre-expansion world (five initial economies).
 // New onboarding data is additive and does not change the original scenario.
-const WORLD_MARKET_REGISTRY_VERSION=5;
+const WORLD_MARKET_REGISTRY_VERSION=6;
 const WORLD_MARKET_ONBOARDING=Object.freeze({
  CA:Object.freeze({introducedIn:1,territoryId:'TER-27-01',currencyId:'CUR-CAD',jurisdictionId:'JUR-CA',
   jurisdictionSource:'https://www.canada.ca/en/immigration-refugees-citizenship/corporate/publications-manuals/discover-canada/read-online/canadas-history.html',
@@ -11000,7 +11009,15 @@ const WORLD_MARKET_ONBOARDING=Object.freeze({
  AR:Object.freeze({introducedIn:5,territoryId:'TER-30-01',currencyId:'CUR-ARM',jurisdictionId:'JUR-AR',
   jurisdictionSource:'https://www.senado.gob.ar/bundles/senadoparlamentario/pdf/institucional/constitucionNac1853.pdf',
   currencySource:'https://www.bcra.gob.ar/billetes-y-monedas-emisiones-anteriores/',
-  populationSource:'https://www.indec.gob.ar/ftp/cuadros/publicaciones/anuario_estadistico_2023.pdf'})
+  populationSource:'https://www.indec.gob.ar/ftp/cuadros/publicaciones/anuario_estadistico_2023.pdf'}),
+ CL:Object.freeze({introducedIn:6,territoryId:'TER-31-01',currencyId:'CUR-CLP',jurisdictionId:'JUR-CL',
+  jurisdictionSource:'https://www.bcn.cl/historiapolitica/constituciones/detalle_constitucion?handle=10221.1%2F17685',
+  currencySource:'https://www.memoriachilena.gob.cl/602/w3-article-3462.html',
+  populationSource:'https://www.memoriachilena.gob.cl/602/w3-article-31530.html'}),
+ CO:Object.freeze({introducedIn:6,territoryId:'TER-32-01',currencyId:'CUR-COP',jurisdictionId:'JUR-CO',
+  jurisdictionSource:'https://babel.banrepcultural.org/digital/collection/p17054coll10/id/636/',
+  currencySource:'https://repositorio.banrep.gov.co/bitstream/handle/20.500.12134/10721/LBR_2023-11i.pdf',
+  populationSource:'https://biblioteca.dane.gov.co/media/libros/LD_1050_1961_1963_EJ_4.PDF'})
 });
 function worldInitialEngineCountries(registryVersion){
  return [...INITIAL_ENGINE_COUNTRIES,...Object.entries(WORLD_MARKET_ONBOARDING)
@@ -11033,7 +11050,8 @@ const WORLD_SITE_CITIES={
  'DE-RUH':'CITY-03-03','DE-BER':'CITY-03-01','DE-HAM':'CITY-03-02',
  'FR-PAR':'CITY-02-01','FR-LYO':'CITY-02-02','FR-MAR':'CITY-02-03',
  'NO-OSL':'CITY-11-01','NO-BGO':'CITY-11-02','NO-TRD':'CITY-11-03','CA-MTL':'CITY-27-03',
- 'AU-SYD':'CITY-24-01','NZ-WLG':'CITY-25-02','MX-VER':'CITY-28-04','BR-RIO':'CITY-29-01','AR-BUE':'CITY-30-01'
+ 'AU-SYD':'CITY-24-01','NZ-WLG':'CITY-25-02','MX-VER':'CITY-28-04','BR-RIO':'CITY-29-01','AR-BUE':'CITY-30-01',
+ 'CL-VAP':'CITY-31-02','CO-CTG':'CITY-32-04'
 };
 const WORLD_LOCATIONS=new Map(SITE_CATALOG.map(site=>[
  'LOC-'+site.id,{id:'LOC-'+site.id,territoryId:WORLD_ENGINE_TERRITORY[site.country],cityId:WORLD_SITE_CITIES[site.id]??null}
@@ -12482,6 +12500,14 @@ function worldSupplyOffer(siteId,productId,name,firstYear,quantity,priceBase,sou
   closesAt:lastYear===null?null:ym(lastYear+1,1),quantity,priceBase,source});
 }
 const WORLD_REGIONAL_SUPPLY=Object.freeze({
+ 'CL-VAP-COPPER':worldSupplyOffer('CL-VAP','PRD-M05','バルパライソ港の輸出銅地金',1913,160,20,
+  'https://upload.wikimedia.org/wikipedia/commons/0/01/Bulletin_of_the_Pan_American_Union_1911-04-_Vol_32_Iss_4_%28IA_sim_bulletin-of-the-pan-american-union_1911-04_32_4%29.pdf',1913),
+ 'CL-VAP-BUNKER-COAL':worldSupplyOffer('CL-VAP','PRD-R04','バルパライソ港の船舶用石炭',1913,165,14,
+  'https://upload.wikimedia.org/wikipedia/commons/1/1f/Bulletin_of_the_Pan_American_Union_1915-01-_Vol_40_Iss_1_%28IA_sim_bulletin-of-the-pan-american-union_1915-01_40_1%29.pdf',1913),
+ 'CO-CTG-COFFEE':worldSupplyOffer('CO-CTG','PRD-R27','カルタヘナ港の輸出コーヒー豆',1906,175,16,
+  'https://upload.wikimedia.org/wikipedia/commons/f/f7/Pan_American_Union._Bulletin_1907-07-_Vol_25_Iss_1_%28IA_sim_bulletin-of-the-pan-american-union_1907-07_25_1%29.pdf',1906),
+ 'CO-CTG-BUNKER-COAL':worldSupplyOffer('CO-CTG','PRD-R04','カルタヘナ港の輸入石炭',1906,150,13,
+  'https://upload.wikimedia.org/wikipedia/commons/f/f7/Pan_American_Union._Bulletin_1907-07-_Vol_25_Iss_1_%28IA_sim_bulletin-of-the-pan-american-union_1907-07_25_1%29.pdf',1906),
  'AR-BUE-WHEAT':worldSupplyOffer('AR-BUE','PRD-R22','ブエノスアイレス港の輸出小麦',1921,185,15,
   'https://doi.org/10.2307/2340795',1921),
  'AR-BUE-BUNKER-COAL':worldSupplyOffer('AR-BUE','PRD-R04','ブエノスアイレス港の船舶用石炭',1921,150,12,
@@ -13501,11 +13527,15 @@ const WORLD_VERACRUZ_CARGO_SOURCE='https://stacks.cdc.gov/view/cdc/66996/cdc_669
 const WORLD_GULF_CONSULAR_SOURCE='https://upload.wikimedia.org/wikipedia/commons/9/92/Pan_American_Union_Bulletin_1902-10-_Vol_13_Iss_4_%28IA_sim_bulletin-of-the-pan-american-union_1902-10_13_4%29.pdf';
 const WORLD_RIO_COFFEE_SOURCE='https://hemeroteca-pdf.bn.gov.br/161993/per161993_1910_00018.pdf';
 const WORLD_BUENOS_AIRES_WHEAT_SOURCE='https://doi.org/10.2307/2340795';
+const WORLD_VALPARAISO_CARGO_SOURCE='https://texashistory.unt.edu/ark%3A/67531/metapth1409696/m1/9/';
+const WORLD_CARTAGENA_CARGO_SOURCE='https://history.state.gov/historicaldocuments/frus1906p1/d384';
 const WORLD_SEATTLE_CARGO_SOURCE='https://www.portseattle.org/blog/birth-seattle-global-gateway';
 const WORLD_YOKOHAMA_TRANSFER_SOURCE='https://archive.lib.city.yokohama.lg.jp/museweb/detail?cls=collect_01&pkey=00003926';
 const WORLD_NORTH_SHIELDS_SOURCE='https://kringom.no/nb/midthordland/bergen/om-englandsruta-bergen-newcastle';
 const WORLD_BERGEN_CARGO_SOURCE='https://snl.no/Det_Bergenske_Dampskibsselskab';
 const WORLD_INTERNATIONAL_CORRIDORS=Object.freeze({
+ 'CL-UK-VALPARAISO-COPPER':worldSteamshipProfile('CL-VAP','UK-LIV',ym(1913,5),15200,32,28,3,WORLD_VALPARAISO_CARGO_SOURCE),
+ 'CO-US-CARTAGENA-COFFEE':worldSteamshipProfile('CO-CTG','US-NEWORLEANS',ym(1906,5),2750,25,22,1,WORLD_CARTAGENA_CARGO_SOURCE),
  'AR-UK-BUENOSAIRES-WHEAT':worldSteamshipProfile('AR-BUE','UK-LIV',ym(1921,1),11300,32,28,3,WORLD_BUENOS_AIRES_WHEAT_SOURCE),
  'BR-US-RIO-COFFEE':worldSteamshipProfile('BR-RIO','US-NEWORLEANS',ym(1910,5),8600,32,28,2,WORLD_RIO_COFFEE_SOURCE),
  'MX-US-VERACRUZ-COFFEE':worldSteamshipProfile('MX-VER','US-NEWORLEANS',ym(1906,5),1750,24,20,1,WORLD_VERACRUZ_CARGO_SOURCE),
@@ -13600,6 +13630,11 @@ const WORLD_INTERNATIONAL_CORRIDORS=Object.freeze({
 // the modeled capacity, distance or cost. The playable dates conservatively
 // allow time to pass after dated sources; they are not claimed opening dates.
 const WORLD_INTERNATIONAL_ROUTE_EVIDENCE=Object.freeze({
+ 'CL-UK-VALPARAISO-COPPER':Object.freeze({untilMonth:ym(1913,7),products:Object.freeze(['PRD-M05']),
+  source:WORLD_VALPARAISO_CARGO_SOURCE,operationSource:'https://www.scielo.cl/scielo.php?pid=S0717-71942002003500004&script=sci_arttext'}),
+ 'CO-US-CARTAGENA-COFFEE':Object.freeze({untilMonth:ym(1906,7),products:Object.freeze(['PRD-R27']),
+  source:WORLD_CARTAGENA_CARGO_SOURCE,
+  operationSource:'https://upload.wikimedia.org/wikipedia/commons/f/f2/Pan_American_Union._Bulletin_1909-07-_Vol_29_Iss_1_%28IA_sim_bulletin-of-the-pan-american-union_1909-07_29_1%29.pdf'}),
  'AR-UK-BUENOSAIRES-WHEAT':Object.freeze({untilMonth:ym(1921,4),products:Object.freeze(['PRD-R22']),
   source:WORLD_BUENOS_AIRES_WHEAT_SOURCE}),
  'BR-US-RIO-COFFEE':Object.freeze({untilMonth:ym(1910,7),products:Object.freeze(['PRD-R27']),
@@ -13783,15 +13818,15 @@ function worldInternationalActOrder(s,actorId,orderId,action){
 }
 // Apply a documented commodity rule when one is known. Remaining destination
 // rates are provisional, rather than historical tariff schedules (SPEC-079).
+const WORLD_NEW_ORLEANS_COFFEE_1897=Object.freeze({id:'CUSTOMS-US-NOLA-1897',siteId:'US-NEWORLEANS',
+ jurisdictionId:'JUR-US',currencyId:'CUR-USD',productId:'PRD-R27',tariffBps:0,reviewMonths:1,
+ authority:'ニューオーリンズ税関',authoritySource:'https://www.gsa.gov/real-estate/explore-historic-buildings/find-a-historic-federal-building/us-custom-house-new-orleans-la',
+ tariffSource:'https://fraser.stlouisfed.org/title/tariff-1897-dingley-tariff-5862/fulltext'});
 const WORLD_INTERNATIONAL_CUSTOMS=Object.freeze({
- 'BR-US-RIO-COFFEE':Object.freeze({id:'CUSTOMS-US-NOLA-1909',siteId:'US-NEWORLEANS',jurisdictionId:'JUR-US',
-  currencyId:'CUR-USD',productId:'PRD-R27',tariffBps:0,reviewMonths:1,
-  authority:'ニューオーリンズ税関',authoritySource:'https://www.gsa.gov/real-estate/explore-historic-buildings/find-a-historic-federal-building/us-custom-house-new-orleans-la',
+ 'CO-US-CARTAGENA-COFFEE':WORLD_NEW_ORLEANS_COFFEE_1897,
+ 'MX-US-VERACRUZ-COFFEE':WORLD_NEW_ORLEANS_COFFEE_1897,
+ 'BR-US-RIO-COFFEE':Object.freeze({...WORLD_NEW_ORLEANS_COFFEE_1897,id:'CUSTOMS-US-NOLA-1909',
   tariffSource:'https://fraser.stlouisfed.org/title/tariff-1909-payne-aldrich-tariff-5874/fulltext'}),
- 'MX-US-VERACRUZ-COFFEE':Object.freeze({id:'CUSTOMS-US-NOLA-1897',siteId:'US-NEWORLEANS',jurisdictionId:'JUR-US',
-  currencyId:'CUR-USD',productId:'PRD-R27',tariffBps:0,reviewMonths:1,
-  authority:'ニューオーリンズ税関',authoritySource:'https://www.gsa.gov/real-estate/explore-historic-buildings/find-a-historic-federal-building/us-custom-house-new-orleans-la',
-  tariffSource:'https://fraser.stlouisfed.org/title/tariff-1897-dingley-tariff-5862/fulltext'}),
  'AU-JP-SYDNEY-WOOL':Object.freeze({id:'CUSTOMS-JP-YOK-1911',siteId:'JP-YOK',jurisdictionId:'JUR-JP',
   currencyId:'CUR-JPY',productId:'PRD-R21',tariffBps:0,reviewMonths:1,
   authority:'横浜税関',authoritySource:'https://www.customs.go.jp/english/zeikan/history_e.htm',
@@ -13804,7 +13839,7 @@ const WORLD_INTERNATIONAL_REMITTANCE=Object.freeze({
   source:'https://leicester.contentdm.oclc.org/digital/api/collection/p16445coll4/id/274979/download',
   branchSource:'https://leicester.contentdm.oclc.org/digital/api/collection/p16445coll4/id/34866/download'})
 });
-const WORLD_PHASE4_TARIFF_BPS=Object.freeze({JP:350,US:300,UK:250,FR:300,DE:300,NO:250,CA:300,AU:300,NZ:300,MX:300,BR:300,AR:300});
+const WORLD_PHASE4_TARIFF_BPS=Object.freeze({JP:350,US:300,UK:250,FR:300,DE:300,NO:250,CA:300,AU:300,NZ:300,MX:300,BR:300,AR:300,CL:300,CO:300});
 function worldInternationalTariffBps(s,country,profileId,productId){
  if(!s.world?.[country]||!Object.hasOwn(WORLD_PHASE4_TARIFF_BPS,country))
   throw Error('輸入国の関税制度が未接続です');
