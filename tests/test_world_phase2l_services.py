@@ -97,7 +97,10 @@ def main():
           const custodySettled=paid.length===1&&paid[0].amount===120&&paid[0].quantity===10
             &&-acc(warehouseFirm,'serviceRevenue')===120
             &&acc(parent,'worldStoredStock')===0&&parent.stock['PRD-R19'].q===7
-            &&worldDomesticWarehouseReservations(S.worldExpansion,depot.id)===0&&consolidate(S).pl.intercompanySales===153;
+            // SPEC-157: 3 kg × 29 km × 0.15 JPY × 100 minor units = 1305.
+            &&cargo.freightCost===1305&&cargo.fuelBookCost===5
+            &&worldDomesticWarehouseReservations(S.worldExpansion,depot.id)===0
+            &&consolidate(S).pl.intercompanySales===1458;
 
           ensureNetwork(parent,S);agent.staff.sales=5;
           parent.distribution.salesCorporations.JP=agent.id;
