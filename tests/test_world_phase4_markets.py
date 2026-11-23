@@ -532,6 +532,75 @@ def test_philippines_sugar_customs(page):
     }""")
     assert all(result.values()),result
 
+
+def test_korean_colonial_rice(page):
+    """1910 annexation, colonial yen parity, 1914 Busan rice shipment."""
+    result=page.evaluate("""() => {
+      const rejects=fn=>{try{fn();return false;}catch{return true;}};
+      S=newWorldGame({country:'JP',name:'Osaka rice importer'});
+      VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';
+      const buyer=company(S.playerId),profileId='KR-JP-BUSAN-RICE';
+      const initiallyClosed=!S.world.KR&&!worldCityLocation(S,'CITY-17-02').marketOpen;
+      S.year=1910;S.month=8;S.monthCommitted=ym(1910,8)-1;applyWorldHistory(S);
+      const beforeAnnexation=!S.world.KR;
+      S.month=9;applyWorldHistory(S);syncWorldIdentities(S);
+      const opened=S.world.KR?.code==='KR'
+        &&S.worldExpansion.openMarkets['MKT-17']===ym(1910,9)
+        &&worldCityLocation(S,'CITY-17-02').jurisdictionId==='JUR-KR-COLONIAL'
+        &&S.worldExpansion.appliedEvents.some(e=>e.id==='HIST-KR-1910');
+      S.year=1914;S.month=5;S.monthCommitted=ym(1914,5)-1;
+      applyWorldHistory(S);syncWorldIdentities(S);
+      PAGE='corporateSubsidiaries';render();
+      document.querySelector('#subName').value='Busan rice exporter';
+      document.querySelector('#subCountry').value='KR';
+      document.querySelector('#subIndustry').value='manufacturing';
+      document.querySelector('#subCapital').value='650000';
+      createSub();
+      const seller=S.firms.find(f=>f.name==='Busan rice exporter'),port=seller.plants[0],depot=buyer.plants[0];
+      depot.siteId='JP-OSA';
+      for(const f of [buyer,seller]){
+        f.auto=false;f.research.tree.done=[...new Set([...f.research.tree.done,'production-1'])];
+      }
+      for(const [f,id,v] of [[seller,'PRD-E18',2400],[buyer,'PRD-E20',700],[buyer,'PRD-E21',900]]){
+        post(f,{materials:v},{cash:v},'検証用の有償現物設備','operating',S);
+        f.stock[id]={q:1,v};
+      }
+      syncWorldIdentities(S);
+      const identity=S.worldExpansion.companies[seller.id];
+      const parity=identity.jurisdictionId==='JUR-KR-COLONIAL'
+        &&identity.currencyId==='CUR-KPY'&&firmCurrency(seller,S)==='KPY'
+        &&firmCurrency(buyer,S)==='JPY'&&S.world.KR.fx===S.world.JP.fx;
+      worldBuyRegionalSupply(S,seller.id,port.id,'KR-BUS-RICE',14);
+      worldBuyRegionalSupply(S,seller.id,port.id,'KR-BUS-BUNKER-COAL',20);
+      const route=worldInternationalRegisterRoute(S,seller.id,profileId);
+      const wh=worldInternationalInstallWarehouse(S,buyer.id,depot.id,profileId);
+      const order=worldInternationalPlaceOrder(S,buyer.id,{
+        routeId:route.id,warehouseId:wh.id,productId:'PRD-R23',quantity:14,
+        cargoLitres:30,unitPriceSeller:80,maxPaymentBuyer:100000,paymentDays:60});
+      worldInternationalActOrder(S,seller.id,order.id,'approve');
+      S.month=6;worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
+      const cargo=S.worldExpansion.internationalShipments.at(-1);
+      const shipped=cargo?.status==='IN_TRANSIT'&&cargo.quantity===14&&cargo.loadKg===15
+        &&cargo.sellerRate===cargo.buyerRate&&cargo.prepaidSeller===cargo.prepaidBuyer
+        &&acc(seller,'worldShipmentStock')===cargo.bookCost
+        &&!buyer.stock['PRD-R23']?.q&&!check(S).length;
+      const damaged=structuredClone(S);damaged.worldExpansion.internationalShipments.at(-1).loadKg++;
+      const tamper=rejects(()=>parsePayload(savePayload(damaged)));
+      S.month=7;worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
+      const paid=cargo.credit.paidAt===ym(1914,7)
+        &&!worldInternationalRouteAvailable(S,profileId);
+      S.month=8;worldInternationalReceiveShipments(S);
+      const restored=parsePayload(savePayload(S));
+      const delivered=cargo.status==='DELIVERED'&&buyer.stock['PRD-R23'].q===14
+        &&buyer.stock['PRD-R23'].v===cargo.totalBuyer
+        &&!acc(seller,'worldShipmentStock')&&!check(restored).length
+        &&!consolidate(restored).errors.length;
+      const incorrectFx=structuredClone(restored);incorrectFx.world.KR.fx+=.1;
+      const pegRejected=rejects(()=>parsePayload(savePayload(incorrectFx)));
+      return {initiallyClosed,beforeAnnexation,opened,parity,shipped,tamper,paid,delivered,pegRejected};
+    }""")
+    assert all(result.values()),result
+
 def main():
     with sync_playwright() as pw:
         browser = pw.chromium.launch(
@@ -724,9 +793,24 @@ def main():
             "departure": 5, "payMonth": 6,
         })
         test_philippines_sugar_customs(page)
+        test_steamship_export(page, {
+            "profile": "RU-UK-PETERSBURG-TIMBER", "country": "RU", "site": "RU-SPB",
+            "city": "CITY-06-02", "currency": "RUR", "year": 1904,
+            "offer": "RU-SPB-TIMBER", "authority": None,
+            "buyerCountry": "UK", "destination": "UK-LON", "product": "PRD-R19",
+            "departure": 5, "payMonth": 6,
+        })
+        test_steamship_export(page, {
+            "profile": "TR-UK-SMYRNA-COTTON", "country": "TR", "site": "TR-IZM",
+            "city": "CITY-38-03", "currency": "OTL", "year": 1909,
+            "offer": "TR-IZM-COTTON", "authority": None,
+            "buyerCountry": "UK", "destination": "UK-LIV", "product": "PRD-R20",
+            "departure": 5, "payMonth": 6,
+        })
+        test_korean_colonial_rice(page)
         assert not errors, errors
         browser.close()
-    print("PASS Phase 4 Canada, Australia, New Zealand, Mexico, Brazil, Argentina, Chile, Colombia, Sweden, Netherlands, Italy, Egypt, India, South Africa, Siam, Straits Singapore, Qing China, Netherlands East Indies and Colonial Nigeria, Spain and Philippines: sourced cargo, loading, shipment and settlement")
+    print("PASS Phase 4 Canada, Australia, New Zealand, Mexico, Brazil, Argentina, Chile, Colombia, Sweden, Netherlands, Italy, Egypt, India, South Africa, Siam, Straits Singapore, Qing China, Netherlands East Indies and Colonial Nigeria, Spain, Philippines, Russian Empire, Colonial Korea and Ottoman Empire: sourced cargo, loading, shipment and settlement")
 
 
 if __name__ == "__main__":

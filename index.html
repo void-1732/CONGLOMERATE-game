@@ -678,6 +678,10 @@ const MANUAL_SAVE_PAGE_SIZE=20,AUTO_SAVE_MONTHS=3,MANUAL_ARCHIVE_PREFIX='manual:
 // Based on the OWID long-run population series (Gapminder before 1950; UN WPP since 1950).
 // Reference values are rounded and based on modern territorial boundaries, not historical sovereignty.
 const POPULATION_ANCHORS={
+ // Russian Empire population includes the 1900 imperial total, not modern Russia.
+ RU:{1900:130.9,1910:160.7},
+ // Korean peninsula historical Japanese-government statistics, not modern ROK.
+ KR:{1910:13.313017,1920:17.288989,1930:20.526563},
  ES:{1900:18.616630,1910:19.990669,1920:21.388551,1950:28.117873},
  PH:{1903:7.635426,1939:16.0,1950:20.0,2020:109.0},
  // 1901/1911 colonial censuses, Siam 1911 historical kingdom census.
@@ -727,7 +731,7 @@ function anchorPopulation(code,year){const anchors=POPULATION_ANCHORS[code];if(!
  if(year>=yrs[yrs.length-1])return anchors[yrs[yrs.length-1]];
  for(let i=1;i<yrs.length;i++){if(year<=yrs[i]){const lo=yrs[i-1],hi=yrs[i];return anchors[lo]+(anchors[hi]-anchors[lo])*(year-lo)/(hi-lo);}}return null;}
 
-const NAMES={JP:'日本',US:'アメリカ',UK:'イギリス',DE:'ドイツ',FR:'フランス',NO:'ノルウェー',CA:'カナダ',AU:'オーストラリア',NZ:'ニュージーランド',MX:'メキシコ',BR:'ブラジル',AR:'アルゼンチン',CL:'チリ',CO:'コロンビア',SE:'スウェーデン',NL:'オランダ',IT:'イタリア',EG:'エジプト',IN:'英領インド',ZA:'南アフリカ連邦',SG:'英領シンガポール',TH:'シャム王国',CN:'清朝中国',ID:'オランダ領東インド',NG:'英領ナイジェリア',ES:'スペイン',PH:'米領フィリピン'};
+const NAMES={JP:'日本',US:'アメリカ',UK:'イギリス',DE:'ドイツ',FR:'フランス',NO:'ノルウェー',CA:'カナダ',AU:'オーストラリア',NZ:'ニュージーランド',MX:'メキシコ',BR:'ブラジル',AR:'アルゼンチン',CL:'チリ',CO:'コロンビア',SE:'スウェーデン',NL:'オランダ',IT:'イタリア',EG:'エジプト',IN:'英領インド',ZA:'南アフリカ連邦',SG:'英領シンガポール',TH:'シャム王国',CN:'清朝中国',ID:'オランダ領東インド',NG:'英領ナイジェリア',ES:'スペイン',PH:'米領フィリピン',RU:'ロシア帝国',KR:'朝鮮（日本統治下）',TR:'オスマン帝国'};
 const INITIAL_ENGINE_COUNTRIES=['JP','US','UK','DE','FR'];
 const COUNTRIES={
  JP:{currency:'JPY',fx:1,pop:44,wealth:1,wage:145,demand:115,steel:420,rubber:280,steelSupply:1100,rubberSupply:1050},
@@ -789,7 +793,15 @@ const COUNTRIES={
  ES:{currency:'ESP',fx:42,pop:anchorPopulation('ES',1900),wealth:.95,wage:137,demand:23,
   steel:459,rubber:320,steelSupply:165,rubberSupply:135},
  PH:{currency:'PHP',fx:75,pop:anchorPopulation('PH',1903),wealth:.79,wage:124,demand:12,
-  steel:487,rubber:326,steelSupply:105,rubberSupply:90}
+  steel:487,rubber:326,steelSupply:105,rubberSupply:90},
+ RU:{currency:'RUR',fx:62,pop:anchorPopulation('RU',1900),wealth:.81,wage:126,demand:52,
+  steel:459,rubber:320,steelSupply:175,rubberSupply:150},
+ // This is a colonial yen ledger tied to JPY, not the contemporary won.
+ KR:{currency:'KPY',fx:1,pop:anchorPopulation('KR',1910),wealth:.8,wage:126,demand:18,
+  steel:476,rubber:324,steelSupply:125,rubberSupply:95},
+ // Ottoman gold lira, not the post-1923 republican lira market.
+ TR:{currency:'OTL',fx:175,pop:21,wealth:.81,wage:128,demand:30,
+  steel:470,rubber:324,steelSupply:150,rubberSupply:105}
 };
 const ACCTYPE={cash:'asset',materials:'asset',materialsTransit:'asset',componentStock:'asset',componentTransit:'asset',wip:'asset',goods:'asset',goodsTransit:'asset',constructionAssets:'asset',ppe:'asset',accdep:'contra',investment:'asset',ar:'asset',loanrec:'asset',resourceRights:'asset',worldShipmentStock:'asset',worldImportDutyPrepaid:'asset',worldInternationalReceivable:'asset',worldStoredStock:'asset',worldInsuranceReserve:'asset',worldInsurancePrepaid:'asset',worldTravelAdvance:'asset',worldBankDeposits:'asset',worldBankRemittance:'asset',worldBankReserve:'asset',worldSupplierAdvances:'asset',partReceivable:'asset',partPayable:'liability',worldCustomerAdvances:'liability',worldInternationalPayable:'liability',worldInternationalDutyPayable:'liability',worldInsuranceUnearned:'liability',worldDemandDeposits:'liability',payable:'liability',wagesDue:'liability',debt:'liability',interestDue:'liability',taxDue:'liability',capital:'equity',treasuryStock:'contraEquity',sales:'revenue',serviceRevenue:'revenue',otherRevenue:'revenue',cogs:'expense',labor:'expense',rndExpense:'expense',advert:'expense',maintenance:'expense',interestExpense:'expense',depreciation:'expense',taxExpense:'expense',fxLoss:'expense',otherExpense:'expense'};
 const PAGES={dashboard:'経営概況',marketOwn:'自社グループ市場分析',market:'世界市場分析',product:'製品・開発',factory:'工場・調達',people:'研究・人事',finance:'財務・資金',group:'企業グループ',consolidated:'連結財務三表',reports:'月次レポート',save:'保存・設定'};
@@ -1581,7 +1593,9 @@ const SITE_CATALOG=[
   ['CN-HAN','CN','漢口（武漢）河港'],['ID-BAT','ID','バタヴィア港（現ジャカルタ）'],
   ['NG-LAG','NG','ラゴス港'],
   ['ES-BIL','ES','ビルバオ鉄鉱石港'],['PH-MNL','PH','マニラ港'],
-  ['US-SFO','US','サンフランシスコ港']].map(([id,country,name])=>(
+  ['US-SFO','US','サンフランシスコ港'],
+  ['RU-SPB','RU','サンクトペテルブルク港'],['KR-BUS','KR','釜山港'],
+  ['TR-IZM','TR','イズミル港（スミルナ）']].map(([id,country,name])=>(
   {id,country,name,land:1,wage:1,infra:1,labor:1,freight:1,worldOnly:true}))
 ];
 const findSite=id=>SITE_CATALOG.find(x=>x.id===id);
@@ -11045,7 +11059,7 @@ const WORLD_TERRITORIES=new Map(WORLD_MARKETS.flatMap(m=>m.territories.map(t=>[t
 const WORLD_CITIES=new Map(WORLD_MARKETS.flatMap(m=>m.cities.map(c=>[c.id,c])));
 // Registry version zero is the saved pre-expansion world (five initial economies).
 // New onboarding data is additive and does not change the original scenario.
-const WORLD_MARKET_REGISTRY_VERSION=12;
+const WORLD_MARKET_REGISTRY_VERSION=13;
 const WORLD_MARKET_ONBOARDING=Object.freeze({
  CA:Object.freeze({introducedIn:1,territoryId:'TER-27-01',currencyId:'CUR-CAD',jurisdictionId:'JUR-CA',
   jurisdictionSource:'https://www.canada.ca/en/immigration-refugees-citizenship/corporate/publications-manuals/discover-canada/read-online/canadas-history.html',
@@ -11150,7 +11164,20 @@ const WORLD_MARKET_ONBOARDING=Object.freeze({
   pegFxReference:'US',pegFxScale:.5,
   jurisdictionSource:'https://history.house.gov/Exhibitions-and-Publications/APA/Historical-Essays/Exclusion-and-Empire/The-Philippines/',
   currencySource:'https://elibrary.judiciary.gov.ph/thebookshelf/showdocs/28/21305',
-  populationSource:'https://www.census.gov/library/publications/1904/dec/philippine-census-bulletin.html'})
+  populationSource:'https://www.census.gov/library/publications/1904/dec/philippine-census-bulletin.html'}),
+ RU:Object.freeze({introducedIn:13,territoryId:'TER-06-01',currencyId:'CUR-RUR',jurisdictionId:'JUR-RU-EMPIRE',
+  jurisdictionSource:'https://www.cbr.ru/eng/about_br/history/',
+  currencySource:'https://www.cbr.ru/eng/about_br/history/',
+  populationSource:'https://periodicos.fgv.br/rbe/article/download/7/6064/15247'}),
+ KR:Object.freeze({introducedIn:13,territoryId:'TER-17-01',currencyId:'CUR-KPY',jurisdictionId:'JUR-KR-COLONIAL',
+  opensAt:ym(1910,9),effectiveDate:'1910-08-29',pegFxReference:'JP',
+  jurisdictionSource:'https://history.state.gov/historicaldocuments/frus1910/d705',
+  currencySource:'https://www.bok.or.kr/eng/main/main.do',
+  populationSource:'https://digital-library.cloudnet.com.kh/storage/media_files/QfrIDBrK4dFUfW2UE6as39MoQQ06n0lhCMRq95WX.pdf'}),
+ TR:Object.freeze({introducedIn:13,territoryId:'TER-38-01',currencyId:'CUR-OTL',jurisdictionId:'JUR-TR-OTTOMAN',
+  jurisdictionSource:'https://www.tcmb.gov.tr/wps/wcm/connect/EN/TCMB%2BEN/Main%2BMenu/About%2Bthe%2BBank/History/',
+  currencySource:'https://www.bankofgreece.gr/RelatedDocuments/IV.%20OTTOMAN.pdf',
+  populationSource:'https://ourworldindata.org/grapher/population'})
 });
 function worldInitialEngineCountries(registryVersion){
  return [...INITIAL_ENGINE_COUNTRIES,...Object.entries(WORLD_MARKET_ONBOARDING)
@@ -11190,7 +11217,8 @@ const WORLD_SITE_CITIES={
  'IN-BOM':'CITY-16-02','ZA-CPT':'CITY-33-03',
  'TH-BKK':'CITY-20-01','SG-SIN':'CITY-22-01',
  'CN-HAN':'CITY-15-04','ID-BAT':'CITY-18-01','NG-LAG':'CITY-35-01',
- 'PH-MNL':'CITY-23-01'
+ 'PH-MNL':'CITY-23-01',
+ 'RU-SPB':'CITY-06-02','KR-BUS':'CITY-17-02','TR-IZM':'CITY-38-03'
 };
 const WORLD_LOCATIONS=new Map(SITE_CATALOG.map(site=>[
  'LOC-'+site.id,{id:'LOC-'+site.id,territoryId:WORLD_ENGINE_TERRITORY[site.country],cityId:WORLD_SITE_CITIES[site.id]??null}
@@ -12644,6 +12672,18 @@ function worldSupplyOffer(siteId,productId,name,firstYear,quantity,priceBase,sou
 }
 const WORLD_REGIONAL_SUPPLY=Object.freeze({
  // Verified port trade categories; unit costs and finite purchase caps are game fixtures.
+ 'RU-SPB-TIMBER':worldSupplyOffer('RU-SPB','PRD-R19','サンクトペテルブルク発の英国向け木材',1904,150,22,
+  'https://discovery.ucl.ac.uk/id/eprint/1559904/1/Final%20Thesis%201606.pdf',1904),
+ 'RU-SPB-BUNKER-COAL':worldSupplyOffer('RU-SPB','PRD-R04','バルト海汽船用石炭',1904,125,17,
+  'https://hull-repository.worktribe.com/preview/4224401/content-hull_18655a.pdf',1904),
+ 'KR-BUS-RICE':worldSupplyOffer('KR-BUS','PRD-R23','釜山港の日本向け輸出米',1914,135,20,
+  'https://www.koreana.or.kr/koreana/na/ntt/selectNttInfo.do?bbsId=1114&nttSn=51780',1914),
+ 'KR-BUS-BUNKER-COAL':worldSupplyOffer('KR-BUS','PRD-R04','釜山汽船用石炭',1914,110,18,
+  'https://contents.history.go.kr/front/km/view.do?levelId=km_026_0060_0020_0010_0030',1914),
+ 'TR-IZM-COTTON':worldSupplyOffer('TR-IZM','PRD-R20','オスマン帝国イズミル港の英国向け綿花',1909,145,23,
+  'https://dergipark.org.tr/en/pub/diclesosbed/article/1696572',1909),
+ 'TR-IZM-BUNKER-COAL':worldSupplyOffer('TR-IZM','PRD-R04','イズミル汽船用石炭',1909,120,18,
+  'https://dergipark.org.tr/en/pub/diclesosbed/article/1696572',1909),
  'ES-BIL-IRON':worldSupplyOffer('ES-BIL','PRD-R01','ビルバオ港の英国向け鉄鉱石',1907,130,20,
   'https://www.gutenberg.org/cache/epub/59944/pg59944-images.html',1907),
  'ES-BIL-BUNKER-COAL':worldSupplyOffer('ES-BIL','PRD-R04','ビルバオ港の石炭取扱い',1907,115,16,
@@ -13728,6 +13768,12 @@ const WORLD_YOKOHAMA_TRANSFER_SOURCE='https://archive.lib.city.yokohama.lg.jp/mu
 const WORLD_NORTH_SHIELDS_SOURCE='https://kringom.no/nb/midthordland/bergen/om-englandsruta-bergen-newcastle';
 const WORLD_BERGEN_CARGO_SOURCE='https://snl.no/Det_Bergenske_Dampskibsselskab';
 const WORLD_INTERNATIONAL_CORRIDORS=Object.freeze({
+ 'RU-UK-PETERSBURG-TIMBER':worldSteamshipProfile('RU-SPB','UK-LON',ym(1904,4),2800,30,26,2,
+  'https://discovery.ucl.ac.uk/id/eprint/1559904/1/Final%20Thesis%201606.pdf'),
+ 'KR-JP-BUSAN-RICE':worldSteamshipProfile('KR-BUS','JP-OSA',ym(1914,5),600,30,26,2,
+  'https://www.koreana.or.kr/koreana/na/ntt/selectNttInfo.do?bbsId=1114&nttSn=51780'),
+ 'TR-UK-SMYRNA-COTTON':worldSteamshipProfile('TR-IZM','UK-LIV',ym(1909,4),4200,30,26,2,
+  'https://dergipark.org.tr/en/pub/diclesosbed/article/1696572'),
  'ES-UK-BILBAO-IRON':worldSteamshipProfile('ES-BIL','UK-CDF',ym(1907,4),980,30,26,2,
   'https://www.gutenberg.org/cache/epub/59944/pg59944-images.html'),
  'PH-US-MANILA-SUGAR':worldSteamshipProfile('PH-MNL','US-SFO',ym(1911,4),11200,30,26,2,
@@ -13850,6 +13896,18 @@ const WORLD_INTERNATIONAL_CORRIDORS=Object.freeze({
 // the modeled capacity, distance or cost. The playable dates conservatively
 // allow time to pass after dated sources; they are not claimed opening dates.
 const WORLD_INTERNATIONAL_ROUTE_EVIDENCE=Object.freeze({
+ 'RU-UK-PETERSBURG-TIMBER':Object.freeze({untilMonth:ym(1904,6),
+  products:Object.freeze(['PRD-R19']),
+  source:'https://discovery.ucl.ac.uk/id/eprint/1559904/1/Final%20Thesis%201606.pdf',
+  operationSource:'https://academic.oup.com/past/advance-article/doi/10.1093/pastj/gtaf025/8264341'}),
+ 'KR-JP-BUSAN-RICE':Object.freeze({untilMonth:ym(1914,7),
+  products:Object.freeze(['PRD-R23']),
+  source:'https://www.koreana.or.kr/koreana/na/ntt/selectNttInfo.do?bbsId=1114&nttSn=51780',
+  operationSource:'https://history.state.gov/historicaldocuments/frus1910/d705'}),
+ 'TR-UK-SMYRNA-COTTON':Object.freeze({untilMonth:ym(1909,6),
+  products:Object.freeze(['PRD-R20']),
+  source:'https://dergipark.org.tr/en/pub/diclesosbed/article/1696572',
+  operationSource:'https://dergipark.org.tr/tr/download/issue-full-file/7883'}),
  'ES-UK-BILBAO-IRON':Object.freeze({untilMonth:ym(1907,6),
   products:Object.freeze(['PRD-R01']),
   source:'https://www.gutenberg.org/cache/epub/59944/pg59944-images.html',
@@ -14125,7 +14183,7 @@ const WORLD_INTERNATIONAL_REMITTANCE=Object.freeze({
   source:'https://leicester.contentdm.oclc.org/digital/api/collection/p16445coll4/id/274979/download',
   branchSource:'https://leicester.contentdm.oclc.org/digital/api/collection/p16445coll4/id/34866/download'})
 });
-const WORLD_PHASE4_TARIFF_BPS=Object.freeze({JP:350,US:300,UK:250,FR:300,DE:300,NO:250,CA:300,AU:300,NZ:300,MX:300,BR:300,AR:300,CL:300,CO:300,SE:250,NL:300,IT:300,EG:300,IN:300,ZA:250,TH:300,SG:0,CN:300,ID:300,NG:250,ES:250,PH:300});
+const WORLD_PHASE4_TARIFF_BPS=Object.freeze({JP:350,US:300,UK:250,FR:300,DE:300,NO:250,CA:300,AU:300,NZ:300,MX:300,BR:300,AR:300,CL:300,CO:300,SE:250,NL:300,IT:300,EG:300,IN:300,ZA:250,TH:300,SG:0,CN:300,ID:300,NG:250,ES:250,PH:300,RU:300,KR:300,TR:300});
 function worldInternationalTariffBps(s,country,profileId,productId){
  if(!s.world?.[country]||!Object.hasOwn(WORLD_PHASE4_TARIFF_BPS,country))
   throw Error('輸入国の関税制度が未接続です');
