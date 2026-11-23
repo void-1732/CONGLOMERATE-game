@@ -29,6 +29,7 @@ on:
       - tests/test_world_phase2m_medical.py
       - tests/test_world_phase3_demand.py
       - tests/test_world_phase3_market_b2b.py
+      - tests/test_world_phase4_international.py
       - tests/test_vehicle_discontinuation.py
       - .github/workflows/world-economy-development.yml
   pull_request:
@@ -92,6 +93,8 @@ jobs:
         run: python -B tests/test_world_phase3_demand.py
       - name: Phase 3 real-demand B2B purchasing and regional pricing
         run: python -B tests/test_world_phase3_market_b2b.py
+      - name: Phase 4 international cargo FX accounting and save
+        run: python -B tests/test_world_phase4_international.py
       - name: Existing UI, trade and save regression
         run: |
           python -B tests/test_step10_37_pages.py
