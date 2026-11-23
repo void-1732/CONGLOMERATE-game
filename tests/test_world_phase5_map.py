@@ -97,6 +97,8 @@ def main():
         assert page.locator('[data-world-map-detail]').count() == 0
 
         page.locator('[data-world-map-city-select]').select_option('CITY-14-01')
+        # Port/site symbols cover city dots at the same coordinates.
+        assert page.locator('[data-world-map-site]').first().get_attribute("pointer-events") == "none"
         assert page.locator('[data-world-map-city-detail="CITY-14-01"]').count() == 1
         assert page.locator('[data-world-map-city-selected="true"]').count() == 1
         assert "JUR-JP" in page.locator('[data-world-map-city-detail]').inner_text()

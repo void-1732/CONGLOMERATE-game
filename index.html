@@ -9471,7 +9471,7 @@ function worldMapSvg(nodes,routes){
    +'" opacity=".95"><title>'+esc(n.name)+' / '+esc(n.id)+'</title></circle>';
  }).join('');
  const emphasized=[...new Map(routes.flatMap(r=>[[r.from.id,r.from],[r.to.id,r.to]])).values()]
-  .map(site=>'<circle data-world-map-site="'+esc(site.id)+'" cx="'+site.x+'" cy="'+site.y
+  .map(site=>'<circle data-world-map-site="'+esc(site.id)+'" pointer-events="none" cx="'+site.x+'" cy="'+site.y
   +'" r="3.4" fill="#eaf7fc" stroke="#0c2539" stroke-width="1"><title>'+esc(site.name)
   +' / '+esc(site.id)+'</title></circle>').join('');
  return '<svg class="phase5-world-svg" viewBox="0 0 1152 594" role="img" '
