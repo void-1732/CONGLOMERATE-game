@@ -27,6 +27,7 @@ on:
       - tests/test_world_phase2l_bank.py
       - tests/test_world_phase2l_telephone.py
       - tests/test_world_phase2m_medical.py
+      - tests/test_world_phase3_demand.py
       - tests/test_vehicle_discontinuation.py
       - .github/workflows/world-economy-development.yml
   pull_request:
@@ -86,6 +87,8 @@ jobs:
           python -B tests/test_world_phase2l_bank.py
           python -B tests/test_world_phase2l_telephone.py
           python -B tests/test_world_phase2m_medical.py
+      - name: Phase 3 market demand and fixed city distribution
+        run: python -B tests/test_world_phase3_demand.py
       - name: Existing UI, trade and save regression
         run: |
           python -B tests/test_step10_37_pages.py
