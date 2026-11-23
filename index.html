@@ -3616,7 +3616,7 @@ async function runMonth(){
   step('CONSOLIDATION',()=>{const reportConso=consolidate(trial,trial.playerId);
    if(reportConso.errors.length)throw Error('連結整合性検証失敗：'+reportConso.errors.slice(0,15).join(' / '));
    if(!reportConso.cf.reconciled)logNotice('連結CFの期首期末照合に未解消項目があります。連結財務三表を確認してください。','warn',trial);
-   trial.consoHistory??=[];trial.consoHistory.push({month:trial.monthCommitted,cash:reportConso.bs.cash,fxCash:reportConso.fxBalance?.cash??reportConso.bs.cash,firmCash:reportConso.cashByFirm||{},equity:reportConso.bs.equity,consolidatedProfit:reportConso.pl.profit,cf:reportConso.cf,periodPL:reportConso.periodPL,spotDeferredInventory:reportConso.spotDeferredInventory,deferredByTx:reportConso.deferredByTx,partDeferredLocal:reportConso.partDeferredLocal});
+   trial.consoHistory??=[];trial.consoHistory.push({month:trial.monthCommitted,cash:reportConso.bs.cash,fxCash:reportConso.fxBalance?.cash??reportConso.bs.cash,firmCash:reportConso.cashByFirm||{},equity:reportConso.bs.equity,consolidatedProfit:reportConso.pl.profit,cf:reportConso.cf,periodPL:reportConso.periodPL,spotDeferredInventory:reportConso.spotDeferredInventory,spotDeferredInternational:reportConso.spotDeferredInternational,spotInternationalNci:reportConso.spotInternationalNci,deferredByTx:reportConso.deferredByTx,partDeferredLocal:reportConso.partDeferredLocal});
    if(trial.consoHistory.length>1200)trial.consoHistory.shift();
   });
   stage='COMMIT';S=trial;committed=true;LAST_MONTH_DIAGNOSTIC=null;MONTH_DIAGNOSTIC_OPEN=false;
@@ -7004,7 +7004,13 @@ function accountingFxReview(s,rootId,g){
  // subsequently leaves the group, the prior deferral is released.
  const preceding=[...(s.consoHistory||[])].reverse().find(h=>h.month===period-1);
  const previousDeferred=Number(preceding?.spotDeferredInventory??0);
- const deltaDeferred=inventoryProfit-previousDeferred+parts.periodDeferral;
+ const previousInternational=Number(preceding?.spotDeferredInternational??0);
+ const internationalDelta=international.spotRetained-previousInternational;
+ const internationalPeriodSales=[...international.eligible.values()].filter(t=>t.receivedAt===period).reduce((n,t)=>{
+  const seller=company(t.sellerId,s),j=seller.journals.find(j=>j.id===t.journals.terminal);
+  return n+Math.round(t.goodsSeller*Number(j?.fxAtPost??COUNTRIES[seller.country].fx));
+ },0);
+ const deltaDeferred=inventoryProfit-previousDeferred+parts.periodDeferral+internationalDelta;
  for(const call of [...(s.worldExpansion?.telephoneCalls??[]),...(s.worldExpansion?.medicalTreatments??[])]){
   if(call.month!==period||!ids.has(call.clientId)||!ids.has(call.providerId))continue;
   const parties=[call.clientId,call.providerId],legs=[call.journal,call.journal+1];
@@ -7013,8 +7019,8 @@ function accountingFxReview(s,rootId,g){
   const provider=company(call.providerId,s),journal=relatedJournal(provider,legs[1]);
   internalSalesPeriod+=Math.round(call.fee*Number(journal?.fxAtPost??COUNTRIES[provider.country].fx));
  }
- rev-=internalSalesPeriod+interestRevenuePeriod+parts.periodSales;
- exp-=internalSalesPeriod+interestExpensePeriod+parts.periodSales;
+ rev-=internalSalesPeriod+interestRevenuePeriod+parts.periodSales+internationalPeriodSales;
+ exp-=internalSalesPeriod+interestExpensePeriod+parts.periodSales+internationalPeriodSales;
  exp+=deltaDeferred;
  const insideEquity=(s.equityTransfers||[]).filter(t=>t.month===period&&ids.has(t.seller)&&ids.has(t.buyer));
  const shareGain=insideEquity.map(t=>{const f=company(t.seller,s);const j=f.journals.find(j=>j.id===t.sellerJournal);return Math.round((t.gainLocal||0)*Number(j?.fxAtPost??COUNTRIES[f.country].fx));});
@@ -7030,9 +7036,9 @@ function accountingFxReview(s,rootId,g){
   const current=Math.round((t.marginBase||0)/COUNTRIES[seller.country].fx*(t.q?Math.min(t.q,q)/t.q:0)*balanceFxRate(s,seller));
   nciProfit-=Math.round((current-old)*(1-(g.shares[t.seller]??0)));
  }
- nciProfit-=parts.periodNci;
+ nciProfit-=parts.periodNci+international.spotNci-Number(preceding?.spotInternationalNci??0);
  const pl={revision:5,period,revenue:rev,expenses:exp,profit,nciProfit,parentProfit:profit-nciProfit,
-  internalSalesEliminated:internalSalesPeriod+parts.periodSales,partInternalSalesEliminated:parts.periodSales,internalInterestRevenueEliminated:interestRevenuePeriod,
+  internalSalesEliminated:internalSalesPeriod+parts.periodSales+internationalPeriodSales,partInternalSalesEliminated:parts.periodSales,internalInterestRevenueEliminated:interestRevenuePeriod,
   internalInterestExpenseEliminated:interestExpensePeriod,inventoryDeferralChange:deltaDeferred,
   acquisitionDiscountGainProvisional:bargainCurrent,accounting:'journal spot FX / monthly accrual'};
  const already=[...(s.consoHistory||[])].reverse().find(h=>h.month===period&&h.periodPL?.revision===5);
@@ -7042,6 +7048,7 @@ function accountingFxReview(s,rootId,g){
   deferredByTx[t.id]=Math.round((t.marginBase||0)/COUNTRIES[seller.country].fx*(t.q?remaining/t.q:0)*balanceFxRate(s,seller));
  }
  return {bs,periodPL:accepted,periodPLCurrent:pl,periodEntries,deferredByTx,acquisition,partDeferredLocal:parts.localByEvent,legacyDeferredInventory:inventoryProfit,
+  spotDeferredInternational:international.spotRetained,spotInternationalNci:international.spotNci,
   acquisitionIncomplete:acquisition.some(x=>!x.complete),
   warnings:[
    '期末BSは全資産・全負債を期末レートで換算した試算。為替換算調整勘定・包括利益の正式な仕訳は未実装です。',
@@ -7054,6 +7061,7 @@ consolidate=function(s,rootId=s.playerId){
  const g=consolidateWithFxV04(s,rootId);
  const a=accountingFxReview(s,rootId,g);
  g.spot=a.bs;g.periodPL=a.periodPL;g.spotDeferredInventory=a.legacyDeferredInventory;g.partDeferredLocal=a.partDeferredLocal;
+ g.spotDeferredInternational=a.spotDeferredInternational;g.spotInternationalNci=a.spotInternationalNci;
  g.deferredByTx=a.deferredByTx;g.acquisitionReview=a.acquisition;
  g.spotWarnings=a.warnings;
  if(a.bs.checkDifference!==0)g.errors.push('全科目期末換算BSが一致しません');
