@@ -40,16 +40,22 @@ def main():
             catch{out.rejectMismatchedLocation=true}
           }finally{location.cityId=originalCityId}
           const state=newWorldGame({country:'JP',name:'Phase1検証'});
-          // A market may aggregate sovereign territories. An opened
-          // market must not implicitly open unregistered neighbouring
-          // jurisdictions (Portugal, Belgium, Luxembourg and the Balkans).
-          const unregistered=['CITY-05-03','CITY-05-04','CITY-08-03',
+          // Grouped legal jurisdictions do not imply a trading engine.
+          const incomplete=['CITY-05-03','CITY-05-04','CITY-08-03',
             'CITY-08-04','CITY-13-01','CITY-13-04'];
           const registered=['CITY-05-01','CITY-08-02','CITY-13-02'];
-          const compositeClosed=unregistered.every(id=>{
+          const compositeClosed=incomplete.every(id=>{
             const city=worldCityLocation(state,id);
-            return city.jurisdictionId==null&&!city.marketOpen;
+            return !city.marketOpen&&!city.economicEngineConnected;
           });
+          const compositeLaw=(
+            worldCityLocation(state,'CITY-05-03').jurisdictionId==='JUR-PT-KINGDOM'
+            &&worldCityLocation(state,'CITY-08-03').jurisdictionId==='JUR-BE'
+            &&worldCityLocation(state,'CITY-08-04').jurisdictionId==='JUR-LU'
+            &&worldCityLocation(state,'CITY-13-01').jurisdictionId===null
+            &&makeWorldExpansion(16).territoryJurisdictions['TER-05-02']===null
+            &&makeWorldExpansion(17).territoryJurisdictions['TER-05-02']==='JUR-PT-KINGDOM'
+          );
           const compositeOpen=registered.every(id=>{
             const city=worldCityLocation(state,id);
             return city.jurisdictionId!=null&&city.marketOpen;
@@ -63,7 +69,8 @@ def main():
             &&worldHistoricalMonetaryReference('TER-05-02',ym(1900,1)).currencyId==='CUR-PTR'
             &&worldHistoricalMonetaryReference('TER-05-02',ym(1911,6)).currencyId==='CUR-PTE'
             &&worldHistoricalMonetaryReference('TER-08-02',ym(1900,1)).currencyId==='CUR-BEF'
-            &&worldHistoricalMonetaryReference('TER-08-03',ym(1900,1)).currencyId==='CUR-LUF'
+            &&worldHistoricalMonetaryReference('TER-08-03',ym(1900,1)).currencyId==='CUR-LU-MULTI'
+            &&worldHistoricalMonetaryReference('TER-08-03',ym(1920,1)).currencyId==='CUR-LUF'
             &&worldHistoricalMonetaryReference('TER-24-01',ym(1900,1)).currencyId==='CUR-GBP'
             &&worldHistoricalMonetaryReference('TER-24-01',ym(1910,1)).currencyId==='CUR-AUP'
             &&worldHistoricalMonetaryReference('TER-24-01',ym(1966,3)).currencyId==='CUR-AUD'
@@ -81,7 +88,7 @@ def main():
             &&WORLD_ENGINE_CURRENCIES.FR==='CUR-EUR'
             &&WORLD_ENGINE_CURRENCIES.DE==='CUR-EUR'
             &&worldCityLocation(state,'CITY-05-03').historicalMoney.currencyId==='CUR-PTR'
-            &&worldCityLocation(state,'CITY-05-03').jurisdictionId==null
+            &&worldCityLocation(state,'CITY-05-03').jurisdictionId==='JUR-PT-KINGDOM'
             &&worldCityLocation(state,'CITY-05-03').marketOpen===false
           );
           const first=worldCityLocation(state,'CITY-01-04');
@@ -99,6 +106,9 @@ def main():
           state.year=1923;state.month=1;
           applyWorldHistory(state);syncWorldIdentities(state);validateWorldExpansion(state);
           const later=worldCityLocation(state,'CITY-01-04');
+          const portugalRepublic=worldCityLocation(state,'CITY-05-03').jurisdictionId
+            ==='JUR-PT-REPUBLIC'&&!worldCityLocation(state,'CITY-05-03').marketOpen
+            &&state.worldExpansion.appliedEvents.some(e=>e.id==='HIST-PT-1910');
           const identityAfter=JSON.stringify([
             state.firms.map(f=>[f.id,f.owners,f.loans]),
             state.worldExpansion.companies,
@@ -106,7 +116,8 @@ def main():
           ]);
           const restored=parsePayload(savePayload(state));
           return {
-            ...out,compositeClosed,compositeOpen,historicMoney,historicalMoneyIsNotLedger,
+            ...out,compositeClosed,compositeOpen,compositeLaw,portugalRepublic,
+            historicMoney,historicalMoneyIsNotLedger,
             firstHistory,secondHistory:!secondHistory,rejectsConflict,
             irelandBefore:first.territoryId==='TER-01-02'
               &&first.marketId==='MKT-01'&&first.jurisdictionId==='JUR-UK',
