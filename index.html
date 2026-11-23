@@ -686,7 +686,9 @@ const POPULATION_ANCHORS={
  // Statistics Canada census anchors (millions), rounded only for display.
  CA:{1891:4.833239,1901:5.371315,1911:7.206643,1921:8.787949,1931:10.376786,
   1941:11.506655,1951:14.009429,1961:18.238247,1971:21.962032,1981:24.819915,
-  1991:28.037420,2001:31.019020,2010:34.108752}
+  1991:28.037420,2001:31.019020,2010:34.108752},
+ AU:{1901:3.788,1911:4.455,1921:5.435,1933:6.630,1947:7.579,1954:8.987,1961:10.548,
+  1971:13.067,1981:14.924,1991:17.284,2001:18.972,2021:25.7}
 };
 const POP_SOURCE='https://ourworldindata.org/grapher/population';
 function anchorPopulation(code,year){const anchors=POPULATION_ANCHORS[code];if(!anchors)return null;
@@ -695,7 +697,7 @@ function anchorPopulation(code,year){const anchors=POPULATION_ANCHORS[code];if(!
  if(year>=yrs[yrs.length-1])return anchors[yrs[yrs.length-1]];
  for(let i=1;i<yrs.length;i++){if(year<=yrs[i]){const lo=yrs[i-1],hi=yrs[i];return anchors[lo]+(anchors[hi]-anchors[lo])*(year-lo)/(hi-lo);}}return null;}
 
-const NAMES={JP:'日本',US:'アメリカ',UK:'イギリス',DE:'ドイツ',FR:'フランス',NO:'ノルウェー',CA:'カナダ'};
+const NAMES={JP:'日本',US:'アメリカ',UK:'イギリス',DE:'ドイツ',FR:'フランス',NO:'ノルウェー',CA:'カナダ',AU:'オーストラリア'};
 const INITIAL_ENGINE_COUNTRIES=['JP','US','UK','DE','FR'];
 const COUNTRIES={
  JP:{currency:'JPY',fx:1,pop:44,wealth:1,wage:145,demand:115,steel:420,rubber:280,steelSupply:1100,rubberSupply:1050},
@@ -706,7 +708,10 @@ const COUNTRIES={
  // Provisional game coefficients, independent of the sourced opening event.
  NO:{currency:'NOK',fx:14,pop:2.24,wealth:.94,wage:136,demand:13,steel:449,rubber:311,steelSupply:90,rubberSupply:80},
  CA:{currency:'CAD',fx:110,pop:anchorPopulation('CA',1900),wealth:1.03,wage:145,demand:16,
-  steel:440,rubber:307,steelSupply:140,rubberSupply:110}
+  steel:440,rubber:307,steelSupply:140,rubberSupply:110},
+ // Fixed game ledger unit in pounds. Legal tender changes do not re-denominate books.
+ AU:{currency:'AUP',fx:190,pop:anchorPopulation('AU',1901),wealth:1.02,wage:146,demand:14,
+  steel:457,rubber:315,steelSupply:95,rubberSupply:75}
 };
 const ACCTYPE={cash:'asset',materials:'asset',materialsTransit:'asset',componentStock:'asset',componentTransit:'asset',wip:'asset',goods:'asset',goodsTransit:'asset',constructionAssets:'asset',ppe:'asset',accdep:'contra',investment:'asset',ar:'asset',loanrec:'asset',resourceRights:'asset',worldShipmentStock:'asset',worldImportDutyPrepaid:'asset',worldInternationalReceivable:'asset',worldStoredStock:'asset',worldInsuranceReserve:'asset',worldInsurancePrepaid:'asset',worldTravelAdvance:'asset',worldBankDeposits:'asset',worldBankReserve:'asset',worldSupplierAdvances:'asset',partReceivable:'asset',partPayable:'liability',worldCustomerAdvances:'liability',worldInternationalPayable:'liability',worldInternationalDutyPayable:'liability',worldInsuranceUnearned:'liability',worldDemandDeposits:'liability',payable:'liability',wagesDue:'liability',debt:'liability',interestDue:'liability',taxDue:'liability',capital:'equity',treasuryStock:'contraEquity',sales:'revenue',serviceRevenue:'revenue',otherRevenue:'revenue',cogs:'expense',labor:'expense',rndExpense:'expense',advert:'expense',maintenance:'expense',interestExpense:'expense',depreciation:'expense',taxExpense:'expense',fxLoss:'expense',otherExpense:'expense'};
 const PAGES={dashboard:'経営概況',marketOwn:'自社グループ市場分析',market:'世界市場分析',product:'製品・開発',factory:'工場・調達',people:'研究・人事',finance:'財務・資金',group:'企業グループ',consolidated:'連結財務三表',reports:'月次レポート',save:'保存・設定'};
@@ -1485,7 +1490,7 @@ const SITE_CATALOG=[
  ...Object.entries(INDUSTRIAL_SITES).flatMap(([country,rows])=>rows.map(([id,name,land,wage,infra,labor,freight])=>(
   {id,country,name,land,wage,infra,labor,freight}))),
  ...[['US-SEA','US','シアトル港'],['UK-NORTHSHIELDS','UK','ノースシールズ港'],
-  ['CA-MTL','CA','モントリオール港']].map(([id,country,name])=>(
+  ['CA-MTL','CA','モントリオール港'],['AU-SYD','AU','シドニー港']].map(([id,country,name])=>(
   {id,country,name,land:1,wage:1,infra:1,labor:1,freight:1,worldOnly:true}))
 ];
 const findSite=id=>SITE_CATALOG.find(x=>x.id===id);
@@ -10944,16 +10949,21 @@ const WORLD_TERRITORIES=new Map(WORLD_MARKETS.flatMap(m=>m.territories.map(t=>[t
 const WORLD_CITIES=new Map(WORLD_MARKETS.flatMap(m=>m.cities.map(c=>[c.id,c])));
 // Registry version zero is the saved pre-expansion world (five initial economies).
 // New onboarding data is additive and does not change the original scenario.
-const WORLD_MARKET_REGISTRY_VERSION=1;
+const WORLD_MARKET_REGISTRY_VERSION=2;
 const WORLD_MARKET_ONBOARDING=Object.freeze({
  CA:Object.freeze({introducedIn:1,territoryId:'TER-27-01',currencyId:'CUR-CAD',jurisdictionId:'JUR-CA',
   jurisdictionSource:'https://www.canada.ca/en/immigration-refugees-citizenship/corporate/publications-manuals/discover-canada/read-online/canadas-history.html',
   currencySource:'https://www.bankofcanada.ca/wp-content/uploads/2010/07/1841-71.pdf',
-  populationSource:'https://www150.statcan.gc.ca/n1/pub/11-402-x/2011000/chap/pop/tbl/tbl01-eng.htm'})
+  populationSource:'https://www150.statcan.gc.ca/n1/pub/11-402-x/2011000/chap/pop/tbl/tbl01-eng.htm'}),
+ AU:Object.freeze({introducedIn:2,territoryId:'TER-24-01',currencyId:'CUR-AUP',jurisdictionId:'JUR-AU',
+  opensAt:ym(1901,1),effectiveDate:'1901-01-01',
+  jurisdictionSource:'https://peo.gov.au/understand-our-parliament/history-of-parliament/federation/the-federation-of-australia',
+  currencySource:'https://www.rba.gov.au/education/resources/explainers/origins-of-the-reserve-bank-of-australia.html',
+  populationSource:'https://www.abs.gov.au/statistics/people/population/historical-population/2021'})
 });
 function worldInitialEngineCountries(registryVersion){
  return [...INITIAL_ENGINE_COUNTRIES,...Object.entries(WORLD_MARKET_ONBOARDING)
-  .filter(([,profile])=>profile.introducedIn<=registryVersion).map(([code])=>code)];
+  .filter(([,profile])=>profile.introducedIn<=registryVersion&&!profile.opensAt).map(([code])=>code)];
 }
 const WORLD_ENGINE_TERRITORY={UK:'TER-01-01',FR:'TER-02-01',DE:'TER-03-01',NO:'TER-11-01',JP:'TER-14-01',US:'TER-26-01',
  ...Object.fromEntries(Object.entries(WORLD_MARKET_ONBOARDING).map(([code,row])=>[code,row.territoryId]))};
@@ -10981,7 +10991,7 @@ const WORLD_SITE_CITIES={
  'US-CHI':'CITY-26-03','US-LAX':'CITY-26-04','UK-LON':'CITY-01-01',
  'DE-RUH':'CITY-03-03','DE-BER':'CITY-03-01','DE-HAM':'CITY-03-02',
  'FR-PAR':'CITY-02-01','FR-LYO':'CITY-02-02','FR-MAR':'CITY-02-03',
- 'NO-OSL':'CITY-11-01','NO-BGO':'CITY-11-02','NO-TRD':'CITY-11-03','CA-MTL':'CITY-27-03'
+ 'NO-OSL':'CITY-11-01','NO-BGO':'CITY-11-02','NO-TRD':'CITY-11-03','CA-MTL':'CITY-27-03','AU-SYD':'CITY-24-01'
 };
 const WORLD_LOCATIONS=new Map(SITE_CATALOG.map(site=>[
  'LOC-'+site.id,{id:'LOC-'+site.id,territoryId:WORLD_ENGINE_TERRITORY[site.country],cityId:WORLD_SITE_CITIES[site.id]??null}
@@ -10996,8 +11006,16 @@ const WORLD_EVENTS=[
   source:'https://www.regjeringen.no/en/the-government/previous-governments/regjeringer-siden-1814/historiske-regjeringer/ministries-1905---1940/christian-michelsens-government-1905---1/id507098/'},
  {id:'HIST-IE-1922',effectiveDate:'1922-12-06',month:ym(1923,1),territoryId:'TER-01-02',jurisdictionId:'JUR-IE',
   openMarketId:null,status:'PROVISIONAL',
-  source:'https://data.oireachtas.ie/ie/oireachtas/communications/other/2021/2021-12-16_centenary-of-the-treaty-debates_en.pdf'}
-];
+  source:'https://data.oireachtas.ie/ie/oireachtas/communications/other/2021/2021-12-16_centenary-of-the-treaty-debates_en.pdf'},
+ ...Object.entries(WORLD_MARKET_ONBOARDING).filter(([,row])=>row.opensAt).map(([code,row])=>({
+  id:'HIST-'+code+'-'+Math.floor(row.opensAt/12),effectiveDate:row.effectiveDate,month:row.opensAt,
+  territoryId:row.territoryId,jurisdictionId:row.jurisdictionId,openMarketId:WORLD_TERRITORIES.get(row.territoryId).marketId,
+  status:'SOURCED',source:row.jurisdictionSource,registryVersion:row.introducedIn
+ }))
+].sort((a,b)=>a.month-b.month);
+function worldHistoryThrough(month,registryVersion){
+ return WORLD_EVENTS.filter(event=>event.month<=month&&(event.registryVersion??0)<=registryVersion);
+}
 
 
 // Phase 1: structural checks are deliberately distinct from historical
@@ -11094,7 +11112,7 @@ function newWorldGame(setup){
 }
 
 function makeWorldExpansion(registryVersion=WORLD_MARKET_REGISTRY_VERSION){
- const added=Object.values(WORLD_MARKET_ONBOARDING).filter(row=>row.introducedIn<=registryVersion);
+ const added=Object.values(WORLD_MARKET_ONBOARDING).filter(row=>row.introducedIn<=registryVersion&&!row.opensAt);
  const jurisdictions={...WORLD_INITIAL_JURISDICTIONS,...Object.fromEntries(added.map(row=>[row.territoryId,row.jurisdictionId]))};
  const initial=new Set(worldInitialEngineCountries(registryVersion));
  return {
@@ -11125,9 +11143,7 @@ function recordWorldEvent(world,event){
 
 function applyWorldHistory(s){
  if(!s.worldExpansion)return;
- const month=ym(s.year,s.month);
- for(const event of WORLD_EVENTS){
-  if(event.month>month)continue;
+ for(const event of worldHistoryThrough(ym(s.year,s.month),s.worldExpansion.marketRegistryVersion??0)){
   recordWorldEvent(s.worldExpansion,event);
   const code=WORLD_ENGINE_BY_MARKET[event.openMarketId];
   if(code&&!Object.hasOwn(s.world,code)){
@@ -11141,12 +11157,15 @@ function applyWorldHistory(s){
 function upgradeWorldMarketRegistry(s){
  const world=s.worldExpansion,previous=world.marketRegistryVersion??0;
  if(previous===WORLD_MARKET_REGISTRY_VERSION)return;
+ const expected=makeWorldExpansion();
+ for(const event of worldHistoryThrough(ym(s.year,s.month),WORLD_MARKET_REGISTRY_VERSION))recordWorldEvent(expected,event);
+ world.openMarkets=expected.openMarkets;
+ world.territoryJurisdictions=expected.territoryJurisdictions;
+ world.appliedEvents=expected.appliedEvents;
  for(const [code,row] of Object.entries(WORLD_MARKET_ONBOARDING)){
   if(row.introducedIn<=previous)continue;
   const marketId=WORLD_TERRITORIES.get(row.territoryId).marketId;
-  world.openMarkets[marketId]=WORLD_START_MONTH;
-  world.territoryJurisdictions[row.territoryId]=row.jurisdictionId;
-  s.world[code]=seedEngineMarket(code,s.year);
+  if(world.openMarkets[marketId]!==null)s.world[code]=seedEngineMarket(code,s.year);
  }
  world.marketRegistryVersion=WORLD_MARKET_REGISTRY_VERSION;
  for(const firm of s.firms)ensureNetwork(firm,s);
@@ -11191,9 +11210,7 @@ function validateWorldExpansion(s){
  if(!Number.isSafeInteger(registryVersion)||registryVersion<0||registryVersion>WORLD_MARKET_REGISTRY_VERSION)
   throw Error('世界市場レジストリの版が不正です');
  const expected=makeWorldExpansion(registryVersion);
- for(const event of WORLD_EVENTS){
-  if(event.month<=ym(s.year,s.month))recordWorldEvent(expected,event);
- }
+ for(const event of worldHistoryThrough(ym(s.year,s.month),registryVersion))recordWorldEvent(expected,event);
  if(JSON.stringify(world.territoryJurisdictions)!==JSON.stringify(expected.territoryJurisdictions)
      ||JSON.stringify(world.openMarkets)!==JSON.stringify(expected.openMarkets)
      ||JSON.stringify(world.appliedEvents)!==JSON.stringify(expected.appliedEvents)){
@@ -12411,6 +12428,10 @@ function worldSupplyOffer(siteId,productId,name,firstYear,quantity,priceBase,sou
   closesAt:lastYear===null?null:ym(lastYear+1,1),quantity,priceBase,source});
 }
 const WORLD_REGIONAL_SUPPLY=Object.freeze({
+ 'AU-SYD-WOOL':worldSupplyOffer('AU-SYD','PRD-R21','シドニー港の輸出羊毛',1913,180,14,
+  'https://www.naa.gov.au/sites/default/files/2020-06/research-guide-allies-enemies-and-trading-partners_0.pdf',1913),
+ 'AU-SYD-BUNKER-COAL':worldSupplyOffer('AU-SYD','PRD-R04','シドニー港の船舶用石炭',1913,180,11,
+  'https://upload.wikimedia.org/wikipedia/commons/0/06/The_port_of_Sydney%3B_official_handbook_%28IA_portofsydneyoffi00sydn%29.pdf',1913),
  'CA-MTL-WHEAT':worldSupplyOffer('CA-MTL','PRD-R22','モントリオール港の輸出小麦',1909,200,10,
   'https://publications.gc.ca/collections/collection_2019/statcan/22-004/CS22-004-1909-eng.pdf',1915),
  'CA-MTL-COAL':worldSupplyOffer('CA-MTL','PRD-R04','モントリオール港の石炭',1909,160,11,
@@ -13400,10 +13421,13 @@ function worldSteamshipProfile(from,to,opensAt,distanceKm,capacityKg,warehouseCa
   fuelScale:18000,source,status:'PROVISIONAL'});
 }
 const WORLD_MONTREAL_FREIGHT_SOURCE='https://www66.statcan.gc.ca/eng/1915/191502370201_p.%20201.pdf';
+const WORLD_SYDNEY_LINER_SOURCE='https://omaa-arts.sydney.edu.au/s/omaa/item/3904';
+const WORLD_SYDNEY_RETURN_SOURCE='https://phlconnect.ched.gov.ph/admin/uploads/add217938e07bb1fd8796e0315b88c10/New-Rival-State.pdf';
 const WORLD_SEATTLE_CARGO_SOURCE='https://www.portseattle.org/blog/birth-seattle-global-gateway';
 const WORLD_NORTH_SHIELDS_SOURCE='https://kringom.no/nb/midthordland/bergen/om-englandsruta-bergen-newcastle';
 const WORLD_BERGEN_CARGO_SOURCE='https://snl.no/Det_Bergenske_Dampskibsselskab';
 const WORLD_INTERNATIONAL_CORRIDORS=Object.freeze({
+ 'AU-JP-SYDNEY-WOOL':worldSteamshipProfile('AU-SYD','JP-YOK',ym(1913,1),10500,32,28,3,WORLD_SYDNEY_LINER_SOURCE),
  'CA-UK-MONTREAL-GRAIN':worldSteamshipProfile('CA-MTL','UK-LIV',ym(1909,5),5200,32,28,2,WORLD_MONTREAL_FREIGHT_SOURCE),
  'JP-US-SEATTLE-STEAM':worldSteamshipProfile('JP-YOK','US-SEA',ym(1900,1),8100,32,28,3,WORLD_SEATTLE_CARGO_SOURCE),
  'US-JP-SEATTLE-STEAM':worldSteamshipProfile('US-SEA','JP-YOK',ym(1900,1),8100,32,28,3,WORLD_SEATTLE_CARGO_SOURCE),
@@ -13488,6 +13512,10 @@ const WORLD_INTERNATIONAL_CORRIDORS=Object.freeze({
 // the modeled capacity, distance or cost. The playable dates conservatively
 // allow time to pass after dated sources; they are not claimed opening dates.
 const WORLD_INTERNATIONAL_ROUTE_EVIDENCE=Object.freeze({
+ // The documented annual scenario represents the through service on one carrier,
+ // including its intermediate calls. It does not transfer cargo between carriers.
+ 'AU-JP-SYDNEY-WOOL':Object.freeze({untilMonth:ym(1914,1),products:Object.freeze(['PRD-R21']),
+  source:WORLD_SYDNEY_LINER_SOURCE,operationSource:WORLD_SYDNEY_RETURN_SOURCE}),
  // The annual series covers 1909–1915 grain moves in the navigation season.
  'CA-UK-MONTREAL-GRAIN':Object.freeze({untilMonth:ym(1916,1),sailingMonths:Object.freeze([5,6,7,8,9,10]),
   products:Object.freeze(['PRD-R22']),source:WORLD_MONTREAL_FREIGHT_SOURCE}),
@@ -13639,12 +13667,27 @@ function worldInternationalActOrder(s,actorId,orderId,action){
  }else throw Error('国際注文の権限・決定状態が不正');
  return o;
 }
-// SPEC-079, PROVISIONAL destination-wide tariffs, not historical legal rates.
-const WORLD_PHASE4_TARIFF_BPS=Object.freeze({JP:350,US:300,UK:250,FR:300,DE:300,NO:250,CA:300});
-function worldInternationalTariffBps(s,country){
+// Apply a documented commodity rule when one is known. Remaining destination
+// rates are provisional, rather than historical tariff schedules (SPEC-079).
+const WORLD_INTERNATIONAL_CUSTOMS=Object.freeze({
+ 'AU-JP-SYDNEY-WOOL':Object.freeze({id:'CUSTOMS-JP-YOK-1911',siteId:'JP-YOK',jurisdictionId:'JUR-JP',
+  currencyId:'CUR-JPY',productId:'PRD-R21',tariffBps:0,reviewMonths:1,
+  authority:'横浜税関',authoritySource:'https://www.customs.go.jp/english/zeikan/history_e.htm',
+  tariffSource:'https://www.mofa.go.jp/mofaj/annai/honsho/shiryo/archives/pdfs/meiji_joyaku_bessatsu_hensen_04.pdf'})
+});
+const WORLD_PHASE4_TARIFF_BPS=Object.freeze({JP:350,US:300,UK:250,FR:300,DE:300,NO:250,CA:300,AU:300});
+function worldInternationalTariffBps(s,country,profileId,productId){
  if(!s.world?.[country]||!Object.hasOwn(WORLD_PHASE4_TARIFF_BPS,country))
   throw Error('輸入国の関税制度が未接続です');
+ const rule=WORLD_INTERNATIONAL_CUSTOMS[profileId];
+ if(rule&&rule.productId===productId)return rule.tariffBps;
  return WORLD_PHASE4_TARIFF_BPS[country];
+}
+function worldInternationalDeclaration(rule,t,arrivalAt=null,releasedAt=null){
+ return {authorityId:rule.id,siteId:rule.siteId,jurisdictionId:rule.jurisdictionId,currencyId:rule.currencyId,
+  importerId:t.buyerId,warehouseId:t.warehouseId,productId:t.productId,weightKg:t.quantity,
+  cargoLitres:t.cargoLitres,dutiableValue:Math.round(t.goodsSeller*t.sellerRate/t.buyerRate),
+  duty:t.dutyBuyer,arrivalAt,releasedAt};
 }
 function worldInternationalFuelRequired(profile,quantity){
  return Math.ceil(profile.distanceKm*quantity/(profile.fuelScale??600));
@@ -13667,7 +13710,7 @@ function worldInternationalQuote(s,route,productId,quantity,unitPriceSeller,buye
  const sellerRate=Math.round(s.world[seller.country].fx*100000),
   buyerRate=Math.round(s.world[buyer.country].fx*100000);
  const prepaidBuyer=Math.round(prepaidSeller*sellerRate/buyerRate);
- const tariffBps=worldInternationalTariffBps(s,buyer.country);
+ const tariffBps=worldInternationalTariffBps(s,buyer.country,route.profileId,productId);
  const dutyBuyer=Math.round(goodsSeller*sellerRate/buyerRate*tariffBps/10000);
  const totalBuyer=prepaidBuyer+dutyBuyer;
  if(!Number.isSafeInteger(totalBuyer)||totalBuyer<1||!Number.isSafeInteger(dutyBuyer)||dutyBuyer<0
@@ -13734,6 +13777,8 @@ function worldInternationalResolveOrders(s,events=[]){
     ...quote,journals:{dispatch:start,terminal:null}};
    if(paymentDays)t.credit={...worldInternationalCreditDeadline(month,paymentDays),
     paidAt:null,journal:null,buyerFx:null,sellerFx:null};
+   const rule=WORLD_INTERNATIONAL_CUSTOMS[route.profileId];
+   if(rule)t.customs=worldInternationalDeclaration(rule,t);
    if(provenance.internationalCostLayers)t.internationalCostLayers=provenance.internationalCostLayers;
    (w.internationalShipments??=[]).push(t);
    o.acceptedQty=q;o.shipmentId=t.id;o.status=q===o.quantity?'FILLED':'PARTIAL';
@@ -13757,8 +13802,20 @@ function worldInternationalReceiveShipments(s,events=[]){
    bp=buyer?.plants.find(p=>p.id===t.buyerPlantId);
   if(!route||route.retiredAt!=null||!h||h.retiredAt!=null||!profile
    ||!worldDomesticSiteActive(seller?.plants.find(p=>p.id===t.sellerPlantId),profile.from)
-   ||!worldDomesticSiteActive(bp,profile.to)
-   ||(buyer.stock[t.productId]?.q??0)+t.quantity>Math.floor(bp.capacity*10))continue;
+   ||!worldDomesticSiteActive(bp,profile.to))continue;
+  if(t.customs){
+   const rule=WORLD_INTERNATIONAL_CUSTOMS[route.profileId];
+   if(t.customs.arrivalAt===null){
+    t.customs.arrivalAt=month;
+    events.push(rule.authority+' 保税貨物の搬入 '+t.id);
+   }
+   if(month<t.customs.arrivalAt+rule.reviewMonths)continue;
+   if(t.customs.releasedAt===null){
+    t.customs.releasedAt=month;
+    events.push(rule.authority+' 輸入許可 '+t.id);
+   }
+  }
+  if((buyer.stock[t.productId]?.q??0)+t.quantity>Math.floor(bp.capacity*10))continue;
   const start=s.seq,prepaid=worldInternationalAdvanceFunded(t);
   const sellerAccount=prepaid?'worldCustomerAdvances':'worldInternationalReceivable';
   post(seller,{[sellerAccount]:t.prepaidSeller},{sales:t.goodsSeller,otherExpense:t.fuelCost},
@@ -13999,7 +14056,7 @@ function worldValidateInternationalLogistics(s){
    ||!Number.isSafeInteger(t.sellerRate)||t.sellerRate<1
    ||!Number.isSafeInteger(t.buyerRate)||t.buyerRate<1
    ||t.prepaidBuyer!==Math.round(t.prepaidSeller*t.sellerRate/t.buyerRate)
-   ||(t.tariffBps!==undefined&&t.tariffBps!==worldInternationalTariffBps(s,buyer.country))
+   ||(t.tariffBps!==undefined&&t.tariffBps!==worldInternationalTariffBps(s,buyer.country,r.profileId,t.productId))
    ||(t.dutyBuyer??0)!==Math.round(t.goodsSeller*t.sellerRate/t.buyerRate*(t.tariffBps??0)/10000)
    ||(t.totalBuyer??t.prepaidBuyer)!==t.prepaidBuyer+(t.dutyBuyer??0)
    ||(t.totalBuyer??t.prepaidBuyer)>order.maxPaymentBuyer
@@ -14014,6 +14071,21 @@ function worldValidateInternationalLogistics(s){
    ||(t.status==='REFUND_PENDING'&&(!t.refund||t.refundedAt!==null||t.receivedAt!==null))
    ||(t.refund&&t.status!=='REFUND_PENDING'&&t.status!=='REFUNDED'))
    throw Error('国際貨物・検収/返金・通貨換算記録が不正：'+t.id);
+  const rule=WORLD_INTERNATIONAL_CUSTOMS[r.profileId];
+  if(rule){
+   const {arrivalAt,releasedAt}=t.customs??{};
+   const declaration=worldInternationalDeclaration(rule,t,arrivalAt,releasedAt);
+   const terminal=t.receivedAt??t.refund?.confirmedAt??t.refundedAt??month;
+   if(t.tariffBps!==rule.tariffBps||t.dutyBuyer===undefined||!t.customs
+    ||rule.siteId!==profile.to||rule.productId!==t.productId
+    ||Object.keys(t.customs).length!==Object.keys(declaration).length
+    ||Object.keys(declaration).some(key=>!Object.hasOwn(t.customs,key)||t.customs[key]!==declaration[key])
+    ||(arrivalAt!==null&&(!Number.isSafeInteger(arrivalAt)||arrivalAt<t.dueAt||arrivalAt>terminal))
+    ||(releasedAt!==null&&(arrivalAt===null||!Number.isSafeInteger(releasedAt)
+      ||releasedAt<arrivalAt+rule.reviewMonths||releasedAt>terminal))
+    ||(t.status==='DELIVERED'&&releasedAt===null))
+    throw Error('税関の貨物申告・搬入・輸入許可の記録が不正：'+t.id);
+  }else if(Object.hasOwn(t,'customs'))throw Error('この区間の史料付き通関制度は未登録です：'+t.id);
   seenShipments.add(t.id);
   shipmentSequence=seq;
   const routeMonth=t.routeId+'|'+t.dispatchedAt,used=(routeMonths.get(routeMonth)??0)+load.loadKg;
@@ -14112,6 +14184,9 @@ function worldInternationalTradePanel(firm,editable){
   +'</td><td>'+(t.status==='REFUND_PENDING'?'返金未払':t.status==='REFUNDED'?'未納終了'
    :!t.credit?'受注時決済':esc(t.credit.dueDate)+' / '
    +(t.credit.paidAt!==null?'決済済':ym(S.year,S.month)>t.credit.dueMonth?'延滞':'未決済'))
+  +(t.customs?'</td><td>'+esc(t.customs.authorityId)+' ／ '
+   +(t.customs.releasedAt!==null?'輸入許可':t.customs.arrivalAt!==null?'保税・通関審査中':'申告準備')
+   +' ／ '+(t.customs.duty?nfmt(t.customs.duty):'無税'):'</td><td>—')
   +'</td></tr>').join('');
  const options=Object.entries(WORLD_INTERNATIONAL_CORRIDORS).filter(([id])=>worldInternationalRouteAvailable(S,id));
  const forms=[];
@@ -14164,13 +14239,16 @@ function worldInternationalTradePanel(firm,editable){
    const evidence=WORLD_INTERNATIONAL_ROUTE_EVIDENCE[id];
    const operation=evidence.operationSource?' · <a href="'+esc(evidence.operationSource)
     +'" target="_blank" rel="noopener noreferrer">運用期間の史料</a>':'';
+   const rule=WORLD_INTERNATIONAL_CUSTOMS[id];
+   const customs=rule?' · <a href="'+esc(rule.authoritySource)+'" target="_blank" rel="noopener noreferrer">'
+    +esc(rule.authority)+'</a> · <a href="'+esc(rule.tariffSource)+'" target="_blank" rel="noopener noreferrer">品目関税の史料</a>':'';
    return '<li>'+esc(findSite(p.from).name)+' → '+esc(findSite(p.to).name)
-    +' <a href="'+esc(evidence.source)+'" target="_blank" rel="noopener noreferrer">貨物輸送の史料</a>'+operation+'</li>';
+    +' <a href="'+esc(evidence.source)+'" target="_blank" rel="noopener noreferrer">貨物輸送の史料</a>'+operation+customs+'</li>';
   }).join('')+'</ul>':'')
   +'<table><thead><tr><th>注文</th><th>貨物</th><th>申込/受注</th><th>状態</th></tr></thead><tbody>'
   +(orderRows||'<tr><td colspan="4">国際注文なし</td></tr>')+'</tbody></table>'
-  +'<table><thead><tr><th>輸送</th><th>状態</th><th>数量</th><th>買手代金(銭)</th><th>売手代金(銭)</th><th>支払期限・状況</th></tr></thead><tbody>'
-  +(shipmentRows||'<tr><td colspan="6">国際検収なし</td></tr>')+'</tbody></table>'
+  +'<table><thead><tr><th>輸送</th><th>状態</th><th>数量</th><th>買手代金(銭)</th><th>売手代金(銭)</th><th>支払期限・状況</th><th>通関</th></tr></thead><tbody>'
+  +(shipmentRows||'<tr><td colspan="7">国際検収なし</td></tr>')+'</tbody></table>'
   +forms.join('')+'</details>';
 }
 document.addEventListener('submit',event=>{

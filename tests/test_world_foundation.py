@@ -54,7 +54,7 @@ def test_catalog_and_history(page):
       };
     }""")
     assert result == {
-        "closed": True, "opened": True, "events": 2, "oldTerritory": "JUR-UK",
+        "closed": True, "opened": True, "events": 3, "oldTerritory": "JUR-UK",
         "newTerritory": "JUR-IE", "unchanged": True, "stillForty": True,
     }
 

@@ -468,4 +468,11 @@ python -B tests/test_step13_120_months.py --era 1900 --world
 - モントリオール発リヴァプール向け小麦を、確認した1909～1915年の5～10月に利用できる。定期船運賃、穀物輸出、港での石炭取扱いに根拠を付けた。在庫枠・日程・運賃のゲーム係数を別に記録した。[定期船運賃](https://www66.statcan.gc.ca/eng/1915/191502370201_p.%20201.pdf) · [穀物輸出](https://publications.gc.ca/collections/collection_2019/statcan/22-004/CS22-004-1909-eng.pdf) · [1909年港湾報告](https://upload.wikimedia.org/wikipedia/commons/a/a5/Report_of_the_Harbour_Commissioners%2C_etc.%2C_to_31st_December%2C_1909._%28IA_1910v44i14p23_0664%29.pdf)
 - 発注時に梱包容積（L）を明示し、実重量と輸送方式別の容積換算重量の大きい方を輸送および倉庫の予約に用いる。部分受注時は容積を比例配分し、棚卸・売上原価は実重量から計算する。換算係数はゲーム用の暫定値。
 - 専用Playwrightでカナダの発注・部分引当・出荷・前払・検収・関税・CAD決済・保存復元と改竄拒否が合格。経済エンジンは1900年時点で6市場、ノルウェー開放後で7市場。未接続市場は33。市場を経由する積替え、外部金融・通関の独立処理、全40市場の実取引、追加後の長期試験は引き続き受入対象。
+
+### Phase 4 追加市場 — オーストラリアと品目別通関
+
+- オーストラリア市場 `MKT-24` は1901年1月の連邦成立で開放する。シドニー港 `CITY-24-01`、管轄 `JUR-AU`、帳簿単位 `CUR-AUP` を接続した。既存世界を保存月に応じて更新し、既存法人・設備・乱数を保全する。ポンド建ては固定のゲーム帳簿単位で、時代ごとの実際の法定通貨への換算は別途必要。[連邦成立](https://peo.gov.au/understand-our-parliament/history-of-parliament/federation/the-federation-of-australia) · [人口](https://www.abs.gov.au/statistics/people/population/historical-population/2021) · [通貨史](https://www.rba.gov.au/education/resources/explainers/origins-of-the-reserve-bank-of-australia.html)
+- 1913年のシドニー発横浜向け羊毛を実貨物として接続した。利用期間は資料を確認した年に限定し、船の途中寄港は同一船による一貫輸送として扱う。出荷には有償調達した羊毛・燃料と有限の設備容量を用いる。[定期航路時刻表](https://omaa-arts.sydney.edu.au/s/omaa/item/3904) · [往復航路の公文書](https://phlconnect.ched.gov.ph/admin/uploads/add217938e07bb1fd8796e0315b88c10/New-Rival-State.pdf) · [羊毛取引](https://www.naa.gov.au/sites/default/files/2020-06/research-guide-allies-enemies-and-trading-partners_0.pdf) · [シドニー港の船舶燃料](https://digital.library.sydney.edu.au/nodes/view/15457)
+- この区間は横浜税関・管轄・荷主・倉庫・帳簿通貨と品目・数量・課税価格を申告に記録する。当時の生羊毛は無税。入港、保税、輸入許可、検収の順に進む。審査1か月はゲーム内の暫定値。専用Playwrightで審査中に売上と買主在庫が発生しないこと、保存復元、許可日の改竄拒否、検収と決済の整合を確認した。[税関の沿革](https://www.customs.go.jp/english/zeikan/history_e.htm) · [生羊毛の無税](https://www.mofa.go.jp/mofaj/annai/honsho/shiryo/archives/pdfs/meiji_joyaku_bessatsu_hensen_04.pdf)
+- この時点で連携済みは8市場、残り32市場。複数荷主・複数区間の積替え、外部金融、他市場の通関制度・関税の史料校正、全市場についての取引証拠、最終HEADの長期試験を引き続き受入対象とする。
 - 再開時はDraft PR #29の最新HEADで開発CIと1,200か月5ジョブを確認し、34未接続市場の管轄・通貨・施設と具体的な史料付き区間を、実出荷・検収・決済試験と対にして追加する。

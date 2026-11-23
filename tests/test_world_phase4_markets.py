@@ -9,6 +9,87 @@ from playwright.sync_api import sync_playwright
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_australia(page):
+    result = page.evaluate("""async () => {
+      const buyerConfig={country:'JP',name:'Yokohama wool importer'};
+      const old=newWorldGame(buyerConfig);
+      old.worldExpansion=makeWorldExpansion(1);syncWorldIdentities(old);
+      old.year=1906;old.month=1;old.monthCommitted=ym(1906,1)-1;
+      applyWorldHistory(old);syncWorldIdentities(old);
+      const restored=parsePayload(savePayload(old));
+      const migration=restored.world.AU?.code==='AU'&&restored.world.NO?.code==='NO'
+        &&restored.worldExpansion.appliedEvents.map(e=>e.id).join()==='HIST-AU-1901,HIST-NO-1905'
+        &&JSON.stringify(restored.worldExpansion.companies)===JSON.stringify(old.worldExpansion.companies)
+        &&restored.rng===old.rng&&!check(restored).length;
+
+      S=newWorldGame(buyerConfig);VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';
+      const profile='AU-JP-SYDNEY-WOOL';
+      const initiallyClosed=!S.world.AU&&!worldCityLocation(S,'CITY-24-01').marketOpen
+        &&!worldInternationalRouteAvailable(S,profile);
+      S.month=12;S.monthCommitted=ym(1900,12)-1;
+      saveAuto=async()=>true;await runMonth();
+      const opened=S.monthCommitted===ym(1900,12)&&S.world.AU?.code==='AU'
+        &&worldCityLocation(S,'CITY-24-01').jurisdictionId==='JUR-AU'
+        &&S.worldExpansion.openMarkets['MKT-24']===ym(1901,1)
+        &&!worldInternationalRouteAvailable(S,profile);
+      S.year=1913;S.month=5;S.monthCommitted=ym(1913,5)-1;
+      applyWorldHistory(S);syncWorldIdentities(S);
+      PAGE='corporateSubsidiaries';render();
+      document.querySelector('#subName').value='Sydney wool exporter';
+      document.querySelector('#subCountry').value='AU';
+      document.querySelector('#subIndustry').value='manufacturing';
+      document.querySelector('#subCapital').value='750000';
+      createSub();
+      const buyer=company(S.playerId),seller=S.firms.find(f=>f.name==='Sydney wool exporter');
+      buyer.plants[0].siteId='JP-YOK';
+      const plant=seller.plants[0];
+      for(const firm of [buyer,seller]){
+        firm.auto=false;firm.research.tree.done=[...new Set([...firm.research.tree.done,'production-1'])];
+      }
+      for(const [firm,id,value] of [[seller,'PRD-E18',2400],[buyer,'PRD-E20',700],[buyer,'PRD-E21',900]]){
+        post(firm,{materials:value},{cash:value},'検証用の有償現物設備','operating',S);
+        firm.stock[id]={q:1,v:value};
+      }
+      syncWorldIdentities(S);
+      const identities=firmCurrency(seller,S)==='AUP'
+        &&S.worldExpansion.companies[seller.id].jurisdictionId==='JUR-AU'
+        &&S.worldExpansion.facilities['FAC-'+plant.id].locationId==='LOC-AU-SYD';
+      const purchase=worldBuyRegionalSupply(S,seller.id,plant.id,'AU-SYD-WOOL',12);
+      worldBuyRegionalSupply(S,seller.id,plant.id,'AU-SYD-BUNKER-COAL',25);
+      const route=worldInternationalRegisterRoute(S,seller.id,profile);
+      const warehouse=worldInternationalInstallWarehouse(S,buyer.id,buyer.plants[0].id,profile);
+      const order=worldInternationalPlaceOrder(S,buyer.id,{routeId:route.id,warehouseId:warehouse.id,
+        productId:'PRD-R21',quantity:12,cargoLitres:32,unitPriceSeller:10,
+        maxPaymentBuyer:100000,paymentDays:90});
+      worldInternationalActOrder(S,seller.id,order.id,'approve');
+      S.month=6;worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
+      const [cargo]=S.worldExpansion.internationalShipments;
+      const dispatch=purchase.quantity===12&&cargo?.status==='IN_TRANSIT'&&cargo.loadKg===16
+        &&cargo.prepaidBuyer>cargo.prepaidSeller&&acc(seller,'worldShipmentStock')===cargo.bookCost
+        &&!buyer.stock['PRD-R21']?.q;
+      S.month=8;worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
+      const prepaid=cargo.status==='IN_TRANSIT'&&cargo.credit.paidAt===ym(1913,8);
+      S.month=9;worldInternationalReceiveShipments(S);
+      const held=cargo.status==='IN_TRANSIT'&&cargo.customs?.arrivalAt===ym(1913,9)
+        &&cargo.customs.releasedAt===null&&cargo.customs.duty===0&&cargo.tariffBps===0
+        &&cargo.customs.authorityId==='CUSTOMS-JP-YOK-1911'&&acc(seller,'worldShipmentStock')===cargo.bookCost
+        &&!buyer.stock['PRD-R21']?.q&&worldInternationalTradePanel(buyer,true).includes('保税・通関審査中')
+        &&parsePayload(savePayload(S)).worldExpansion.internationalShipments[0].customs.arrivalAt===ym(1913,9);
+      const forged=structuredClone(S);forged.worldExpansion.internationalShipments[0].customs.releasedAt=ym(1913,9);
+      let prematureRejected=false;
+      try{parsePayload(savePayload(forged));}catch{prematureRejected=true;}
+      S.month=10;worldInternationalReceiveShipments(S);
+      const reopened=parsePayload(savePayload(S));
+      const settle=cargo.status==='DELIVERED'&&buyer.stock['PRD-R21'].q===12
+        &&buyer.stock['PRD-R21'].v===cargo.totalBuyer&&!acc(seller,'worldShipmentStock')
+        &&reopened.worldExpansion.internationalShipments[0].receivedAt===ym(1913,10)
+        &&reopened.worldExpansion.internationalShipments[0].customs.releasedAt===ym(1913,10)
+        &&!check(reopened).length&&!consolidate(reopened).errors.length;
+      return {migration,initiallyClosed,opened,identities,dispatch,prepaid,held,prematureRejected,settle};
+    }""")
+    assert all(result.values()), result
+
+
 def main():
     with sync_playwright() as pw:
         browser = pw.chromium.launch(
@@ -30,8 +111,9 @@ def main():
           syncWorldIdentities(legacy);
           const legacyRaw=savePayload(legacy);
           const upgraded=parsePayload(legacyRaw);
-          const registryUpgrade=upgraded.worldExpansion.marketRegistryVersion===1
+          const registryUpgrade=upgraded.worldExpansion.marketRegistryVersion===WORLD_MARKET_REGISTRY_VERSION
             &&upgraded.worldExpansion.openMarkets['MKT-27']===ym(1900,1)&&upgraded.world.CA?.code==='CA'
+            &&upgraded.worldExpansion.openMarkets['MKT-24']===null&&!upgraded.world.AU
             &&company(upgraded.playerId,upgraded).id===originalPlayer.id
             &&acc(company(upgraded.playerId,upgraded),'cash')===acc(originalPlayer,'cash')
             &&upgraded.rng===legacy.rng&&JSON.stringify(upgraded.world.UK)===JSON.stringify(legacy.world.UK)
@@ -110,9 +192,10 @@ def main():
           return {registryUpgrade,downgradeRejected,selected,invalid,loading,ownership,audit,prepaid,settlement,seasonal};
         }""")
         assert all(result.values()), result
+        test_australia(page)
         assert not errors, errors
         browser.close()
-    print("PASS Phase 4 Canada: CAD, ports, measured capacity, real wheat purchase, shipment, settlement, migration")
+    print("PASS Phase 4 Canada and Australia: historical opening, registry upgrade, verified sourcing, loading, shipment and settlement")
 
 
 if __name__ == "__main__":
