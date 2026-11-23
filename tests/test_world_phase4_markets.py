@@ -459,6 +459,79 @@ def test_nigeria_colonial_cocoa(page):
     }""")
     assert all(result.values()), result
 
+
+def test_philippines_sugar_customs(page):
+    """1903 gold peso, 1909 duty-free sugar quota, 1911 actual cargo/receipt."""
+    result=page.evaluate("""() => {
+      const reject=fn=>{try{fn();return false;}catch{return true}};
+      S=newWorldGame({country:'US',name:'San Francisco sugar buyer'});
+      VIEW_FIRM=S.playerId;VIEW_COUNTRY='US';
+      const buyer=company(S.playerId),profileId='PH-US-MANILA-SUGAR';
+      const before=!S.world.PH&&!worldCityLocation(S,'CITY-23-01').marketOpen;
+      S.year=1903;S.month=3;S.monthCommitted=ym(1903,3)-1;applyWorldHistory(S);
+      const prePeso=!S.world.PH;
+      S.month=4;applyWorldHistory(S);syncWorldIdentities(S);
+      const opened=S.world.PH?.code==='PH'
+        &&S.worldExpansion.openMarkets['MKT-23']===ym(1903,4)
+        &&worldCityLocation(S,'CITY-23-01').jurisdictionId==='JUR-PH-INSULAR'
+        &&S.worldExpansion.appliedEvents.some(e=>e.id==='HIST-PH-1903');
+      S.year=1911;S.month=4;S.monthCommitted=ym(1911,4)-1;
+      applyWorldHistory(S);syncWorldIdentities(S);
+      PAGE='corporateSubsidiaries';render();
+      document.querySelector('#subName').value='Manila sugar exporter';
+      document.querySelector('#subCountry').value='PH';
+      document.querySelector('#subIndustry').value='manufacturing';
+      document.querySelector('#subCapital').value='650000';
+      createSub();
+      const seller=S.firms.find(f=>f.name==='Manila sugar exporter'),port=seller.plants[0],depot=buyer.plants[0];
+      depot.siteId='US-SFO';
+      for(const f of [buyer,seller]){
+        f.auto=false;f.research.tree.done=[...new Set([...f.research.tree.done,'production-1'])];
+      }
+      for(const [f,id,v] of [[seller,'PRD-E18',2400],[buyer,'PRD-E20',700],[buyer,'PRD-E21',900]]){
+        post(f,{materials:v},{cash:v},'検証用の有償現物設備','operating',S);
+        f.stock[id]={q:1,v};
+      }
+      syncWorldIdentities(S);
+      const identity=S.worldExpansion.companies[seller.id];
+      const peg=identity.jurisdictionId==='JUR-PH-INSULAR'&&identity.currencyId==='CUR-PHP'
+        &&S.world.PH.fx*2===S.world.US.fx&&firmCurrency(seller,S)==='PHP';
+      worldBuyRegionalSupply(S,seller.id,port.id,'PH-MNL-SUGAR',14);
+      worldBuyRegionalSupply(S,seller.id,port.id,'PH-MNL-BUNKER-COAL',21);
+      const route=worldInternationalRegisterRoute(S,seller.id,profileId);
+      const wh=worldInternationalInstallWarehouse(S,buyer.id,depot.id,profileId);
+      const order=worldInternationalPlaceOrder(S,buyer.id,{
+        routeId:route.id,warehouseId:wh.id,productId:'PRD-M40',quantity:14,
+        cargoLitres:30,unitPriceSeller:35,maxPaymentBuyer:100000,paymentDays:60});
+      const freeQuota=worldInternationalQuote(S,route,'PRD-M40',14,35,buyer.id,60,30).tariffBps===0
+        &&WORLD_INTERNATIONAL_CUSTOMS[profileId].annualQuotaKg===304814400;
+      worldInternationalActOrder(S,seller.id,order.id,'approve');
+      S.month=5;worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
+      const cargo=S.worldExpansion.internationalShipments.at(-1);
+      const shipped=cargo?.status==='IN_TRANSIT'&&cargo.quantity===14
+        &&cargo.tariffBps===0&&cargo.dutyBuyer===0&&cargo.loadKg===15
+        &&acc(seller,'worldShipmentStock')===cargo.bookCost
+        &&!buyer.stock['PRD-M40']?.q&&!check(S).length;
+      S.month=6;worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
+      const paid=cargo.credit.paidAt===ym(1911,6)&&!worldInternationalRouteAvailable(S,profileId);
+      S.month=7;worldInternationalReceiveShipments(S);
+      const held=cargo.status==='IN_TRANSIT'&&cargo.customs?.arrivalAt===ym(1911,7)
+        &&cargo.customs.releasedAt===null&&cargo.customs.authorityId==='CUSTOMS-US-SFO-PH1909';
+      const altered=structuredClone(S);altered.worldExpansion.internationalShipments.at(-1).customs.duty++;
+      const tamper=reject(()=>parsePayload(savePayload(altered)));
+      S.month=8;worldInternationalReceiveShipments(S);
+      const saved=parsePayload(savePayload(S));
+      const settled=cargo.status==='DELIVERED'&&buyer.stock['PRD-M40'].q===14
+        &&buyer.stock['PRD-M40'].v===cargo.totalBuyer
+        &&cargo.customs.releasedAt===ym(1911,8)
+        &&!acc(seller,'worldShipmentStock')&&!check(saved).length
+        &&!consolidate(saved).errors.length;
+      const fakePeg=structuredClone(saved);fakePeg.world.PH.fx+=.01;
+      return {before,prePeso,opened,peg,freeQuota,shipped,paid,held,tamper,settled,
+        pegAudit:reject(()=>parsePayload(savePayload(fakePeg)))};
+    }""")
+    assert all(result.values()),result
+
 def main():
     with sync_playwright() as pw:
         browser = pw.chromium.launch(
@@ -643,9 +716,17 @@ def main():
             "departure": 5, "payMonth": 6,
         })
         test_nigeria_colonial_cocoa(page)
+        test_steamship_export(page, {
+            "profile": "ES-UK-BILBAO-IRON", "country": "ES", "site": "ES-BIL",
+            "city": "CITY-05-01", "currency": "ESP", "year": 1907,
+            "offer": "ES-BIL-IRON", "authority": None,
+            "buyerCountry": "UK", "destination": "UK-CDF", "product": "PRD-R01",
+            "departure": 5, "payMonth": 6,
+        })
+        test_philippines_sugar_customs(page)
         assert not errors, errors
         browser.close()
-    print("PASS Phase 4 Canada, Australia, New Zealand, Mexico, Brazil, Argentina, Chile, Colombia, Sweden, Netherlands, Italy, Egypt, India, South Africa, Siam, Straits Singapore, Qing China, Netherlands East Indies and Colonial Nigeria: sourced cargo, loading, shipment and settlement")
+    print("PASS Phase 4 Canada, Australia, New Zealand, Mexico, Brazil, Argentina, Chile, Colombia, Sweden, Netherlands, Italy, Egypt, India, South Africa, Siam, Straits Singapore, Qing China, Netherlands East Indies and Colonial Nigeria, Spain and Philippines: sourced cargo, loading, shipment and settlement")
 
 
 if __name__ == "__main__":
