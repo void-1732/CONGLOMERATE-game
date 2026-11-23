@@ -179,10 +179,20 @@ def main():
             &&buyer.stock['PRD-R19'].v===cargo.totalBuyer
             &&acc(buyer,'worldImportDutyPrepaid')===0
             &&!check(S).length;
+          const group=consolidate(S),margin=cargo.goodsSeller-cargo.bookCost;
+          const retained=group.adjustments.internationalInventoryProfit===baseFromLocal(margin,'FR')
+            &&group.spotDeferredInternational===Math.round(margin*balanceFxRate(S,seller))
+            &&group.errors.length===0;
+          const spent=consume(buyer,'PRD-R19',6);
+          post(buyer,{otherExpense:spent},{materials:spent},'国際在庫の部分消費','operating',S);
+          const partially=consolidate(S);
+          const provenance=partially.adjustments.internationalInventoryProfit===baseFromLocal(margin/2,'FR')
+            &&partially.spotDeferredInternational===Math.round(margin/2*balanceFxRate(S,seller))
+            &&worldValidateInternationalLogistics(S)&&!check(S).length;
           const changed=structuredClone(S);
           changed.worldExpansion.internationalShipments.at(-1).tariffBps++;
           const tamper=(()=>{try{parsePayload(savePayload(changed));return false}catch{return true}})();
-          return {paths,equipment,customs,retain,delivered,tamper};
+          return {paths,equipment,customs,retain,delivered,retained,provenance,tamper};
         }""")
         assert all(multimodal.values()),multimodal
         browser.close()
