@@ -9,6 +9,34 @@ from playwright.sync_api import sync_playwright
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_all_market_coverage(page):
+    """Every connected engine country must have a sourced freight corridor."""
+    result = page.evaluate("""() => {
+      const state=newWorldGame({country:'JP',name:'Phase 4 coverage audit'});
+      const countries=new Set(Object.keys(WORLD_ENGINE_TERRITORY));
+      const sourced=Object.entries(WORLD_INTERNATIONAL_CORRIDORS).filter(([id,p])=>
+        p.source?.startsWith('https://') &&
+        WORLD_INTERNATIONAL_ROUTE_EVIDENCE[id]?.source?.startsWith('https://'));
+      const connected=new Set(sourced.flatMap(([,p])=>
+        [findSite(p.from)?.country,findSite(p.to)?.country]));
+      const missing=[...countries].filter(code=>!connected.has(code));
+      const markets=WORLD_MARKETS.every(m=>countries.has(WORLD_ENGINE_BY_MARKET[m.id])
+        &&m.cities.every(c=>{
+          const loc=worldCityLocation(state,c.id);
+          return loc.marketId===m.id&&loc.territoryId===c.territoryId
+            &&(loc.jurisdictionId==null?loc.marketOpen===false:true);
+        }));
+      const integrity=sourced.every(([id,p])=>p.from!==p.to
+        &&findSite(p.from)?.country!==findSite(p.to)?.country
+        &&p.capacityKg>0&&p.transitMonths>0&&p.opensAt>=WORLD_START_MONTH
+        &&WORLD_INTERNATIONAL_ROUTE_EVIDENCE[id].products?.length>0);
+      return {markets,integrity,allForty:countries.size===40&&connected.size===40
+        &&WORLD_MARKETS.length===40&&WORLD_CITIES.size===155&&!missing.length,
+        missing};
+    }""")
+    assert result["markets"] and result["integrity"] and result["allForty"], result
+
+
 def test_australia(page):
     result = page.evaluate("""async () => {
       const buyerConfig={country:'JP',name:'Yokohama wool importer'};
@@ -847,6 +875,7 @@ def main():
           return {registryUpgrade,downgradeRejected,selected,invalid,loading,ownership,audit,prepaid,settlement,seasonal};
         }""")
         assert all(result.values()), result
+        test_all_market_coverage(page)
         test_australia(page)
         test_new_zealand(page)
         gulf_coffee = {"buyerCountry": "US", "destination": "US-NEWORLEANS", "product": "PRD-R27",
