@@ -1624,6 +1624,8 @@ const SITE_CATALOG=[
  ...Object.entries(INDUSTRIAL_SITES).flatMap(([country,rows])=>rows.map(([id,name,land,wage,infra,labor,freight])=>(
   {id,country,name,land,wage,infra,labor,freight}))),
  ...[['US-SEA','US','シアトル港'],['UK-NORTHSHIELDS','UK','ノースシールズ港'],
+  ['UK-HOUNSLOW-HEATH','UK','ハウンズロー・ヒース飛行場',1919],
+  ['FR-LE-BOURGET','FR','ル・ブルジェ飛行場',1919],
   ['CA-MTL','CA','モントリオール港'],['AU-SYD','AU','シドニー港'],['NZ-WLG','NZ','ウェリントン港'],
   ['MX-VER','MX','ベラクルス港'],['BR-RIO','BR','リオデジャネイロ港'],
   ['AR-BUE','AR','ブエノスアイレス港'],['CL-VAP','CL','バルパライソ港'],
@@ -1647,11 +1649,12 @@ const SITE_CATALOG=[
   ['PL-GDY','PL','グディニャ港'],['GR-PIR','GR','ピレウス港'],
   ['VN-SGN','VN','サイゴン港（現ホーチミン市）'],
   ['IR-BND','IR','バンダル・アッバース港'],
-  ['SA-JED','SA','ジッダ港']].map(([id,country,name])=>(
-  {id,country,name,land:1,wage:1,infra:1,labor:1,freight:1,worldOnly:true}))
+  ['SA-JED','SA','ジッダ港']].map(([id,country,name,firstYear])=>(
+  {id,country,name,land:1,wage:1,infra:1,labor:1,freight:1,worldOnly:true,firstYear}))
 ];
 const findSite=id=>SITE_CATALOG.find(x=>x.id===id);
-const siteVisibleInGame=(site,s)=>!site.worldOnly||!!s?.worldExpansion;
+const siteVisibleInGame=(site,s)=>!site.worldOnly||
+ (!!s?.worldExpansion&&(site.firstYear==null||s.year>=site.firstYear));
 const homeSite=country=>SITE_CATALOG.find(x=>x.country===country)||SITE_CATALOG[0];
 function ensurePlantLocation(f,p){const site=findSite(p.siteId)||homeSite(f.country);p.siteId=site.id;p.siteCountry=site.country;return site;}
 function siteEfficiency(f,p){const a=ensurePlantLocation(f,p);return clamp(.65+a.infra*.22+a.labor*.13,.75,1.23);}
@@ -9383,7 +9386,8 @@ function worldSelectedCode(){return Object.hasOwn(S.world,VIEW_COUNTRY)?VIEW_COU
 // Geographic positions are approximate reference points, not navigation-grade data.
 // All gameplay capacity, distances, schedules and money stay in the existing ledgers.
 const WORLD_MAP_CITY_COORDS=Object.freeze({"MKT-01":[51.51,-0.13,53.48,-2.24,52.49,-1.89,53.35,-6.26],"MKT-02":[48.86,2.35,45.76,4.84,43.3,5.37,50.63,3.06],"MKT-03":[52.52,13.4,53.55,10,51.45,7,48.14,11.58],"MKT-04":[41.9,12.5,45.46,9.19,45.07,7.69,40.85,14.27],"MKT-05":[40.42,-3.7,41.39,2.17,38.72,-9.14,41.15,-8.61],"MKT-06":[55.76,37.62,59.94,30.31,55.03,82.92,43.12,131.89],"MKT-07":[52.23,21,50.06,19.94,51.76,19.46,54.35,18.65],"MKT-08":[52.37,4.9,51.92,4.48,50.85,4.35,49.61,6.13],"MKT-09":[46.95,7.45,47.37,8.54,46.2,6.14,47.56,7.59],"MKT-10":[59.33,18.06,57.71,11.97,55.61,13],"MKT-11":[59.91,10.75,60.39,5.32,63.43,10.4],"MKT-12":[48.21,16.37,47.07,15.44,48.31,14.29],"MKT-13":[44.79,20.45,37.98,23.73,45.81,15.98,41.33,19.82,43.85,18.41],"MKT-14":[35.68,139.76,34.69,135.5,35.18,136.9,34.69,135.2],"MKT-15":[39.9,116.4,31.23,121.47,23.13,113.26,30.6,114.3],"MKT-16":[28.61,77.21,19.08,72.88,22.57,88.36,13.08,80.27],"MKT-17":[37.57,126.98,35.18,129.07,37.46,126.7,35.87,128.6],"MKT-18":[-6.21,106.85,-7.26,112.75,-6.91,107.61,3.59,98.67],"MKT-19":[21.03,105.85,10.82,106.63,20.85,106.68,16.05,108.2],"MKT-20":[13.76,100.5,18.79,98.99,14.98,102.1],"MKT-21":[3.14,101.69,5.41,100.33,1.46,103.76],"MKT-22":[1.35,103.82,1.33,103.7,1.44,103.79],"MKT-23":[14.6,120.98,10.32,123.89,7.07,125.61,10.72,122.56],"MKT-24":[-33.87,151.21,-37.81,144.96,-27.47,153.03,-31.95,115.86],"MKT-25":[-36.85,174.76,-41.29,174.78,-43.53,172.63],"MKT-26":[38.91,-77.04,40.71,-74.01,41.88,-87.63,34.05,-118.24,29.76,-95.37],"MKT-27":[45.42,-75.7,43.65,-79.38,45.5,-73.57,49.28,-123.12],"MKT-28":[19.43,-99.13,25.69,-100.31,20.67,-103.35,19.17,-96.14],"MKT-29":[-22.91,-43.2,-23.55,-46.63,-12.98,-38.5,-30.03,-51.23],"MKT-30":[-34.6,-58.38,-31.42,-64.18,-32.95,-60.65,-32.89,-68.84],"MKT-31":[-33.45,-70.67,-33.05,-71.62,-36.82,-73.05,-23.65,-70.4],"MKT-32":[4.71,-74.07,6.24,-75.58,3.45,-76.53,10.4,-75.5],"MKT-33":[-25.75,28.19,-26.2,28.05,-33.92,18.42,-29.86,31.03],"MKT-34":[30.04,31.24,31.2,29.92,29.97,32.55,31.27,32.31],"MKT-35":[6.52,3.38,12,8.52,7.38,3.93,6.34,5.63],"MKT-36":[-1.29,36.82,-4.05,39.67,-0.09,34.76,-0.3,36.08],"MKT-37":[34.02,-6.84,33.57,-7.59,34.06,-4.98,35.78,-5.81],"MKT-38":[41.01,28.98,39.93,32.85,38.42,27.14,40.19,29.06],"MKT-39":[24.71,46.67,21.49,39.19,26.42,50.09,21.39,39.86],"MKT-40":[35.69,51.42,32.65,51.68,38.08,46.29,36.26,59.6]});
-const WORLD_MAP_EXTRA_SITES=Object.freeze({"DE-FRE":[48,7.85],"ES-BIL":[43.26,-2.93],"IR-BND":[27.19,56.28],"IT-GEN":[44.41,8.93],"JP-YOK":[35.45,139.64],"PL-GDY":[54.52,18.54],"UK-CDF":[51.48,-3.18],"UK-HULL":[53.74,-0.34],"UK-LIV":[53.4,-2.98],"UK-NORTHSHIELDS":[55.01,-1.45],"US-NEWORLEANS":[29.95,-90.07],"US-PHL":[39.95,-75.17],"US-SEA":[47.61,-122.33],"US-SFO":[37.77,-122.42]});
+const WORLD_MAP_EXTRA_SITES=Object.freeze({"DE-FRE":[48,7.85],"ES-BIL":[43.26,-2.93],"IR-BND":[27.19,56.28],"IT-GEN":[44.41,8.93],"JP-YOK":[35.45,139.64],"PL-GDY":[54.52,18.54],"UK-CDF":[51.48,-3.18],"UK-HULL":[53.74,-0.34],"UK-LIV":[53.4,-2.98],"UK-NORTHSHIELDS":[55.01,-1.45],"US-NEWORLEANS":[29.95,-90.07],"US-PHL":[39.95,-75.17],"US-SEA":[47.61,-122.33],"US-SFO":[37.77,-122.42],
+ "UK-HOUNSLOW-HEATH":[51.46,-0.39],"FR-LE-BOURGET":[48.97,2.44]});
 let WORLD_MAP_TRANSPORT_MODE='all',WORLD_MAP_FOCUS='global',WORLD_MAP_ACTIVITY='all',WORLD_MAP_SELECTED_ROUTE_ID=null,WORLD_MAP_SELECTED_CITY_ID=null;
 const WORLD_MAP_WIDTH=1152,WORLD_MAP_HEIGHT=594;
 function worldMapProject(lat,lon){
@@ -11947,6 +11951,7 @@ const WORLD_SITE_CITIES={
  'US-CHI':'CITY-26-03','US-LAX':'CITY-26-04','UK-LON':'CITY-01-01',
  'DE-RUH':'CITY-03-03','DE-BER':'CITY-03-01','DE-HAM':'CITY-03-02',
  'FR-PAR':'CITY-02-01','FR-LYO':'CITY-02-02','FR-MAR':'CITY-02-03',
+ 'UK-HOUNSLOW-HEATH':'CITY-01-01','FR-LE-BOURGET':'CITY-02-01',
  'NO-OSL':'CITY-11-01','NO-BGO':'CITY-11-02','NO-TRD':'CITY-11-03','CA-MTL':'CITY-27-03',
  'AU-SYD':'CITY-24-01','NZ-WLG':'CITY-25-02','MX-VER':'CITY-28-04','BR-RIO':'CITY-29-01','AR-BUE':'CITY-30-01',
  'CL-VAP':'CITY-31-02','CO-CTG':'CITY-32-04',
@@ -13431,8 +13436,16 @@ function worldSupplyOffer(siteId,productId,name,firstYear,quantity,priceBase,sou
  return Object.freeze({siteId,productId,name,opensAt:ym(firstYear,1),
   closesAt:lastYear===null?null:ym(lastYear+1,1),quantity,priceBase,source});
 }
+const WORLD_HOUNSLOW_FREIGHT_SOURCE='https://flyingmachines.ru/Site2/Crafts/Craft30102.htm';
+const WORLD_HOUNSLOW_CLOSE=ym(1920,3);
 const WORLD_REGIONAL_SUPPLY=Object.freeze({
  // Verified port trade categories; unit costs and finite purchase caps are game fixtures.
+ 'UK-HOUNSLOW-LEATHER':Object.freeze({siteId:'UK-HOUNSLOW-HEATH',productId:'PRD-M38',
+  name:'ロンドンからパリ向けの航空貨物用皮革',opensAt:ym(1919,9),closesAt:WORLD_HOUNSLOW_CLOSE,
+  quantity:40,priceBase:28,source:WORLD_HOUNSLOW_FREIGHT_SOURCE}),
+ 'UK-HOUNSLOW-PETROL':Object.freeze({siteId:'UK-HOUNSLOW-HEATH',productId:'PRD-M15',
+  name:'ハウンズローのピストン航空機用ガソリン',opensAt:ym(1919,9),closesAt:WORLD_HOUNSLOW_CLOSE,
+  quantity:40,priceBase:17,source:WORLD_HOUNSLOW_FREIGHT_SOURCE}),
  'VN-SGN-RICE':worldSupplyOffer('VN-SGN','PRD-R23','仏領コーチシナ・サイゴンの輸出米',1907,150,18,
   'https://www.entreprises-coloniales.fr/inde-indochine/Riziculture_indochinoise.pdf',1907),
  'VN-SGN-BUNKER-COAL':worldSupplyOffer('VN-SGN','PRD-R04','サイゴン港汽船の石炭取扱い',1907,135,17,
@@ -14664,6 +14677,10 @@ const WORLD_INTERNATIONAL_CORRIDORS=Object.freeze({
   distanceKm:470,mode:'road+rail-shuttle',capacityKg:10,warehouseCapacityKg:8,
   transitMonths:1,fuel:'PRD-M16',truck:'PRD-E15',
   source:'https://www.getlinkgroup.com/en/our-group/history/',status:'PROVISIONAL'}),
+ 'UK-FR-HOUNSLOW-LEATHER':Object.freeze({from:'UK-HOUNSLOW-HEATH',to:'FR-LE-BOURGET',opensAt:ym(1919,9),
+  distanceKm:350,mode:'air',capacityKg:8,warehouseCapacityKg:8,transitMonths:1,
+  fuel:'PRD-M15',truck:'PRD-E19',vehicles:Object.freeze(['PRD-E19']),terminals:Object.freeze(['PRD-E20']),
+  fuelScale:12000,source:WORLD_HOUNSLOW_FREIGHT_SOURCE,status:'PROVISIONAL'}),
  'UK-US-SEA-1900':Object.freeze({from:'UK-LIV',to:'US-NEWORLEANS',opensAt:ym(1900,1),
   distanceKm:6500,mode:'sea',capacityKg:40,warehouseCapacityKg:35,
   transitMonths:2,fuel:'PRD-R04',truck:'PRD-E18',vehicles:['PRD-E18'],
@@ -14733,6 +14750,9 @@ const WORLD_INTERNATIONAL_CORRIDORS=Object.freeze({
 // the modeled capacity, distance or cost. The playable dates conservatively
 // allow time to pass after dated sources; they are not claimed opening dates.
 const WORLD_INTERNATIONAL_ROUTE_EVIDENCE=Object.freeze({
+ 'UK-FR-HOUNSLOW-LEATHER':Object.freeze({untilMonth:WORLD_HOUNSLOW_CLOSE,
+  products:Object.freeze(['PRD-M38']),source:WORLD_HOUNSLOW_FREIGHT_SOURCE,
+  operationSource:'https://www.aviationarchives.uk/Portal/AAAI/en-GB/RecordView/Index/1131025'}),
  'VN-FR-SAIGON-RICE':Object.freeze({untilMonth:ym(1907,6),
   products:Object.freeze(['PRD-R23']),
   source:'https://www.entreprises-coloniales.fr/inde-indochine/Riziculture_indochinoise.pdf',

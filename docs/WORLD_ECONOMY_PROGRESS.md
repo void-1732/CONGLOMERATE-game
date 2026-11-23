@@ -684,3 +684,9 @@ python -B tests/test_step13_120_months.py --era 1900 --world
 
 - 地図の経路明細に設備ID別の実効積載枠、当月使用、当月の設備枠残を表示する。国内・国際の新規引当と同じ算出処理を使い、国際貨物は受注済み容積換算重量も反映する。受注には引き続き倉庫・燃料・運航条件を適用する。
 - 横浜積替え経路の劣化90%の設備で実効9 kg、容積換算使用8 kg、設備枠残1 kgをオフラインChromiumで照合した。国内鉄道・道路の引当と検収・保存も回帰試験に合格。
+
+### Phase 4・5 ハウンズロー発ル・ブルジェ向け皮革航空貨物（2026-11-24、日本時間）
+
+- 1919年8月25日のロンドン発パリ向け皮革輸送を同年の航空専門誌で確認した。ハウンズロー・ヒースとル・ブルジェを既存のロンドン・パリ都市IDにひも付け、飛行場の参照位置を単一HTMLに収録。月次ゲームでは1919年9月からクロイドンへの移転月の前まで出荷できる。期末前の出荷は運行期間終了後も検収できる。[Flight、1919年8月28日](https://flyingmachines.ru/Site2/Crafts/Craft30102.htm) · [航空業界の運航記録](https://www.aviationarchives.uk/Portal/AAAI/en-GB/RecordView/Index/1131025) · [ハウンズローの参照座標](https://www.abct.org.uk/airfields/hounslow/) · [ル・ブルジェの参照座標](https://www.sia.aviation-civile.gouv.fr/media/dvd/eAIP_29_OCT_2026/FRANCE/AIRAC-2026-10-29/html/eAIP/FR-AD-2.LFPB-fr-FR.html)
+- 既存の航空機と倉庫資産を登録し、有償調達した皮革とガソリンを実在庫から引き当て、引換えの外貨前払・関税・所有権留保・検収・保存復元を試験した。距離・容量・燃料消費量・日程の月次換算と調達枠はゲーム値。フランスの帳簿通貨移行と史料付き関税はこの区間でも未完成。
+- 先行コミット `9bba52cd152c2cfaeb404a3087c91c36ea580e8f` では、開発CIのpush・PR実行および1,200か月の5条件がGitHub Actionsで合格。ローカルでも開発CIの35コマンド、1900年・2020年の37画面、IndexedDB、会計、120か月、40市場・46経路の現物検収を確認した。[push開発CI](https://github.com/void-1732/CONGLOMERATE-game/actions/runs/45193638813) · [PR開発CI](https://github.com/void-1732/CONGLOMERATE-game/actions/runs/45193653612) · [1,200か月試験](https://github.com/void-1732/CONGLOMERATE-game/actions/runs/45193653716)
