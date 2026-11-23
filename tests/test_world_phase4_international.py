@@ -19,10 +19,17 @@ def main():
           S=newWorldGame({country:'UK',name:'Phase 4 Channel freight'});
           S.year=2000;S.month=1;S.monthCommitted=ym(2000,1)-1;
           const buyer=company(S.playerId),bp=buyer.plants[0];
-          const seller=initFirm(S,{name:'France exporter',country:'FR',seedBase:5000000});
+          const capital=300000,parentJournal=S.seq;
+          post(buyer,{investment:capital},{cash:capital},'検証用海外法人の正式設立','investing',S);
+          const seller=initFirm(S,{name:'France exporter',country:'FR',seedBase:570000,publicOwnership:false});
+          seller.owners=[{id:buyer.id,econ:1,vote:1}];
+          registerEquityLink(S,{parentId:buyer.id,childId:seller.id,ratio:1,kind:'foundation',
+            considerationLocal:capital,buyerJournal:parentJournal,
+            childJournal:seller.journals.find(j=>j.text==='創業資本').id,
+            bookEquityBase:baseFromLocal(capital,'UK'),
+            cashAcquiredBase:baseFromLocal(acc(seller,'cash'),'FR')});
           const sp=seller.plants[0];
           bp.siteId='UK-LON';sp.siteId='FR-PAR';
-          seller.owners=[{id:buyer.id,econ:1,vote:1}];
           buyer.auto=false;seller.auto=false;
           for(const f of [seller,buyer]){
             if(!f.research.tree.done.includes('production-1'))
