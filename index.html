@@ -678,6 +678,10 @@ const MANUAL_SAVE_PAGE_SIZE=20,AUTO_SAVE_MONTHS=3,MANUAL_ARCHIVE_PREFIX='manual:
 // Based on the OWID long-run population series (Gapminder before 1950; UN WPP since 1950).
 // Reference values are rounded and based on modern territorial boundaries, not historical sovereignty.
 const POPULATION_ANCHORS={
+ // IT: 1901 national census; EG: 1907 national census. Later anchors are
+ // PROVISIONAL scale calibrations and are not represented as historical counts.
+ IT:{1901:32.475253,2020:59.55},
+ EG:{1907:11.189978,2020:100.9},
  // 1900 national population baselines from Statistics Sweden and Statistics Netherlands;
  // later interpolation points are provisional game calibration, not a census extrapolation.
  SE:{1900:5.136441,1910:5.522403,1950:7.042,2020:10.38},
@@ -714,7 +718,7 @@ function anchorPopulation(code,year){const anchors=POPULATION_ANCHORS[code];if(!
  if(year>=yrs[yrs.length-1])return anchors[yrs[yrs.length-1]];
  for(let i=1;i<yrs.length;i++){if(year<=yrs[i]){const lo=yrs[i-1],hi=yrs[i];return anchors[lo]+(anchors[hi]-anchors[lo])*(year-lo)/(hi-lo);}}return null;}
 
-const NAMES={JP:'日本',US:'アメリカ',UK:'イギリス',DE:'ドイツ',FR:'フランス',NO:'ノルウェー',CA:'カナダ',AU:'オーストラリア',NZ:'ニュージーランド',MX:'メキシコ',BR:'ブラジル',AR:'アルゼンチン',CL:'チリ',CO:'コロンビア',SE:'スウェーデン',NL:'オランダ'};
+const NAMES={JP:'日本',US:'アメリカ',UK:'イギリス',DE:'ドイツ',FR:'フランス',NO:'ノルウェー',CA:'カナダ',AU:'オーストラリア',NZ:'ニュージーランド',MX:'メキシコ',BR:'ブラジル',AR:'アルゼンチン',CL:'チリ',CO:'コロンビア',SE:'スウェーデン',NL:'オランダ',IT:'イタリア',EG:'エジプト'};
 const INITIAL_ENGINE_COUNTRIES=['JP','US','UK','DE','FR'];
 const COUNTRIES={
  JP:{currency:'JPY',fx:1,pop:44,wealth:1,wage:145,demand:115,steel:420,rubber:280,steelSupply:1100,rubberSupply:1050},
@@ -745,7 +749,13 @@ const COUNTRIES={
  SE:{currency:'SEK',fx:14,pop:anchorPopulation('SE',1900),wealth:1.0,wage:142,demand:14,
   steel:445,rubber:310,steelSupply:105,rubberSupply:95},
  NL:{currency:'NLG',fx:65,pop:anchorPopulation('NL',1900),wealth:1.04,wage:146,demand:15,
-  steel:448,rubber:306,steelSupply:108,rubberSupply:98}
+  steel:448,rubber:306,steelSupply:108,rubberSupply:98},
+ // Historical local ledger units, not modern EUR or a reconstructed FX time series.
+ // Income, demand, FX and input coefficients are game-only PROVISIONAL values.
+ IT:{currency:'ITL',fx:95,pop:anchorPopulation('IT',1900),wealth:.96,wage:139,demand:35,
+  steel:459,rubber:310,steelSupply:170,rubberSupply:145},
+ EG:{currency:'EGP',fx:210,pop:anchorPopulation('EG',1900),wealth:.76,wage:121,demand:17,
+  steel:491,rubber:321,steelSupply:85,rubberSupply:70}
 };
 const ACCTYPE={cash:'asset',materials:'asset',materialsTransit:'asset',componentStock:'asset',componentTransit:'asset',wip:'asset',goods:'asset',goodsTransit:'asset',constructionAssets:'asset',ppe:'asset',accdep:'contra',investment:'asset',ar:'asset',loanrec:'asset',resourceRights:'asset',worldShipmentStock:'asset',worldImportDutyPrepaid:'asset',worldInternationalReceivable:'asset',worldStoredStock:'asset',worldInsuranceReserve:'asset',worldInsurancePrepaid:'asset',worldTravelAdvance:'asset',worldBankDeposits:'asset',worldBankRemittance:'asset',worldBankReserve:'asset',worldSupplierAdvances:'asset',partReceivable:'asset',partPayable:'liability',worldCustomerAdvances:'liability',worldInternationalPayable:'liability',worldInternationalDutyPayable:'liability',worldInsuranceUnearned:'liability',worldDemandDeposits:'liability',payable:'liability',wagesDue:'liability',debt:'liability',interestDue:'liability',taxDue:'liability',capital:'equity',treasuryStock:'contraEquity',sales:'revenue',serviceRevenue:'revenue',otherRevenue:'revenue',cogs:'expense',labor:'expense',rndExpense:'expense',advert:'expense',maintenance:'expense',interestExpense:'expense',depreciation:'expense',taxExpense:'expense',fxLoss:'expense',otherExpense:'expense'};
 const PAGES={dashboard:'経営概況',marketOwn:'自社グループ市場分析',market:'世界市場分析',product:'製品・開発',factory:'工場・調達',people:'研究・人事',finance:'財務・資金',group:'企業グループ',consolidated:'連結財務三表',reports:'月次レポート',save:'保存・設定'};
@@ -1529,7 +1539,9 @@ const SITE_CATALOG=[
   ['AR-BUE','AR','ブエノスアイレス港'],['CL-VAP','CL','バルパライソ港'],
   ['CO-CTG','CO','カルタヘナ港'],
   ['SE-GOT','SE','ヨーテボリ港'],['UK-HULL','UK','ハル港'],
-  ['NL-ROT','NL','ロッテルダム港'],['US-PHL','US','フィラデルフィア港']].map(([id,country,name])=>(
+  ['NL-ROT','NL','ロッテルダム港'],['US-PHL','US','フィラデルフィア港'],
+  ['UK-CDF','UK','カーディフ石炭港'],['IT-GEN','IT','ジェノヴァ港'],
+  ['EG-ALX','EG','アレクサンドリア港']].map(([id,country,name])=>(
   {id,country,name,land:1,wage:1,infra:1,labor:1,freight:1,worldOnly:true}))
 ];
 const findSite=id=>SITE_CATALOG.find(x=>x.id===id);
@@ -10993,7 +11005,7 @@ const WORLD_TERRITORIES=new Map(WORLD_MARKETS.flatMap(m=>m.territories.map(t=>[t
 const WORLD_CITIES=new Map(WORLD_MARKETS.flatMap(m=>m.cities.map(c=>[c.id,c])));
 // Registry version zero is the saved pre-expansion world (five initial economies).
 // New onboarding data is additive and does not change the original scenario.
-const WORLD_MARKET_REGISTRY_VERSION=7;
+const WORLD_MARKET_REGISTRY_VERSION=8;
 const WORLD_MARKET_ONBOARDING=Object.freeze({
  CA:Object.freeze({introducedIn:1,territoryId:'TER-27-01',currencyId:'CUR-CAD',jurisdictionId:'JUR-CA',
   jurisdictionSource:'https://www.canada.ca/en/immigration-refugees-citizenship/corporate/publications-manuals/discover-canada/read-online/canadas-history.html',
@@ -11038,7 +11050,17 @@ const WORLD_MARKET_ONBOARDING=Object.freeze({
  NL:Object.freeze({introducedIn:7,territoryId:'TER-08-01',currencyId:'CUR-NLG',jurisdictionId:'JUR-NL',
   jurisdictionSource:'https://www.government.nl/themes/government-and-democracy/constitution',
   currencySource:'https://www.elibrary.imf.org/display/book/9781451949605/ch011.xml',
-  populationSource:'https://www.cbs.nl/en-gb/figures/detail/37556eng'})
+  populationSource:'https://www.cbs.nl/en-gb/figures/detail/37556eng'}),
+ IT:Object.freeze({introducedIn:8,territoryId:'TER-04-01',currencyId:'CUR-ITL',jurisdictionId:'JUR-IT',
+  jurisdictionSource:'https://www.bancaditalia.it/chi-siamo/storia/origini/index.html?com.dotmarketing.htmlpage.language=1',
+  currencySource:'https://www.bancaditalia.it/chi-siamo/storia/istituzione/index.html?com.dotmarketing.htmlpage.language=1',
+  populationSource:'https://www.luigieinaudi.it/doc/census-of-population-sulphur-and-shipbuilding-questions/'}),
+ // 1908: Egyptian Khedivate under British occupation, not a sovereign modern state.
+ // Modern Egyptian political/legal conditions are NOT asserted for the 1900s.
+ EG:Object.freeze({introducedIn:8,territoryId:'TER-34-01',currencyId:'CUR-EGP',jurisdictionId:'JUR-EG',
+  jurisdictionSource:'https://www.cambridge.org/core/books/abs/cambridge-history-of-egypt/british-occupation-18821922/179398E6D722904951A25256F524C963',
+  currencySource:'https://www.cbe.org.eg/en/banknote/banknote-issuance/banknote-history',
+  populationSource:'https://en.wikisource.org/wiki/1911_Encyclop%C3%A6dia_Britannica/Egypt/3_History'})
 });
 function worldInitialEngineCountries(registryVersion){
  return [...INITIAL_ENGINE_COUNTRIES,...Object.entries(WORLD_MARKET_ONBOARDING)
@@ -11073,7 +11095,8 @@ const WORLD_SITE_CITIES={
  'NO-OSL':'CITY-11-01','NO-BGO':'CITY-11-02','NO-TRD':'CITY-11-03','CA-MTL':'CITY-27-03',
  'AU-SYD':'CITY-24-01','NZ-WLG':'CITY-25-02','MX-VER':'CITY-28-04','BR-RIO':'CITY-29-01','AR-BUE':'CITY-30-01',
  'CL-VAP':'CITY-31-02','CO-CTG':'CITY-32-04',
- 'SE-GOT':'CITY-10-02','NL-ROT':'CITY-08-02'
+ 'SE-GOT':'CITY-10-02','NL-ROT':'CITY-08-02',
+ 'EG-ALX':'CITY-34-02'
 };
 const WORLD_LOCATIONS=new Map(SITE_CATALOG.map(site=>[
  'LOC-'+site.id,{id:'LOC-'+site.id,territoryId:WORLD_ENGINE_TERRITORY[site.country],cityId:WORLD_SITE_CITIES[site.id]??null}
@@ -12523,6 +12546,12 @@ function worldSupplyOffer(siteId,productId,name,firstYear,quantity,priceBase,sou
 }
 const WORLD_REGIONAL_SUPPLY=Object.freeze({
  // Verified port trade categories; unit costs and finite purchase caps are game fixtures.
+ 'UK-CDF-COAL':worldSupplyOffer('UK-CDF','PRD-R04','カーディフ港の輸出石炭・船舶燃料',1907,90,22,
+  'https://www.luigieinaudi.it/doc/coal-transport-monopoly-between-english-and-italian-ports-state-railways/',1907),
+ 'EG-ALX-COTTON':worldSupplyOffer('EG-ALX','PRD-R20','アレクサンドリアの英国向け輸出綿花',1908,100,30,
+  'https://fraser.stlouisfed.org/title/commercial-financial-chronicle-1339/february-8-1908-497041/fulltext',1908),
+ 'EG-ALX-BUNKER-COAL':worldSupplyOffer('EG-ALX','PRD-R04','アレクサンドリア港の石炭荷役・船舶燃料',1908,100,22,
+  'https://www.cealex.org/promotion-and-dissemination/exhibitions/the-harbours-of-alexandria/harbours-modern-era/',1908),
  'SE-GOT-TIMBER':worldSupplyOffer('SE-GOT','PRD-R19','ヨーテボリの木材輸出貨物',1904,135,20,
   'https://academic.oup.com/past/advance-article/doi/10.1093/pastj/gtaf025/8264341',1904),
  'SE-GOT-BUNKER-COAL':worldSupplyOffer('SE-GOT','PRD-R04','ヨーテボリの船舶用輸入石炭',1904,130,18,
@@ -13565,6 +13594,10 @@ const WORLD_YOKOHAMA_TRANSFER_SOURCE='https://archive.lib.city.yokohama.lg.jp/mu
 const WORLD_NORTH_SHIELDS_SOURCE='https://kringom.no/nb/midthordland/bergen/om-englandsruta-bergen-newcastle';
 const WORLD_BERGEN_CARGO_SOURCE='https://snl.no/Det_Bergenske_Dampskibsselskab';
 const WORLD_INTERNATIONAL_CORRIDORS=Object.freeze({
+ 'UK-IT-CARDIFF-GENOA-COAL':worldSteamshipProfile('UK-CDF','IT-GEN',ym(1907,7),2100,28,24,2,
+  'https://www.luigieinaudi.it/doc/coal-transport-monopoly-between-english-and-italian-ports-state-railways/'),
+ 'EG-UK-ALEXANDRIA-COTTON':worldSteamshipProfile('EG-ALX','UK-LIV',ym(1908,5),3600,28,24,2,
+  'https://fraser.stlouisfed.org/title/commercial-financial-chronicle-1339/february-8-1908-497041/fulltext'),
  'SE-UK-GOTHENBURG-TIMBER':worldSteamshipProfile('SE-GOT','UK-HULL',ym(1904,5),950,22,20,2,
   'https://portgot.maglr.com/history/20th-century'),
  'NL-US-ROTTERDAM-PULP':worldSteamshipProfile('NL-ROT','US-PHL',ym(1907,2),6000,30,26,2,
@@ -13665,6 +13698,14 @@ const WORLD_INTERNATIONAL_CORRIDORS=Object.freeze({
 // the modeled capacity, distance or cost. The playable dates conservatively
 // allow time to pass after dated sources; they are not claimed opening dates.
 const WORLD_INTERNATIONAL_ROUTE_EVIDENCE=Object.freeze({
+ 'UK-IT-CARDIFF-GENOA-COAL':Object.freeze({untilMonth:ym(1907,9),
+  products:Object.freeze(['PRD-R04']),
+  source:'https://www.luigieinaudi.it/doc/coal-transport-monopoly-between-english-and-italian-ports-state-railways/',
+  operationSource:'https://www.museum.wales/blog/1034/Cardiff--Coal-and-Shipping-Metropolis-of-the-World/'}),
+ 'EG-UK-ALEXANDRIA-COTTON':Object.freeze({untilMonth:ym(1908,7),
+  products:Object.freeze(['PRD-R20']),
+  source:'https://fraser.stlouisfed.org/title/commercial-financial-chronicle-1339/february-8-1908-497041/fulltext',
+  operationSource:'https://www.cealex.org/promotion-and-dissemination/exhibitions/the-harbours-of-alexandria/harbours-modern-era/'}),
  // One documented month is enabled for reproducible testing; the end date
  // is NOT a claim that the historical carrier ceased operation then.
  'SE-UK-GOTHENBURG-TIMBER':Object.freeze({untilMonth:ym(1904,7),
@@ -13883,7 +13924,7 @@ const WORLD_INTERNATIONAL_REMITTANCE=Object.freeze({
   source:'https://leicester.contentdm.oclc.org/digital/api/collection/p16445coll4/id/274979/download',
   branchSource:'https://leicester.contentdm.oclc.org/digital/api/collection/p16445coll4/id/34866/download'})
 });
-const WORLD_PHASE4_TARIFF_BPS=Object.freeze({JP:350,US:300,UK:250,FR:300,DE:300,NO:250,CA:300,AU:300,NZ:300,MX:300,BR:300,AR:300,CL:300,CO:300,SE:250,NL:300});
+const WORLD_PHASE4_TARIFF_BPS=Object.freeze({JP:350,US:300,UK:250,FR:300,DE:300,NO:250,CA:300,AU:300,NZ:300,MX:300,BR:300,AR:300,CL:300,CO:300,SE:250,NL:300,IT:300,EG:300});
 function worldInternationalTariffBps(s,country,profileId,productId){
  if(!s.world?.[country]||!Object.hasOwn(WORLD_PHASE4_TARIFF_BPS,country))
   throw Error('輸入国の関税制度が未接続です');

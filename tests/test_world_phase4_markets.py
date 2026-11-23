@@ -236,6 +236,80 @@ def test_steamship_export(page, market_data):
     assert all(result.values()), (market_data["profile"], result)
 
 
+
+def test_italy_coal_import(page):
+    """Cardiff-to-Genoa coal, including cargo/fuel sharing one physical stock."""
+    result = page.evaluate("""() => {
+      const denies=fn=>{try{fn();return false}catch{return true}};
+      S=newWorldGame({country:'IT',name:'Italian coal importer'});
+      VIEW_FIRM=S.playerId;VIEW_COUNTRY='IT';
+      const buyer=company(S.playerId),depot=buyer.plants[0];
+      const italyOpen=S.world.IT?.code==='IT'
+        &&worldCityLocation(S,'CITY-04-01').jurisdictionId==='JUR-IT'
+        &&worldCityLocation(S,'CITY-04-01').marketOpen
+        &&firmCurrency(buyer,S)==='ITL'
+        &&depot.siteId==='IT-GEN'
+        &&!worldInternationalRouteAvailable(S,'UK-IT-CARDIFF-GENOA-COAL');
+      S.year=1907;S.month=7;S.monthCommitted=ym(1907,7)-1;
+      applyWorldHistory(S);syncWorldIdentities(S);
+      PAGE='corporateSubsidiaries';render();
+      document.querySelector('#subName').value='Cardiff coal exporter';
+      document.querySelector('#subCountry').value='UK';
+      document.querySelector('#subIndustry').value='manufacturing';
+      document.querySelector('#subCapital').value='650000';
+      createSub();
+      const seller=S.firms.find(f=>f.name==='Cardiff coal exporter'),port=seller.plants[0];
+      port.siteId='UK-CDF';syncWorldIdentities(S);
+      for(const firm of [buyer,seller]){
+        firm.auto=false;firm.research.tree.done=[...new Set([...firm.research.tree.done,'production-1'])];
+      }
+      for(const [firm,id,value] of [[seller,'PRD-E18',2400],[buyer,'PRD-E20',700],[buyer,'PRD-E21',900]]){
+        post(firm,{materials:value},{cash:value},'検証用の有償現物設備','operating',S);
+        firm.stock[id]={q:1,v:value};
+      }
+      const purchase=worldBuyRegionalSupply(S,seller.id,port.id,'UK-CDF-COAL',28);
+      const route=worldInternationalRegisterRoute(S,seller.id,'UK-IT-CARDIFF-GENOA-COAL');
+      const warehouse=worldInternationalInstallWarehouse(S,buyer.id,depot.id,'UK-IT-CARDIFF-GENOA-COAL');
+      const sharedShortage=Boolean(worldInternationalQuote(S,route,'PRD-R04',28,240,buyer.id,60,0).problem);
+      const preCash=acc(buyer,'cash');
+      const order=worldInternationalPlaceOrder(S,buyer.id,{
+        routeId:route.id,warehouseId:warehouse.id,productId:'PRD-R04',
+        quantity:12,cargoLitres:27,unitPriceSeller:240,maxPaymentBuyer:100000,paymentDays:60});
+      const queued=order.status==='OPEN'&&acc(buyer,'cash')===preCash
+        &&!S.worldExpansion.internationalShipments.length;
+      worldInternationalActOrder(S,seller.id,order.id,'approve');
+      S.month=8;worldInternationalResolveOrders(S);
+      const cargo=S.worldExpansion.internationalShipments.at(-1);
+      const loaded=purchase.quantity===28&&cargo?.orderId===order.id
+        &&cargo.status==='IN_TRANSIT'&&cargo.quantity===12
+        &&cargo.cargoLitres===27&&cargo.loadKg===14
+        &&cargo.fuelRequired===2&&cargo.fuelCost>0
+        &&seller.stock['PRD-R04'].q===14
+        &&acc(seller,'worldShipmentStock')===cargo.bookCost
+        &&!buyer.stock['PRD-R04']?.q
+        &&worldValidateInternationalLogistics(S)&&!check(S).length;
+      const forged=structuredClone(S);
+      forged.worldExpansion.internationalShipments.at(-1).fuelRequired++;
+      const tamper=denies(()=>parsePayload(savePayload(forged)));
+      S.month=9;worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
+      const paid=cargo.status==='IN_TRANSIT'&&cargo.credit.paidAt===ym(1907,9)
+        &&acc(buyer,'worldSupplierAdvances')===cargo.prepaidBuyer
+        &&!buyer.stock['PRD-R04']?.q;
+      S.month=10;worldInternationalReceiveShipments(S);
+      const restored=parsePayload(savePayload(S));
+      const delivered=cargo.status==='DELIVERED'&&cargo.receivedAt===ym(1907,10)
+        &&buyer.stock['PRD-R04'].q===12
+        &&buyer.stock['PRD-R04'].v===cargo.totalBuyer
+        &&!acc(buyer,'worldSupplierAdvances')
+        &&!acc(seller,'worldShipmentStock')
+        &&!check(restored).length
+        &&!consolidate(restored).errors.length;
+      S.month=11;
+      const closed=!worldInternationalRouteAvailable(S,'UK-IT-CARDIFF-GENOA-COAL');
+      return {italyOpen,sharedShortage,queued,loaded,tamper,paid,delivered,closed};
+    }""")
+    assert all(result.values()), result
+
 def main():
     with sync_playwright() as pw:
         browser = pw.chromium.launch(
@@ -377,9 +451,16 @@ def main():
             "currency": "NLG", "year": 1907, "offer": "NL-ROT-PULP", "authority": None,
             "buyerCountry": "US", "destination": "US-PHL", "product": "PRD-M13", "departure": 3, "payMonth": 4,
         })
+        test_steamship_export(page, {
+            "profile": "EG-UK-ALEXANDRIA-COTTON", "country": "EG", "site": "EG-ALX",
+            "city": "CITY-34-02", "currency": "EGP", "year": 1908, "offer": "EG-ALX-COTTON",
+            "authority": None, "buyerCountry": "UK", "destination": "UK-LIV",
+            "product": "PRD-R20", "departure": 6, "payMonth": 7,
+        })
+        test_italy_coal_import(page)
         assert not errors, errors
         browser.close()
-    print("PASS Phase 4 Canada, Australia, New Zealand, Mexico, Brazil, Argentina, Chile, Colombia, Sweden and Netherlands: sourced cargo, loading, shipment and settlement")
+    print("PASS Phase 4 Canada, Australia, New Zealand, Mexico, Brazil, Argentina, Chile, Colombia, Sweden, Netherlands, Italy and Egypt: sourced cargo, loading, shipment and settlement")
 
 
 if __name__ == "__main__":

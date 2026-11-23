@@ -517,3 +517,12 @@ python -B tests/test_step13_120_months.py --era 1900 --world
 - `tests/test_world_phase4_markets.py` に両市場の有償現物・設備、注文、月次先着引当、前払/決済、検収、会計/保存の専用テストを追加。**新HEADのCI完走結果が得られるまで合格としない。**
 - 輸送距離・月数・数量・燃料原単位、為替係数、制度別暫定関税はゲーム用PROVISIONAL。史料の運航停止月ではなく、検証済み証拠を踏まえた再現シナリオをそれぞれ1904年6月・1907年3月の出荷に限定。制度上のトランジット・保税と外部金融はこの2区間で未接続。
 - 実貨物経路に接続した経済市場は **最大16/40**。ただしベネルクスに含まれるベルギー/ルクセンブルクの独立した管轄と帳簿は未接続であり、40市場全領域完成の根拠にはならない。残り24市場および複合市場内の未接続領域、法定通貨の年代別切替、全モード・多地点での通関/金融・長期試験をPhase 4未完成として継続。
+
+### Phase 4 — イタリア・エジプトの港湾取引を追加（2026-11-23）
+
+- イタリア `MKT-04`：旧イタリア・リラ帳簿 `CUR-ITL`、法人管轄 `JUR-IT`、ジェノヴァ港 `IT-GEN` を登録。1907年8月のカーディフ `UK-CDF` 発ジェノヴァ向け石炭 `PRD-R04` を、英国炭のイタリア向け輸出（当時の主要輸入先港）に基づく試作シナリオとして限定接続。船舶燃料と積荷が同じ石炭であるため、共有在庫の二重引当防止、簿価・原料減少、売主所有の輸送中在庫、検収、GBP/ITL決済の専用テストを追加。1901年国勢調査のイタリア人口を基準とする。 [英国産石炭のイタリア向け輸送](https://www.luigieinaudi.it/doc/coal-transport-monopoly-between-english-and-italian-ports-state-railways/) · [Banca d'Italia通貨史](https://www.bancaditalia.it/chi-siamo/storia/origini/index.html?com.dotmarketing.htmlpage.language=1) · [イタリアの1901年国勢調査](https://www.luigieinaudi.it/doc/census-of-population-sulphur-and-shipbuilding-questions/)
+- エジプト `MKT-34`：1900年代エジプト・ヘディーヴ体制（英軍占領下）に対応する法人管轄 `JUR-EG`、エジプト・ポンド `CUR-EGP`、アレクサンドリア港 `EG-ALX` と都市 `CITY-34-02` を接続。1908年のアレクサンドリア―リヴァプール間の綿花 `PRD-R20` について、有償調達、船舶・石炭燃料、有限容量、前払/外貨建決済、所有権、検収、保存・連結を同一台帳へ接続。1907年人口と1885年以降の通貨制度に史料を付した。 [FRASER・当時の綿花出荷統計](https://fraser.stlouisfed.org/title/commercial-financial-chronicle-1339/february-8-1908-497041/fulltext) · [アレクサンドリア港の1904–1910年改修](https://www.cealex.org/promotion-and-dissemination/exhibitions/the-harbours-of-alexandria/harbours-modern-era/) · [中央銀行の通貨史](https://www.cbe.org.eg/en/banknote/banknote-issuance/banknote-history) · [Cambridge・英国占領下の政治制度](https://www.cambridge.org/core/books/abs/cambridge-history-of-egypt/british-occupation-18821922/179398E6D722904951A25256F524C963)
+- 新市場の導入登録は `WORLD_MARKET_REGISTRY_VERSION=8`。40市場・155都市のカタログを維持し、新港のうちカタログ未収録のジェノヴァ/カーディフは物流専用サイトとして扱う。従来のセーブは導入版に応じた市場追加を行い、既存法人・乱数・帳簿を温存。
+- **距離、運行月数、積載枠、燃料係数、1908年以降の人口・為替・関税はPROVISIONAL**。運航可能月は再現試験用の窓であり、歴史的な航路の営業停止時点を示すものではない。イタリア向けの制度別通関とエジプト側の独立した貿易銀行は未接続。
+- `tests/test_world_phase4_markets.py` にイタリアの石炭積荷＝燃料重複引当拒否と改竄検知、エジプトの綿花現物出荷・保存・連結試験を追加。**最終HEADのGitHub Actions合格までは両市場の受入を未確定**とする。
+- 先行16市場と合わせて **実装上は18/40市場**。22市場（欧州6・アジア太平洋9・アフリカ4・中東3）が未接続として残り、複合市場内の領域別監査と通関/外部銀行/法定通貨切替/1,200か月の最終確認も未完成。Phase 5は開始しない。
