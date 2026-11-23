@@ -601,6 +601,74 @@ def test_korean_colonial_rice(page):
     }""")
     assert all(result.values()),result
 
+
+def test_dated_colonial_export(page, data):
+    """Sourced jurisdiction/currency opening, shipping, inspection, ledger, save."""
+    result=page.evaluate("""({profile,country,city,site,currency,year,opensYear,opensMonth,
+                                offer,buyerCountry,destination,product,departure,payMonth}) => {
+      S=newWorldGame({country:buyerCountry,name:destination+' colonial importer'});
+      VIEW_FIRM=S.playerId;VIEW_COUNTRY=buyerCountry;
+      const buyer=company(S.playerId);
+      const initiallyClosed=!S.world[country]&&!worldCityLocation(S,city).marketOpen;
+      S.year=opensYear;S.month=opensMonth-1;S.monthCommitted=ym(opensYear,opensMonth-1)-1;
+      applyWorldHistory(S);
+      const before=!S.world[country];
+      S.month=opensMonth;applyWorldHistory(S);syncWorldIdentities(S);
+      const opened=S.world[country]?.code===country
+        &&S.worldExpansion.openMarkets[WORLD_TERRITORIES.get(WORLD_MARKET_ONBOARDING[country].territoryId).marketId]===
+          ym(opensYear,opensMonth)
+        &&worldCityLocation(S,city).jurisdictionId===WORLD_MARKET_ONBOARDING[country].jurisdictionId;
+      S.year=year;S.month=departure-1;S.monthCommitted=ym(year,departure-1)-1;
+      applyWorldHistory(S);syncWorldIdentities(S);
+      PAGE='corporateSubsidiaries';render();
+      document.querySelector('#subName').value=site+' sourced exporter';
+      document.querySelector('#subCountry').value=country;
+      document.querySelector('#subIndustry').value='manufacturing';
+      document.querySelector('#subCapital').value='650000';
+      createSub();
+      const seller=S.firms.find(f=>f.name===site+' sourced exporter'),port=seller.plants[0],depot=buyer.plants[0];
+      depot.siteId=destination;
+      for(const f of [buyer,seller]){
+        f.auto=false;f.research.tree.done=[...new Set([...f.research.tree.done,'production-1'])];
+      }
+      for(const [f,id,v] of [[seller,'PRD-E18',2400],[buyer,'PRD-E20',700],[buyer,'PRD-E21',900]]){
+        post(f,{materials:v},{cash:v},'検証用有償設備','operating',S);
+        f.stock[id]={q:1,v};
+      }
+      syncWorldIdentities(S);
+      const identities=S.worldExpansion.companies[seller.id].jurisdictionId===WORLD_MARKET_ONBOARDING[country].jurisdictionId
+        &&firmCurrency(seller,S)===currency&&port.siteId===site
+        &&S.worldExpansion.facilities['FAC-'+port.id].locationId==='LOC-'+site;
+      worldBuyRegionalSupply(S,seller.id,port.id,offer,14);
+      worldBuyRegionalSupply(S,seller.id,port.id,site+'-BUNKER-COAL',20);
+      const route=worldInternationalRegisterRoute(S,seller.id,profile);
+      const warehouse=worldInternationalInstallWarehouse(S,buyer.id,depot.id,profile);
+      const o=worldInternationalPlaceOrder(S,buyer.id,{
+        routeId:route.id,warehouseId:warehouse.id,productId:product,quantity:14,
+        cargoLitres:30,unitPriceSeller:localFromBase(40,country),
+        maxPaymentBuyer:100000,paymentDays:60});
+      worldInternationalActOrder(S,seller.id,o.id,'approve');
+      S.month=departure;worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
+      const cargo=S.worldExpansion.internationalShipments.at(-1);
+      const shipped=cargo?.status==='IN_TRANSIT'&&cargo.quantity===14&&cargo.loadKg===15
+        &&cargo.fuelRequired>0&&acc(seller,'worldShipmentStock')===cargo.bookCost
+        &&!buyer.stock[product]?.q&&!check(S).length;
+      const forged=structuredClone(S);
+      forged.worldExpansion.internationalShipments.at(-1).loadKg++;
+      const tamper=(()=>{try{parsePayload(savePayload(forged));return false;}catch{return true;}})();
+      S.month=payMonth;worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
+      const prepaid=cargo.status==='IN_TRANSIT'&&cargo.credit.paidAt===ym(year,payMonth)
+        &&!worldInternationalRouteAvailable(S,profile);
+      S.month=departure+worldInternationalProfile(profile).transitMonths;
+      worldInternationalReceiveShipments(S);
+      const saved=parsePayload(savePayload(S));
+      const done=cargo.status==='DELIVERED'&&buyer.stock[product]?.q===14
+        &&buyer.stock[product].v===cargo.totalBuyer&&!acc(seller,'worldShipmentStock')
+        &&!check(saved).length&&!consolidate(saved).errors.length;
+      return {initiallyClosed,before,opened,identities,shipped,tamper,prepaid,done};
+    }""",data)
+    assert all(result.values()), (data["country"],result)
+
 def main():
     with sync_playwright() as pw:
         browser = pw.chromium.launch(
@@ -808,9 +876,30 @@ def main():
             "departure": 5, "payMonth": 6,
         })
         test_korean_colonial_rice(page)
+        test_steamship_export(page, {
+            "profile": "MY-UK-PENANG-RUBBER", "country": "MY", "site": "MY-PEN",
+            "city": "CITY-21-02", "currency": "STS", "year": 1911,
+            "offer": "MY-PEN-RUBBER", "authority": None,
+            "buyerCountry": "UK", "destination": "UK-LON", "product": "PRD-R29",
+            "departure": 4, "payMonth": 5,
+        })
+        test_dated_colonial_export(page, {
+            "profile": "KE-UK-MOMBASA-COFFEE", "country": "KE", "site": "KE-MBA",
+            "city": "CITY-36-02", "currency": "EAS", "year": 1923,
+            "opensYear": 1922, "opensMonth": 8, "offer": "KE-MBA-COFFEE",
+            "buyerCountry": "UK", "destination": "UK-LON", "product": "PRD-R27",
+            "departure": 5, "payMonth": 6,
+        })
+        test_dated_colonial_export(page, {
+            "profile": "MA-FR-CASABLANCA-WHEAT", "country": "MA", "site": "MA-CAS",
+            "city": "CITY-37-02", "currency": "MAF", "year": 1923,
+            "opensYear": 1920, "opensMonth": 7, "offer": "MA-CAS-WHEAT",
+            "buyerCountry": "FR", "destination": "FR-MAR", "product": "PRD-R22",
+            "departure": 5, "payMonth": 6,
+        })
         assert not errors, errors
         browser.close()
-    print("PASS Phase 4 Canada, Australia, New Zealand, Mexico, Brazil, Argentina, Chile, Colombia, Sweden, Netherlands, Italy, Egypt, India, South Africa, Siam, Straits Singapore, Qing China, Netherlands East Indies and Colonial Nigeria, Spain, Philippines, Russian Empire, Colonial Korea and Ottoman Empire: sourced cargo, loading, shipment and settlement")
+    print("PASS Phase 4 Canada, Australia, New Zealand, Mexico, Brazil, Argentina, Chile, Colombia, Sweden, Netherlands, Italy, Egypt, India, South Africa, Siam, Straits Singapore, Qing China, Netherlands East Indies and Colonial Nigeria, Spain, Philippines, Russian Empire, Colonial Korea, Ottoman Empire, British Malaya, Kenya and Morocco: sourced cargo, loading, shipment and settlement")
 
 
 if __name__ == "__main__":

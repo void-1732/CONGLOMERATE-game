@@ -678,6 +678,11 @@ const MANUAL_SAVE_PAGE_SIZE=20,AUTO_SAVE_MONTHS=3,MANUAL_ARCHIVE_PREFIX='manual:
 // Based on the OWID long-run population series (Gapminder before 1950; UN WPP since 1950).
 // Reference values are rounded and based on modern territorial boundaries, not historical sovereignty.
 const POPULATION_ANCHORS={
+ // Colonial Malaysia and Kenya populations are provisional market baselines,
+ // not unified current-border censuses; source systems differ by territory.
+ MY:{1911:2.65,1921:3.36,1931:4.39},
+ KE:{1921:2.8,1931:3.25},
+ MA:{1921:5.2,1931:5.9},
  // Russian Empire population includes the 1900 imperial total, not modern Russia.
  RU:{1900:130.9,1910:160.7},
  // Korean peninsula historical Japanese-government statistics, not modern ROK.
@@ -731,7 +736,7 @@ function anchorPopulation(code,year){const anchors=POPULATION_ANCHORS[code];if(!
  if(year>=yrs[yrs.length-1])return anchors[yrs[yrs.length-1]];
  for(let i=1;i<yrs.length;i++){if(year<=yrs[i]){const lo=yrs[i-1],hi=yrs[i];return anchors[lo]+(anchors[hi]-anchors[lo])*(year-lo)/(hi-lo);}}return null;}
 
-const NAMES={JP:'日本',US:'アメリカ',UK:'イギリス',DE:'ドイツ',FR:'フランス',NO:'ノルウェー',CA:'カナダ',AU:'オーストラリア',NZ:'ニュージーランド',MX:'メキシコ',BR:'ブラジル',AR:'アルゼンチン',CL:'チリ',CO:'コロンビア',SE:'スウェーデン',NL:'オランダ',IT:'イタリア',EG:'エジプト',IN:'英領インド',ZA:'南アフリカ連邦',SG:'英領シンガポール',TH:'シャム王国',CN:'清朝中国',ID:'オランダ領東インド',NG:'英領ナイジェリア',ES:'スペイン',PH:'米領フィリピン',RU:'ロシア帝国',KR:'朝鮮（日本統治下）',TR:'オスマン帝国'};
+const NAMES={JP:'日本',US:'アメリカ',UK:'イギリス',DE:'ドイツ',FR:'フランス',NO:'ノルウェー',CA:'カナダ',AU:'オーストラリア',NZ:'ニュージーランド',MX:'メキシコ',BR:'ブラジル',AR:'アルゼンチン',CL:'チリ',CO:'コロンビア',SE:'スウェーデン',NL:'オランダ',IT:'イタリア',EG:'エジプト',IN:'英領インド',ZA:'南アフリカ連邦',SG:'英領シンガポール',TH:'シャム王国',CN:'清朝中国',ID:'オランダ領東インド',NG:'英領ナイジェリア',ES:'スペイン',PH:'米領フィリピン',RU:'ロシア帝国',KR:'朝鮮（日本統治下）',TR:'オスマン帝国',MY:'英領マラヤ',KE:'英領ケニア',MA:'仏保護領モロッコ'};
 const INITIAL_ENGINE_COUNTRIES=['JP','US','UK','DE','FR'];
 const COUNTRIES={
  JP:{currency:'JPY',fx:1,pop:44,wealth:1,wage:145,demand:115,steel:420,rubber:280,steelSupply:1100,rubberSupply:1050},
@@ -801,7 +806,13 @@ const COUNTRIES={
   steel:476,rubber:324,steelSupply:125,rubberSupply:95},
  // Ottoman gold lira, not the post-1923 republican lira market.
  TR:{currency:'OTL',fx:175,pop:21,wealth:.81,wage:128,demand:30,
-  steel:470,rubber:324,steelSupply:150,rubberSupply:105}
+  steel:470,rubber:324,steelSupply:150,rubberSupply:105},
+ MY:{currency:'STS',fx:23,pop:anchorPopulation('MY',1911),wealth:.9,wage:126,demand:12,
+  steel:477,rubber:322,steelSupply:100,rubberSupply:85},
+ KE:{currency:'EAS',fx:9.5,pop:anchorPopulation('KE',1921),wealth:.71,wage:115,demand:12,
+  steel:490,rubber:325,steelSupply:85,rubberSupply:70},
+ MA:{currency:'MAF',fx:155,pop:anchorPopulation('MA',1921),wealth:.75,wage:119,demand:14,
+  steel:479,rubber:327,steelSupply:95,rubberSupply:78}
 };
 const ACCTYPE={cash:'asset',materials:'asset',materialsTransit:'asset',componentStock:'asset',componentTransit:'asset',wip:'asset',goods:'asset',goodsTransit:'asset',constructionAssets:'asset',ppe:'asset',accdep:'contra',investment:'asset',ar:'asset',loanrec:'asset',resourceRights:'asset',worldShipmentStock:'asset',worldImportDutyPrepaid:'asset',worldInternationalReceivable:'asset',worldStoredStock:'asset',worldInsuranceReserve:'asset',worldInsurancePrepaid:'asset',worldTravelAdvance:'asset',worldBankDeposits:'asset',worldBankRemittance:'asset',worldBankReserve:'asset',worldSupplierAdvances:'asset',partReceivable:'asset',partPayable:'liability',worldCustomerAdvances:'liability',worldInternationalPayable:'liability',worldInternationalDutyPayable:'liability',worldInsuranceUnearned:'liability',worldDemandDeposits:'liability',payable:'liability',wagesDue:'liability',debt:'liability',interestDue:'liability',taxDue:'liability',capital:'equity',treasuryStock:'contraEquity',sales:'revenue',serviceRevenue:'revenue',otherRevenue:'revenue',cogs:'expense',labor:'expense',rndExpense:'expense',advert:'expense',maintenance:'expense',interestExpense:'expense',depreciation:'expense',taxExpense:'expense',fxLoss:'expense',otherExpense:'expense'};
 const PAGES={dashboard:'経営概況',marketOwn:'自社グループ市場分析',market:'世界市場分析',product:'製品・開発',factory:'工場・調達',people:'研究・人事',finance:'財務・資金',group:'企業グループ',consolidated:'連結財務三表',reports:'月次レポート',save:'保存・設定'};
@@ -1595,7 +1606,9 @@ const SITE_CATALOG=[
   ['ES-BIL','ES','ビルバオ鉄鉱石港'],['PH-MNL','PH','マニラ港'],
   ['US-SFO','US','サンフランシスコ港'],
   ['RU-SPB','RU','サンクトペテルブルク港'],['KR-BUS','KR','釜山港'],
-  ['TR-IZM','TR','イズミル港（スミルナ）']].map(([id,country,name])=>(
+  ['TR-IZM','TR','イズミル港（スミルナ）'],
+  ['MY-PEN','MY','ペナン港（海峡植民地）'],
+  ['KE-MBA','KE','モンバサ港'],['MA-CAS','MA','カサブランカ港']].map(([id,country,name])=>(
   {id,country,name,land:1,wage:1,infra:1,labor:1,freight:1,worldOnly:true}))
 ];
 const findSite=id=>SITE_CATALOG.find(x=>x.id===id);
@@ -11059,7 +11072,7 @@ const WORLD_TERRITORIES=new Map(WORLD_MARKETS.flatMap(m=>m.territories.map(t=>[t
 const WORLD_CITIES=new Map(WORLD_MARKETS.flatMap(m=>m.cities.map(c=>[c.id,c])));
 // Registry version zero is the saved pre-expansion world (five initial economies).
 // New onboarding data is additive and does not change the original scenario.
-const WORLD_MARKET_REGISTRY_VERSION=13;
+const WORLD_MARKET_REGISTRY_VERSION=14;
 const WORLD_MARKET_ONBOARDING=Object.freeze({
  CA:Object.freeze({introducedIn:1,territoryId:'TER-27-01',currencyId:'CUR-CAD',jurisdictionId:'JUR-CA',
   jurisdictionSource:'https://www.canada.ca/en/immigration-refugees-citizenship/corporate/publications-manuals/discover-canada/read-online/canadas-history.html',
@@ -11177,6 +11190,27 @@ const WORLD_MARKET_ONBOARDING=Object.freeze({
  TR:Object.freeze({introducedIn:13,territoryId:'TER-38-01',currencyId:'CUR-OTL',jurisdictionId:'JUR-TR-OTTOMAN',
   jurisdictionSource:'https://www.tcmb.gov.tr/wps/wcm/connect/EN/TCMB%2BEN/Main%2BMenu/About%2Bthe%2BBank/History/',
   currencySource:'https://www.bankofgreece.gr/RelatedDocuments/IV.%20OTTOMAN.pdf',
+  populationSource:'https://ourworldindata.org/grapher/population'}),
+ // Penang was a Straits Settlements port. The wider Malayan market grouping
+ // is not represented as a single modern sovereign state in this era.
+ MY:Object.freeze({introducedIn:14,territoryId:'TER-21-01',currencyId:'CUR-STS',jurisdictionId:'JUR-MY-SS',
+  ledgerFxReference:'SG',
+  jurisdictionSource:'https://www.ehm.my/resources/historical-publications',
+  currencySource:'https://www.ehm.my/publications/articles/malaysian-economic-growth-and-catch-up-1870%E2%80%931980',
+  populationSource:'https://www.ehm.my/resources/historical-publications'}),
+ // Kenya colony declared 1920-07-23; this 1923 scenario uses East African
+ // shillings, introduced across East Africa in 1922, at 20 per sterling pound.
+ KE:Object.freeze({introducedIn:14,territoryId:'TER-36-01',currencyId:'CUR-EAS',jurisdictionId:'JUR-KE-COLONY',
+  opensAt:ym(1922,8),effectiveDate:'1922-07-01',pegFxReference:'UK',pegFxScale:.05,
+  jurisdictionSource:'https://api.parliament.uk/historic-hansard/written-answers/1920/jul/12/colony-of-kenya',
+  currencySource:'https://www.centralbank.go.ke/currency-history/',
+  populationSource:'https://www.waado.org/colonial_rule/east_africa/east_africa_commission_1925.pdf'}),
+ // Morocco became a French protectorate in 1912; the 1923 trading scenario
+ // starts only after the Moroccan franc gained legal-tender status in 1920.
+ MA:Object.freeze({introducedIn:14,territoryId:'TER-37-01',currencyId:'CUR-MAF',jurisdictionId:'JUR-MA-FR-PROTECTORATE',
+  opensAt:ym(1920,7),effectiveDate:'1920-06-21',
+  jurisdictionSource:'https://academic.oup.com/oa-edited-volume/62466/chapter/559626610',
+  currencySource:'https://www.tgr.gov.ma/wps/wcm/connect/e2a4129e-a2f1-4cbf-9531-3ff0f2ead6c5/al%2Bkhazina%2B15.pdf?CACHEID=e2a4129e-a2f1-4cbf-9531-3ff0f2ead6c5&MOD=AJPERES',
   populationSource:'https://ourworldindata.org/grapher/population'})
 });
 function worldInitialEngineCountries(registryVersion){
@@ -11218,7 +11252,8 @@ const WORLD_SITE_CITIES={
  'TH-BKK':'CITY-20-01','SG-SIN':'CITY-22-01',
  'CN-HAN':'CITY-15-04','ID-BAT':'CITY-18-01','NG-LAG':'CITY-35-01',
  'PH-MNL':'CITY-23-01',
- 'RU-SPB':'CITY-06-02','KR-BUS':'CITY-17-02','TR-IZM':'CITY-38-03'
+ 'RU-SPB':'CITY-06-02','KR-BUS':'CITY-17-02','TR-IZM':'CITY-38-03',
+ 'MY-PEN':'CITY-21-02','KE-MBA':'CITY-36-02','MA-CAS':'CITY-37-02'
 };
 const WORLD_LOCATIONS=new Map(SITE_CATALOG.map(site=>[
  'LOC-'+site.id,{id:'LOC-'+site.id,territoryId:WORLD_ENGINE_TERRITORY[site.country],cityId:WORLD_SITE_CITIES[site.id]??null}
@@ -12672,6 +12707,18 @@ function worldSupplyOffer(siteId,productId,name,firstYear,quantity,priceBase,sou
 }
 const WORLD_REGIONAL_SUPPLY=Object.freeze({
  // Verified port trade categories; unit costs and finite purchase caps are game fixtures.
+ 'MY-PEN-RUBBER':worldSupplyOffer('MY-PEN','PRD-R29','海峡植民地ペナン港の英国向け天然ゴム',1911,130,24,
+  'https://www.ehm.my/publications/articles/change-in-the-malaysian-economy-circa-1800%E2%80%931990',1911),
+ 'MY-PEN-BUNKER-COAL':worldSupplyOffer('MY-PEN','PRD-R04','ペナン蒸気船用石炭',1911,100,16,
+  'https://www.ehm.my/resources/historical-publications',1911),
+ 'KE-MBA-COFFEE':worldSupplyOffer('KE-MBA','PRD-R27','ケニア植民地モンバサのコーヒー輸出',1923,150,26,
+  'https://hansard.parliament.uk/Commons/1923-07-11/debates/16d86c1d-9b60-4a71-b6fb-b0e896806bfd/WrittenAnswers',1923),
+ 'KE-MBA-BUNKER-COAL':worldSupplyOffer('KE-MBA','PRD-R04','モンバサ港の船舶用石炭',1923,120,18,
+  'https://en.wikisource.org/wiki/Page:EB1922_-_Volume_31.djvu/718',1923),
+ 'MA-CAS-WHEAT':worldSupplyOffer('MA-CAS','PRD-R22','カサブランカ港のフランス向け小麦',1923,140,20,
+  'https://www.cambridge.org/core/journals/international-journal-of-middle-east-studies/article/abs/in-pursuit-of-the-granary-of-rome-frances-wheat-policy-in-morocco-19151931/33F25DA21F8C070C81E5A2324E714D78',1923),
+ 'MA-CAS-BUNKER-COAL':worldSupplyOffer('MA-CAS','PRD-R04','カサブランカ港の汽船燃料',1923,120,18,
+  'https://www.entreprises-coloniales.fr/afrique-du-nord/Port_de_Casablanca.pdf',1923),
  'RU-SPB-TIMBER':worldSupplyOffer('RU-SPB','PRD-R19','サンクトペテルブルク発の英国向け木材',1904,150,22,
   'https://discovery.ucl.ac.uk/id/eprint/1559904/1/Final%20Thesis%201606.pdf',1904),
  'RU-SPB-BUNKER-COAL':worldSupplyOffer('RU-SPB','PRD-R04','バルト海汽船用石炭',1904,125,17,
@@ -13768,6 +13815,12 @@ const WORLD_YOKOHAMA_TRANSFER_SOURCE='https://archive.lib.city.yokohama.lg.jp/mu
 const WORLD_NORTH_SHIELDS_SOURCE='https://kringom.no/nb/midthordland/bergen/om-englandsruta-bergen-newcastle';
 const WORLD_BERGEN_CARGO_SOURCE='https://snl.no/Det_Bergenske_Dampskibsselskab';
 const WORLD_INTERNATIONAL_CORRIDORS=Object.freeze({
+ 'MY-UK-PENANG-RUBBER':worldSteamshipProfile('MY-PEN','UK-LON',ym(1911,3),14700,30,26,3,
+  'https://www.ehm.my/publications/articles/change-in-the-malaysian-economy-circa-1800%E2%80%931990'),
+ 'KE-UK-MOMBASA-COFFEE':worldSteamshipProfile('KE-MBA','UK-LON',ym(1923,4),9400,30,26,2,
+  'https://hansard.parliament.uk/Commons/1923-07-11/debates/16d86c1d-9b60-4a71-b6fb-b0e896806bfd/WrittenAnswers'),
+ 'MA-FR-CASABLANCA-WHEAT':worldSteamshipProfile('MA-CAS','FR-MAR',ym(1923,4),1850,30,26,2,
+  'https://www.cambridge.org/core/journals/international-journal-of-middle-east-studies/article/abs/in-pursuit-of-the-granary-of-rome-frances-wheat-policy-in-morocco-19151931/33F25DA21F8C070C81E5A2324E714D78'),
  'RU-UK-PETERSBURG-TIMBER':worldSteamshipProfile('RU-SPB','UK-LON',ym(1904,4),2800,30,26,2,
   'https://discovery.ucl.ac.uk/id/eprint/1559904/1/Final%20Thesis%201606.pdf'),
  'KR-JP-BUSAN-RICE':worldSteamshipProfile('KR-BUS','JP-OSA',ym(1914,5),600,30,26,2,
@@ -13896,6 +13949,15 @@ const WORLD_INTERNATIONAL_CORRIDORS=Object.freeze({
 // the modeled capacity, distance or cost. The playable dates conservatively
 // allow time to pass after dated sources; they are not claimed opening dates.
 const WORLD_INTERNATIONAL_ROUTE_EVIDENCE=Object.freeze({
+ 'MY-UK-PENANG-RUBBER':Object.freeze({untilMonth:ym(1911,5),
+  products:Object.freeze(['PRD-R29']),source:'https://www.ehm.my/publications/articles/change-in-the-malaysian-economy-circa-1800%E2%80%931990',
+  operationSource:'https://en.wikisource.org/wiki/Page:Statesman%27s_Year-Book_1913.djvu/292'}),
+ 'KE-UK-MOMBASA-COFFEE':Object.freeze({untilMonth:ym(1923,6),
+  products:Object.freeze(['PRD-R27']),source:'https://hansard.parliament.uk/Commons/1923-07-11/debates/16d86c1d-9b60-4a71-b6fb-b0e896806bfd/WrittenAnswers',
+  operationSource:'https://www.waado.org/colonial_rule/east_africa/east_africa_commission_1925.pdf'}),
+ 'MA-FR-CASABLANCA-WHEAT':Object.freeze({untilMonth:ym(1923,6),
+  products:Object.freeze(['PRD-R22']),source:'https://www.cambridge.org/core/journals/international-journal-of-middle-east-studies/article/abs/in-pursuit-of-the-granary-of-rome-frances-wheat-policy-in-morocco-19151931/33F25DA21F8C070C81E5A2324E714D78',
+  operationSource:'https://www.entreprises-coloniales.fr/afrique-du-nord/Port_de_Casablanca.pdf'}),
  'RU-UK-PETERSBURG-TIMBER':Object.freeze({untilMonth:ym(1904,6),
   products:Object.freeze(['PRD-R19']),
   source:'https://discovery.ucl.ac.uk/id/eprint/1559904/1/Final%20Thesis%201606.pdf',
@@ -14183,7 +14245,7 @@ const WORLD_INTERNATIONAL_REMITTANCE=Object.freeze({
   source:'https://leicester.contentdm.oclc.org/digital/api/collection/p16445coll4/id/274979/download',
   branchSource:'https://leicester.contentdm.oclc.org/digital/api/collection/p16445coll4/id/34866/download'})
 });
-const WORLD_PHASE4_TARIFF_BPS=Object.freeze({JP:350,US:300,UK:250,FR:300,DE:300,NO:250,CA:300,AU:300,NZ:300,MX:300,BR:300,AR:300,CL:300,CO:300,SE:250,NL:300,IT:300,EG:300,IN:300,ZA:250,TH:300,SG:0,CN:300,ID:300,NG:250,ES:250,PH:300,RU:300,KR:300,TR:300});
+const WORLD_PHASE4_TARIFF_BPS=Object.freeze({JP:350,US:300,UK:250,FR:300,DE:300,NO:250,CA:300,AU:300,NZ:300,MX:300,BR:300,AR:300,CL:300,CO:300,SE:250,NL:300,IT:300,EG:300,IN:300,ZA:250,TH:300,SG:0,CN:300,ID:300,NG:250,ES:250,PH:300,RU:300,KR:300,TR:300,MY:250,KE:250,MA:300});
 function worldInternationalTariffBps(s,country,profileId,productId){
  if(!s.world?.[country]||!Object.hasOwn(WORLD_PHASE4_TARIFF_BPS,country))
   throw Error('輸入国の関税制度が未接続です');
