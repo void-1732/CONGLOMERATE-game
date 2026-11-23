@@ -102,6 +102,7 @@ def main(observe_receipts=None):
             &&worldValidateInternationalLogistics(held)&&!check(held).length;
           S.month++;
           S.world.FR.fx*=1.2;
+          worldMatchLedgerCurrencyRates(S);
           worldInternationalReceiveShipments(S);
           const delivered=cargo.status==='DELIVERED'&&cargo.receivedAt===ym(2000,3)
             &&buyer.stock['PRD-R19'].q===8
