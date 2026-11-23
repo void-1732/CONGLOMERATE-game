@@ -708,3 +708,11 @@ python -B tests/test_step13_120_months.py --era 1900 --world
 
 - モンバサから発送した生豆が遅延し、資料で照合した1924年6～12月に英国へ到着した場合、1924年財政法第3条による通常税率で通関査定する。改定日が5日の1924年5月に到着した場合は、月次モデルで日付を判定できるまで保税を維持する。[1924年財政法第3条](https://www.legislation.gov.uk/ukpga/1924/21/pdfs/ukpga_19240021_en.pdf)
 - 正味14 kgでは出荷時見積0.39ポンド、改定後査定0.19ポンド。前払済みなら0.20ポンドを現金に戻して査定額を取得原価に含める。資金不足の掛け取引は査定額で関税未払を計上し、後日の着金と照合する。通関後に満杯の倉庫で未検収となった場合も、査定済み関税と未使用の前払差額を区別する。出荷時見積、税率改定ID、査定額、仕訳を保持したまま保存・復元し、査定額の改竄拒否を検証した。
+
+### Phase 4・5 ベルギー法域とアントワープ発ガラス輸出（2026-11-24、日本時間）
+
+- 開始HEADは `ca69ee71a2f806d02e4fff1b2a18ecada6de1955`。同HEADの開発CIはpush・PRの両方が合格し、37画面・120か月・通常の保存と会計を確認した。実ブラウザIndexedDBの300か月では62,646,941バイトの保存と破損世代からの復旧に合格。1900年拡張世界でも米国海運、ニュージーランドの銀行経由羊毛、英仏の航空貨物を検収後、64,951,541バイトの実IndexedDBから台帳・連結BS/CFを復旧した。通常ケースのローカル並列実行はメモリ上限でChromiumが停止したため、GitHubの独立実行結果を採用した。[push開発CI](https://github.com/void-1732/CONGLOMERATE-game/actions/runs/45258466991) · [PR開発CI](https://github.com/void-1732/CONGLOMERATE-game/actions/runs/45258478378) · [IndexedDB 300か月](https://github.com/void-1732/CONGLOMERATE-game/actions/runs/45258478279)
+- ベネルクス `MKT-08` の内部に、ベルギーの法人・要素市場・BEF建て元帳を接続した。オランダを代表法域とする索引と40市場・155都市のIDを維持し、両国の地域経済を別々に表示する。ベルギーとオランダの消費推計は各法域の都市だけに配分する。保存版19はベルギーの経済データを初期化し、実際の版18で作成した1910年のセーブを使い、法人ID・既存仕訳・現金・所有・在庫とオランダの経済データが一致することを確認した。ベルギーの法制と人口アンカーには公的資料を参照した。為替係数、需要、1999年以降のBEFからEURへの実帳簿移行は残件。[ベルギー政府](https://www.belgium.be/en/about_belgium/government/federal_authorities/king/role_monarchy) · [ベルギー国立銀行](https://www.nbb.be/en/banknotes-and-coins/history-euro-and-belgian-franc/brief-history-belgian-franc/1830-1914) · [Statbelの国勢調査](https://statbel.fgov.be/nl/over-statbel/wat-doen-we/volkstellingen-census)
+- アントワープ港からニューヨーク港へのガラス輸出、汽船・受入設備、有限在庫の有償仕入、BEF・USDの60日掛け、検収と保存を実装した。1910年通商報告にあるベルギーの米国向け板・窓ガラスと、1910年4月の定期船の運航記録に基づく。1910年5～12月はゲームで検証した出荷期間。距離・容量・価格・関税はゲーム値で、米国の品目区分の史料付き関税は未接続。[米国1910年通商報告、第10–11頁](https://www.govinfo.gov/content/pkg/SERIALSET-06040_00_00-002-1503-0000/pdf/SERIALSET-06040_00_00-002-1503-0000.pdf) · [1910年4月17日のアントワープ発船便](https://newspaperarchive.com/new-york-times-apr-17-1910-p-13/)
+- `index.html`、カタログ・Phase 3需要・Phase 4現物検収・Phase 5地図の既存Playwrightと現物監査を更新。検収のCIでは40市場に加えて41取引法域と登録48国際経路すべてを照合する。地図で両港の実拠点ID、運行期間、ブリュッセルの通常建設と会計・復元を確認した。
+- Phase 4・5の正式受入は保留。5法域の実経済接続、年代別の実帳簿通貨、史料付き通関・貿易金融・特殊貨物、歴史国境と残る都市の実施設、全操作・新HEADの長期回帰、確定仕様原本との照合を継続する。

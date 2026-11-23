@@ -116,6 +116,48 @@ def test_historical_air_route(page):
     assert "登録運行期間終了" in route.inner_text()
 
 
+def test_antwerp_and_brussels(page):
+    page.evaluate("""() => {
+      S=newWorldGame({country:'BE',name:'ベルギー地図検証'});
+      VIEW_FIRM=S.playerId;VIEW_COUNTRY='BE';PAGE='worldMap';
+      S.year=1910;S.month=6;S.monthCommitted=ym(1910,6)-1;
+      applyWorldHistory(S);syncWorldIdentities(S);render();
+    }""")
+    page.locator('[data-world-map-mode="sea"]').click()
+    route_id = "BE-US-ANTWERP-GLASS"
+    route = page.locator(f'[data-world-map-route-row="{route_id}"]')
+    assert "開通・設備未登録" in route.inner_text()
+    route.get_by_role("button").click()
+    detail = page.locator(f'[data-world-map-detail="{route_id}"]')
+    assert "アントワープ港 → ニューヨーク港" in detail.inner_text()
+    assert detail.get_by_text("1910年5月から1910年12月まで", exact=False).count() == 1
+    assert page.locator('[data-world-map-site="BE-ANR"]').count() == 1
+    assert page.locator('[data-world-map-site="US-NYC"]').count() == 1
+
+    page.locator('[data-world-map-city-select]').select_option('CITY-08-03')
+    brussels = page.locator('[data-world-map-city-detail="CITY-08-03"]')
+    assert all(text in brussels.inner_text() for text in ("MKT-08", "JUR-BE", "CUR-BEF", "開放済み"))
+    brussels.locator('[data-world-map-build="BE-BRU"]').click()
+    assert page.locator('#factorySite').input_value() == 'BE-BRU'
+    page.locator('#factoryName').fill('ブリュッセル施設')
+    page.locator('[data-action="factoryBuild"]').click()
+
+    assert page.evaluate("""() => {
+      const reopened=parsePayload(savePayload(S)),firm=company(reopened.playerId,reopened);
+      const plant=firm.plants.find(p=>p.name==='ブリュッセル施設');
+      const registration=reopened.worldExpansion.companies[firm.id];
+      return plant?.siteId==='BE-BRU'&&plant.construction?.monthsLeft>0
+        &&registration.territoryId==='TER-08-02'&&registration.currencyId==='CUR-BEF'
+        &&reopened.worldExpansion.facilities['FAC-'+plant.id]?.locationId==='LOC-BE-BRU'
+        &&!check(reopened).length&&!consolidate(reopened).errors.length;
+    }""")
+    page.evaluate("""() => {
+      S.year=1911;S.month=1;S.monthCommitted=ym(1911,1)-1;
+      applyWorldHistory(S);syncWorldIdentities(S);PAGE='worldMap';render();
+    }""")
+    assert "登録運行期間終了" in route.inner_text()
+
+
 def main():
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(
@@ -282,6 +324,7 @@ def main():
         assert page.evaluate("JSON.stringify(S)===window.__phase5PreUiState")
         test_city_facility_management(page)
         test_historical_air_route(page)
+        test_antwerp_and_brussels(page)
         assert not errors, errors
         browser.close()
     print("PASS Phase 5: 40 markets, 155 city dots, exact routes, "

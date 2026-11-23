@@ -12,16 +12,19 @@ import test_world_phase4_transshipment
 def main():
     expected_markets = set()
     expected_routes = set()
+    expected_countries = set()
     receipts = set()
     prefix = "WORLD_FREIGHT_RECEIPT "
 
     def observe(page):
         catalog = page.evaluate("""() => ({
           markets: WORLD_MARKETS.map(m=>m.id),
-          routes: Object.keys(WORLD_INTERNATIONAL_ROUTE_EVIDENCE)
+          routes: Object.keys(WORLD_INTERNATIONAL_ROUTE_EVIDENCE),
+          countries: Object.keys(WORLD_ENGINE_TERRITORY)
         })""")
         expected_markets.update(catalog["markets"])
         expected_routes.update(catalog["routes"])
+        expected_countries.update(catalog["countries"])
 
         def record(message):
             if message.text.startswith(prefix):
@@ -55,6 +58,11 @@ def main():
 
     markets = {market for _, _, _, seller, buyer in receipts for market in (seller, buyer)}
     routes = {receipt[0] for receipt in receipts}
+    countries = {code for _, seller, buyer, _, _ in receipts for code in (seller, buyer)}
+    assert countries == expected_countries, {
+        "missingJurisdictions": sorted(expected_countries - countries),
+        "unexpectedJurisdictions": sorted(countries - expected_countries),
+    }
     assert len(expected_markets) == 40 and markets == expected_markets, {
         "missingMarkets": sorted(expected_markets - markets),
         "unexpectedMarkets": sorted(markets - expected_markets),
@@ -67,6 +75,7 @@ def main():
         "markets": sorted(markets),
         "marketCount": len(markets),
         "routeCount": len(routes),
+        "engineJurisdictionCount": len(countries),
         "receivedRoutes": sorted(receipts),
     }, ensure_ascii=False))
 

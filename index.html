@@ -723,6 +723,8 @@ const POPULATION_ANCHORS={
  // later interpolation points are provisional game calibration, not a census extrapolation.
  SE:{1900:5.136441,1910:5.522403,1950:7.042,2020:10.38},
  NL:{1900:5.104137,1910:5.858175,1950:10.027,2020:17.407},
+ // Statbel census anchors, in millions.
+ BE:{1900:6.693548,1910:7.423784,1920:7.465782,1930:8.092004,2001:10.296350},
  JP:{1900:43.8,1920:56.0,1950:83.6,1980:117.1,2020:126.6},
  US:{1900:76.3,1920:106.5,1950:157.8,1980:229.5,2020:339.1},
  UK:{1900:41.5,1920:43.7,1950:49.8,1980:56.3,2020:67.3},
@@ -755,7 +757,7 @@ function anchorPopulation(code,year){const anchors=POPULATION_ANCHORS[code];if(!
  if(year>=yrs[yrs.length-1])return anchors[yrs[yrs.length-1]];
  for(let i=1;i<yrs.length;i++){if(year<=yrs[i]){const lo=yrs[i-1],hi=yrs[i];return anchors[lo]+(anchors[hi]-anchors[lo])*(year-lo)/(hi-lo);}}return null;}
 
-const NAMES={JP:'日本',US:'アメリカ',UK:'イギリス',DE:'ドイツ',FR:'フランス',NO:'ノルウェー',CA:'カナダ',AU:'オーストラリア',NZ:'ニュージーランド',MX:'メキシコ',BR:'ブラジル',AR:'アルゼンチン',CL:'チリ',CO:'コロンビア',SE:'スウェーデン',NL:'オランダ',IT:'イタリア',EG:'エジプト',IN:'英領インド',ZA:'南アフリカ連邦',SG:'英領シンガポール',TH:'シャム王国',CN:'清朝中国',ID:'オランダ領東インド',NG:'英領ナイジェリア',ES:'スペイン',PH:'米領フィリピン',RU:'ロシア帝国',KR:'朝鮮（日本統治下）',TR:'オスマン帝国',MY:'英領マラヤ',KE:'英領ケニア',MA:'仏保護領モロッコ',CH:'スイス連邦',AT:'オーストリア=ハンガリー帝国領オーストリア',PL:'ポーランド共和国',GR:'ギリシャ王国',VN:'仏領インドシナ',IR:'ガージャール朝ペルシア',SA:'サウジアラビア王国'};
+const NAMES={JP:'日本',US:'アメリカ',UK:'イギリス',DE:'ドイツ',FR:'フランス',NO:'ノルウェー',CA:'カナダ',AU:'オーストラリア',NZ:'ニュージーランド',MX:'メキシコ',BR:'ブラジル',AR:'アルゼンチン',CL:'チリ',CO:'コロンビア',SE:'スウェーデン',NL:'オランダ',IT:'イタリア',EG:'エジプト',IN:'英領インド',ZA:'南アフリカ連邦',SG:'英領シンガポール',TH:'シャム王国',CN:'清朝中国',ID:'オランダ領東インド',NG:'英領ナイジェリア',ES:'スペイン',PH:'米領フィリピン',RU:'ロシア帝国',KR:'朝鮮（日本統治下）',TR:'オスマン帝国',MY:'英領マラヤ',KE:'英領ケニア',MA:'仏保護領モロッコ',CH:'スイス連邦',AT:'オーストリア=ハンガリー帝国領オーストリア',PL:'ポーランド共和国',GR:'ギリシャ王国',VN:'仏領インドシナ',BE:'ベルギー王国',IR:'ガージャール朝ペルシア',SA:'サウジアラビア王国'};
 const INITIAL_ENGINE_COUNTRIES=['JP','US','UK','DE','FR'];
 const COUNTRIES={
  JP:{currency:'JPY',fx:1,pop:44,wealth:1,wage:145,demand:115,steel:420,rubber:280,steelSupply:1100,rubberSupply:1050},
@@ -844,6 +846,9 @@ const COUNTRIES={
   steel:488,rubber:326,steelSupply:110,rubberSupply:92},
  IR:{currency:'IRK',fx:38,pop:anchorPopulation('IR',1900),wealth:.78,wage:127,demand:20,
   steel:484,rubber:327,steelSupply:115,rubberSupply:90},
+ // Independent BEF ledger. The exchange and market coefficients are modeled.
+ BE:{currency:'BEF',fx:29,pop:anchorPopulation('BE',1900),wealth:1.02,wage:146,demand:16,
+  steel:431,rubber:304,steelSupply:145,rubberSupply:105},
  SA:{currency:'SAR',fx:49,pop:anchorPopulation('SA',1932),wealth:.72,wage:123,demand:14,
   steel:482,rubber:329,steelSupply:105,rubberSupply:85}
 };
@@ -1632,6 +1637,7 @@ const SITE_CATALOG=[
   ['CO-CTG','CO','カルタヘナ港'],
   ['SE-GOT','SE','ヨーテボリ港'],['UK-HULL','UK','ハル港'],
   ['NL-ROT','NL','ロッテルダム港'],['US-PHL','US','フィラデルフィア港'],
+  ['BE-ANR','BE','アントワープ港'],['BE-BRU','BE','ブリュッセル'],['US-NYC','US','ニューヨーク港'],
   ['UK-CDF','UK','カーディフ石炭港'],['IT-GEN','IT','ジェノヴァ港'],
   ['EG-ALX','EG','アレクサンドリア港'],
   ['IN-BOM','IN','ボンベイ港（現ムンバイ）'],['ZA-CPT','ZA','ケープタウン港'],
@@ -9387,7 +9393,8 @@ function worldSelectedCode(){return Object.hasOwn(S.world,VIEW_COUNTRY)?VIEW_COU
 // All gameplay capacity, distances, schedules and money stay in the existing ledgers.
 const WORLD_MAP_CITY_COORDS=Object.freeze({"MKT-01":[51.51,-0.13,53.48,-2.24,52.49,-1.89,53.35,-6.26],"MKT-02":[48.86,2.35,45.76,4.84,43.3,5.37,50.63,3.06],"MKT-03":[52.52,13.4,53.55,10,51.45,7,48.14,11.58],"MKT-04":[41.9,12.5,45.46,9.19,45.07,7.69,40.85,14.27],"MKT-05":[40.42,-3.7,41.39,2.17,38.72,-9.14,41.15,-8.61],"MKT-06":[55.76,37.62,59.94,30.31,55.03,82.92,43.12,131.89],"MKT-07":[52.23,21,50.06,19.94,51.76,19.46,54.35,18.65],"MKT-08":[52.37,4.9,51.92,4.48,50.85,4.35,49.61,6.13],"MKT-09":[46.95,7.45,47.37,8.54,46.2,6.14,47.56,7.59],"MKT-10":[59.33,18.06,57.71,11.97,55.61,13],"MKT-11":[59.91,10.75,60.39,5.32,63.43,10.4],"MKT-12":[48.21,16.37,47.07,15.44,48.31,14.29],"MKT-13":[44.79,20.45,37.98,23.73,45.81,15.98,41.33,19.82,43.85,18.41],"MKT-14":[35.68,139.76,34.69,135.5,35.18,136.9,34.69,135.2],"MKT-15":[39.9,116.4,31.23,121.47,23.13,113.26,30.6,114.3],"MKT-16":[28.61,77.21,19.08,72.88,22.57,88.36,13.08,80.27],"MKT-17":[37.57,126.98,35.18,129.07,37.46,126.7,35.87,128.6],"MKT-18":[-6.21,106.85,-7.26,112.75,-6.91,107.61,3.59,98.67],"MKT-19":[21.03,105.85,10.82,106.63,20.85,106.68,16.05,108.2],"MKT-20":[13.76,100.5,18.79,98.99,14.98,102.1],"MKT-21":[3.14,101.69,5.41,100.33,1.46,103.76],"MKT-22":[1.35,103.82,1.33,103.7,1.44,103.79],"MKT-23":[14.6,120.98,10.32,123.89,7.07,125.61,10.72,122.56],"MKT-24":[-33.87,151.21,-37.81,144.96,-27.47,153.03,-31.95,115.86],"MKT-25":[-36.85,174.76,-41.29,174.78,-43.53,172.63],"MKT-26":[38.91,-77.04,40.71,-74.01,41.88,-87.63,34.05,-118.24,29.76,-95.37],"MKT-27":[45.42,-75.7,43.65,-79.38,45.5,-73.57,49.28,-123.12],"MKT-28":[19.43,-99.13,25.69,-100.31,20.67,-103.35,19.17,-96.14],"MKT-29":[-22.91,-43.2,-23.55,-46.63,-12.98,-38.5,-30.03,-51.23],"MKT-30":[-34.6,-58.38,-31.42,-64.18,-32.95,-60.65,-32.89,-68.84],"MKT-31":[-33.45,-70.67,-33.05,-71.62,-36.82,-73.05,-23.65,-70.4],"MKT-32":[4.71,-74.07,6.24,-75.58,3.45,-76.53,10.4,-75.5],"MKT-33":[-25.75,28.19,-26.2,28.05,-33.92,18.42,-29.86,31.03],"MKT-34":[30.04,31.24,31.2,29.92,29.97,32.55,31.27,32.31],"MKT-35":[6.52,3.38,12,8.52,7.38,3.93,6.34,5.63],"MKT-36":[-1.29,36.82,-4.05,39.67,-0.09,34.76,-0.3,36.08],"MKT-37":[34.02,-6.84,33.57,-7.59,34.06,-4.98,35.78,-5.81],"MKT-38":[41.01,28.98,39.93,32.85,38.42,27.14,40.19,29.06],"MKT-39":[24.71,46.67,21.49,39.19,26.42,50.09,21.39,39.86],"MKT-40":[35.69,51.42,32.65,51.68,38.08,46.29,36.26,59.6]});
 const WORLD_MAP_EXTRA_SITES=Object.freeze({"DE-FRE":[48,7.85],"ES-BIL":[43.26,-2.93],"IR-BND":[27.19,56.28],"IT-GEN":[44.41,8.93],"JP-YOK":[35.45,139.64],"PL-GDY":[54.52,18.54],"UK-CDF":[51.48,-3.18],"UK-HULL":[53.74,-0.34],"UK-LIV":[53.4,-2.98],"UK-NORTHSHIELDS":[55.01,-1.45],"US-NEWORLEANS":[29.95,-90.07],"US-PHL":[39.95,-75.17],"US-SEA":[47.61,-122.33],"US-SFO":[37.77,-122.42],
- "UK-HOUNSLOW-HEATH":[51.46,-0.39],"FR-LE-BOURGET":[48.97,2.44]});
+ "UK-HOUNSLOW-HEATH":[51.46,-0.39],"FR-LE-BOURGET":[48.97,2.44],
+ "BE-ANR":[51.23,4.4],"US-NYC":[40.76,-74.01]});
 let WORLD_MAP_TRANSPORT_MODE='all',WORLD_MAP_FOCUS='global',WORLD_MAP_ACTIVITY='all',WORLD_MAP_SELECTED_ROUTE_ID=null,WORLD_MAP_SELECTED_CITY_ID=null;
 const WORLD_MAP_WIDTH=1152,WORLD_MAP_HEIGHT=594;
 function worldMapProject(lat,lon){
@@ -11672,7 +11679,7 @@ const WORLD_TERRITORIES=new Map(WORLD_MARKETS.flatMap(m=>m.territories.map(t=>[t
 const WORLD_CITIES=new Map(WORLD_MARKETS.flatMap(m=>m.cities.map(c=>[c.id,c])));
 // Registry version zero is the saved pre-expansion world (five initial economies).
 // New onboarding data is additive and does not change the original scenario.
-const WORLD_MARKET_REGISTRY_VERSION=18;
+const WORLD_MARKET_REGISTRY_VERSION=19;
 const WORLD_WEIGHT_DUTY_REGISTRY_VERSION=18;
 const WORLD_MARKET_ONBOARDING=Object.freeze({
  CA:Object.freeze({introducedIn:1,territoryId:'TER-27-01',currencyId:'CUR-CAD',jurisdictionId:'JUR-CA',
@@ -11847,6 +11854,11 @@ const WORLD_MARKET_ONBOARDING=Object.freeze({
   populationSource:'https://ourworldindata.org/grapher/population'}),
  // Saudi kingdom existed after 1932-09-23. The 1934 cargo is an import;
  // a historical 1939 petroleum export/tanker is NOT claimed to be implemented.
+ BE:Object.freeze({introducedIn:19,territoryId:'TER-08-02',currencyId:'CUR-BEF',jurisdictionId:'JUR-BE',
+  secondaryMarketMember:true,
+  jurisdictionSource:'https://www.belgium.be/en/about_belgium/government/federal_authorities/king/role_monarchy',
+  currencySource:'https://www.nbb.be/en/banknotes-and-coins/history-euro-and-belgian-franc/brief-history-belgian-franc/1830-1914',
+  populationSource:'https://statbel.fgov.be/fr/propos-de-statbel/que-faisons-nous/recensement-census'}),
  SA:Object.freeze({introducedIn:16,territoryId:'TER-39-01',currencyId:'CUR-SAR',jurisdictionId:'JUR-SA-KINGDOM',
   opensAt:ym(1932,10),effectiveDate:'1932-09-23',
   jurisdictionSource:'https://www.qdl.qa/en/historical-profile-saudi-arabia',
@@ -11947,7 +11959,6 @@ const WORLD_JURISDICTIONS=new Map([
  // historical currency references do not create firms or foreign-exchange funds.
  ['JUR-PT-KINGDOM',{name:'ポルトガル王国',currencyId:'CUR-PTR',source:'https://www.presidencia.pt/en-en/president-of-the-republic/the-presidency/national-symbols/'}],
  ['JUR-PT-REPUBLIC',{name:'ポルトガル共和国',currencyId:'CUR-PTR',source:'https://history.state.gov/historicaldocuments/frus1910/d911'}],
- ['JUR-BE',{name:'ベルギー王国',currencyId:'CUR-BEF',source:'https://www.nbb.be/en/banknotes-and-coins/history-euro-and-belgian-franc/brief-history-belgian-franc'}],
  ['JUR-LU',{name:'ルクセンブルク大公国',currencyId:'CUR-LU-MULTI',source:'https://www.bcl.lu/en/About/histoire_monetaire/index.html'}],
  ['JUR-NO-UNION',{name:'ノルウェー（スウェーデンとの同君連合）',currencyId:'CUR-NOK'}],
  ['JUR-NO',{name:'ノルウェー',currencyId:'CUR-NOK'}],
@@ -11960,7 +11971,8 @@ const WORLD_INITIAL_JURISDICTIONS={...Object.fromEntries(
 ),'TER-01-02':'JUR-UK','TER-11-01':'JUR-NO-UNION'};
 const WORLD_SITE_CITIES={
  'JP-TOK':'CITY-14-01','JP-NGO':'CITY-14-03','JP-OSA':'CITY-14-02',
- 'US-CHI':'CITY-26-03','US-LAX':'CITY-26-04','UK-LON':'CITY-01-01',
+ 'US-CHI':'CITY-26-03','US-LAX':'CITY-26-04','US-NYC':'CITY-26-02','UK-LON':'CITY-01-01',
+ 'BE-BRU':'CITY-08-03',
  'DE-RUH':'CITY-03-03','DE-BER':'CITY-03-01','DE-HAM':'CITY-03-02',
  'FR-PAR':'CITY-02-01','FR-LYO':'CITY-02-02','FR-MAR':'CITY-02-03',
  'UK-HOUNSLOW-HEATH':'CITY-01-01','FR-LE-BOURGET':'CITY-02-01',
@@ -11981,8 +11993,21 @@ const WORLD_SITE_CITIES={
 const WORLD_LOCATIONS=new Map(SITE_CATALOG.map(site=>[
  'LOC-'+site.id,{id:'LOC-'+site.id,territoryId:WORLD_ENGINE_TERRITORY[site.country],cityId:WORLD_SITE_CITIES[site.id]??null}
 ]));
+// The market ID groups jurisdictions. A secondary engine must not replace the
+// market's primary engine or its historic opening event.
+const WORLD_ENGINE_BY_TERRITORY=new Map(Object.entries(WORLD_ENGINE_TERRITORY)
+ .map(([code,territoryId])=>[territoryId,code]));
 const WORLD_ENGINE_BY_MARKET=Object.fromEntries(Object.entries(WORLD_ENGINE_TERRITORY)
+ .filter(([code])=>!WORLD_MARKET_ONBOARDING[code]?.secondaryMarketMember)
  .map(([code,territoryId])=>[WORLD_TERRITORIES.get(territoryId).marketId,code]));
+function worldMarketEngineCodes(s,market){
+ return market.territories.map(t=>WORLD_ENGINE_BY_TERRITORY.get(t.id))
+  .filter(code=>Object.hasOwn(s.world,code));
+}
+function worldEngineMarketArea(s,market,code){
+ return worldMarketEngineCodes(s,market).length>1
+  ?{cities:market.cities.filter(city=>city.territoryId===WORLD_ENGINE_TERRITORY[code])}:market;
+}
 // Midmonth historical events take effect at the start of the following playable turn.
 // Economic coefficients and the mapping from events to market opening remain provisional.
 const WORLD_EVENTS=[
@@ -12070,7 +12095,10 @@ function validateWorldCatalog(){
  }
  for(const [code,territoryId] of Object.entries(WORLD_ENGINE_TERRITORY)){
   const territory=WORLD_TERRITORIES.get(territoryId);
-  if(!territory||WORLD_ENGINE_BY_MARKET[territory.marketId]!==code)fail('旧経済市場リンク '+code);
+  if(!territory||WORLD_ENGINE_BY_TERRITORY.get(territoryId)!==code)fail('経済法域リンク '+code);
+  const primary=WORLD_ENGINE_BY_MARKET[territory.marketId];
+  if(WORLD_MARKET_ONBOARDING[code]?.secondaryMarketMember?(!primary||primary===code):primary!==code)
+   fail('経済市場の代表法域リンク '+code);
   const currencyId=WORLD_ENGINE_CURRENCIES[code];
   if(!currencyId||!WORLD_CURRENCIES.has(currencyId))fail('旧経済市場の通貨 '+code);
  }
@@ -12099,11 +12127,13 @@ function worldCityLocation(s,cityId){
  const jurisdictionId=s.worldExpansion.territoryJurisdictions[territory.id];
  const historicalMoney=worldHistoricalMonetaryReference(territory.id,ym(s.year,s.month));
  // A shared market and a recorded jurisdiction do not create local facilities or firms.
- const economicEngineConnected=Object.values(WORLD_ENGINE_TERRITORY).includes(territory.id);
+ const code=WORLD_ENGINE_BY_TERRITORY.get(territory.id);
+ const version=s.worldExpansion.marketRegistryVersion??0;
+ const economicEngineConnected=!!code&&(WORLD_MARKET_ONBOARDING[code]?.introducedIn??0)<=version;
  return {cityId,territoryId:territory.id,marketId:market.id,jurisdictionId,
   historicalMoney,economicEngineConnected,
   marketOpen:s.worldExpansion.openMarkets[market.id]!==null&&jurisdictionId!=null
-    &&economicEngineConnected};
+    &&economicEngineConnected&&Object.hasOwn(s.world,code)};
 }
 
 function newWorldGame(setup){
@@ -12152,7 +12182,7 @@ function applyWorldHistory(s){
  if(!s.worldExpansion)return;
  for(const event of worldHistoryThrough(ym(s.year,s.month),s.worldExpansion.marketRegistryVersion??0)){
   recordWorldEvent(s.worldExpansion,event);
-  const code=WORLD_ENGINE_BY_MARKET[event.openMarketId];
+  const code=event.openMarketId===null?null:WORLD_ENGINE_BY_TERRITORY.get(event.territoryId);
   if(code&&!Object.hasOwn(s.world,code)){
    s.world[code]=seedEngineMarket(code,Math.floor(event.month/12));
    for(const firm of s.firms)ensureNetwork(firm,s);
@@ -12165,15 +12195,16 @@ function applyWorldHistory(s){
 function upgradeWorldMarketRegistry(s){
  const world=s.worldExpansion,previous=world.marketRegistryVersion??0;
  if(previous===WORLD_MARKET_REGISTRY_VERSION)return;
- const expected=makeWorldExpansion();
- for(const event of worldHistoryThrough(ym(s.year,s.month),WORLD_MARKET_REGISTRY_VERSION))recordWorldEvent(expected,event);
+ const month=ym(s.year,s.month),expected=makeWorldExpansion();
+ for(const event of worldHistoryThrough(month,WORLD_MARKET_REGISTRY_VERSION))recordWorldEvent(expected,event);
  world.openMarkets=expected.openMarkets;
  world.territoryJurisdictions=expected.territoryJurisdictions;
  world.appliedEvents=expected.appliedEvents;
  for(const [code,row] of Object.entries(WORLD_MARKET_ONBOARDING)){
   if(row.introducedIn<=previous)continue;
   const marketId=WORLD_TERRITORIES.get(row.territoryId).marketId;
-  if(world.openMarkets[marketId]!==null)s.world[code]=seedEngineMarket(code,s.year);
+  if(world.openMarkets[marketId]!==null&&month>=(row.opensAt??WORLD_START_MONTH))
+   s.world[code]=seedEngineMarket(code,s.year);
  }
  // Existing dispatches retain their agreed duty and historical journals.
  if(previous<WORLD_WEIGHT_DUTY_REGISTRY_VERSION)world.weightDutyFromSeq=s.seq;
@@ -12253,9 +12284,13 @@ function validateWorldExpansion(s){
   throw Error('存在しない法人または施設を参照しています');
  }
  validateWorldProduction(s);
- const playableCodes=Object.entries(WORLD_ENGINE_BY_MARKET)
-  .filter(([marketId])=>world.openMarkets[marketId]!==null)
-  .map(([,code])=>code);
+ const month=ym(s.year,s.month);
+ const playableCodes=Object.entries(WORLD_ENGINE_TERRITORY).filter(([code,territoryId])=>{
+  const onboarding=WORLD_MARKET_ONBOARDING[code];
+  return (onboarding?.introducedIn??0)<=registryVersion
+   &&month>=(onboarding?.opensAt??WORLD_START_MONTH)
+   &&world.openMarkets[WORLD_TERRITORIES.get(territoryId).marketId]!==null;
+ }).map(([code])=>code);
  if(Object.keys(s.world??{}).length!==playableCodes.length||playableCodes.some(code=>s.world[code]?.code!==code)){
   throw Error('開放済み市場と動作中の経済市場が一致しません');
  }
@@ -12271,7 +12306,8 @@ function validateWorldExpansion(s){
 // City-order shares are PROVISIONAL until historical weights are verified.
 function worldPhase3CityShares(market){
  const n=market.cities.length;
- if(n<3||n>5)throw Error('需要配分対象の都市数が不正です');
+ if(n<1||n>5)throw Error('需要配分対象の都市数が不正です');
+ if(n===1)return [{cityId:market.cities[0].id,name:market.cities[0].name,shareBps:10000}];
  const each=Math.floor(6000/(n-1)),rem=6000%(n-1);
  return market.cities.map((city,i)=>({
   cityId:city.id,name:city.name,shareBps:i===0?4000:each+(i<=rem?1:0)
@@ -12289,13 +12325,19 @@ function worldPhase3AllocateQuantity(quantity,market){
  return rows.map(({fraction,order,...row})=>row);
 }
 function worldPhase3ConsumerQuote(s,marketId,productId){
- const market=WORLD_MARKET_BY_ID.get(marketId),product=WORLD_PRODUCT_BY_ID.get(productId);
+ const market=WORLD_MARKET_BY_ID.get(marketId);
+ return worldPhase3ConsumerQuoteForEngine(s,market,productId,WORLD_ENGINE_BY_MARKET[marketId]);
+}
+function worldPhase3ConsumerQuoteForEngine(s,market,productId,code){
+ const product=WORLD_PRODUCT_BY_ID.get(productId);
  if(!market||!product||product.category!=='consumer')
   throw Error('消費需要の市場・商品IDが不正です');
- const code=WORLD_ENGINE_BY_MARKET[marketId],world=s.worldExpansion;
- if(!world||world.openMarkets[marketId]==null||!code||!s.world?.[code])
+ const world=s.worldExpansion,marketId=market.id,territoryId=WORLD_ENGINE_TERRITORY[code];
+ if(!world||world.openMarkets[marketId]==null||!s.world?.[code]
+  ||WORLD_TERRITORIES.get(territoryId)?.marketId!==marketId)
   throw Error('未開放または経済計算未接続の消費市場です');
  const w=s.world[code],recipe=WORLD_SUPPLEMENTAL_BY_ID.get(productId);
+ const area=worldEngineMarketArea(s,market,code);
  if(!recipe)throw Error('消費財レシピが存在しません：'+productId);
  const available=s.year>=Math.max(recipe.year,TECH_BY_ID[recipe.tech]?.year??recipe.year);
  const price=available?Math.max(1,Math.round(
@@ -12305,9 +12347,9 @@ function worldPhase3ConsumerQuote(s,marketId,productId){
   Math.max(0,w.pop)*100*Math.max(.1,w.wealth)*
   (1-clamp(w.unemployment??0,0,.9))*(1+clamp(w.cycle??0,-.5,.5))*
   Math.sqrt(12/recipe.cost)/Math.max(.5,1+(w.inflation??0)))):0;
- const cities=worldPhase3AllocateQuantity(quantity,market).map(c=>({
+ const cities=worldPhase3AllocateQuantity(quantity,area).map(c=>({
   ...c,referencePrice:price?Math.max(1,Math.round(
-   price*(1+(c.shareBps*market.cities.length-10000)/100000))):0
+   price*(1+(c.shareBps*area.cities.length-10000)/100000))):0
  }));
  return {marketId,productId,country:code,month:ym(s.year,s.month),
   unit:worldProductUnit(productId),available,referencePrice:price,
@@ -12369,10 +12411,12 @@ function worldPhase3Preview(s,market,playable){
  }).join('');
  const actualB2B=physical.length?`<div class="scroll"><table><thead><tr><th>前月の実取引品目</th><th>出荷受注</th><th>検収</th><th>検収単価</th></tr></thead><tbody>${physicalRows}</tbody></table></div>`
   :'<p class="hint">前月の国内B2B実取引記録はありません。</p>';
- const cities=worldPhase3CityShares(market)
-  .map((c,i)=>`<li>第${i+1}都市（上記の順）：${(c.shareBps/100).toFixed(2)}%</li>`).join('');
+ const perJurisdiction=worldMarketEngineCodes(s,market).length>1;
+ const referenceArea=perJurisdiction?esc(NAMES[quotes[0].country])+'の':'';
+ const cities=quotes[0].cities
+  .map(c=>`<li>${esc(c.name)}：${(c.shareBps/100).toFixed(2)}%</li>`).join('');
  return `<section data-phase3-market="${market.id}"><h4>Phase 3：国別消費需要・都市固定配分（暫定）</h4>
-  <p class="hint">30消費財の参考推計。価格は当地通貨の参考値で、受注・実在庫・売上・入金には反映しません。係数はPROVISIONALです。</p>
+  <p class="hint">${referenceArea}30消費財の参考推計。価格は当地通貨の参考値で、受注・実在庫・売上・入金には反映しません。係数はPROVISIONALです。</p>
   <ul>${cities}</ul>
   <div class="scroll"><table><thead><tr><th>消費財（例）</th><th>国別月間推計</th><th>参考市場価格</th></tr></thead><tbody>${rows}</tbody></table></div>
   <p class="hint">推計対象 ${quotes.length}品目／登場済み ${quotes.filter(q=>q.available).length}品目。保存状態から決定的に再計算します。</p>
@@ -12383,8 +12427,8 @@ function worldPhase3Preview(s,market,playable){
 function worldMarketPanel(s){
  const rows=WORLD_MARKETS.map(m=>{
   const active=s.worldExpansion.openMarkets[m.id]!==null;
-  const code=WORLD_ENGINE_BY_MARKET[m.id];
-  const playable=active&&Object.hasOwn(s.world,code);
+  const codes=active?worldMarketEngineCodes(s,m):[];
+  const playable=codes.length>0;
   const territories=m.territories.map(t=>{
    const polity=WORLD_JURISDICTIONS.get(s.worldExpansion.territoryJurisdictions[t.id]);
    return esc(t.name)+'（'+esc(polity?.name??'管轄の史実照合待ち')+'）';
@@ -12393,7 +12437,7 @@ function worldMarketPanel(s){
    <p>${active?(playable?'試作経済で稼働中':'開放確認用・経済計算は未接続'):'開放データの史実照合待ち'}</p><p>${territories.join('、')}</p>
    <h3>都市・工業地域候補</h3><ul>${m.cities.map(c=>`<li>${esc(c.name)}</li>`).join('')}</ul>
    ${worldPhase3Preview(s,m,playable)}
-   ${playable?`<button class="btn sm" data-mk-region="${code}">地域経済を開く</button>`:''}</details>`;
+   ${codes.map(code=>`<button class="btn sm" data-mk-region="${code}">${codes.length>1?esc(NAMES[code])+'の':''}地域経済を開く</button>`).join('')}</details>`;
  });
  return `<section aria-label="40経済市場" class="grid" style="margin-bottom:16px">
   <section class="panel span12"><h2>世界の経済市場</h2>
@@ -13450,8 +13494,14 @@ function worldSupplyOffer(siteId,productId,name,firstYear,quantity,priceBase,sou
 }
 const WORLD_HOUNSLOW_FREIGHT_SOURCE='https://flyingmachines.ru/Site2/Crafts/Craft30102.htm';
 const WORLD_HOUNSLOW_CLOSE=ym(1920,3);
+const WORLD_ANTWERP_GLASS_SOURCE='https://www.govinfo.gov/content/pkg/SERIALSET-06040_00_00-002-1503-0000/pdf/SERIALSET-06040_00_00-002-1503-0000.pdf';
+const WORLD_ANTWERP_STEAM_SOURCE='https://newspaperarchive.com/new-york-times-apr-17-1910-p-13/';
 const WORLD_REGIONAL_SUPPLY=Object.freeze({
  // Verified port trade categories; unit costs and finite purchase caps are game fixtures.
+ 'BE-ANR-GLASS':worldSupplyOffer('BE-ANR','PRD-M11','アントワープの対米輸出用板ガラス',1910,120,28,
+  WORLD_ANTWERP_GLASS_SOURCE,1910),
+ 'BE-ANR-BUNKER-COAL':worldSupplyOffer('BE-ANR','PRD-R04','アントワープ港の汽船用石炭',1910,120,17,
+  WORLD_ANTWERP_STEAM_SOURCE,1910),
  'UK-HOUNSLOW-LEATHER':Object.freeze({siteId:'UK-HOUNSLOW-HEATH',productId:'PRD-M38',
   name:'ロンドンからパリ向けの航空貨物用皮革',opensAt:ym(1919,9),closesAt:WORLD_HOUNSLOW_CLOSE,
   quantity:40,priceBase:28,source:WORLD_HOUNSLOW_FREIGHT_SOURCE}),
@@ -14541,15 +14591,16 @@ function worldPhase3ConsumerProductionLimit(s,firm,plant,recipe,plannedUnits){
  const marketId=WORLD_TERRITORIES.get(WORLD_ENGINE_TERRITORY[firm.country])?.marketId;
  const market=WORLD_MARKET_BY_ID.get(marketId);
  if(!market||s.worldExpansion?.openMarkets[marketId]==null||!s.world?.[firm.country])return 0;
- const quote=worldPhase3ConsumerQuote(s,marketId,recipe.id);
+ const quote=worldPhase3ConsumerQuoteForEngine(s,market,recipe.id,firm.country);
  if(!quote.available)return 0;
- // Unlisted minor sites provisionally belong to the first major urban catchment.
- const cityId=WORLD_SITE_CITIES[plant.siteId]??market.cities[0].id;
+ // Unlisted sites use the first city within the modeled demand area.
+ const fallbackCityId=quote.cities[0].cityId;
+ const cityId=WORLD_SITE_CITIES[plant.siteId]??fallbackCityId;
  const cityDemand=quote.cities.find(c=>c.cityId===cityId)?.quantity??0;
  const peers=s.firms.reduce((count,c)=>count+
    (c.country!==firm.country||!c.auto||!isActiveCorporateFirm(c)?0:
     c.plants.filter(p=>p.worldPlan?.productId===recipe.id
-      &&(WORLD_SITE_CITIES[p.siteId]??market.cities[0].id)===cityId
+      &&(WORLD_SITE_CITIES[p.siteId]??fallbackCityId)===cityId
       &&worldDomesticSiteActive(p,p.siteId)).length),0);
  return Math.max(0,Math.min(plannedUnits,Math.ceil(cityDemand/Math.max(1,peers))));
 }
@@ -14562,9 +14613,10 @@ function worldPhase3RegionalB2BUnitPrice(s,seller,productId,receivingSiteId){
    ||!Number.isSafeInteger(stock.v)||stock.v<=0
    ||worldProductUnitClass(productId)!=='mass')
   throw Error('地域B2B参考価格に市場・原価・現物の裏付けがありません');
- const cityId=WORLD_SITE_CITIES[receivingSiteId]??market.cities[0].id;
- const city=worldPhase3CityShares(market).find(c=>c.cityId===cityId);
- const cityPressure=((city?.shareBps??0)-Math.floor(10000/market.cities.length))/10000;
+ const area=worldEngineMarketArea(s,market,seller.country);
+ const cityId=WORLD_SITE_CITIES[receivingSiteId]??area.cities[0].id;
+ const city=worldPhase3CityShares(area).find(c=>c.cityId===cityId);
+ const cityPressure=((city?.shareBps??0)-Math.floor(10000/area.cities.length))/10000;
  const orders=(s.worldExpansion.domesticOrders??[]).reduce((total,o)=>{
   if(o.status!=='OPEN'||o.productId!==productId)return total;
   const buyer=company(o.buyerId,s);
@@ -14610,6 +14662,8 @@ function worldInternationalRailProfile(from,to,opensAt,distanceKm,source){
   truck:'PRD-E16',fuelScale:1200});
 }
 const WORLD_INTERNATIONAL_CORRIDORS=Object.freeze({
+ 'BE-US-ANTWERP-GLASS':worldSteamshipProfile('BE-ANR','US-NYC',ym(1910,5),6400,28,24,2,
+  WORLD_ANTWERP_GLASS_SOURCE),
  'VN-FR-SAIGON-RICE':worldSteamshipProfile('VN-SGN','FR-MAR',ym(1907,4),12900,30,26,3,
   'https://www.entreprises-coloniales.fr/inde-indochine/Riziculture_indochinoise.pdf'),
  'IR-IN-BANDARABBAS-WOOL':worldSteamshipProfile('IR-BND','IN-BOM',ym(1905,4),1850,30,26,2,
@@ -14762,6 +14816,8 @@ const WORLD_INTERNATIONAL_CORRIDORS=Object.freeze({
 // the modeled capacity, distance or cost. The playable dates conservatively
 // allow time to pass after dated sources; they are not claimed opening dates.
 const WORLD_INTERNATIONAL_ROUTE_EVIDENCE=Object.freeze({
+ 'BE-US-ANTWERP-GLASS':Object.freeze({untilMonth:ym(1911,1),products:Object.freeze(['PRD-M11']),
+  source:WORLD_ANTWERP_GLASS_SOURCE,operationSource:WORLD_ANTWERP_STEAM_SOURCE}),
  'UK-FR-HOUNSLOW-LEATHER':Object.freeze({untilMonth:WORLD_HOUNSLOW_CLOSE,
   products:Object.freeze(['PRD-M38']),source:WORLD_HOUNSLOW_FREIGHT_SOURCE,
   operationSource:'https://www.aviationarchives.uk/Portal/AAAI/en-GB/RecordView/Index/1131025'}),

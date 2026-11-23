@@ -35,6 +35,16 @@ def main():
               &&Number.isSafeInteger(c.referencePrice)&&c.referencePrice>=0));
           const stable=quotes.every(q=>JSON.stringify(q)===
             JSON.stringify(worldPhase3ConsumerQuote(S,q.marketId,q.productId)));
+          const benelux=WORLD_MARKET_BY_ID.get('MKT-08');
+          const belgium=worldPhase3ConsumerQuoteForEngine(S,benelux,'PRD-C01','BE');
+          const netherlands=worldPhase3ConsumerQuote(S,'MKT-08','PRD-C01');
+          const jurisdictionDemand=belgium.country==='BE'&&belgium.cities.length===1
+            &&belgium.cities[0].cityId==='CITY-08-03'
+            &&belgium.cities[0].quantity===belgium.nationalQuantity
+            &&netherlands.country==='NL'
+            &&netherlands.cities.map(c=>c.cityId).join(',')==='CITY-08-01,CITY-08-02';
+          const initialMarketIds=new Set(worldInitialEngineCountries(WORLD_MARKET_REGISTRY_VERSION)
+            .map(code=>WORLD_TERRITORIES.get(WORLD_ENGINE_TERRITORY[code]).marketId));
           const japan=worldPhase3ConsumerQuote(S,'MKT-14','PRD-C01');
           const years=worldPhase3ConsumerQuote(S,'MKT-14','PRD-C29');
           const tiny=worldPhase3AllocateQuantity(7,WORLD_MARKET_BY_ID.get('MKT-14'));
@@ -58,11 +68,11 @@ def main():
                     &&opened.some(m=>m.id==='MKT-28')&&opened.some(m=>m.id==='MKT-29')
                     &&opened.some(m=>m.id==='MKT-30')&&opened.some(m=>m.id==='MKT-31')
                     &&opened.some(m=>m.id==='MKT-32')
-                    &&opened.length===worldInitialEngineCountries(WORLD_MARKET_REGISTRY_VERSION).length
+                    &&opened.length===initialMarketIds.size
                     &&opened.every(m=>Object.entries(WORLD_ENGINE_TERRITORY).some(([code,territoryId])=>
                       WORLD_TERRITORIES.get(territoryId)?.marketId===m.id
                       &&worldInitialEngineCountries(WORLD_MARKET_REGISTRY_VERSION).includes(code))),
-            products:consumer.length===30,fixed,conserved,stable,
+            products:consumer.length===30,fixed,conserved,stable,jurisdictionDemand,
             available:japan.nationalQuantity>0&&japan.referencePrice>0,
             era:!years.available&&years.nationalQuantity===0&&years.referencePrice===0,
             tiny:tiny.map(c=>c.quantity).join(',')==='3,2,1,1',

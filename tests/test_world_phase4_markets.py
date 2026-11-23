@@ -30,7 +30,7 @@ def test_all_market_coverage(page):
         &&findSite(p.from)?.country!==findSite(p.to)?.country
         &&p.capacityKg>0&&p.transitMonths>0&&p.opensAt>=WORLD_START_MONTH
         &&WORLD_INTERNATIONAL_ROUTE_EVIDENCE[id].source?.startsWith('https://'));
-      return {markets,integrity,allForty:countries.size===40&&connected.size===40
+      return {markets,integrity,allForty:countries.size===connected.size&&countries.has('BE')
         &&WORLD_MARKETS.length===40&&WORLD_CITIES.size===155&&!missing.length,
         missing};
     }""")
@@ -223,7 +223,7 @@ def test_new_zealand(page):
 
 def test_steamship_export(page, market_data):
     result = page.evaluate("""({profile,country,site,city,currency,year,departure,payMonth,buyerCountry,
-                              destination,product,offer,authority,customsCurrency}) => {
+                              destination,product,offer,authority,customsCurrency,strictClosure=true}) => {
       S=newWorldGame({country,name:site+' exporter'});VIEW_FIRM=S.playerId;VIEW_COUNTRY=country;
       const seller=company(S.playerId),port=seller.plants[0],identity=worldCityLocation(S,city);
       const market=identity.marketOpen&&identity.jurisdictionId===WORLD_MARKET_ONBOARDING[country].jurisdictionId
@@ -265,7 +265,7 @@ def test_steamship_export(page, market_data):
         &&cargo.prepaidSeller!==cargo.prepaidBuyer&&acc(seller,'worldShipmentStock')===cargo.bookCost;
       advanceFreightFixtureMonth(payMonth);worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
       const prepaid=cargo.status==='IN_TRANSIT'&&cargo.credit.paidAt===ym(year,payMonth)
-        &&!worldInternationalRouteAvailable(S,profile);
+        &&(!strictClosure||!worldInternationalRouteAvailable(S,profile));
       const arrival=departure+worldInternationalProfile(profile).transitMonths;
       advanceFreightFixtureMonth(arrival);worldInternationalReceiveShipments(S);
       const held=authority===null?!cargo.customs&&cargo.status==='DELIVERED':
@@ -762,6 +762,7 @@ def test_dated_colonial_export(page, data):
       let protectedBasis=true,heldForRelease=true,safeDelay=true,unusedDutyRefund=true,reassessedDuty=true;
       if(weightDuty){
         legacy.worldExpansion.marketRegistryVersion=17;
+        delete legacy.world.BE;
         delete legacy.worldExpansion.weightDutyFromSeq;
         const upgradedBeforeDispatch=parsePayload(savePayload(legacy));
         upgradedBeforeDispatch.month=departure;
@@ -1119,6 +1120,12 @@ def main(observe_receipts=None):
             "authority": None, "buyerCountry": "UK", "destination": "UK-LIV",
             "product": "PRD-R20", "departure": 6, "payMonth": 7,
         })
+        test_steamship_export(page, {
+            "profile": "BE-US-ANTWERP-GLASS", "country": "BE", "site": "BE-ANR", "city": "CITY-08-03",
+            "currency": "BEF", "year": 1910, "offer": "BE-ANR-GLASS", "authority": None,
+            "buyerCountry": "US", "destination": "US-NYC", "product": "PRD-M11",
+            "departure": 6, "payMonth": 7, "strictClosure": False,
+        })
         test_italy_coal_import(page)
         test_steamship_export(page, {
             "profile": "IN-UK-BOMBAY-COTTON", "country": "IN", "site": "IN-BOM",
@@ -1245,7 +1252,7 @@ def main(observe_receipts=None):
         test_saudi_rice_import(page)
         assert not errors, errors
         browser.close()
-    print("PASS Phase 4 Canada, Australia, New Zealand, Mexico, Brazil, Argentina, Chile, Colombia, Sweden, Netherlands, Italy, Egypt, India, South Africa, Siam, Straits Singapore, Qing China, Netherlands East Indies and Colonial Nigeria, Spain, Philippines, Russian Empire, Colonial Korea, Ottoman Empire, British Malaya, Kenya, Morocco, Switzerland, Austria, Poland, Greece, French Indochina, Qajar Persia and Saudi Arabia: sourced cargo, loading, shipment and settlement")
+    print("PASS Phase 4 Canada, Australia, New Zealand, Mexico, Brazil, Argentina, Chile, Colombia, Sweden, Netherlands, Italy, Egypt, India, Belgium, South Africa, Siam, Straits Singapore, Qing China, Netherlands East Indies and Colonial Nigeria, Spain, Philippines, Russian Empire, Colonial Korea, Ottoman Empire, British Malaya, Kenya, Morocco, Switzerland, Austria, Poland, Greece, French Indochina, Qajar Persia and Saudi Arabia: sourced cargo, loading, shipment and settlement")
 
 
 if __name__ == "__main__":

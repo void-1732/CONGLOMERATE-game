@@ -41,9 +41,9 @@ def main():
           }finally{location.cityId=originalCityId}
           const state=newWorldGame({country:'JP',name:'Phase1検証'});
           // Grouped legal jurisdictions do not imply a trading engine.
-          const incomplete=['CITY-05-03','CITY-05-04','CITY-08-03',
+          const incomplete=['CITY-05-03','CITY-05-04',
             'CITY-08-04','CITY-13-01','CITY-13-04'];
-          const registered=['CITY-05-01','CITY-08-02','CITY-13-02'];
+          const registered=['CITY-05-01','CITY-08-02','CITY-08-03','CITY-13-02'];
           const compositeClosed=incomplete.every(id=>{
             const city=worldCityLocation(state,id);
             return !city.marketOpen&&!city.economicEngineConnected;
@@ -130,6 +130,12 @@ def main():
             appliedEvents:oldWorld.appliedEvents
           });
           delete legacy.worldExpansion.weightDutyFromSeq;
+          delete legacy.world.BE;
+          delete legacy.npcSupplyV033.markets.BE;
+          ensureSupplyNetwork(legacy);
+          const belgiumLegacy=worldCityLocation(legacy,'CITY-08-03');
+          const belgiumBeforeUpgrade=belgiumLegacy.jurisdictionId===null
+            &&!belgiumLegacy.economicEngineConnected&&!belgiumLegacy.marketOpen;
           syncWorldIdentities(legacy);
           const oldAccepted=check(legacy).length===0;
           const upgraded=parsePayload(savePayload(legacy));
@@ -141,6 +147,10 @@ def main():
             &&check(upgraded).length===0;
           return {
             ...out,compositeClosed,compositeOpen,compositeLaw,portugalRepublic,upgradePreservesLedger,
+            belgiumBeforeUpgrade,
+            belgiumAfterUpgrade:worldCityLocation(upgraded,'CITY-08-03').marketOpen
+              &&upgraded.world.BE?.code==='BE'&&upgraded.world.NL?.code==='NL'
+              &&WORLD_ENGINE_BY_MARKET['MKT-08']==='NL',
             historicMoney,historicalMoneyIsNotLedger,
             firstHistory,secondHistory:!secondHistory,rejectsConflict,
             irelandBefore:first.territoryId==='TER-01-02'
