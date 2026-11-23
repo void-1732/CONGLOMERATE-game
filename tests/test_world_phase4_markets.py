@@ -1024,7 +1024,9 @@ def test_dated_colonial_export(page, data):
         delete legacy.world.BE;
         delete legacy.world.PT;
         for(const [code,row] of Object.entries(WORLD_MARKET_ONBOARDING))if(row.introducedIn>17){delete legacy.world[code];delete legacy.npcSupplyV033.markets[code];}
-        legacy.worldExpansion.appliedEvents=worldHistoryThrough(ym(legacy.year,legacy.month),17);
+        const oldWorld17=makeWorldExpansion(17);
+        for(const event of worldHistoryThrough(ym(legacy.year,legacy.month),17))recordWorldEvent(oldWorld17,event);
+        Object.assign(legacy.worldExpansion,{territoryJurisdictions:oldWorld17.territoryJurisdictions,openMarkets:oldWorld17.openMarkets,appliedEvents:oldWorld17.appliedEvents});
         delete legacy.worldExpansion.weightDutyFromSeq;
         const upgradedBeforeDispatch=parsePayload(savePayload(legacy));
         upgradedBeforeDispatch.month=departure;
@@ -1409,7 +1411,7 @@ def main(observe_receipts=None):
         test_italy_coal_import(page)
         test_portugal_coal_import(page)
         test_ireland_textiles_import(page)
-        for data in [{"code":"LU","city":"CITY-08-04","market":"MKT-08","jur":"JUR-LU","rep":"NL","open":None,"year":1913,"month":4,"destCountry":"FR","dest":"FR-THI","site":"LU-LUX","exportSite":None,"currency":"EUR","rail":True,"product":"PRD-R01","profile":"LU-FR-LUXEMBOURG-IRON"},{"code":"YU","city":"CITY-13-03","market":"MKT-13","jur":"JUR-YU","rep":"GR","open":[1918,12],"year":1922,"month":4,"destCountry":"IT","dest":"IT-TRI","site":"YU-ZAG","exportSite":None,"currency":"RSD","rail":True,"product":"PRD-R19","profile":"YU-IT-ZAGREB-TRIESTE-TIMBER"},{"code":"AL","city":"CITY-13-04","market":"MKT-13","jur":"JUR-AL","rep":"GR","open":[1912,12],"year":1937,"month":8,"destCountry":"IT","dest":"IT-BAR","site":"AL-TIR","exportSite":"AL-DUR","currency":"ALL","rail":False,"product":"PRD-R19","profile":"AL-IT-DURRES-BARI-TIMBER"}]:
+        for data in [{"code":"LU","city":"CITY-08-04","market":"MKT-08","jur":"JUR-LU","rep":"NL","open":None,"year":1913,"month":4,"destCountry":"FR","dest":"FR-LONGWY","site":"LU-LUX","exportSite":None,"currency":"EUR","rail":True,"product":"PRD-R01","profile":"LU-FR-LUXEMBOURG-IRON"},{"code":"YU","city":"CITY-13-03","market":"MKT-13","jur":"JUR-YU","rep":"GR","open":[1918,12],"year":1922,"month":4,"destCountry":"IT","dest":"IT-TRI","site":"YU-ZAG","exportSite":None,"currency":"RSD","rail":True,"product":"PRD-R19","profile":"YU-IT-ZAGREB-TRIESTE-TIMBER"},{"code":"AL","city":"CITY-13-04","market":"MKT-13","jur":"JUR-AL","rep":"GR","open":[1912,12],"year":1937,"month":8,"destCountry":"IT","dest":"IT-BAR","site":"AL-TIR","exportSite":"AL-DUR","currency":"ALL","rail":False,"product":"PRD-R19","profile":"AL-IT-DURRES-BARI-TIMBER"}]:
             test_remaining_jurisdictions(page,data)
         test_steamship_export(page, {
             "profile": "IN-UK-BOMBAY-COTTON", "country": "IN", "site": "IN-BOM",
