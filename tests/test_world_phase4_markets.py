@@ -385,6 +385,80 @@ def test_south_africa_union(page):
     }""")
     assert all(result.values()), result
 
+
+def test_nigeria_colonial_cocoa(page):
+    """1914 colonial amalgamation gate, WACB peg, 1922 Lagos-Liverpool cargo."""
+    result = page.evaluate("""() => {
+      const rejects=fn=>{try{fn();return false;}catch{return true;}};
+      S=newWorldGame({country:'UK',name:'Liverpool cocoa importer'});
+      VIEW_FIRM=S.playerId;VIEW_COUNTRY='UK';
+      const buyer=company(S.playerId),routeId='NG-UK-LAGOS-COCOA';
+      const initiallyClosed=!S.world.NG&&!worldCityLocation(S,'CITY-35-01').marketOpen
+        &&!worldInternationalRouteAvailable(S,routeId);
+      S.year=1913;S.month=12;S.monthCommitted=ym(1913,12)-1;
+      applyWorldHistory(S);
+      const preUnion=!S.world.NG;
+      S.year=1914;S.month=1;S.monthCommitted=ym(1914,1)-1;
+      applyWorldHistory(S);syncWorldIdentities(S);
+      const opened=S.world.NG?.code==='NG'
+        &&S.worldExpansion.openMarkets['MKT-35']===ym(1914,1)
+        &&worldCityLocation(S,'CITY-35-01').jurisdictionId==='JUR-NG-COLONY'
+        &&S.worldExpansion.appliedEvents.some(e=>e.id==='HIST-NG-1914');
+      S.year=1922;S.month=4;S.monthCommitted=ym(1922,4)-1;
+      applyWorldHistory(S);syncWorldIdentities(S);
+      PAGE='corporateSubsidiaries';render();
+      document.querySelector('#subName').value='Lagos cocoa producer';
+      document.querySelector('#subCountry').value='NG';
+      document.querySelector('#subIndustry').value='manufacturing';
+      document.querySelector('#subCapital').value='650000';
+      createSub();
+      const seller=S.firms.find(f=>f.name==='Lagos cocoa producer'),port=seller.plants[0],depot=buyer.plants[0];
+      depot.siteId='UK-LIV';
+      for(const f of [seller,buyer]){
+        f.auto=false;f.research.tree.done=[...new Set([...f.research.tree.done,'production-1'])];
+      }
+      for(const [f,id,value] of [[seller,'PRD-E18',2400],[buyer,'PRD-E20',700],[buyer,'PRD-E21',900]]){
+        post(f,{materials:value},{cash:value},'検証用の有償現物設備','operating',S);
+        f.stock[id]={q:1,v:value};
+      }
+      syncWorldIdentities(S);
+      const identity=S.worldExpansion.companies[seller.id];
+      const jurisdiction=identity.jurisdictionId==='JUR-NG-COLONY'
+        &&identity.currencyId==='CUR-WAP'&&firmCurrency(seller,S)==='WAP'
+        &&S.world.NG.fx===S.world.UK.fx
+        &&S.worldExpansion.facilities['FAC-'+port.id].locationId==='LOC-NG-LAG';
+      const originalStock=worldBuyRegionalSupply(S,seller.id,port.id,'NG-LAG-COCOA',14);
+      worldBuyRegionalSupply(S,seller.id,port.id,'NG-LAG-BUNKER-COAL',20);
+      const route=worldInternationalRegisterRoute(S,seller.id,routeId);
+      const warehouse=worldInternationalInstallWarehouse(S,buyer.id,depot.id,routeId);
+      const order=worldInternationalPlaceOrder(S,buyer.id,{
+        routeId:route.id,warehouseId:warehouse.id,productId:'PRD-R28',
+        quantity:14,cargoLitres:30,unitPriceSeller:40,
+        maxPaymentBuyer:100000,paymentDays:60});
+      worldInternationalActOrder(S,seller.id,order.id,'approve');
+      S.month=5;worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
+      const cargo=S.worldExpansion.internationalShipments.at(-1);
+      const shipped=originalStock.quantity===14&&cargo?.status==='IN_TRANSIT'
+        &&cargo.quantity===14&&cargo.loadKg===15&&cargo.fuelRequired>0
+        &&acc(seller,'worldShipmentStock')===cargo.bookCost
+        &&!buyer.stock['PRD-R28']?.q&&!check(S).length;
+      const forged=structuredClone(S);forged.worldExpansion.internationalShipments.at(-1).cargoLitres++;
+      const tamper=rejects(()=>parsePayload(savePayload(forged)));
+      S.month=6;worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
+      const prepaid=cargo.status==='IN_TRANSIT'&&cargo.credit.paidAt===ym(1922,6)
+        &&!worldInternationalRouteAvailable(S,routeId);
+      S.month=7;worldInternationalReceiveShipments(S);
+      const restored=parsePayload(savePayload(S));
+      const delivered=cargo.status==='DELIVERED'&&buyer.stock['PRD-R28'].q===14
+        &&buyer.stock['PRD-R28'].v===cargo.totalBuyer
+        &&!acc(seller,'worldShipmentStock')
+        &&!check(restored).length&&!consolidate(restored).errors.length;
+      const pegged=structuredClone(restored);pegged.world.NG.fx+=1;
+      const pegProtected=rejects(()=>parsePayload(savePayload(pegged)));
+      return {initiallyClosed,preUnion,opened,jurisdiction,shipped,tamper,prepaid,delivered,pegProtected};
+    }""")
+    assert all(result.values()), result
+
 def main():
     with sync_playwright() as pw:
         browser = pw.chromium.launch(
@@ -554,9 +628,24 @@ def main():
             "buyerCountry": "UK", "destination": "UK-LON",
             "product": "PRD-R29", "departure": 3, "payMonth": 4,
         })
+        test_steamship_export(page, {
+            "profile": "CN-UK-HANKOW-SOY", "country": "CN", "site": "CN-HAN",
+            "city": "CITY-15-04", "currency": "CNT", "year": 1907,
+            "offer": "CN-HAN-SOY", "authority": None,
+            "buyerCountry": "UK", "destination": "UK-LIV", "product": "PRD-R25",
+            "departure": 5, "payMonth": 6,
+        })
+        test_steamship_export(page, {
+            "profile": "ID-JP-BATAVIA-SUGAR", "country": "ID", "site": "ID-BAT",
+            "city": "CITY-18-01", "currency": "IDG", "year": 1907,
+            "offer": "ID-BAT-SUGAR", "authority": None,
+            "buyerCountry": "JP", "destination": "JP-YOK", "product": "PRD-M40",
+            "departure": 5, "payMonth": 6,
+        })
+        test_nigeria_colonial_cocoa(page)
         assert not errors, errors
         browser.close()
-    print("PASS Phase 4 Canada, Australia, New Zealand, Mexico, Brazil, Argentina, Chile, Colombia, Sweden, Netherlands, Italy, Egypt, India, South Africa, Siam and Straits Singapore: sourced cargo, loading, shipment and settlement")
+    print("PASS Phase 4 Canada, Australia, New Zealand, Mexico, Brazil, Argentina, Chile, Colombia, Sweden, Netherlands, Italy, Egypt, India, South Africa, Siam, Straits Singapore, Qing China, Netherlands East Indies and Colonial Nigeria: sourced cargo, loading, shipment and settlement")
 
 
 if __name__ == "__main__":
