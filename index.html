@@ -702,7 +702,7 @@ const COUNTRIES={
  // Provisional game coefficients, independent of the sourced opening event.
  NO:{currency:'NOK',fx:14,pop:2.24,wealth:.94,wage:136,demand:13,steel:449,rubber:311,steelSupply:90,rubberSupply:80}
 };
-const ACCTYPE={cash:'asset',materials:'asset',materialsTransit:'asset',componentStock:'asset',componentTransit:'asset',wip:'asset',goods:'asset',goodsTransit:'asset',constructionAssets:'asset',ppe:'asset',accdep:'contra',investment:'asset',ar:'asset',loanrec:'asset',resourceRights:'asset',worldShipmentStock:'asset',worldImportDutyPrepaid:'asset',worldStoredStock:'asset',worldInsuranceReserve:'asset',worldInsurancePrepaid:'asset',worldTravelAdvance:'asset',worldBankDeposits:'asset',worldBankReserve:'asset',worldSupplierAdvances:'asset',partReceivable:'asset',partPayable:'liability',worldCustomerAdvances:'liability',worldInsuranceUnearned:'liability',worldDemandDeposits:'liability',payable:'liability',wagesDue:'liability',debt:'liability',interestDue:'liability',taxDue:'liability',capital:'equity',treasuryStock:'contraEquity',sales:'revenue',serviceRevenue:'revenue',otherRevenue:'revenue',cogs:'expense',labor:'expense',rndExpense:'expense',advert:'expense',maintenance:'expense',interestExpense:'expense',depreciation:'expense',taxExpense:'expense',fxLoss:'expense',otherExpense:'expense'};
+const ACCTYPE={cash:'asset',materials:'asset',materialsTransit:'asset',componentStock:'asset',componentTransit:'asset',wip:'asset',goods:'asset',goodsTransit:'asset',constructionAssets:'asset',ppe:'asset',accdep:'contra',investment:'asset',ar:'asset',loanrec:'asset',resourceRights:'asset',worldShipmentStock:'asset',worldImportDutyPrepaid:'asset',worldInternationalReceivable:'asset',worldStoredStock:'asset',worldInsuranceReserve:'asset',worldInsurancePrepaid:'asset',worldTravelAdvance:'asset',worldBankDeposits:'asset',worldBankReserve:'asset',worldSupplierAdvances:'asset',partReceivable:'asset',partPayable:'liability',worldCustomerAdvances:'liability',worldInternationalPayable:'liability',worldInternationalDutyPayable:'liability',worldInsuranceUnearned:'liability',worldDemandDeposits:'liability',payable:'liability',wagesDue:'liability',debt:'liability',interestDue:'liability',taxDue:'liability',capital:'equity',treasuryStock:'contraEquity',sales:'revenue',serviceRevenue:'revenue',otherRevenue:'revenue',cogs:'expense',labor:'expense',rndExpense:'expense',advert:'expense',maintenance:'expense',interestExpense:'expense',depreciation:'expense',taxExpense:'expense',fxLoss:'expense',otherExpense:'expense'};
 const PAGES={dashboard:'経営概況',marketOwn:'自社グループ市場分析',market:'世界市場分析',product:'製品・開発',factory:'工場・調達',people:'研究・人事',finance:'財務・資金',group:'企業グループ',consolidated:'連結財務三表',reports:'月次レポート',save:'保存・設定'};
 /* STEP 2: navigation only. Every tab points to a current, fully functional PAGE.
    New specialized pages are created in STEP 3+, not silently replaced with placeholders.
@@ -3590,6 +3590,7 @@ async function runMonth(){
    worldInternationalResolveOrders(trial,events);
    worldPlanDomesticPurchases(trial,events);
   });
+  step('INTERNATIONAL_PAYMENTS',()=>worldInternationalSettleCredit(trial,events));
   step('EXPORTS',()=>deliverExports(trial,events));
   step('WARRANTIES',()=>{for(const f of trial.firms)processWarrantyMonth(trial,f,events)});
   step('SALES',()=>{sellMonthly(trial,events);settleRegionalSalesAgentsV035(trial,events)});
@@ -6248,11 +6249,15 @@ function inspectRecord(rec){if(!rec)return null;try{const s=parsePayload(rec.ser
 async function refreshSaveIndex(){if(!IDB)return;const meta=await idbRead('meta','active');SAVE_INDEX.active=meta?.slot??null;SAVE_INDEX.previous=meta?.previousSlot??null;SAVE_INDEX.activeChecksum=meta?.checksum??null;SAVE_INDEX.previousChecksum=meta?.previousChecksum??null;for(let i=0;i<3;i++)SAVE_INDEX.auto[i]=await idbRead('snapshots','auto:'+i);for(let i=0;i<3;i++)SAVE_INDEX.manual[i]=await idbRead('snapshots','manual:'+i);const archiveIndex=await idbRead('meta',MANUAL_ARCHIVE_META);SAVE_INDEX.manualArchive=Array.isArray(archiveIndex?.entries)?archiveIndex.entries:[]}
 async function saveAuto(){if(!IDB){const ok=!!S&&writeSafetySnapshotV037();if(S)S.autosaveState=ok?'保存成功':'保存失敗';saveWarning=ok?'IndexedDBが利用できないため、同一ブラウザの簡易バックアップを利用しています。JSON保存も推奨します。':'IndexedDBと簡易バックアップを利用できません。JSONで保存してください。';return ok}if(SAVE_BUSY){saveWarning='保存処理が重複しています';return false}SAVE_BUSY=true;
  try{const meta=await idbRead('meta','active');const slot=[0,1,2].find(i=>i!==meta?.slot&&i!==meta?.previousSlot);if(slot===undefined)throw Error('保存用の予備世代がありません');
+  const safetyAtCapture=storageGet(EMERGENCY_KEY);
   const snapshot=structuredClone(S);snapshot.autosaveState='保存成功';const raw=savePayload(snapshot);const rec=slotRecord('auto:'+slot,raw);
   // Prepare the inactive generation and verify its serialized state.
   await idbWrite('snapshots',rec);const reread=await idbRead('snapshots','auto:'+slot);if(!reread||reread.serialized!==raw)throw Error('保存内容の読み戻し照合に失敗');parsePayload(reread.serialized);
   // Publish the pointer only after validation.
-  await idbWrite('meta',{key:'active',slot,checksum:hash(raw),previousSlot:meta?.slot??null,previousChecksum:meta?.checksum??null,updatedAt:new Date().toISOString()});S.autosaveState='保存成功';saveWarning='';try{await pruneExpiredAutosavesV014(ym(snapshot.year,snapshot.month));}catch(e){console.warn('期限超過の自動保存を整理できませんでした',e);saveWarning='自動保存は成功しましたが、旧世代の整理は未完了です：'+e.message;}await refreshSaveIndex();writeSafetySnapshotV037(raw);return true;
+  await idbWrite('meta',{key:'active',slot,checksum:hash(raw),previousSlot:meta?.slot??null,previousChecksum:meta?.checksum??null,updatedAt:new Date().toISOString()});S.autosaveState='保存成功';saveWarning='';try{await pruneExpiredAutosavesV014(ym(snapshot.year,snapshot.month));}catch(e){console.warn('期限超過の自動保存を整理できませんでした',e);saveWarning='自動保存は成功しましたが、旧世代の整理は未完了です：'+e.message;}await refreshSaveIndex();
+  // An operation may have written a fresher synchronous backup while IDB was pending.
+  if(storageGet(EMERGENCY_KEY)===safetyAtCapture)writeSafetySnapshotV037(raw);
+  return true;
  }catch(e){S.autosaveState='保存失敗';saveWarning=String(e?.message||e);try{await refreshSaveIndex()}catch(_){}if(S&&writeSafetySnapshotV037()){S.autosaveState='保存成功';saveWarning='IndexedDBへの保存失敗。再読込用の簡易バックアップに保存しました。JSONバックアップも出力してください。';return true}return false}finally{SAVE_BUSY=false}}
 async function saveManual(){
  if(!IDB){toast('IndexedDBを使えません。JSONでバックアップしてください。');return}
@@ -6605,13 +6610,12 @@ function consolidate(s,rootId=s.playerId){
   t.status==='IN_TRANSIT'&&ids.has(t.sellerId)&&ids.has(t.buyerId));
  const advances=domesticAdvances.reduce((total,t)=>total+baseFromLocal(t.prepaid,company(t.buyerId,s).country),0);
  bs.assets-=advances;bs.liab-=advances;
- const internationalAdvances=(domestic?.internationalShipments??[]).filter(t=>
-  t.status==='IN_TRANSIT'&&ids.has(t.sellerId)&&ids.has(t.buyerId));
- const internationalAdvanceAsset=internationalAdvances.reduce((n,t)=>n+baseFromLocal(t.prepaidBuyer,company(t.buyerId,s).country),0);
- const internationalAdvanceLiability=internationalAdvances.reduce((n,t)=>n+baseFromLocal(t.prepaidSeller,company(t.sellerId,s).country),0);
- bs.assets-=internationalAdvanceAsset;bs.liab-=internationalAdvanceLiability;
- if(Math.abs(internationalAdvanceAsset-internationalAdvanceLiability)>2)
-  notes.push('国際グループ内前払の通貨換算差は期末ブリッジで監査');
+ const foreignBalances=worldInternationalOpenBalances(s,ids,(amount,f)=>baseFromLocal(amount,f.country));
+ const internationalAdvanceAsset=foreignBalances.advanceAsset;
+ bs.assets-=foreignBalances.advanceAsset+foreignBalances.creditAsset;
+ bs.liab-=foreignBalances.advanceLiability+foreignBalances.creditLiability;
+ if(Math.abs(foreignBalances.advanceAsset+foreignBalances.creditAsset-foreignBalances.advanceLiability-foreignBalances.creditLiability)>2)
+  notes.push('国際グループ内債権債務の通貨換算差は期末ブリッジで監査');
  const internalDeposits=worldInternalBankDeposits(s,ids,f=>COUNTRIES[f.country].fx);
  bs.assets-=internalDeposits;bs.liab-=internalDeposits;
  const assetCash=(domestic?.domesticAssetTransfers??[]).map(t=>({kind:'domesticAssetCash',
@@ -6646,13 +6650,13 @@ function consolidate(s,rootId=s.playerId){
    if(insidePeriod(claim)){insuranceCash.push(claim);insuranceInternalFees+=value(p.payout);}
   }
  }
- const internationalCash=(domestic?.internationalShipments??[]).flatMap(t=>{
-  const dispatch={kind:'domesticTradeCash',seller:t.sellerId,buyer:t.buyerId,yearMonth:t.dispatchedAt,
-   fromJournal:t.journals.dispatch+3,toJournal:t.journals.dispatch+2};
-  return t.status==='REFUNDED'?[dispatch,{...dispatch,yearMonth:t.refundedAt,
-   fromJournal:t.journals.terminal,toJournal:t.journals.terminal+1}]:[dispatch];
- });
- const cashTx=[...(s.intercompanyTx||[]),...developmentCashPairs(s),...partCashPairs(s),...assetCash,...tradeCash,...internationalCash,...storageCash,...phoneCash,...medicalCash,...insuranceCash].filter(t=>ids.has(t.seller)&&ids.has(t.buyer)&&insidePeriod(t));
+ const internationalLegs=new Map();
+ for(const t of worldInternationalCashPairs(s)){
+  if(!ids.has(t.seller)||!ids.has(t.buyer)||!insidePeriod(t))continue;
+  internationalLegs.set(t.fromJournal,t.fromCash);
+  internationalLegs.set(t.toJournal,t.toCash);
+ }
+ const cashTx=[...(s.intercompanyTx||[]),...developmentCashPairs(s),...partCashPairs(s),...assetCash,...tradeCash,...storageCash,...phoneCash,...medicalCash,...insuranceCash].filter(t=>ids.has(t.seller)&&ids.has(t.buyer)&&insidePeriod(t));
  const cashJournals=new Set();for(const t of cashTx)if(['loan','loanCash','interestCash','goods','developmentCash','partTradeCash','equityCash','domesticAssetCash','domesticTradeCash'].includes(t.kind))for(const id of [t.fromJournal,t.toJournal])if(id!==undefined)cashJournals.add(id);
  for(const l of activeLinks)if(l.kind==='foundation')for(const id of [l.buyerJournal,l.childJournal])if(id!==undefined)cashJournals.add(id);
  // Group assets minus group debts determine consolidated net equity. Subsidiary net
@@ -6694,21 +6698,17 @@ function consolidate(s,rootId=s.playerId){
  // Cash-flow classification for most recently committed month. Each legal entity's
  // cash journal is summed once, then linked internal cash legs are removed by ID.
  const period=s.monthCommitted;
- const cf={period,operating:0,investing:0,financing:0,net:0,internalEliminated:0,openingCash:null,closingCash:bs.cash,fxAndAcquisitions:0,reconciled:true,unlinked:[]};
+ const cf={period,operating:0,investing:0,financing:0,net:0,internalEliminated:0,internationalFxCash:0,openingCash:null,closingCash:bs.cash,fxAndAcquisitions:0,reconciled:true,unlinked:[]};
  for(const f of members){const start=opens[f.id]||0;for(const j of f.journals){if(j.when!==period||j.when<start)continue;
   const cash=(j.dr.filter(x=>x[0]==='cash').reduce((a,b)=>a+b[1],0)-j.cr.filter(x=>x[0]==='cash').reduce((a,b)=>a+b[1],0));if(!cash)continue;
   const base=baseFromLocal(cash,f.country);
   if(cashJournals.has(j.id)){cf.internalEliminated+=base;continue;}
-  const cat=j.kind==='financing'?'financing':j.kind==='investing'?'investing':'operating';cf[cat]+=base;
+  const foreign=baseFromLocal(internationalLegs.get(j.id)??0,f.country);
+  cf.internationalFxCash+=foreign;
+  const cat=j.kind==='financing'?'financing':j.kind==='investing'?'investing':'operating';cf[cat]+=base-foreign;
  }}
  for(const l of activeLinks){if(l.kind==='acquisition'&&l.month===period){cf.investing+=l.cashAcquiredBase||0;}}
- // Import duties are external cash even where the cross-border payment legs cancel.
- for(const t of internationalAdvances){
-  if(t.dispatchedAt===period&&t.dutyBuyer&&insidePeriod({seller:t.sellerId,buyer:t.buyerId,
-   kind:'domesticTradeCash',yearMonth:t.dispatchedAt,fromJournal:t.journals.dispatch+3,
-   toJournal:t.journals.dispatch+2}))
-   cf.operating-=baseFromLocal(t.dutyBuyer,company(t.buyerId,s).country);
- }
+ cf.operating+=cf.internationalFxCash;
  cf.net=cf.operating+cf.investing+cf.financing;
  const prior=[...(s.consoHistory||[])].reverse().find(x=>x.month===period-1);
  if(prior){cf.openingCash=prior.cash;cf.fxAndAcquisitions=bs.cash-prior.cash-cf.net;cf.reconciled=Math.abs(cf.fxAndAcquisitions)<=2;
@@ -6717,7 +6717,7 @@ function consolidate(s,rootId=s.playerId){
  if(warnings.length)notes.push('旧版の一部取得・内部取引は復元可能な範囲で照合しました');
  return {members:members.map(f=>f.id),shares:ownership.shares,links:acquired,bs,pl,cf,errors:[...new Set(errors)],notes:[...new Set(notes)],adjustments:{investment:internalInvest,goodwill:Math.round(goodwill),bargain:Math.round(bargain),inventoryProfit:inventoryProfit+parts.deferred+domesticCost.retained,internalSales:internalSales+parts.sales+domesticCost.sales+serviceFees+insuranceInternalFees,domesticInventoryProfit:domesticCost.retained,domesticInternalSales:domesticCost.sales,
   internationalInventoryProfit:internationalCost.retained,internationalInternalSales:internationalCost.sales,
-  internationalAdvanceEliminated:internationalAdvanceAsset,partClaimsEliminated:parts.claims,bankDepositsEliminated:internalDeposits,internalSellerCost,internalCostSold,interestRev,interestExp,loanRecEliminated,loanDebtEliminated,interestRecEliminated,interestDueEliminated},status:'連結試算・会計検算付き（取得時公正価値評価と外貨換算は未確定）'};
+  internationalAdvanceEliminated:internationalAdvanceAsset,internationalCreditEliminated:foreignBalances.creditAsset,partClaimsEliminated:parts.claims,bankDepositsEliminated:internalDeposits,internalSellerCost,internalCostSold,interestRev,interestExp,loanRecEliminated,loanDebtEliminated,interestRecEliminated,interestDueEliminated},status:'連結試算・会計検算付き（取得時公正価値評価と外貨換算は未確定）'};
 }
 
 /* v0.4 accounting review: no claim of full IFRS/J-GAAP compliance. Currency closing
@@ -6739,10 +6739,13 @@ function closingFxBridge(s,memberFirms,g){
 // Reconcile only paired intercompany foreign-currency settlement cash legs.
 function worldInternationalCashPairs(s){
  return (s.worldExpansion?.internationalShipments??[]).flatMap(t=>{
-  const dispatch={kind:'domesticTradeCash',seller:t.sellerId,buyer:t.buyerId,yearMonth:t.dispatchedAt,
-   fromJournal:t.journals.dispatch+3,toJournal:t.journals.dispatch+2};
-  return t.status==='REFUNDED'?[dispatch,{...dispatch,yearMonth:t.refundedAt,
-   fromJournal:t.journals.terminal,toJournal:t.journals.terminal+1}]:[dispatch];
+  if(!worldInternationalAdvanceFunded(t))return [];
+  const payment={kind:'domesticTradeCash',seller:t.sellerId,buyer:t.buyerId,
+   yearMonth:t.credit?.paidAt??t.dispatchedAt,fromJournal:t.credit?t.credit.journal+1:t.journals.dispatch+3,
+   toJournal:t.credit?.journal??t.journals.dispatch+2,fromCash:t.prepaidSeller,toCash:-t.prepaidBuyer};
+  return t.status==='REFUNDED'?[payment,{...payment,yearMonth:t.refundedAt,
+   fromJournal:t.refund?.journal??t.journals.terminal,toJournal:(t.refund?.journal??t.journals.terminal)+1,
+   fromCash:-t.prepaidSeller,toCash:t.prepaidBuyer}]:[payment];
  });
 }
 function computePeriodCF(s,rootId,g,bridge){
@@ -6758,7 +6761,7 @@ function computePeriodCF(s,rootId,g,bridge){
   const entering=scopeHistory.filter(l=>l.childId===f.id&&l.month===opens[f.id]);
   if(entering.length)linksEntering.set(f.id,entering.sort((a,b)=>a.buyerJournal-b.buyerJournal)[0]);
  }
- const ignored=new Set();let loanPairs=0;
+ const ignored=new Set(),internationalLegs=new Map();let loanPairs=0;
  for(const t of [...(s.intercompanyTx||[]),...developmentCashPairs(s),...partCashPairs(s),...worldTelephoneCashPairs(s),...worldMedicalCashPairs(s),...worldInternationalCashPairs(s)]){
   if(!memberIds.has(t.seller)||!memberIds.has(t.buyer))continue;
   if(t.yearMonth<Math.max(opens[t.seller]??0,opens[t.buyer]??0))continue;
@@ -6769,7 +6772,11 @@ function computePeriodCF(s,rootId,g,bridge){
    };
    if([[t.seller,t.fromJournal],[t.buyer,t.toJournal]].some(beforeEntry))continue;
   }
-  if(['loan','loanCash','interestCash','goods','developmentCash','partTradeCash','equityCash','domesticTradeCash'].includes(t.kind)){
+  if(t.fromCash!==undefined){
+   internationalLegs.set(t.fromJournal,t.fromCash);
+   internationalLegs.set(t.toJournal,t.toCash);
+   loanPairs++;
+  }else if(['loan','loanCash','interestCash','goods','developmentCash','partTradeCash','equityCash','domesticTradeCash'].includes(t.kind)){
    if(Number.isInteger(t.fromJournal))ignored.add(t.fromJournal);
    if(Number.isInteger(t.toJournal))ignored.add(t.toJournal);loanPairs++;
   }
@@ -6783,7 +6790,7 @@ function computePeriodCF(s,rootId,g,bridge){
  let opening=previous?.fxCash??previous?.cash;
  if(opening===undefined&&foundingBaseline&&period===ym(s.startYear,1))opening=foundingBaseline.baseCash;
  const cf={revision:4,period,operating:0,investing:0,financing:0,net:0,openingCash:opening??null,
-  closingCash:bridge.cash,fxTranslation:0,scopeAdded:0,unreconciled:0,reconciled:false,
+  closingCash:bridge.cash,fxTranslation:0,internationalFxCash:0,scopeAdded:0,unreconciled:0,reconciled:false,
   internalCashLegs:loanPairs,externalCashJournals:0,fromCommittedSnapshot:false,rateMethod:'journal-recognition spot / period-end spot'};
  const byCompany={};
  for(const f of members){
@@ -6795,8 +6802,15 @@ function computePeriodCF(s,rootId,g,bridge){
    const value=cashOfJournal(j);if(!value)continue;
    const rate=Number(j.fxAtPost??COUNTRIES[f.country].fx);
    const category=j.kind==='financing'?'financing':j.kind==='investing'?'investing':'operating';
-   cf[category]+=Math.round(value*rate);cf.externalCashJournals++;
-   debit+=value;expense+=value*rate;
+   const internal=internationalLegs.get(j.id)??0;
+   const external=value-internal;
+   // Exclude qualifying intercompany cash legs from external receipts and payments.
+   // Customs on the buyer journal is external. Conversion differences are kept separately.
+   const recognizedExternal=Math.round(external*rate);
+   cf[category]+=recognizedExternal;
+   cf.internationalFxCash+=Math.round(value*rate)-recognizedExternal;
+   if(external)cf.externalCashJournals++;
+   debit+=external;expense+=external*rate;
   }
   byCompany[f.id]={cashFlowLocal:debit,translatedCashFlow:expense};
  }
@@ -6811,12 +6825,7 @@ function computePeriodCF(s,rootId,g,bridge){
   const add=Math.round(local*fx);cf.investing+=add;cf.scopeAdded+=add;
   acquisitionInputs[l.childId]={local,fx};
  }
- for(const t of s.worldExpansion?.internationalShipments??[]){
-  if(t.dispatchedAt!==period||!t.dutyBuyer||!memberIds.has(t.sellerId)
-   ||!memberIds.has(t.buyerId)||t.dispatchedAt<Math.max(opens[t.sellerId]??0,opens[t.buyerId]??0))continue;
-  const buyer=company(t.buyerId,s),j=buyer.journals.find(x=>x.id===t.journals.dispatch+2);
-  cf.operating-=Math.round(t.dutyBuyer*Number(j?.fxAtPost??COUNTRIES[buyer.country].fx));
- }
+ cf.operating+=cf.internationalFxCash;
  cf.net=cf.operating+cf.investing+cf.financing;
  if(opening===null||opening===undefined){cf.unreconciled=null;return cf;}
  let fx=0,canExplain=true;
@@ -6885,10 +6894,9 @@ function accountingFxReview(s,rootId,g){
  const parts=partConsolidation(s,members,historical,starts,s.monthCommitted,g.shares);
  const international=worldInternationalConsolidationAdjustments(s,ids,t=>
   t.yearMonth>=Math.max(starts[t.seller]??Number.MAX_SAFE_INTEGER,starts[t.buyer]??Number.MAX_SAFE_INTEGER),g.shares);
- const openInternational=(s.worldExpansion?.internationalShipments??[]).filter(t=>
-  t.status==='IN_TRANSIT'&&ids.has(t.buyerId)&&ids.has(t.sellerId));
- const internationalOpenAsset=openInternational.reduce((n,t)=>n+Math.round(t.prepaidBuyer*balanceFxRate(s,company(t.buyerId,s))),0);
- const internationalOpenLiability=openInternational.reduce((n,t)=>n+Math.round(t.prepaidSeller*balanceFxRate(s,company(t.sellerId,s))),0);
+ const foreignBalances=worldInternationalOpenBalances(s,ids,(amount,f)=>Math.round(amount*balanceFxRate(s,f)));
+ const internationalOpenAsset=foreignBalances.advanceAsset+foreignBalances.creditAsset;
+ const internationalOpenLiability=foreignBalances.advanceLiability+foreignBalances.creditLiability;
  const byId=new Map();let grossAssets=0,grossLiabilities=0,grossCash=0;
  for(const f of members){
   const rate=balanceFxRate(s,f),fin=financials(f);
@@ -6981,7 +6989,8 @@ function accountingFxReview(s,rootId,g){
   loanRecEliminated:loanReceivable,loanDebtEliminated:loanPayable,
   interestRecEliminated:interestReceivable,interestDueEliminated:interestPayable,bankDepositsEliminated:internalDeposits,
   checkDifference:a-l-(totalEquity-nci)-nci,
-  internationalInternalAdvances:internationalOpenAsset,internationalDeferredProfit:international.spotRetained,
+  internationalInternalAdvances:foreignBalances.advanceAsset,internationalInternalCredit:foreignBalances.creditAsset,
+  internationalDeferredProfit:international.spotRetained,
   fxVsReference:{assets:a-g.bs.assets,liabilities:l-g.bs.liab,equity:totalEquity-g.bs.equity},
   loanTranslationDifference:(loanReceivable+interestReceivable)-(loanPayable+interestPayable)};
  // Period-only accrued P&L at recognition-date FX. This is not the conversion of
@@ -7102,7 +7111,8 @@ function consolidatedPage(){const g=consolidate(S,S.playerId),b=g.bs,p=g.pl,c=g.
  <div class="grid"><section class="panel span6"><h2>連結貸借対照表（BS）・現時点</h2>${resultRows([['現金',b.cash],['商品在庫（内部利益消去後）',b.goods],['取得差額（正ののれん）',b.goodwill],['総資産',b.assets,true],['負債',b.liab],['親会社株主帰属純資産',b.parentEquity],['非支配株主持分',b.nci],['負債＋純資産',b.liab+b.parentEquity+b.nci,true],['貸借照合差額',b.liabEquityDiff,true]])}</section>
  <section class="panel span6"><h2>連結損益計算書（PL）・取得後累計</h2>${resultRows([['外部売上・収益（内部売上消去後）',p.revenue],['費用・売上原価（内部調整後）',p.expenses],['帳簿価額基準の割安取得益（仮）',p.bargainGain],['連結当期までの累計損益',p.profit,true],['非支配株主帰属分',p.nciProfit],['親会社株主帰属分',p.parentProfit,true]])}<p class="footnote">取得以前の損益は取得元帳から判定可能な範囲で控除します。過去の取得時点・PPAが欠落する旧セーブでは精度が制限されます。</p></section>
  <section class="panel span6"><h2>連結キャッシュフロー（CF）・直近確定月</h2>${resultRows([['営業キャッシュフロー',c.operating],['投資キャッシュフロー',c.investing],['財務キャッシュフロー',c.financing],['外部との純キャッシュフロー',c.net,true],['前月末連結現金',c.openingCash??0],['当月末連結現金',c.closingCash,true],['取得した会社の現金（投資CF内訳）',c.scopeAdded],['換算差（非資金項目）',c.fxTranslation],['CF照合差額（端数含む）',c.unreconciled??0]])}<p class="footnote">直近確定月：${Math.floor(c.period/12)}年${c.period%12+1}月。${c.fromCommittedSnapshot?'月末の確定時点に保存したCF履歴を表示。':'当月の仕訳と取得範囲から計算。'} 為替換算差は営業・投資・財務CFに含めず別記。照合結果：${c.reconciled?'一致':'要確認'}。差額の許容値：${formatBase(c.roundingTolerance||0)}。未照合額は利益・CFに自動加算しません。</p></section>
- <section class="panel span6"><h2>連結調整・検算</h2>${resultRows([['親子会社の投資勘定消去',g.adjustments.investment],['内部貸付債権消去',g.adjustments.loanRecEliminated],['内部借入債務消去',g.adjustments.loanDebtEliminated],['内部預金債権・債務消去',g.adjustments.bankDepositsEliminated],['帳簿価額ベースのれん（仮）',g.adjustments.goodwill],['内部売上消去',g.adjustments.internalSales],['内部在庫未実現利益消去',g.adjustments.inventoryProfit],['部品・使用料の内部売掛買掛消去',g.adjustments.partClaimsEliminated],['未収利息消去',g.adjustments.interestRecEliminated],['未払利息消去',g.adjustments.interestDueEliminated],['内部金利収益消去',g.adjustments.interestRev],['内部金利費用消去',g.adjustments.interestExp]])}<div class="sep"></div>${g.errors.length?g.errors.map(x=>`<div class="notice">${tag('異常','bad')} ${esc(x)}</div>`).join(''):tag('構造・貸借の検算通過','good')}${g.notes.map(x=>`<p class="small muted">・${esc(x)}</p>`).join('')}</section>
+ <section class="panel span6"><h2>連結調整・検算</h2>${resultRows([['親子会社の投資勘定消去',g.adjustments.investment],['内部貸付債権消去',g.adjustments.loanRecEliminated],['内部借入債務消去',g.adjustments.loanDebtEliminated],['内部預金債権・債務消去',g.adjustments.bankDepositsEliminated],
+ ['国際掛取引の内部債権消去',g.adjustments.internationalCreditEliminated],['帳簿価額ベースのれん（仮）',g.adjustments.goodwill],['内部売上消去',g.adjustments.internalSales],['内部在庫未実現利益消去',g.adjustments.inventoryProfit],['部品・使用料の内部売掛買掛消去',g.adjustments.partClaimsEliminated],['未収利息消去',g.adjustments.interestRecEliminated],['未払利息消去',g.adjustments.interestDueEliminated],['内部金利収益消去',g.adjustments.interestRev],['内部金利費用消去',g.adjustments.interestExp]])}<div class="sep"></div>${g.errors.length?g.errors.map(x=>`<div class="notice">${tag('異常','bad')} ${esc(x)}</div>`).join(''):tag('構造・貸借の検算通過','good')}${g.notes.map(x=>`<p class="small muted">・${esc(x)}</p>`).join('')}</section>
  <section class="panel span6"><h2>全科目・期末為替換算BS（v0.5試算）</h2>${resultRows([['現金（期末スポット）',g.spot.cash],['連結総資産（期末レート）',g.spot.assets,true],['連結負債（期末レート）',g.spot.liabilities],['親会社帰属純資産（暫定）',g.spot.parentEquity],['非支配株主持分（暫定）',g.spot.nci],['負債＋純資産',g.spot.liabilities+g.spot.parentEquity+g.spot.nci,true],['期末換算BS差額',g.spot.checkDifference],['固定参照レートとの総資産差',g.spot.fxVsReference.assets]])}<p class="footnote">資産・負債は各法人の決算時点スポットレートで一括換算。取得原価は親会社通貨の帳簿残高、暫定のれんは取得先通貨で換算。資本の歴史的レート換算と為替換算調整勘定（OCI）は未実装のため、正式連結BSではありません。</p></section>
  <section class="panel span6"><h2>直近確定月・取引時為替換算PL（v0.5試算）</h2>${resultRows([['外部収益（内部消去後）',g.periodPL.revenue],['費用（内部消去・棚卸調整後）',g.periodPL.expenses],['帳簿価額基準の割安取得益（仮）',g.periodPL.acquisitionDiscountGainProvisional],['当月連結損益',g.periodPL.profit,true],['非支配株主帰属損益（暫定）',g.periodPL.nciProfit],['親会社帰属損益（暫定）',g.periodPL.parentProfit,true],['当月の内部売上消去',g.periodPL.internalSalesEliminated],['うち部品売買・使用料',g.periodPL.partInternalSalesEliminated??0],['内部棚卸利益の増減',g.periodPL.inventoryDeferralChange]])}<p class="footnote">${Math.floor(g.periodPL.period/12)}年${g.periodPL.period%12+1}月の仕訳を認識時レートで換算し、取得以前の損益を除外。当月確定時点のPLを保持し、その後の取得などで過去月を再計算しません。期中の取得時配賦と非支配損益の複雑な帰属は暫定です。</p></section>
  ${g.spotWarnings.map(x=>`<div class="panel span12 footnote">${esc(x)}</div>`).join('')}
@@ -13447,7 +13457,39 @@ function worldInternationalCargoAllowed(productId){
  const product=WORLD_PRODUCT_BY_ID.get(productId);
  return !!product&&['resource','material'].includes(product.category)&&worldDomesticDryCargo(productId,{});
 }
-function worldInternationalPlaceOrder(s,buyerId,{routeId,warehouseId,productId,quantity,unitPriceSeller,maxPaymentBuyer}){
+const WORLD_INTERNATIONAL_PAYMENT_DAYS=new Set([0,30,60,90]);
+function worldInternationalCreditDeadline(acceptedMonth,days){
+ const date=new Date(Date.UTC(Math.floor(acceptedMonth/12),acceptedMonth%12,1+days));
+ return {dueDate:date.toISOString().slice(0,10),dueMonth:ym(date.getUTCFullYear(),date.getUTCMonth()+1)};
+}
+function worldInternationalAdvanceFunded(t){
+ return !t.credit||t.credit.paidAt!==null;
+}
+function worldInternationalOpenBalances(s,ids,translate){
+ const balances={advanceAsset:0,advanceLiability:0,creditAsset:0,creditLiability:0};
+ for(const t of s.worldExpansion?.internationalShipments??[]){
+  if(!ids.has(t.sellerId)||!ids.has(t.buyerId))continue;
+  const paid=worldInternationalAdvanceFunded(t);
+  const seller=company(t.sellerId,s),buyer=company(t.buyerId,s);
+  if(t.status==='IN_TRANSIT'&&paid){
+   balances.advanceAsset+=translate(t.prepaidBuyer,buyer);
+   balances.advanceLiability+=translate(t.prepaidSeller,seller);
+  }else if(t.status==='DELIVERED'&&!paid){
+   balances.creditAsset+=translate(t.prepaidSeller,seller);
+   balances.creditLiability+=translate(t.prepaidBuyer,buyer);
+  }else if(t.status==='REFUND_PENDING'){
+   balances.creditAsset+=translate(t.prepaidBuyer,buyer);
+   balances.creditLiability+=translate(t.prepaidSeller,seller);
+  }
+ }
+ return balances;
+}
+function worldInternationalBuyerSettlementAccounts(t,advance){
+ const goods=advance?'worldSupplierAdvances':'worldInternationalPayable';
+ const duty=advance?'worldImportDutyPrepaid':'worldInternationalDutyPayable';
+ return {[goods]:t.prepaidBuyer,...(t.dutyBuyer?{[duty]:t.dutyBuyer}:{})};
+}
+function worldInternationalPlaceOrder(s,buyerId,{routeId,warehouseId,productId,quantity,unitPriceSeller,maxPaymentBuyer,paymentDays=0}){
  const w=s.worldExpansion,route=w?.internationalRoutes?.[routeId],
   warehouse=w?.internationalWarehouses?.[warehouseId],
   profile=WORLD_INTERNATIONAL_CORRIDORS[route?.profileId],
@@ -13462,10 +13504,11 @@ function worldInternationalPlaceOrder(s,buyerId,{routeId,warehouseId,productId,q
   ||!worldInternationalCargoAllowed(productId)
   ||!Number.isSafeInteger(quantity)||quantity<1||quantity>100000
   ||!Number.isSafeInteger(unitPriceSeller)||unitPriceSeller<1||unitPriceSeller>10000000
-  ||!Number.isSafeInteger(maxPaymentBuyer)||maxPaymentBuyer<1||maxPaymentBuyer>1000000000)
+  ||!Number.isSafeInteger(maxPaymentBuyer)||maxPaymentBuyer<1||maxPaymentBuyer>1000000000
+  ||!WORLD_INTERNATIONAL_PAYMENT_DAYS.has(paymentDays))
   throw Error('国際注文の実経路・受入設備・物理貨物・数量・外貨上限が不正');
  const order={id:'IO-'+s.seq++,routeId,warehouseId,sellerId:seller.id,buyerId,
-  productId,quantity,unitPriceSeller,maxPaymentBuyer,placedAt:ym(s.year,s.month),
+  productId,quantity,unitPriceSeller,maxPaymentBuyer,paymentDays,placedAt:ym(s.year,s.month),
   status:'OPEN',sellerDecision:null,decisionAt:null,closedAt:null,acceptedQty:0,shipmentId:null,result:null};
  (w.internationalOrders??=[]).push(order);
  return order;
@@ -13492,7 +13535,7 @@ function worldInternationalTariffBps(s,country){
 function worldInternationalFuelRequired(profile,quantity){
  return Math.ceil(profile.distanceKm*quantity/(profile.fuelScale??600));
 }
-function worldInternationalQuote(s,route,productId,quantity,unitPriceSeller,buyerId){
+function worldInternationalQuote(s,route,productId,quantity,unitPriceSeller,buyerId,paymentDays=0){
  const seller=company(route.ownerCompanyId,s),buyer=company(buyerId,s),
   profile=worldInternationalProfile(route.profileId),
   cargo=seller.stock?.[productId],fuel=seller.stock?.[profile.fuel];
@@ -13516,7 +13559,7 @@ function worldInternationalQuote(s,route,productId,quantity,unitPriceSeller,buye
   ||!Number.isSafeInteger(bookCost)||bookCost<1||!Number.isSafeInteger(fuelCost)||fuelCost<1
   ||!Number.isSafeInteger(goodsSeller)||goodsSeller<1||!Number.isSafeInteger(prepaidBuyer)
   ||prepaidBuyer<1||!sellerRate||!buyerRate||acc(seller,'materials')<bookCost+fuelCost
-  ||acc(buyer,'cash')<totalBuyer)
+  ||(!paymentDays&&acc(buyer,'cash')<totalBuyer))
   return {problem:'国際取引の原価・通貨換算・実残高が不足'};
  return {quantity,unitPriceSeller,bookCost,fuelRequired,fuelCost,goodsSeller,
   prepaidSeller,prepaidBuyer,sellerRate,buyerRate,tariffBps,dutyBuyer,totalBuyer};
@@ -13549,7 +13592,8 @@ function worldInternationalResolveOrders(s,events=[]){
   const limit=Math.min(o.quantity,Math.floor(route.capacityKg*(route.condition??100)/100)-occupied,
    Math.floor(profile.warehouseCapacityKg*(h.condition??100)/100)-reserved,seller.stock?.[o.productId]?.q??0);
   for(let q=limit;q>=1;q--){
-   const quote=worldInternationalQuote(s,route,o.productId,q,o.unitPriceSeller,buyer.id);
+   const paymentDays=o.paymentDays??0;
+   const quote=worldInternationalQuote(s,route,o.productId,q,o.unitPriceSeller,buyer.id,paymentDays);
    if(quote.problem||quote.totalBuyer>o.maxPaymentBuyer||quote.goodsSeller<quote.bookCost)continue;
    const start=s.seq,provenance={},fuelProvenance={};
    consume(seller,o.productId,q,provenance);
@@ -13559,15 +13603,19 @@ function worldInternationalResolveOrders(s,events=[]){
     '国際貨物の所有権留保・輸送中在庫','operating',s);
    post(seller,{otherExpense:quote.fuelCost},{materials:quote.fuelCost},
     '国際実貨物・車両燃料消費','operating',s);
-   post(buyer,{worldSupplierAdvances:quote.prepaidBuyer,...(quote.dutyBuyer?{worldImportDutyPrepaid:quote.dutyBuyer}:{})},
-    {cash:quote.totalBuyer},'国際貨物の外貨換算前払・輸入関税','operating',s);
-   post(seller,{cash:quote.prepaidSeller},{worldCustomerAdvances:quote.prepaidSeller},
-    '国際貨物の検収前前受金','operating',s);
+   if(!paymentDays){
+    post(buyer,worldInternationalBuyerSettlementAccounts(quote,true),{cash:quote.totalBuyer},
+     '国際貨物の外貨換算前払・輸入関税','operating',s);
+    post(seller,{cash:quote.prepaidSeller},{worldCustomerAdvances:quote.prepaidSeller},
+     '国際貨物の検収前前受金','operating',s);
+   }
    const t={id:'IS-'+s.seq++,orderId:o.id,routeId:route.id,warehouseId:h.id,
     sellerId:seller.id,buyerId:buyer.id,sellerPlantId:route.plantId,buyerPlantId:h.plantId,
     productId:o.productId,dispatchedAt:month,dueAt:month+profile.transitMonths,
     status:'IN_TRANSIT',receivedAt:null,refundedAt:null,
     ...quote,journals:{dispatch:start,terminal:null}};
+   if(paymentDays)t.credit={...worldInternationalCreditDeadline(month,paymentDays),
+    paidAt:null,journal:null,buyerFx:null,sellerFx:null};
    if(provenance.internationalCostLayers)t.internationalCostLayers=provenance.internationalCostLayers;
    (w.internationalShipments??=[]).push(t);
    o.acceptedQty=q;o.shipmentId=t.id;o.status=q===o.quantity?'FILLED':'PARTIAL';
@@ -13593,14 +13641,13 @@ function worldInternationalReceiveShipments(s,events=[]){
    ||!worldDomesticSiteActive(seller?.plants.find(p=>p.id===t.sellerPlantId),profile.from)
    ||!worldDomesticSiteActive(bp,profile.to)
    ||(buyer.stock[t.productId]?.q??0)+t.quantity>Math.floor(bp.capacity*10))continue;
-  const start=s.seq;
-  post(seller,{worldCustomerAdvances:t.prepaidSeller},
-   {sales:t.goodsSeller,otherExpense:t.fuelCost},
+  const start=s.seq,prepaid=worldInternationalAdvanceFunded(t);
+  const sellerAccount=prepaid?'worldCustomerAdvances':'worldInternationalReceivable';
+  post(seller,{[sellerAccount]:t.prepaidSeller},{sales:t.goodsSeller,otherExpense:t.fuelCost},
    '国際貨物の現物検収・売上と実燃料精算','operating',s);
   post(seller,{cogs:t.bookCost},{worldShipmentStock:t.bookCost},
    '国際貨物の検収済売上原価','operating',s);
-  post(buyer,{materials:t.totalBuyer??t.prepaidBuyer},
-   {worldSupplierAdvances:t.prepaidBuyer,...(t.dutyBuyer?{worldImportDutyPrepaid:t.dutyBuyer}:{})},
+  post(buyer,{materials:t.totalBuyer??t.prepaidBuyer},worldInternationalBuyerSettlementAccounts(t,prepaid),
    '国際貨物の換算取得原価・実物検収','operating',s);
   const stock=buyer.stock[t.productId]??={q:0,v:0};
   stock.q+=t.quantity;stock.v+=t.totalBuyer??t.prepaidBuyer;
@@ -13610,23 +13657,56 @@ function worldInternationalReceiveShipments(s,events=[]){
   events.push('国際現物貨物検収 '+t.id+' '+t.quantity+' kg');
  }
 }
+function worldInternationalSettleCredit(s,events=[]){
+ const month=ym(s.year,s.month);
+ for(const t of s.worldExpansion?.internationalShipments??[]){
+  if(t.status==='REFUND_PENDING'){
+   const buyer=company(t.buyerId,s),seller=company(t.sellerId,s);
+   if(acc(seller,'cash')<t.prepaidSeller)continue;
+   t.refund.journal=s.seq;
+   post(seller,{worldInternationalPayable:t.prepaidSeller},{cash:t.prepaidSeller},'国際未納・返金債務の決済','operating',s);
+   post(buyer,{cash:t.prepaidBuyer},{worldInternationalReceivable:t.prepaidBuyer},'国際未納・返金債権の回収','operating',s);
+   t.status='REFUNDED';t.refundedAt=month;
+   events.push('国際未納貨物の返金決済 '+t.id);
+   continue;
+  }
+  const credit=t.credit;
+  if(!credit||credit.paidAt!==null||credit.dueMonth>month||t.status==='REFUNDED')continue;
+  const buyer=company(t.buyerId,s),seller=company(t.sellerId,s);
+  if(acc(buyer,'cash')<t.totalBuyer)continue;
+  const advance=t.status==='IN_TRANSIT',journal=s.seq;
+  const sellerAccount=advance?'worldCustomerAdvances':'worldInternationalReceivable';
+  post(buyer,worldInternationalBuyerSettlementAccounts(t,advance),{cash:t.totalBuyer},
+   advance?'国際貨物・納品前の掛代金を前払い':'国際貨物・検収済掛代金の支払い','operating',s);
+  post(seller,{cash:t.prepaidSeller},{[sellerAccount]:t.prepaidSeller},
+   advance?'国際貨物・納品前の掛代金を前受け':'国際貨物・検収済掛代金の回収','operating',s);
+  Object.assign(credit,{paidAt:month,journal,buyerFx:Math.round(s.world[buyer.country].fx*100000),
+   sellerFx:Math.round(s.world[seller.country].fx*100000)});
+  events.push('国際掛代金の決済 '+t.id);
+ }
+}
 function worldInternationalRefundShipment(s,shipmentId){
  const w=s.worldExpansion,t=(w?.internationalShipments??[]).find(x=>x.id===shipmentId);
  if(!t||t.status!=='IN_TRANSIT'||ym(s.year,s.month)<=t.dueAt)
   throw Error('期限超過した国際未検収貨物だけ返金できます');
  worldValidateInternationalLogistics(s);
  const seller=company(t.sellerId,s),buyer=company(t.buyerId,s);
- if(acc(seller,'cash')<t.prepaidSeller)
-  throw Error('輸出者に外貨建て返金に必要な現預金がありません');
+ const paid=worldInternationalAdvanceFunded(t),month=ym(s.year,s.month);
+ const refundPending=paid&&acc(seller,'cash')<t.prepaidSeller;
  const start=s.seq;
- post(seller,{worldCustomerAdvances:t.prepaidSeller},{cash:t.prepaidSeller},
-  '国際未納貨物の輸出者返金','operating',s);
- post(buyer,{cash:t.prepaidBuyer,...(t.dutyBuyer?{otherExpense:t.dutyBuyer}:{})},
-  {worldSupplierAdvances:t.prepaidBuyer,...(t.dutyBuyer?{worldImportDutyPrepaid:t.dutyBuyer}:{})},
-  '国際未納貨物の輸入者返金・関税損失','operating',s);
+ if(paid){
+  const sellerRefund=refundPending?'worldInternationalPayable':'cash';
+  const buyerRefund=refundPending?'worldInternationalReceivable':'cash';
+  post(seller,{worldCustomerAdvances:t.prepaidSeller},{[sellerRefund]:t.prepaidSeller},
+   '国際未納貨物の輸出者返金義務','operating',s);
+  post(buyer,{[buyerRefund]:t.prepaidBuyer,...(t.dutyBuyer?{otherExpense:t.dutyBuyer}:{})},
+   worldInternationalBuyerSettlementAccounts(t,true),'国際未納貨物の輸入者返金・関税損失','operating',s);
+ }
  post(seller,{otherExpense:t.bookCost},{worldShipmentStock:t.bookCost},
   '国際未配達貨物の現物損失','operating',s);
- t.status='REFUNDED';t.refundedAt=ym(s.year,s.month);t.journals.terminal=start;
+ if(refundPending)t.refund={confirmedAt:month,journal:null};
+ t.status=refundPending?'REFUND_PENDING':'REFUNDED';
+ t.refundedAt=refundPending?null:month;t.journals.terminal=start;
  return t;
 }
 // Each provenance value is an unsold margin in the original exporting firm's
@@ -13740,6 +13820,7 @@ function worldValidateInternationalLogistics(s){
    ||!Number.isSafeInteger(o.unitPriceSeller)||o.unitPriceSeller<1||o.unitPriceSeller>10000000
    ||!Number.isSafeInteger(o.maxPaymentBuyer)||o.maxPaymentBuyer<1||o.maxPaymentBuyer>1000000000
    ||!worldInternationalCargoAllowed(o.productId)
+   ||!WORLD_INTERNATIONAL_PAYMENT_DAYS.has(o.paymentDays??0)
    ||!Number.isSafeInteger(o.placedAt)||o.placedAt<orderMonth||o.placedAt<Math.max(route.installedAt,h.installedAt)||o.placedAt>month
    ||!['OPEN','FILLED','PARTIAL','REJECTED','CANCELLED'].includes(o.status)
    ||!Number.isSafeInteger(o.acceptedQty)||o.acceptedQty<0||o.acceptedQty>o.quantity
@@ -13773,6 +13854,7 @@ function worldValidateInternationalLogistics(s){
    throw Error('国際貨物・外貨前払の仕訳が一致しません：'+id);
  }
  const routeMonths=new Map(),reservations=new Map();
+ const receivable=new Map(),payable=new Map(),dutyPayable=new Map();
  let shipmentSequence=0;
  for(const t of shipments){
   const order=ordersById.get(t.orderId),r=routes[t.routeId],h=warehouses[t.warehouseId],
@@ -13785,7 +13867,7 @@ function worldValidateInternationalLogistics(s){
    ||!r||!h||!seller||!buyer||r.ownerCompanyId!==seller.id||h.ownerCompanyId!==buyer.id
    ||r.plantId!==t.sellerPlantId||h.plantId!==t.buyerPlantId
    ||!['FILLED','PARTIAL'].includes(order.status)
-   ||!['IN_TRANSIT','DELIVERED','REFUNDED'].includes(t.status)
+   ||!['IN_TRANSIT','DELIVERED','REFUND_PENDING','REFUNDED'].includes(t.status)
    ||!Number.isSafeInteger(t.quantity)||t.quantity<1||t.quantity>profile.capacityKg
    ||t.unitPriceSeller!==order.unitPriceSeller
    ||t.goodsSeller!==t.quantity*t.unitPriceSeller
@@ -13801,13 +13883,15 @@ function worldValidateInternationalLogistics(s){
    ||(t.totalBuyer??t.prepaidBuyer)!==t.prepaidBuyer+(t.dutyBuyer??0)
    ||(t.totalBuyer??t.prepaidBuyer)>order.maxPaymentBuyer
    ||t.dispatchedAt!==order.closedAt||t.dueAt!==t.dispatchedAt+profile.transitMonths
-   ||t.journals?.dispatch!==seq-4
+   ||t.journals?.dispatch!==seq-((order.paymentDays??0)?2:4)||Boolean(t.credit)!==Boolean(order.paymentDays)
    ||(t.status==='IN_TRANSIT'&&(t.journals.terminal!==null||t.receivedAt!==null||t.refundedAt!==null))
    ||(t.status!=='IN_TRANSIT'&&(!Number.isSafeInteger(t.journals.terminal)||t.journals.terminal<=seq))
    ||(t.status==='DELIVERED'&&(!Number.isSafeInteger(t.receivedAt)||t.receivedAt<t.dueAt
       ||t.receivedAt>month||t.refundedAt!==null))
    ||(t.status==='REFUNDED'&&(!Number.isSafeInteger(t.refundedAt)||t.refundedAt<=t.dueAt
-      ||t.refundedAt>month||t.receivedAt!==null)))
+      ||t.refundedAt>month||t.receivedAt!==null))
+   ||(t.status==='REFUND_PENDING'&&(!t.refund||t.refundedAt!==null||t.receivedAt!==null))
+   ||(t.refund&&t.status!=='REFUND_PENDING'&&t.status!=='REFUNDED'))
    throw Error('国際貨物・検収/返金・通貨換算記録が不正：'+t.id);
   seenShipments.add(t.id);
   shipmentSequence=seq;
@@ -13820,26 +13904,77 @@ function worldValidateInternationalLogistics(s){
    reservations.set(t.warehouseId,reserved);
   }
   const d=t.journals.dispatch,c=t.journals.terminal;
-  match(seller,d,t.dispatchedAt,{worldShipmentStock:t.bookCost},{materials:t.bookCost});
+  match(seller,d,t.dispatchedAt,{worldShipmentStock:t.bookCost},{materials:t.bookCost},t.sellerRate);
   match(seller,d+1,t.dispatchedAt,{otherExpense:t.fuelCost},{materials:t.fuelCost});
-  match(buyer,d+2,t.dispatchedAt,{worldSupplierAdvances:t.prepaidBuyer,
-    ...(t.dutyBuyer?{worldImportDutyPrepaid:t.dutyBuyer}:{})},{cash:t.totalBuyer??t.prepaidBuyer},t.buyerRate);
-  match(seller,d+3,t.dispatchedAt,{cash:t.prepaidSeller},{worldCustomerAdvances:t.prepaidSeller},t.sellerRate);
+  const credit=t.credit, paid=worldInternationalAdvanceFunded(t),refund=t.refund;
+  const paidBeforeDelivery=!credit||(paid&&(c===null||credit.journal<c));
+  const failed=t.status==='REFUNDED'||t.status==='REFUND_PENDING';
+  const failureMonth=refund?.confirmedAt??t.refundedAt;
+  if(credit){
+   const deadline=worldInternationalCreditDeadline(t.dispatchedAt,order.paymentDays);
+   if(credit.dueDate!==deadline.dueDate||credit.dueMonth!==deadline.dueMonth
+    ||t.tariffBps===undefined||t.totalBuyer===undefined||t.dutyBuyer===undefined
+    ||(paid&&(!Number.isSafeInteger(credit.paidAt)||credit.paidAt<credit.dueMonth||credit.paidAt>month
+      ||!Number.isSafeInteger(credit.journal)||credit.journal<=seq
+      ||!Number.isSafeInteger(credit.buyerFx)||credit.buyerFx<1
+      ||!Number.isSafeInteger(credit.sellerFx)||credit.sellerFx<1
+      ||(failed&&(!paidBeforeDelivery||credit.paidAt>failureMonth))
+      ||(t.status==='DELIVERED'&&(paidBeforeDelivery?credit.paidAt>t.receivedAt:credit.paidAt<t.receivedAt))))
+    ||(!paid&&(credit.journal!==null||credit.buyerFx!==null||credit.sellerFx!==null)))
+    throw Error('国際掛取引の支払期限・決済記録が不正：'+t.id);
+   if(paid){
+    const sellerAccount=paidBeforeDelivery?'worldCustomerAdvances':'worldInternationalReceivable';
+    match(buyer,credit.journal,credit.paidAt,worldInternationalBuyerSettlementAccounts(t,paidBeforeDelivery),
+     {cash:t.totalBuyer},credit.buyerFx);
+    match(seller,credit.journal+1,credit.paidAt,{cash:t.prepaidSeller},
+     {[sellerAccount]:t.prepaidSeller},credit.sellerFx);
+   }
+  }else{
+   match(buyer,d+2,t.dispatchedAt,worldInternationalBuyerSettlementAccounts(t,true),
+    {cash:t.totalBuyer??t.prepaidBuyer},t.buyerRate);
+   match(seller,d+3,t.dispatchedAt,{cash:t.prepaidSeller},{worldCustomerAdvances:t.prepaidSeller},t.sellerRate);
+  }
   if(t.status==='DELIVERED'){
-   match(seller,c,t.receivedAt,{worldCustomerAdvances:t.prepaidSeller},
-    {sales:t.goodsSeller,otherExpense:t.fuelCost});
+   const account=paidBeforeDelivery?'worldCustomerAdvances':'worldInternationalReceivable';
+   match(seller,c,t.receivedAt,{[account]:t.prepaidSeller},{sales:t.goodsSeller,otherExpense:t.fuelCost});
    match(seller,c+1,t.receivedAt,{cogs:t.bookCost},{worldShipmentStock:t.bookCost});
    match(buyer,c+2,t.receivedAt,{materials:t.totalBuyer??t.prepaidBuyer},
-    {worldSupplierAdvances:t.prepaidBuyer,...(t.dutyBuyer?{worldImportDutyPrepaid:t.dutyBuyer}:{})});
-  }else if(t.status==='REFUNDED'){
-   match(seller,c,t.refundedAt,{worldCustomerAdvances:t.prepaidSeller},{cash:t.prepaidSeller});
-   match(buyer,c+1,t.refundedAt,{cash:t.prepaidBuyer,...(t.dutyBuyer?{otherExpense:t.dutyBuyer}:{})},
-    {worldSupplierAdvances:t.prepaidBuyer,...(t.dutyBuyer?{worldImportDutyPrepaid:t.dutyBuyer}:{})});
-   match(seller,c+2,t.refundedAt,{otherExpense:t.bookCost},{worldShipmentStock:t.bookCost});
+    worldInternationalBuyerSettlementAccounts(t,paidBeforeDelivery));
+   if(!paid){
+    receivable.set(seller.id,(receivable.get(seller.id)??0)+t.prepaidSeller);
+    payable.set(buyer.id,(payable.get(buyer.id)??0)+t.prepaidBuyer);
+    dutyPayable.set(buyer.id,(dutyPayable.get(buyer.id)??0)+t.dutyBuyer);
+   }
+  }else if(failed){
+   if(refund&&(!paid||!Number.isSafeInteger(failureMonth)||failureMonth<=t.dueAt||failureMonth>month
+    ||(t.status==='REFUND_PENDING'?refund.journal!==null
+     :!Number.isSafeInteger(refund.journal)||refund.journal<=c+2||t.refundedAt<failureMonth)))
+    throw Error('国際貨物の返金債権・債務の確定時点が不正：'+t.id);
+   if(paid){
+    const sellerRefund=refund?'worldInternationalPayable':'cash';
+    const buyerRefund=refund?'worldInternationalReceivable':'cash';
+    match(seller,c,failureMonth,{worldCustomerAdvances:t.prepaidSeller},{[sellerRefund]:t.prepaidSeller});
+    match(buyer,c+1,failureMonth,{[buyerRefund]:t.prepaidBuyer,...(t.dutyBuyer?{otherExpense:t.dutyBuyer}:{})},
+     worldInternationalBuyerSettlementAccounts(t,true));
+   }
+   match(seller,c+(paid?2:0),failureMonth,{otherExpense:t.bookCost},{worldShipmentStock:t.bookCost});
+   if(t.status==='REFUND_PENDING'){
+    receivable.set(buyer.id,(receivable.get(buyer.id)??0)+t.prepaidBuyer);
+    payable.set(seller.id,(payable.get(seller.id)??0)+t.prepaidSeller);
+   }else if(refund){
+    match(seller,refund.journal,t.refundedAt,{worldInternationalPayable:t.prepaidSeller},{cash:t.prepaidSeller});
+    match(buyer,refund.journal+1,t.refundedAt,{cash:t.prepaidBuyer},{worldInternationalReceivable:t.prepaidBuyer});
+   }
   }
  }
  for(const o of orders){
   if(o.shipmentId&&!seenShipments.has(o.shipmentId))throw Error('成立済みの国際注文に貨物がありません：'+o.id);
+ }
+ for(const f of s.firms){
+  if(acc(f,'worldInternationalReceivable')!==(receivable.get(f.id)??0)
+   ||-acc(f,'worldInternationalPayable')!==(payable.get(f.id)??0)
+   ||-acc(f,'worldInternationalDutyPayable')!==(dutyPayable.get(f.id)??0))
+   throw Error('国際掛取引の債権・債務・関税未払が不一致：'+f.id);
  }
  worldValidateInternationalCostLayers(s);
  return true;
@@ -13851,21 +13986,27 @@ function worldInternationalTradePanel(firm,editable){
  const orderRows=orders.slice(-20).map(o=>'<tr><td>'+esc(o.id)+'</td><td>'+esc(WORLD_PRODUCT_BY_ID.get(o.productId)?.name)
   +'</td><td>'+nfmt(o.quantity)+' / '+nfmt(o.acceptedQty)+'</td><td>'+esc(o.status)+'</td></tr>').join('');
  const shipmentRows=active.slice(-20).map(t=>'<tr><td>'+esc(t.id)+'</td><td>'+esc(t.status)
-  +'</td><td>'+nfmt(t.quantity)+' kg</td><td>'+nfmt(t.prepaidBuyer)+'</td><td>'+nfmt(t.prepaidSeller)+'</td></tr>').join('');
+  +'</td><td>'+nfmt(t.quantity)+' kg</td><td>'+nfmt(t.prepaidBuyer)+'</td><td>'+nfmt(t.prepaidSeller)
+  +'</td><td>'+(t.status==='REFUND_PENDING'?'返金未払':t.status==='REFUNDED'?'未納終了'
+   :!t.credit?'受注時決済':esc(t.credit.dueDate)+' / '
+   +(t.credit.paidAt!==null?'決済済':ym(S.year,S.month)>t.credit.dueMonth?'延滞':'未決済'))
+  +'</td></tr>').join('');
  const options=Object.entries(WORLD_INTERNATIONAL_CORRIDORS).filter(([id])=>worldInternationalRouteAvailable(S,id));
  const forms=[];
  if(editable){
-  const make=(kind,items,fields)=>'<form data-world-international="'+kind+'" class="row">'+fields
-   +'<button type="submit" class="btn sm">'+(kind==='route'?'実トラックを国際経路へ登録':kind==='warehouse'?'輸入倉庫を設置':kind==='order'?'外貨建て発注':kind==='approve'?'売手として承諾':'返金')+'</button></form>';
+  const labels={route:'現物輸送設備を国際経路へ登録',warehouse:'輸入倉庫を設置',order:'外貨建て発注',
+   approve:'売り手として承諾',reject:'売り手として辞退',cancel:'買い手として取り消す',refund:'未納終了・返金'};
+  const make=(kind,fields)=>'<form data-world-international="'+kind+'" class="row">'+fields
+   +'<button type="submit" class="btn sm">'+labels[kind]+'</button></form>';
   const from=options.filter(([id,p])=>findSite(p.from).country===firm.country
    &&firm.plants.some(plant=>worldDomesticSiteActive(plant,p.from))
    &&!routes.some(r=>r.ownerCompanyId===firm.id&&r.profileId===id));
-  if(from.length)forms.push(make('route',from,'<select name="profile">'
+  if(from.length)forms.push(make('route','<select name="profile">'
     +from.map(([id])=>'<option value="'+id+'">'+id+'</option>').join('')+'</select>'));
   const dest=options.flatMap(([id,p])=>findSite(p.to).country!==firm.country?[]:
    firm.plants.filter(plant=>worldDomesticSiteActive(plant,p.to)&&!wh.some(h=>h.plantId===plant.id&&h.ownerCompanyId===firm.id))
     .map(plant=>[id,plant.id]));
-  if(dest.length)forms.push(make('warehouse',dest,'<select name="target">'
+  if(dest.length)forms.push(make('warehouse','<select name="target">'
    +dest.map(([id,p])=>'<option value="'+id+'|'+esc(p)+'">'+id+' / '+esc(p)+'</option>').join('')+'</select>'));
   const choices=wh.filter(h=>h.ownerCompanyId===firm.id&&worldInternationalRouteAvailable(S,h.profileId))
    .flatMap(h=>routes.filter(r=>r.profileId===h.profileId&&r.ownerCompanyId!==firm.id).flatMap(r=>{
@@ -13873,16 +14014,25 @@ function worldInternationalTradePanel(firm,editable){
     return Object.keys(seller?.stock??{}).filter(worldInternationalCargoAllowed)
      .map(productId=>[r.id,h.id,productId]);
    }));
-  if(choices.length)forms.push(make('order',choices,'<select name="choice">'
+  if(choices.length)forms.push(make('order','<select name="choice">'
    +choices.map(([r,h,p])=>'<option value="'+r+'|'+h+'|'+p+'">'+esc(WORLD_PRODUCT_BY_ID.get(p).name)+'</option>').join('')+'</select>'
    +'<input name="quantity" type="number" min="1" max="100000" placeholder="数量kg" required>'
    +'<input name="price" type="number" min="1" max="10000000" placeholder="売手通貨単価(銭)" required>'
-   +'<input name="limit" type="number" min="1" max="1000000000" placeholder="買手通貨支払上限(銭)" required>'));
-  const approvals=orders.filter(o=>o.sellerId===firm.id&&o.status==='OPEN'&&o.sellerDecision===null);
-  if(approvals.length)forms.push(make('approve',approvals,'<select name="order">'
-   +approvals.map(o=>'<option value="'+o.id+'">'+o.id+'</option>').join('')+'</select>'));
+   +'<input name="limit" type="number" min="1" max="1000000000" placeholder="買手通貨支払上限(銭)" required>'
+   +'<label>支払条件 <select name="paymentDays"><option value="0">即時</option>'
+   +[30,60,90].map(d=>'<option value="'+d+'">'+d+'日掛け</option>').join('')+'</select></label>'));
+  const pending=orders.filter(o=>o.status==='OPEN');
+  for(const [action,eligible] of [
+   ['approve',o=>o.sellerId===firm.id&&o.sellerDecision===null],
+   ['reject',o=>o.sellerId===firm.id],
+   ['cancel',o=>o.buyerId===firm.id]
+  ]){
+   const entries=pending.filter(eligible);
+   if(entries.length)forms.push(make(action,'<select name="order">'
+    +entries.map(o=>'<option value="'+o.id+'">'+o.id+'</option>').join('')+'</select>'));
+  }
   const refunds=active.filter(t=>t.sellerId===firm.id&&t.status==='IN_TRANSIT'&&ym(S.year,S.month)>t.dueAt);
-  if(refunds.length)forms.push(make('refund',refunds,'<select name="shipment">'
+  if(refunds.length)forms.push(make('refund','<select name="shipment">'
    +refunds.map(t=>'<option value="'+t.id+'">'+t.id+'</option>').join('')+'</select>'));
  }
  return '<details id="world-international" class="panel"><summary>Phase 4 国際B2B物流・外貨決済（道路・鉄道・海運・航空）</summary>'
@@ -13891,8 +14041,8 @@ function worldInternationalTradePanel(firm,editable){
     +' <a href="'+esc(WORLD_INTERNATIONAL_ROUTE_EVIDENCE[id].source)+'" target="_blank" rel="noopener noreferrer">貨物輸送の史料</a></li>').join('')+'</ul>':'')
   +'<table><thead><tr><th>注文</th><th>貨物</th><th>申込/受注</th><th>状態</th></tr></thead><tbody>'
   +(orderRows||'<tr><td colspan="4">国際注文なし</td></tr>')+'</tbody></table>'
-  +'<table><thead><tr><th>輸送</th><th>状態</th><th>数量</th><th>買手前払(銭)</th><th>売手前受(銭)</th></tr></thead><tbody>'
-  +(shipmentRows||'<tr><td colspan="5">国際検収なし</td></tr>')+'</tbody></table>'
+  +'<table><thead><tr><th>輸送</th><th>状態</th><th>数量</th><th>買手代金(銭)</th><th>売手代金(銭)</th><th>支払期限・状況</th></tr></thead><tbody>'
+  +(shipmentRows||'<tr><td colspan="6">国際検収なし</td></tr>')+'</tbody></table>'
   +forms.join('')+'</details>';
 }
 document.addEventListener('submit',event=>{
@@ -13911,12 +14061,14 @@ document.addEventListener('submit',event=>{
    const [routeId,warehouseId,productId]=data.get('choice').split('|');
    worldInternationalPlaceOrder(S,firm.id,{routeId,warehouseId,productId,
     quantity:Number(data.get('quantity')),unitPriceSeller:Number(data.get('price')),
-    maxPaymentBuyer:Number(data.get('limit'))});
-  }else if(form.dataset.worldInternational==='approve')
-   worldInternationalActOrder(S,firm.id,data.get('order'),'approve');
-  else if(form.dataset.worldInternational==='refund')
-   worldInternationalRefundShipment(S,data.get('shipment'));
-  else return;
+    maxPaymentBuyer:Number(data.get('limit')),paymentDays:Number(data.get('paymentDays'))});
+  }else if(['approve','reject','cancel'].includes(form.dataset.worldInternational))
+   worldInternationalActOrder(S,firm.id,data.get('order'),form.dataset.worldInternational);
+  else if(form.dataset.worldInternational==='refund'){
+   const shipment=S.worldExpansion.internationalShipments.find(t=>t.id===data.get('shipment'));
+   if(shipment?.sellerId!==firm.id)throw Error('売り手だけが未納貨物を終了できます');
+   worldInternationalRefundShipment(S,shipment.id);
+  }else return;
   requestOperationSaveV037();render();
   const panel=document.getElementById('world-international');
   if(panel)panel.open=true;
@@ -14115,7 +14267,8 @@ function worldDomesticBlocksReorganization(s,ownerId,plant=null){
   ||(s.worldExpansion?.internationalOrders??[]).some(o=>o.status==='OPEN'
    &&((o.sellerId===ownerId&&(!plant||s.worldExpansion.internationalRoutes[o.routeId]?.plantId===plant.id))
     ||(o.buyerId===ownerId&&(!plant||s.worldExpansion.internationalWarehouses[o.warehouseId]?.plantId===plant.id))))
-  ||(s.worldExpansion?.internationalShipments??[]).some(t=>t.status==='IN_TRANSIT'
+  ||(s.worldExpansion?.internationalShipments??[]).some(t=>(t.status==='IN_TRANSIT'||t.status==='REFUND_PENDING'
+    ||(t.status==='DELIVERED'&&!worldInternationalAdvanceFunded(t)))
    &&((t.sellerId===ownerId&&(!plant||t.sellerPlantId===plant.id))
     ||(t.buyerId===ownerId&&(!plant||t.buyerPlantId===plant.id))))
   ||(s.worldExpansion?.domesticShipments??[]).some(t=>t.status==='IN_TRANSIT'
@@ -14706,6 +14859,7 @@ function worldValidateDomesticLogistics(s){
  for(const t of w.internationalShipments??[]){
   if(t.status!=='IN_TRANSIT')continue;
   outstanding.set(t.sellerId,(outstanding.get(t.sellerId)??0)+t.bookCost);
+  if(!worldInternationalAdvanceFunded(t))continue;
   advanceOut.set(t.buyerId,(advanceOut.get(t.buyerId)??0)+t.prepaidBuyer);
   advanceIn.set(t.sellerId,(advanceIn.get(t.sellerId)??0)+t.prepaidSeller);
   internationalDuty.set(t.buyerId,(internationalDuty.get(t.buyerId)??0)+(t.dutyBuyer??0));

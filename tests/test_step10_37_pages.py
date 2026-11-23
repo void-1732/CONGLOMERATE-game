@@ -165,10 +165,24 @@ def test_real_reload(browser):
             page.locator('[data-action="wizardNext"]').click()
         page.wait_for_function("S?.playerId && S.autosaveState==='保存成功'", timeout=20000)
         assert page.evaluate("SAVE_INDEX.backend") == "IndexedDB"
+        page.wait_for_function("!SAVE_BUSY")
+        page.evaluate("""() => {
+          const refresh=refreshSaveIndex;
+          refreshSaveIndex=async()=>{
+            await refresh();
+            await new Promise(resolve=>{window.releaseOldAutosave=resolve;});
+            refreshSaveIndex=refresh;
+          };
+          window.oldAutosave=saveAuto();
+        }""")
+        page.wait_for_function("typeof window.releaseOldAutosave==='function'")
         page.evaluate("()=>{PAGE='corporateSubsidiaries';render()}")
         page.locator("#renameCompanyName").fill("STEP10保存復元企業")
         page.locator('[data-action="renameCompany"]').click()
         assert page.evaluate("company(S.playerId).name") == "STEP10保存復元企業"
+        assert page.evaluate("readSafetySnapshotV037()?.s.config.name") == "STEP10保存復元企業"
+        assert page.evaluate("async()=>{window.releaseOldAutosave();return await window.oldAutosave}")
+        assert page.evaluate("readSafetySnapshotV037()?.s.config.name") == "STEP10保存復元企業"
         page.reload()
         page.wait_for_function("STORAGE_READY", timeout=20000)
         assert page.evaluate("S!==null")

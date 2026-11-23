@@ -60,7 +60,7 @@ WORLD_FREIGHT_FIXTURE = """() => {
   const route=worldInternationalRegisterRoute(S,seller.id,profileId);
   const warehouse=worldInternationalInstallWarehouse(S,buyer.id,plant.id,profileId);
   const order=worldInternationalPlaceOrder(S,buyer.id,{routeId:route.id,warehouseId:warehouse.id,
-    productId:'PRD-R20',quantity:5,unitPriceSeller:150,maxPaymentBuyer:100000});
+    productId:'PRD-R20',quantity:5,unitPriceSeller:150,maxPaymentBuyer:100000,paymentDays:60});
   worldInternationalActOrder(S,seller.id,order.id,'approve');
   return {order:order.id,profileId,issues:check(S)};
 }"""
@@ -73,7 +73,7 @@ def run(era, scenario='baseline', world=False, months=MONTHS):
             executable_path=os.getenv("CHROMIUM_EXECUTABLE") or shutil.which("chromium") or None,
             args=["--no-sandbox"],
         )
-        page = browser.new_page(viewport={"width": 1280, "height": 800})
+        page = browser.new_page(viewport={"width": 1280, "height": 800}, offline=world)
         errors = []
         page.on("pageerror", lambda error: errors.append(str(error)))
         page.set_content(HTML, wait_until="domcontentloaded")
@@ -144,6 +144,11 @@ def run(era, scenario='baseline', world=False, months=MONTHS):
                             why: LAST_MONTH_DIAGNOSTIC?.message
                           };
                         }
+                        if (S.worldExpansion?.internationalShipments.some(t=>t.credit?.paidAt===S.monthCommitted)
+                            &&!S.consoHistory.at(-1).cf.reconciled) {
+                          return {completed, failure:'international payment cash flow did not reconcile',
+                            cashFlow:S.consoHistory.at(-1).cf};
+                        }
                         completed++;
                       }
                       return {
@@ -187,7 +192,7 @@ def run(era, scenario='baseline', world=False, months=MONTHS):
                         worldMarkets:S.worldExpansion?Object.values(S.worldExpansion.openMarkets)
                           .filter(m=>m!==null).length:null,
                         international:S.worldExpansion?.internationalShipments.map(t=>({
-                          id:t.id,status:t.status,orderId:t.orderId,dutyBuyer:t.dutyBuyer,
+                          id:t.id,status:t.status,orderId:t.orderId,dutyBuyer:t.dutyBuyer,paidAt:t.credit?.paidAt??null,
                           quantity:t.quantity,profileId:S.worldExpansion.internationalRoutes[t.routeId].profileId
                         }))??[]
                       };
@@ -229,7 +234,7 @@ def run(era, scenario='baseline', world=False, months=MONTHS):
                 assert checkpoint["month"] == 1 + count % 12, checkpoint
                 if world and count >= 130:
                     assert any(t["orderId"] == freight["order"] and t["status"] == "DELIVERED"
-                               and t["quantity"] == 5 and t["dutyBuyer"] > 0
+                               and t["quantity"] == 5 and t["dutyBuyer"] > 0 and t["paidAt"] is not None
                                and t["profileId"] == freight["profileId"]
                                for t in checkpoint["international"]), checkpoint
                 if checkpoint["saveChecked"]:
