@@ -11103,7 +11103,7 @@ const WORLD_TERRITORIES=new Map(WORLD_MARKETS.flatMap(m=>m.territories.map(t=>[t
 const WORLD_CITIES=new Map(WORLD_MARKETS.flatMap(m=>m.cities.map(c=>[c.id,c])));
 // Registry version zero is the saved pre-expansion world (five initial economies).
 // New onboarding data is additive and does not change the original scenario.
-const WORLD_MARKET_REGISTRY_VERSION=16;
+const WORLD_MARKET_REGISTRY_VERSION=17;
 const WORLD_MARKET_ONBOARDING=Object.freeze({
  CA:Object.freeze({introducedIn:1,territoryId:'TER-27-01',currencyId:'CUR-CAD',jurisdictionId:'JUR-CA',
   jurisdictionSource:'https://www.canada.ca/en/immigration-refugees-citizenship/corporate/publications-manuals/discover-canada/read-online/canadas-history.html',
@@ -11322,7 +11322,9 @@ const WORLD_TERRITORY_MONETARY_REFERENCES=Object.freeze({
   [ym(1900,1),'CUR-BEF','https://www.nbb.be/en/banknotes-and-coins/history-euro-and-belgian-franc/brief-history-belgian-franc'],
   [ym(1999,1),'CUR-EUR','https://www.nbb.be/en/banknotes-and-coins/history-euro-and-belgian-franc/brief-history-euro']]),
  'TER-08-03':Object.freeze([
-  [ym(1900,1),'CUR-LUF','https://www.bcl.lu/en/About/histoire_monetaire/index.html'],
+  // In 1900 the Grand Duchy did not have one universal franc unit.
+  [ym(1900,1),'CUR-LU-MULTI','https://www.bcl.lu/en/About/histoire_monetaire/index.html'],
+  [ym(1919,1),'CUR-LUF','https://www.bcl.lu/en/About/histoire_monetaire/index.html'],
   [ym(1999,1),'CUR-EUR','https://www.bcl.lu/en/About/histoire_monetaire/index.html']]),
  'TER-01-02':Object.freeze([
   [ym(1900,1),'CUR-GBP','https://www.centralbank.ie/consumer-hub/notes-and-coins/historical-banknotes'],
@@ -11358,6 +11360,12 @@ const WORLD_JURISDICTIONS=new Map([
  ['JUR-JP',{name:'日本',currencyId:'CUR-JPY'}],
  ['JUR-US',{name:'アメリカ',currencyId:'CUR-USD'}],
  ['JUR-IE',{name:'アイルランド自由国',currencyId:'CUR-EUR'}],
+ // Separate legal territories within grouped economic markets. Their
+ // historical currency references do not create firms or foreign-exchange funds.
+ ['JUR-PT-KINGDOM',{name:'ポルトガル王国',currencyId:'CUR-PTR',source:'https://www.presidencia.pt/en-en/president-of-the-republic/the-presidency/national-symbols/'}],
+ ['JUR-PT-REPUBLIC',{name:'ポルトガル共和国',currencyId:'CUR-PTE',source:'https://history.state.gov/historicaldocuments/frus1910/d911'}],
+ ['JUR-BE',{name:'ベルギー王国',currencyId:'CUR-BEF',source:'https://www.nbb.be/en/banknotes-and-coins/history-euro-and-belgian-franc/brief-history-belgian-franc'}],
+ ['JUR-LU',{name:'ルクセンブルク大公国',currencyId:'CUR-LU-MULTI',source:'https://www.bcl.lu/en/About/histoire_monetaire/index.html'}],
  ['JUR-NO-UNION',{name:'ノルウェー（スウェーデンとの同君連合）',currencyId:'CUR-NOK'}],
  ['JUR-NO',{name:'ノルウェー',currencyId:'CUR-NOK'}],
  ...Object.entries(WORLD_MARKET_ONBOARDING).map(([code,row])=>[
@@ -11394,6 +11402,11 @@ const WORLD_ENGINE_BY_MARKET=Object.fromEntries(Object.entries(WORLD_ENGINE_TERR
 // Midmonth historical events take effect at the start of the following playable turn.
 // Economic coefficients and the mapping from events to market opening remain provisional.
 const WORLD_EVENTS=[
+ // Proclaimed 5 October 1910, effective from the November game turn.
+ {id:'HIST-PT-1910',effectiveDate:'1910-10-05',month:ym(1910,11),
+  territoryId:'TER-05-02',jurisdictionId:'JUR-PT-REPUBLIC',
+  openMarketId:null,status:'SOURCED',registryVersion:17,
+  source:'https://history.state.gov/historicaldocuments/frus1910/d911'},
  {id:'HIST-NO-1905',effectiveDate:'1905-10-26',month:ym(1905,11),territoryId:'TER-11-01',jurisdictionId:'JUR-NO',
   openMarketId:'MKT-11',status:'PROVISIONAL',
   source:'https://www.regjeringen.no/en/the-government/previous-governments/regjeringer-siden-1814/historiske-regjeringer/ministries-1905---1940/christian-michelsens-government-1905---1/id507098/'},
@@ -11501,10 +11514,14 @@ function worldCityLocation(s,cityId){
  const market=WORLD_MARKET_BY_ID.get(territory.marketId);
  const jurisdictionId=s.worldExpansion.territoryJurisdictions[territory.id];
  const historicalMoney=worldHistoricalMonetaryReference(territory.id,ym(s.year,s.month));
- return {cityId,territoryId:territory.id,marketId:market.id,jurisdictionId,historicalMoney,
-  // Composite markets share a market ID, not a legal jurisdiction. A city
-  // is operable only when its own territory has a registered jurisdiction.
-  marketOpen:s.worldExpansion.openMarkets[market.id]!==null&&jurisdictionId!=null};
+ // Recorded laws do not imply a connected enterprise/physical trade engine.
+ // Ireland participates in the UK engine as part of the grouped UK market.
+ const economicEngineConnected=territory.id==='TER-01-02'||
+   Object.values(WORLD_ENGINE_TERRITORY).includes(territory.id);
+ return {cityId,territoryId:territory.id,marketId:market.id,jurisdictionId,
+  historicalMoney,economicEngineConnected,
+  marketOpen:s.worldExpansion.openMarkets[market.id]!==null&&jurisdictionId!=null
+    &&economicEngineConnected};
 }
 
 function newWorldGame(setup){
@@ -11517,7 +11534,10 @@ function newWorldGame(setup){
 
 function makeWorldExpansion(registryVersion=WORLD_MARKET_REGISTRY_VERSION){
  const added=Object.values(WORLD_MARKET_ONBOARDING).filter(row=>row.introducedIn<=registryVersion&&!row.opensAt);
- const jurisdictions={...WORLD_INITIAL_JURISDICTIONS,...Object.fromEntries(added.map(row=>[row.territoryId,row.jurisdictionId]))};
+ const groupJurisdictions=registryVersion>=17?
+  {'TER-05-02':'JUR-PT-KINGDOM','TER-08-02':'JUR-BE','TER-08-03':'JUR-LU'}:{};
+ const jurisdictions={...WORLD_INITIAL_JURISDICTIONS,...groupJurisdictions,
+  ...Object.fromEntries(added.map(row=>[row.territoryId,row.jurisdictionId]))};
  const initial=new Set(worldInitialEngineCountries(registryVersion));
  return {
   catalogVersion:WORLD_CATALOG_VERSION,marketRegistryVersion:registryVersion,
