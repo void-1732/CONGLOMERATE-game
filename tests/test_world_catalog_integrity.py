@@ -19,7 +19,8 @@ def main():
         page.set_content((ROOT / "index.html").read_text(encoding="utf-8"), wait_until="domcontentloaded")
         page.wait_for_function("STORAGE_READY")
         result = page.evaluate("""() => {
-          const out={catalog:validateWorldCatalog()};
+          const out={catalog:validateWorldCatalog(),
+            legacyHomeSites:Object.entries({"UK":"UK-MID","FR":"FR-PAR","DE":"DE-RUH","NO":"NO-OSL","JP":"JP-TOK","US":"US-DET","CA":"CA-MTL","AU":"AU-SYD","NZ":"NZ-WLG","MX":"MX-VER","BR":"BR-RIO","AR":"AR-BUE","CL":"CL-VAP","CO":"CO-CTG","SE":"SE-GOT","NL":"NL-ROT","IT":"IT-GEN","EG":"EG-ALX","IN":"IN-BOM","ZA":"ZA-CPT","SG":"SG-SIN","TH":"TH-BKK","CN":"CN-HAN","ID":"ID-BAT","NG":"NG-LAG","ES":"ES-BIL","PH":"PH-MNL","RU":"RU-SPB","KR":"KR-BUS","TR":"TR-IZM","MY":"MY-PEN","KE":"KE-MBA","MA":"MA-CAS","CH":"CH-BAS","AT":"AT-VIE","PL":"PL-GDY","GR":"GR-PIR","VN":"VN-SGN","IR":"IR-BND","BE":"BE-ANR","PT":"PT-LIS","IE":"IE-DUB","SA":"SA-JED"}).every(([code,id])=>homeSite(code).id===id)};
           const m=WORLD_MARKETS[0], originalId=m.cities[1].id;
           try{
             m.cities[1].id=m.cities[0].id;
