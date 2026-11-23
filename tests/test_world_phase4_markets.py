@@ -21,7 +21,12 @@ def test_australia(page):
       applyWorldHistory(old);syncWorldIdentities(old);
       const restored=parsePayload(savePayload(old));
       const migration=restored.world.AU?.code==='AU'&&restored.world.NO?.code==='NO'
-        &&restored.worldExpansion.appliedEvents.map(e=>e.id).join()==='HIST-AU-1901,HIST-NO-1905'
+        &&restored.worldExpansion.appliedEvents.some(e=>e.id==='HIST-AU-1901')
+        &&restored.worldExpansion.appliedEvents.some(e=>e.id==='HIST-NO-1905')
+        &&restored.worldExpansion.appliedEvents.length
+          ===worldHistoryThrough(ym(old.year,old.month),WORLD_MARKET_REGISTRY_VERSION).length
+        &&new Set(restored.worldExpansion.appliedEvents.map(e=>e.id)).size
+          ===restored.worldExpansion.appliedEvents.length
         &&JSON.stringify(restored.worldExpansion.companies)===JSON.stringify(old.worldExpansion.companies)
         &&restored.rng===old.rng&&!check(restored).length;
 
