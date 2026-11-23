@@ -44,7 +44,11 @@ def test_catalog_and_history(page):
       trial.year=1923; trial.month=1; applyWorldHistory(trial);
       syncWorldIdentities(trial); validateWorldExpansion(trial);
       return {
-        closed,opened, events:trial.worldExpansion.appliedEvents.length,
+        closed,opened,
+        eventsComplete:trial.worldExpansion.appliedEvents.length===
+          worldHistoryThrough(ym(1923,1),trial.worldExpansion.marketRegistryVersion).length
+          &&new Set(trial.worldExpansion.appliedEvents.map(e=>e.id)).size===
+            trial.worldExpansion.appliedEvents.length,
         oldTerritory:trial.worldExpansion.territoryJurisdictions['TER-01-01'],
         newTerritory:trial.worldExpansion.territoryJurisdictions['TER-01-02'],
         unchanged:identityBefore===JSON.stringify([
@@ -54,7 +58,7 @@ def test_catalog_and_history(page):
       };
     }""")
     assert result == {
-        "closed": True, "opened": True, "events": 4, "oldTerritory": "JUR-UK",
+        "closed": True, "opened": True, "eventsComplete": True, "oldTerritory": "JUR-UK",
         "newTerritory": "JUR-IE", "unchanged": True, "stillForty": True,
     }
 
