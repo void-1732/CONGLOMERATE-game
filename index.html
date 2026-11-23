@@ -12738,7 +12738,9 @@ function worldStoredAt(w,warehouseId){
 function worldDomesticWarehouseReservations(w,warehouseId){
  const inTransit=(w.domesticShipments??[]).reduce((used,t)=>
   used+(t.warehouseId===warehouseId&&t.status==='IN_TRANSIT'?t.quantity:0),0);
- return inTransit+worldStoredAt(w,warehouseId).reduce((used,t)=>used+t.quantity,0);
+ const transfers=(w.internationalShipments??[]).reduce((used,t)=>
+  used+(t.status==='IN_TRANSIT'&&t.transfer?.warehouseId===warehouseId&&t.transfer.boardedAt===null?t.loadKg:0),0);
+ return inTransit+transfers+worldStoredAt(w,warehouseId).reduce((used,t)=>used+t.quantity,0);
 }
 // A first settlement path for demand deposits. The bank keeps the entire principal
 // in a restricted reserve outside spendable cash. Interest and lending are separate.
@@ -13209,7 +13211,8 @@ function worldTransferDomesticAsset(s,{kind,assetId,fromCompanyId,toCompanyId,to
   throw Error('譲受人には同じ所在地の稼働工場と研究が必要です');
  if(kind==='warehouse'&&Object.values(assets).some(x=>x.plantId===toPlantId&&x.retiredAt==null))
   throw Error('譲受工場にはすでに倉庫があります');
- if(kind==='warehouse'&&worldStoredAt(w,assetId).length)throw Error('預かり在庫のある倉庫設備は譲渡できません');
+ if(kind==='warehouse'&&worldDomesticWarehouseReservations(w,assetId))
+  throw Error('預かり在庫・未検収の到着引当のある倉庫設備は譲渡できません');
  if((w.domesticShipments??[]).some(t=>t.status==='IN_TRANSIT'
    &&(kind==='route'?t.routeId===assetId:t.warehouseId===assetId)))
   throw Error('未検収の出荷・受入引当を先に精算してください');
@@ -13472,6 +13475,7 @@ const WORLD_WELLINGTON_CARGO_SOURCE='https://paperspast.natlib.govt.nz/newspaper
 const WORLD_VERACRUZ_CARGO_SOURCE='https://stacks.cdc.gov/view/cdc/66996/cdc_66996_DS1.pdf';
 const WORLD_GULF_CONSULAR_SOURCE='https://upload.wikimedia.org/wikipedia/commons/9/92/Pan_American_Union_Bulletin_1902-10-_Vol_13_Iss_4_%28IA_sim_bulletin-of-the-pan-american-union_1902-10_13_4%29.pdf';
 const WORLD_SEATTLE_CARGO_SOURCE='https://www.portseattle.org/blog/birth-seattle-global-gateway';
+const WORLD_YOKOHAMA_TRANSFER_SOURCE='https://archive.lib.city.yokohama.lg.jp/museweb/detail?cls=collect_01&pkey=00003926';
 const WORLD_NORTH_SHIELDS_SOURCE='https://kringom.no/nb/midthordland/bergen/om-englandsruta-bergen-newcastle';
 const WORLD_BERGEN_CARGO_SOURCE='https://snl.no/Det_Bergenske_Dampskibsselskab';
 const WORLD_INTERNATIONAL_CORRIDORS=Object.freeze({
@@ -13480,6 +13484,11 @@ const WORLD_INTERNATIONAL_CORRIDORS=Object.freeze({
  'AU-JP-SYDNEY-WOOL':worldSteamshipProfile('AU-SYD','JP-YOK',ym(1913,1),10500,32,28,3,WORLD_SYDNEY_LINER_SOURCE),
  'CA-UK-MONTREAL-GRAIN':worldSteamshipProfile('CA-MTL','UK-LIV',ym(1909,5),5200,32,28,2,WORLD_MONTREAL_FREIGHT_SOURCE),
  'JP-US-SEATTLE-STEAM':worldSteamshipProfile('JP-YOK','US-SEA',ym(1900,1),8100,32,28,3,WORLD_SEATTLE_CARGO_SOURCE),
+ 'JP-US-YOKOHAMA-TRANSFER':Object.freeze({
+  ...worldSteamshipProfile('JP-TOK','US-SEA',ym(1918,1),8129,10,28,5,WORLD_SEATTLE_CARGO_SOURCE),
+  mode:'rail+sea',vehicles:Object.freeze(['PRD-E16','PRD-E17','PRD-E18']),
+  transfer:Object.freeze({railId:'JP-SHIMBASHI-YOKOHAMA',seaId:'JP-US-SEATTLE-STEAM',dwellMonths:1})
+ }),
  'US-JP-SEATTLE-STEAM':worldSteamshipProfile('US-SEA','JP-YOK',ym(1900,1),8100,32,28,3,WORLD_SEATTLE_CARGO_SOURCE),
  'NO-UK-NORTHSHIELDS-STEAM':worldSteamshipProfile('NO-BGO','UK-NORTHSHIELDS',ym(1907,10),940,20,18,1,WORLD_NORTH_SHIELDS_SOURCE),
  'UK-NO-NORTHSHIELDS-STEAM':worldSteamshipProfile('UK-NORTHSHIELDS','NO-BGO',ym(1907,10),940,20,18,1,WORLD_NORTH_SHIELDS_SOURCE),
@@ -13562,6 +13571,8 @@ const WORLD_INTERNATIONAL_CORRIDORS=Object.freeze({
 // the modeled capacity, distance or cost. The playable dates conservatively
 // allow time to pass after dated sources; they are not claimed opening dates.
 const WORLD_INTERNATIONAL_ROUTE_EVIDENCE=Object.freeze({
+ 'JP-US-YOKOHAMA-TRANSFER':Object.freeze({untilMonth:ym(1923,1),source:WORLD_SEATTLE_CARGO_SOURCE,
+  operationSource:WORLD_YOKOHAMA_TRANSFER_SOURCE,products:Object.freeze(['PRD-M14','PRD-M36'])}),
  'MX-US-VERACRUZ-COFFEE':Object.freeze({untilMonth:ym(1906,7),products:Object.freeze(['PRD-R27']),
   source:WORLD_VERACRUZ_CARGO_SOURCE,operationSource:WORLD_GULF_CONSULAR_SOURCE}),
  'NZ-UK-WELLINGTON-WOOL':Object.freeze({untilMonth:ym(1913,10),products:Object.freeze(['PRD-R21']),
@@ -13605,12 +13616,21 @@ function worldInternationalRouteAvailable(s,id){
   ||(evidence.sailingMonths&&!evidence.sailingMonths.includes(s.month)))return false;
  return !!s.world?.[findSite(p.from)?.country]&&!!s.world?.[findSite(p.to)?.country];
 }
+function worldInternationalTransferWarehouse(s,firm,profile,warehouseId=null){
+ if(!profile.transfer||!firm)return null;
+ const rail=WORLD_DOMESTIC_CORRIDORS[profile.transfer.railId];
+ return Object.values(s.worldExpansion.domesticWarehouses??{}).find(h=>h.ownerCompanyId===firm.id
+  &&h.retiredAt==null&&h.profileId===rail.warehouse&&(!warehouseId||h.id===warehouseId)
+  &&worldDomesticSiteActive(firm.plants.find(p=>p.id===h.plantId),rail.to))??null;
+}
 function worldInternationalRegisterRoute(s,firmId,profileId){
  const w=s.worldExpansion,profile=worldInternationalProfile(profileId),firm=company(firmId,s);
  const plant=firm?.plants.find(p=>p.siteId===profile.from&&worldDomesticSiteActive(p,p.siteId));
+ const transfer=w&&worldInternationalTransferWarehouse(s,firm,profile);
  if(!w||!firm||!plant||firm.country!==findSite(profile.from).country
   ||!isActiveCorporateFirm(firm)||!controller(s,firmId)
   ||!worldInternationalRouteAvailable(s,profileId)
+  ||(profile.transfer&&!transfer)
   ||!firm.research?.tree?.done?.includes('production-1')
   ||Object.values(w.internationalRoutes??{}).some(r=>r.ownerCompanyId===firmId&&r.profileId===profileId&&r.retiredAt==null))
   throw Error('国際物流には史実開通済みの拠点・法人・研究・輸送機材が必要です');
@@ -13618,6 +13638,7 @@ function worldInternationalRegisterRoute(s,firmId,profileId){
  const route={...asset,id:'IR-'+s.seq++,ownerCompanyId:firmId,plantId:plant.id,profileId,
   fromSiteId:profile.from,toSiteId:profile.to,distanceKm:profile.distanceKm,
   capacityKg:profile.capacityKg};
+ if(transfer)route.transferWarehouseId=transfer.id;
  (w.internationalRoutes??={})[route.id]=route;
  return route;
 }
@@ -13644,7 +13665,7 @@ function worldInternationalCargoAllowed(productId,profileId){
 const WORLD_INTERNATIONAL_PAYMENT_DAYS=new Set([0,30,60,90]);
 // Provisional loading coefficients, in litres per kg of capacity. The
 // manifest describes the outside volume of the loaded consignment.
-const WORLD_INTERNATIONAL_LOADING_LITRES=Object.freeze({'road+rail-shuttle':3,sea:2,rail:3,air:6});
+const WORLD_INTERNATIONAL_LOADING_LITRES=Object.freeze({'road+rail-shuttle':3,sea:2,rail:3,air:6,'rail+sea':2});
 const WORLD_MAX_CONSIGNMENT_LITRES=10000000;
 function worldInternationalValidVolume(litres){
  return litres===0||(Number.isSafeInteger(litres)&&litres>0&&litres<=WORLD_MAX_CONSIGNMENT_LITRES);
@@ -13702,6 +13723,7 @@ function worldInternationalPlaceOrder(s,buyerId,{routeId,warehouseId,productId,q
   ||!worldDomesticSiteActive(seller.plants.find(p=>p.id===route.plantId),profile.from)
   ||!worldDomesticSiteActive(buyer.plants.find(p=>p.id===warehouse.plantId),profile.to)
   ||!worldInternationalRouteAvailable(s,route.profileId)
+  ||(profile.transfer&&!worldInternationalTransferWarehouse(s,seller,profile,route.transferWarehouseId))
   ||!worldInternationalCargoAllowed(productId,route.profileId)
   ||!Number.isSafeInteger(quantity)||quantity<1||quantity>100000||!worldInternationalValidVolume(cargoLitres)
   ||!Number.isSafeInteger(unitPriceSeller)||unitPriceSeller<1||unitPriceSeller>10000000
@@ -13760,6 +13782,10 @@ function worldInternationalDeclaration(rule,t,arrivalAt=null,releasedAt=null){
   duty:t.dutyBuyer,arrivalAt,releasedAt};
 }
 function worldInternationalFuelRequired(profile,quantity){
+ if(profile.transfer){
+  const rail=WORLD_DOMESTIC_CORRIDORS[profile.transfer.railId],sea=WORLD_INTERNATIONAL_CORRIDORS[profile.transfer.seaId];
+  return Math.ceil(rail.km*quantity/rail.fuelScale)+worldInternationalFuelRequired(sea,quantity);
+ }
  return Math.ceil(profile.distanceKm*quantity/(profile.fuelScale??600));
 }
 function worldInternationalQuote(s,route,productId,quantity,unitPriceSeller,buyerId,paymentDays=0,cargoLitres=0){
@@ -13813,12 +13839,16 @@ function worldInternationalResolveOrders(s,events=[]){
   if(o.sellerDecision!=='MANUAL'&&!(seller.auto&&!controlled.has(seller.id))){
    o.result='NO_CONSENT';continue;
   }
+  const transfer=profile.transfer&&worldInternationalTransferWarehouse(s,seller,profile,route.transferWarehouseId);
+  if(profile.transfer&&!transfer){o.result='UNAVAILABLE';continue;}
   const occupied=(w.internationalShipments??[]).filter(t=>t.routeId===route.id&&t.dispatchedAt===month)
    .reduce((n,t)=>n+(t.loadKg??t.quantity),0);
   const reserved=(w.internationalShipments??[]).filter(t=>t.warehouseId===h.id&&t.status==='IN_TRANSIT')
    .reduce((n,t)=>n+(t.loadKg??t.quantity),0);
+  const transferCapacity=transfer?WORLD_DOMESTIC_WAREHOUSE_PROFILES[transfer.profileId].capacity
+   -worldDomesticWarehouseReservations(w,transfer.id):Infinity;
   const capacity=Math.min(Math.floor(route.capacityKg*(route.condition??100)/100)-occupied,
-   Math.floor(profile.warehouseCapacityKg*(h.condition??100)/100)-reserved);
+   Math.floor(profile.warehouseCapacityKg*(h.condition??100)/100)-reserved,transferCapacity);
   const limit=Math.min(o.quantity,capacity,seller.stock?.[o.productId]?.q??0);
   for(let q=limit;q>=1;q--){
    const paymentDays=o.paymentDays??0;
@@ -13847,6 +13877,13 @@ function worldInternationalResolveOrders(s,events=[]){
     ...quote,journals:{dispatch:start,terminal:null}};
    if(paymentDays)t.credit={...worldInternationalCreditDeadline(month,paymentDays),
     paidAt:null,journal:null,buyerFx:null,sellerFx:null};
+   if(transfer){
+    const rail=WORLD_DOMESTIC_CORRIDORS[profile.transfer.railId];
+    const fuelRail=Math.ceil(rail.km*quote.loadKg/rail.fuelScale);
+    t.transfer={warehouseId:transfer.id,railId:profile.transfer.railId,seaId:profile.transfer.seaId,
+     railDueAt:month+Math.max(1,Math.ceil(rail.km/400)),arrivedAt:null,boardedAt:null,
+     fuelRail,fuelSea:quote.fuelRequired-fuelRail};
+   }
    const bank=WORLD_INTERNATIONAL_REMITTANCE[route.profileId];
    if(bank&&t.credit)t.credit.remittance={bankId:bank.id,currencyId:bank.currencyId,
     principal:t.prepaidBuyer,sentAt:null,sentJournal:null,returnedAt:null,returnJournal:null};
@@ -13868,11 +13905,27 @@ function worldInternationalReceiveShipments(s,events=[]){
  worldValidateInternationalLogistics(s);
  const month=ym(s.year,s.month);
  for(const t of w.internationalShipments??[]){
-  if(t.status!=='IN_TRANSIT'||month<t.dueAt)continue;
+  if(t.status!=='IN_TRANSIT')continue;
   const route=w.internationalRoutes[t.routeId],h=w.internationalWarehouses[t.warehouseId],
    profile=WORLD_INTERNATIONAL_CORRIDORS[route?.profileId],
    seller=company(t.sellerId,s),buyer=company(t.buyerId,s),
    bp=buyer?.plants.find(p=>p.id===t.buyerPlantId);
+  if(t.transfer&&t.transfer.boardedAt===null){
+   const handoff=t.transfer,sea=WORLD_INTERNATIONAL_CORRIDORS[handoff.seaId];
+   if(month<handoff.railDueAt||!worldInternationalTransferWarehouse(s,seller,profile,handoff.warehouseId))continue;
+   if(handoff.arrivedAt===null){
+    handoff.arrivedAt=month;
+    events.push('横浜新港 積替え倉庫に搬入 '+t.id);
+   }
+   if(month>=handoff.arrivedAt+profile.transfer.dwellMonths
+    &&worldInternationalRouteAvailable(s,route.profileId)&&worldInternationalRouteAvailable(s,handoff.seaId)){
+    handoff.boardedAt=month;
+    t.dueAt=month+sea.transitMonths;
+    events.push('横浜新港 現物積替え・船積み '+t.id);
+   }
+   continue;
+  }
+  if(month<t.dueAt)continue;
   if(!route||route.retiredAt!=null||!h||h.retiredAt!=null||!profile
    ||!worldDomesticSiteActive(seller?.plants.find(p=>p.id===t.sellerPlantId),profile.from)
    ||!worldDomesticSiteActive(bp,profile.to))continue;
@@ -14041,6 +14094,33 @@ function worldInternationalConsolidationAdjustments(s,ids,insidePeriod,shares){
  }
  return {sales,retained,spotRetained,nci,spotNci,eligible};
 }
+function worldValidateInternationalTransfer(s,t,route,profile,month){
+ const handoff=t.transfer;
+ if(!profile.transfer){
+  if(Object.hasOwn(t,'transfer'))throw Error('この輸送区間には積替え拠点がありません：'+t.id);
+  return;
+ }
+ const w=s.worldExpansion,rail=WORLD_DOMESTIC_CORRIDORS[profile.transfer.railId],
+  sea=WORLD_INTERNATIONAL_CORRIDORS[profile.transfer.seaId];
+ const warehouse=w.domesticWarehouses?.[route.transferWarehouseId];
+ const terminal=t.receivedAt??t.refund?.confirmedAt??t.refundedAt??month;
+ if(!handoff||handoff.warehouseId!==warehouse?.id||handoff.railId!==profile.transfer.railId
+  ||handoff.seaId!==profile.transfer.seaId||handoff.railDueAt!==t.dispatchedAt+Math.max(1,Math.ceil(rail.km/400))
+  ||handoff.fuelRail!==Math.ceil(rail.km*(t.loadKg??t.quantity)/rail.fuelScale)
+  ||handoff.fuelSea!==worldInternationalFuelRequired(sea,t.loadKg??t.quantity)
+  ||(handoff.arrivedAt!==null&&(!Number.isSafeInteger(handoff.arrivedAt)
+     ||handoff.arrivedAt<handoff.railDueAt||handoff.arrivedAt>terminal))
+  ||(handoff.boardedAt!==null&&(!Number.isSafeInteger(handoff.boardedAt)||handoff.arrivedAt===null
+     ||handoff.boardedAt<handoff.arrivedAt+profile.transfer.dwellMonths||handoff.boardedAt>terminal
+     ||handoff.boardedAt>=WORLD_INTERNATIONAL_ROUTE_EVIDENCE[route.profileId].untilMonth))
+  ||(t.status==='DELIVERED'&&handoff.boardedAt===null)
+  ||t.dueAt!==(handoff.boardedAt===null?t.dispatchedAt+profile.transitMonths:handoff.boardedAt+sea.transitMonths))
+  throw Error('国際貨物の鉄道・保管・船積み履歴が不正：'+t.id);
+ if(t.status==='IN_TRANSIT'&&handoff.boardedAt===null
+  &&(warehouse.ownerCompanyId!==t.sellerId||warehouse.retiredAt!=null
+    ||worldDomesticWarehouseReservations(w,warehouse.id)>WORLD_DOMESTIC_WAREHOUSE_PROFILES[rail.warehouse].capacity))
+  throw Error('横浜の積替え倉庫の所有権または受入引当が不正：'+t.id);
+}
 function worldValidateInternationalLogistics(s){
  const w=s.worldExpansion;if(!w)return true;
  const routes=w.internationalRoutes??{},warehouses=w.internationalWarehouses??{},
@@ -14060,6 +14140,15 @@ function worldValidateInternationalLogistics(s){
    ||r.capacityKg!==p.capacityKg||r.installedAt<p.opensAt||r.installedAt>month
    ||!owner.plants.some(plant=>plant.id===r.plantId&&plant.siteId===p.from)||r.retiredAt!=null)
    throw Error('国際輸送用の現物設備・経路が不正：'+id);
+  if(p.transfer){
+   const rail=WORLD_DOMESTIC_CORRIDORS[p.transfer.railId],sea=WORLD_INTERNATIONAL_CORRIDORS[p.transfer.seaId],
+    depot=w.domesticWarehouses?.[r.transferWarehouseId];
+   const history=(w.domesticAssetTransfers??[]).filter(event=>event.assetId===depot?.id);
+   if(!depot||depot.profileId!==rail.warehouse||depot.installedAt>r.installedAt
+    ||worldDomesticAssetOwnerAt(depot,history,id)!==owner.id
+    ||rail.from!==p.from||rail.to!==sea.from||sea.to!==p.to)
+    throw Error('鉄道と海運に接続する積替え倉庫の参照が不正：'+id);
+  }else if(Object.hasOwn(r,'transferWarehouseId'))throw Error('積替えなしの路線に倉庫参照があります：'+id);
   worldValidateEnergyAsset(r,s);
   assetKeys.add(key);
  }
@@ -14151,7 +14240,7 @@ function worldValidateInternationalLogistics(s){
    ||(t.dutyBuyer??0)!==Math.round(t.goodsSeller*t.sellerRate/t.buyerRate*(t.tariffBps??0)/10000)
    ||(t.totalBuyer??t.prepaidBuyer)!==t.prepaidBuyer+(t.dutyBuyer??0)
    ||(t.totalBuyer??t.prepaidBuyer)>order.maxPaymentBuyer
-   ||t.dispatchedAt!==order.closedAt||t.dueAt!==t.dispatchedAt+profile.transitMonths
+   ||t.dispatchedAt!==order.closedAt||(!profile.transfer&&t.dueAt!==t.dispatchedAt+profile.transitMonths)
    ||t.journals?.dispatch!==seq-((order.paymentDays??0)?2:4)||Boolean(t.credit)!==Boolean(order.paymentDays)
    ||(t.status==='IN_TRANSIT'&&(t.journals.terminal!==null||t.receivedAt!==null||t.refundedAt!==null))
    ||(t.status!=='IN_TRANSIT'&&(!Number.isSafeInteger(t.journals.terminal)||t.journals.terminal<=seq))
@@ -14162,6 +14251,7 @@ function worldValidateInternationalLogistics(s){
    ||(t.status==='REFUND_PENDING'&&(!t.refund||t.refundedAt!==null||t.receivedAt!==null))
    ||(t.refund&&t.status!=='REFUND_PENDING'&&t.status!=='REFUNDED'))
    throw Error('国際貨物・検収/返金・通貨換算記録が不正：'+t.id);
+  worldValidateInternationalTransfer(s,t,r,profile,month);
   const rule=WORLD_INTERNATIONAL_CUSTOMS[r.profileId];
   if(rule){
    const {arrivalAt,releasedAt}=t.customs??{};
@@ -14291,6 +14381,8 @@ function worldInternationalTradePanel(firm,editable){
  const orderRows=orders.slice(-20).map(o=>'<tr><td>'+esc(o.id)+'</td><td>'+esc(WORLD_PRODUCT_BY_ID.get(o.productId)?.name)
   +'</td><td>'+nfmt(o.quantity)+' / '+nfmt(o.acceptedQty)+'</td><td>'+esc(o.status)+'</td></tr>').join('');
  const shipmentRows=active.slice(-20).map(t=>'<tr><td>'+esc(t.id)+'</td><td>'+esc(t.status)
+  +(t.transfer&&t.status==='IN_TRANSIT'?' ／ '+(t.transfer.boardedAt!==null?'船積み済み'
+   :t.transfer.arrivedAt!==null?'横浜新港で積替え待ち':'横浜新港へ鉄道輸送中'):'')
   +'</td><td>'+nfmt(t.quantity)+' kg'+(t.cargoLitres?' ／ '+nfmt(t.cargoLitres)+' L（換算 '+nfmt(t.loadKg)+' kg）':'')
   +'</td><td>'+nfmt(t.prepaidBuyer)+'</td><td>'+nfmt(t.prepaidSeller)
   +'</td><td>'+(t.status==='REFUND_PENDING'?'返金未払':t.status==='REFUNDED'?'未納終了'
@@ -14310,6 +14402,7 @@ function worldInternationalTradePanel(firm,editable){
    +'<button type="submit" class="btn sm">'+labels[kind]+'</button></form>';
   const from=options.filter(([id,p])=>findSite(p.from).country===firm.country
    &&firm.plants.some(plant=>worldDomesticSiteActive(plant,p.from))
+   &&(!p.transfer||worldInternationalTransferWarehouse(S,firm,p))
    &&!routes.some(r=>r.ownerCompanyId===firm.id&&r.profileId===id));
   if(from.length)forms.push(make('route','<select name="profile">'
     +from.map(([id])=>'<option value="'+id+'">'+id+'</option>').join('')+'</select>'));
@@ -14357,7 +14450,8 @@ function worldInternationalTradePanel(firm,editable){
     +esc(rule.authority)+'</a> · <a href="'+esc(rule.tariffSource)+'" target="_blank" rel="noopener noreferrer">品目関税の史料</a>':'';
    const bank=WORLD_INTERNATIONAL_REMITTANCE[id];
    const remittance=bank?' · <a href="'+esc(bank.source)+'" target="_blank" rel="noopener noreferrer">銀行送金の史料</a>':'';
-   return '<li>'+esc(findSite(p.from).name)+' → '+esc(findSite(p.to).name)
+   const handoff=p.transfer?esc(findSite(WORLD_DOMESTIC_CORRIDORS[p.transfer.railId].to).name)+' → ':'';
+   return '<li>'+esc(findSite(p.from).name)+' → '+handoff+esc(findSite(p.to).name)
     +' <a href="'+esc(evidence.source)+'" target="_blank" rel="noopener noreferrer">貨物輸送の史料</a>'+operation+customs+remittance+'</li>';
   }).join('')+'</ul>':'')
   +'<table><thead><tr><th>注文</th><th>貨物</th><th>申込/受注</th><th>状態</th></tr></thead><tbody>'
@@ -14604,7 +14698,7 @@ function worldRetireDomesticAsset(s,ownerId,kind,assetId){
   kind==='medical'?w?.medicalClinics?.[assetId]:null;
  if(!asset||!owner||asset.ownerCompanyId!==ownerId||asset.retiredAt!=null
   ||(kind==='medical'&&(w.medicalRequests??[]).some(r=>r.clinicId===assetId&&['OPEN','PARTIAL'].includes(r.status)))
-  ||(kind==='warehouse'&&worldStoredAt(w,assetId).length)
+  ||(kind==='warehouse'&&worldDomesticWarehouseReservations(w,assetId))
   ||(w.domesticShipments??[]).some(t=>t.status==='IN_TRANSIT'
     &&(kind==='route'?t.routeId===assetId:t.warehouseId===assetId)))
   throw Error('所有していて未検収貨物のない国内物流設備だけ廃止できます');

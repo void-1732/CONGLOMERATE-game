@@ -33,6 +33,8 @@ on:
       - tests/test_world_phase4_credit.py
       - tests/test_world_phase4_corridors.py
       - tests/test_world_phase4_markets.py
+      - tests/test_world_phase4_transshipment.py
+      - tests/test_step13_120_months.py
       - tests/test_fx_book_and_period_pl.py
       - tests/test_vehicle_discontinuation.py
       - .github/workflows/world-economy-development.yml
@@ -103,6 +105,7 @@ jobs:
           python -B tests/test_world_phase4_credit.py
           python -B tests/test_world_phase4_corridors.py
           python -B tests/test_world_phase4_markets.py
+          python -B tests/test_world_phase4_transshipment.py
       - name: Existing UI, trade and save regression
         run: |
           python -B tests/test_step10_37_pages.py

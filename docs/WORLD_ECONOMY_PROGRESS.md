@@ -489,4 +489,10 @@ python -B tests/test_step13_120_months.py --era 1900 --world
 - 1900年の開放市場にメキシコ `MKT-28` を追加。既存都市 `CITY-28-04` のベラクルス港に、管轄 `JUR-MX` と歴史的ペソを表す帳簿単位 `CUR-MXP` を接続した。人口に国勢調査値を使用する。ペソの制度変更とゲーム内為替係数は別管理とする。[独立後の管轄資料](https://archivos.gob.mx/InstrumentosConsulta/MexicoIndependiente.html) · [国勢調査](https://www.inegi.org.mx/programas/ccpv/1900/) · [通貨史](https://www.banxico.org.mx/billetes-y-monedas/d/%7B1EEDFA6C-8EDB-B7AD-11B2-528C7B69CC76%7D.pdf)
 - ベラクルス発ニューオーリンズ向けコーヒー豆を追加した。同じ両港間の汽船貨物とメキシコからのコーヒー入荷の史料を組み合わせ、1906年6月の運航記録を再現できる注文期間を設けた。この貨物のニューオーリンズでの無税申告・保税・輸入許可を記録する。[汽船の出港記録](https://stacks.cdc.gov/view/cdc/66996/cdc_66996_DS1.pdf) · [領事報告](https://upload.wikimedia.org/wikipedia/commons/9/92/Pan_American_Union_Bulletin_1902-10-_Vol_13_Iss_4_%28IA_sim_bulletin-of-the-pan-american-union_1902-10_13_4%29.pdf) · [米国1897年関税法](https://fraser.stlouisfed.org/title/tariff-1897-dingley-tariff-5862/fulltext)
 - 経済エンジンと国際貨物を接続した10市場は、英国、フランス、ドイツ、ノルウェー、日本、米国、カナダ、オーストラリア、ニュージーランド、メキシコ。残り30市場は接続・実取引検証待ち。
+
+### Phase 4 積替え — 新橋・横浜新港・シアトル
+
+- 鉄道と外航貨物船の実在区間をつなぎ、新橋の荷積み、横浜新港の倉庫引当・搬入・積替え、シアトルでの検収を一件の貨物として管理する。新港の荷役設備が整備された後の1918～1922年を対象とし、鉄道・船舶・保管設備と実重量・容積・実燃料を要求する。運行年の絞り込みと保管期間、運行容量はゲーム用の保守的な値。[新港の船車接続の史料](https://archive.lib.city.yokohama.lg.jp/museweb/detail?cls=collect_01&pkey=00003926) · [鉄道側線の整備](https://www.mlit.go.jp/en/statistics/content/001586035.pdf) · [シアトルの定期貨物船](https://www.portseattle.org/blog/birth-seattle-global-gateway)
+- 国内貨物と同じ横浜新港の倉庫IDを使い、未積載分と倉庫の保管枠を共有する。引当中は譲渡・廃止できない。設備休止時は到着・積替えを待機し、実際に船積みした月から海上到着予定を再計算する。積替えで売上と所有権移転は起こらず、最終検収で計上する。専用Playwrightで容量超過・先着順、保留・出発・検収、前払、保存復元と不正な日付の拒否を検証する。
+- 10市場のうち新規4市場の発注から決済までを専用Playwrightで確認済み。1,200か月試験の短縮170か月版で拡張世界と外部送金を確認した。旧6市場版は1,200か月を完走しており、現行の10市場版は最終HEADの結果で判断する。残り30市場の接続、広域の積替え、各時代の法定通貨、追加品目と外貨建て貿易金融の受入を残している。
 - 再開時はDraft PR #29の最新HEADで開発CIと1,200か月5ジョブを確認し、34未接続市場の管轄・通貨・施設と具体的な史料付き区間を、実出荷・検収・決済試験と対にして追加する。
