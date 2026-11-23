@@ -23,6 +23,7 @@ on:
       - tests/test_world_phase2k_supply.py
       - tests/test_world_phase2l_products.py
       - tests/test_world_phase2l_services.py
+      - tests/test_world_phase2l_passengers.py
       - tests/test_vehicle_discontinuation.py
       - .github/workflows/world-economy-development.yml
   pull_request:
@@ -78,6 +79,7 @@ jobs:
         run: |
           python -B tests/test_world_phase2l_products.py
           python -B tests/test_world_phase2l_services.py
+          python -B tests/test_world_phase2l_passengers.py
       - name: Existing UI, trade and save regression
         run: |
           python -B tests/test_step10_37_pages.py

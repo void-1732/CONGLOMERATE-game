@@ -702,7 +702,7 @@ const COUNTRIES={
  // Provisional game coefficients, independent of the sourced opening event.
  NO:{currency:'NOK',fx:14,pop:2.24,wealth:.94,wage:136,demand:13,steel:449,rubber:311,steelSupply:90,rubberSupply:80}
 };
-const ACCTYPE={cash:'asset',materials:'asset',materialsTransit:'asset',componentStock:'asset',componentTransit:'asset',wip:'asset',goods:'asset',goodsTransit:'asset',constructionAssets:'asset',ppe:'asset',accdep:'contra',investment:'asset',ar:'asset',loanrec:'asset',resourceRights:'asset',worldShipmentStock:'asset',worldStoredStock:'asset',worldInsuranceReserve:'asset',worldInsurancePrepaid:'asset',worldSupplierAdvances:'asset',partReceivable:'asset',partPayable:'liability',worldCustomerAdvances:'liability',worldInsuranceUnearned:'liability',payable:'liability',wagesDue:'liability',debt:'liability',interestDue:'liability',taxDue:'liability',capital:'equity',treasuryStock:'contraEquity',sales:'revenue',serviceRevenue:'revenue',otherRevenue:'revenue',cogs:'expense',labor:'expense',rndExpense:'expense',advert:'expense',maintenance:'expense',interestExpense:'expense',depreciation:'expense',taxExpense:'expense',fxLoss:'expense',otherExpense:'expense'};
+const ACCTYPE={cash:'asset',materials:'asset',materialsTransit:'asset',componentStock:'asset',componentTransit:'asset',wip:'asset',goods:'asset',goodsTransit:'asset',constructionAssets:'asset',ppe:'asset',accdep:'contra',investment:'asset',ar:'asset',loanrec:'asset',resourceRights:'asset',worldShipmentStock:'asset',worldStoredStock:'asset',worldInsuranceReserve:'asset',worldInsurancePrepaid:'asset',worldTravelAdvance:'asset',worldSupplierAdvances:'asset',partReceivable:'asset',partPayable:'liability',worldCustomerAdvances:'liability',worldInsuranceUnearned:'liability',payable:'liability',wagesDue:'liability',debt:'liability',interestDue:'liability',taxDue:'liability',capital:'equity',treasuryStock:'contraEquity',sales:'revenue',serviceRevenue:'revenue',otherRevenue:'revenue',cogs:'expense',labor:'expense',rndExpense:'expense',advert:'expense',maintenance:'expense',interestExpense:'expense',depreciation:'expense',taxExpense:'expense',fxLoss:'expense',otherExpense:'expense'};
 const PAGES={dashboard:'経営概況',marketOwn:'自社グループ市場分析',market:'世界市場分析',product:'製品・開発',factory:'工場・調達',people:'研究・人事',finance:'財務・資金',group:'企業グループ',consolidated:'連結財務三表',reports:'月次レポート',save:'保存・設定'};
 /* STEP 2: navigation only. Every tab points to a current, fully functional PAGE.
    New specialized pages are created in STEP 3+, not silently replaced with placeholders.
@@ -3175,7 +3175,7 @@ function sellMonthly(s,events){
   const contenders=marketVehicleContendersV031(s,code);
   for(const f of s.firms){
    if(f.lifecycle?.phase==='withdrawn'||f.reorgStatus==='integrated'||!f.marketPresence.includes(code))continue;
-   if(f.industry==='service'){if(f.country===code)sellServices(s,f,code);continue;}
+   if(f.industry==='service'){if(!s.worldExpansion&&f.country===code)sellServices(s,f,code);continue;}
    if(f.industry==='trade'||f.industry==='resource'){
     const keys=f.industry==='trade'?Object.keys(f.goods).filter(k=>k==='TRADE'||k.startsWith('IT')):RAW_TYPES_V032.map(rawKeyV032);
     let left=Math.round(w.demand*.25);
@@ -3544,6 +3544,7 @@ async function runMonth(){
   step('DOMESTIC_WORLD_DELIVERIES',()=>{
    worldReceiveDomesticShipments(trial,events);
    worldFinishStorageServices(trial,events);
+   worldFinishPassengerTrips(trial,events);
   });
   step('NPC_PRODUCTION',()=>produceNpcV033(trial,events));
    step('PROCUREMENT',()=>{for(const f of trial.firms){ensureNetwork(f,trial);f.supply.monthFlow=Object.fromEntries(SUPPLY_TYPES.map(t=>[t,{month:ym(trial.year,trial.month),start:f.stock[t]?.q||0}]));}procureNetwork(trial,events)});
@@ -11470,6 +11471,8 @@ const WORLD_SERVICE_EXECUTION_CLASS=Object.freeze(Object.fromEntries(
  ])
 ));
 const WORLD_VERIFIED_SERVICE_PATHS=Object.freeze({
+ 'PRD-S01':Object.freeze({revenueState:'EXTERNAL_EXPENSE',settlementState:'AFTER_TRAVEL',unit:'人・区間'}),
+ 'PRD-S02':Object.freeze({revenueState:'EXTERNAL_EXPENSE',settlementState:'AFTER_TRAVEL',unit:'人・区間'}),
  'PRD-S03':Object.freeze({revenueState:'COST_REIMBURSEMENT',settlementState:'AT_DELIVERY',unit:'kg'}),
  'PRD-S04':Object.freeze({revenueState:'EARNED_FEE',settlementState:'AT_RETURN',unit:'kg・月'}),
  'PRD-S06':Object.freeze({revenueState:'EXTERNAL_PRINCIPAL_EXCLUDED',settlementState:'DISBURSED',unit:'件'}),
@@ -11488,6 +11491,9 @@ function worldServiceTerms(productId){
 function worldServiceActivity(s,productId){
  const w=s.worldExpansion;
  if(!w)return [];
+ if(productId==='PRD-S01'||productId==='PRD-S02')return (w.passengerTrips??[])
+  .filter(t=>t.status==='ARRIVED'&&WORLD_PASSENGER_ROUTES[t.routeId]?.productId===productId)
+  .map(t=>({ref:t.id,providerId:null,customerId:t.firmId,month:t.month,quantity:t.passengers,amount:t.fare}));
  if(productId==='PRD-S03')return (w.domesticShipments??[]).filter(t=>
   t.status==='DELIVERED'&&!!WORLD_DOMESTIC_CORRIDORS[w.domesticRoutes?.[t.routeId]?.profileId])
   .map(t=>({ref:t.id,providerId:t.sellerId,customerId:t.buyerId,month:t.receivedAt,quantity:t.quantity,amount:t.freightCost}));
@@ -12057,6 +12063,16 @@ function worldValidatePhase2E(s){
 
 // Historical sources establish corridors and storage locations. Capacities, fuel
 // rates, startup dates for game extensions and transit times are game parameters.
+// Only the corridor and in-service dates come from operator records.
+// Fares and the number of seats allocated to business trips are simulation parameters.
+const WORLD_PASSENGER_ROUTES=Object.freeze({
+ 'RAIL-JP-TOK-NGO':Object.freeze({productId:'PRD-S01',name:'東海道新幹線（東京―名古屋）',
+  from:'JP-TOK',to:'JP-NGO',opensAt:ym(1964,10),seats:6,fareBase:9500,
+  source:'https://global.jr-central.co.jp/en/company/about/history.html'}),
+ 'RAIL-UK-LON-FR-PAR':Object.freeze({productId:'PRD-S02',name:'ユーロスター（ロンドン―パリ）',
+  from:'UK-LON',to:'FR-PAR',opensAt:ym(1994,12),seats:6,fareBase:24000,
+  source:'https://press.eurostar.com/section/about-us/our-story/?country=UK&lang=eng'})
+});
 const WORLD_DOMESTIC_CORRIDORS=Object.freeze({
  'JP-SHIMBASHI-YOKOHAMA':Object.freeze({name:'新橋―横浜（現桜木町）',mode:'rail',
   from:'JP-TOK',to:'JP-YOK',km:29,opensAt:ym(1912,1),capacity:10,fuel:'PRD-R04',fuelScale:250,
@@ -12365,6 +12381,65 @@ function worldStartStorageService(s,clientId,plantId,warehouseId,productId,quant
   quantity,months,unitFee,cost,receivedAt:month,dueAt:month+months,closedAt:null,journal,closeJournal:null,...provenance};
  (w.storageServices??=[]).push(record);
  return record;
+}
+function worldPassengerFare(route,year,country){
+ return Math.max(1,localFromBase(route.fareBase*eraCostFactor(year),country));
+}
+function worldPassengerAvailability(w,firm,routeId,month){
+ let occupied=0,reservedStaff=0;
+ for(const trip of w.passengerTrips??[]){
+  if(trip.month!==month||trip.status==='REFUNDED')continue;
+  if(trip.routeId===routeId)occupied+=trip.passengers;
+  if(trip.firmId===firm.id)reservedStaff+=trip.passengers;
+ }
+ return Math.max(0,Math.min(WORLD_PASSENGER_ROUTES[routeId].seats-occupied,firm.staff.sales-reservedStaff));
+}
+function worldPassengerEndpoint(s,firm,plantId,siteId){
+ return !!s.world[findSite(siteId).country]&&worldDomesticSiteActive(firm.plants.find(p=>p.id===plantId),siteId);
+}
+function worldBookPassengerTrip(s,firmId,routeId,fromPlantId,toPlantId,passengers){
+ const w=s.worldExpansion,firm=company(firmId,s),route=worldDomesticProfile(WORLD_PASSENGER_ROUTES,routeId),
+  month=ym(s.year,s.month);
+ if(!w||!route||month<route.opensAt||s.monthCommitted===month||!isActiveCorporateFirm(firm)||!controller(s,firmId)
+  ||!worldPassengerEndpoint(s,firm,fromPlantId,route.from)||!worldPassengerEndpoint(s,firm,toPlantId,route.to))
+  throw Error('運行年代と両都市の自社稼働拠点を確認してください');
+ if(!Number.isSafeInteger(passengers)||passengers<1||passengers>worldPassengerAvailability(w,firm,routeId,month))
+  throw Error('営業・管理部門の出張可能人数または予約枠を超えています');
+ const fare=passengers*worldPassengerFare(route,s.year,firm.country),journal=s.seq;
+ if(!Number.isSafeInteger(fare)||acc(firm,'cash')<fare)throw Error('運賃を支払う現金が不足しています');
+ post(firm,{worldTravelAdvance:fare},{cash:fare},'営業・管理部門の鉄道出張前払','operating',s);
+ const trip={id:'WTR-'+s.seq++,firmId,routeId,fromPlantId,toPlantId,passengers,fare,month,
+  status:'BOOKED',journal,finishJournal:null};
+ (w.passengerTrips??=[]).push(trip);
+ return trip;
+}
+function worldSettlePassengerTrip(s,trip,arrived){
+ if(trip.status!=='BOOKED'||trip.month!==ym(s.year,s.month))throw Error('当月の未完了予約だけを精算できます');
+ const firm=company(trip.firmId,s),account=arrived?'otherExpense':'cash';
+ trip.finishJournal=s.seq;
+ post(firm,{[account]:trip.fare},{worldTravelAdvance:trip.fare},
+   arrived?'営業・管理部門の鉄道出張完了':'未利用の鉄道出張運賃を返金','operating',s);
+ trip.status=arrived?'ARRIVED':'REFUNDED';
+}
+function worldCancelPassengerTrip(s,firmId,tripId){
+ const trip=s.worldExpansion?.passengerTrips?.find(t=>t.id===tripId);
+ if(!trip||trip.firmId!==firmId||!controller(s,firmId)||trip.status!=='BOOKED'||trip.month!==ym(s.year,s.month))
+  throw Error('当月の未利用予約だけを取り消せます');
+ worldSettlePassengerTrip(s,trip,false);
+}
+function worldFinishPassengerTrips(s,events=[]){
+ const month=ym(s.year,s.month),availableStaff=new Map();
+ for(const trip of s.worldExpansion?.passengerTrips??[]){
+  if(trip.status!=='BOOKED'||trip.month!==month)continue;
+  const firm=company(trip.firmId,s),route=WORLD_PASSENGER_ROUTES[trip.routeId];
+  const employees=availableStaff.get(firm.id)??firm.staff.sales;
+  const arrived=isActiveCorporateFirm(firm)&&employees>=trip.passengers
+   &&worldPassengerEndpoint(s,firm,trip.fromPlantId,route.from)
+   &&worldPassengerEndpoint(s,firm,trip.toPlantId,route.to);
+  worldSettlePassengerTrip(s,trip,arrived);
+  if(arrived)availableStaff.set(firm.id,employees-trip.passengers);
+  events.push((arrived?'鉄道出張完了 ':'鉄道出張返金 ')+trip.id);
+ }
 }
 function worldFinishStorageServices(s,events=[]){
  const w=s.worldExpansion,month=ym(s.year,s.month);
@@ -12787,6 +12862,8 @@ function worldDomesticAssetBasis(s,ownerId){
 function worldDomesticBlocksReorganization(s,ownerId,plant=null){
  return worldDomesticOwnedAssets(s,ownerId).some(asset=>
   !plant||asset.plantId===plant.id||asset.fromSiteId===plant.siteId)
+  ||(s.worldExpansion?.passengerTrips??[]).some(t=>t.status==='BOOKED'&&t.firmId===ownerId
+   &&(!plant||t.fromPlantId===plant.id||t.toPlantId===plant.id))
   ||(!plant&&(s.worldExpansion?.cargoInsurance??[]).some(t=>t.closedAt===null&&(t.providerId===ownerId||t.clientId===ownerId)))
   ||(s.worldExpansion?.storageServices??[]).some(t=>t.closedAt===null
     &&((t.clientId===ownerId&&(!plant||t.plantId===plant.id))
@@ -13069,6 +13146,52 @@ function worldValidateStorageServices(s,transferByAsset){
   if(acc(f,'worldStoredStock')!==(balances.get(f.id)??0))throw Error('預託した現物の帳簿残高が一致しません');
  }
 }
+function worldValidatePassengerTrips(s){
+ const rows=s.worldExpansion.passengerTrips??[];
+ if(!Array.isArray(rows))throw Error('鉄道出張台帳が不正です');
+ const month=ym(s.year,s.month),advances=new Map(),seats=new Map(),journalIndexes=new Map(),used=new Set();
+ function matches(f,id,when,amount,debit,credit){
+  if(used.has(id)||!Number.isSafeInteger(id)||id<1||id>=s.seq)return false;
+  used.add(id);
+  if(!journalIndexes.has(f.id))journalIndexes.set(f.id,new Map(f.journals.map(j=>[j.id,j])));
+  const j=journalIndexes.get(f.id).get(id);
+  if(!j&&f.journals.length===10000&&id<f.journals[0].id)return true;
+  return j?.when===when&&j.kind==='operating'&&j.dr.length===1&&j.cr.length===1
+   &&j.dr[0][0]===debit&&j.dr[0][1]===amount&&j.cr[0][0]===credit&&j.cr[0][1]===amount;
+ }
+ let sequence=0;
+ for(const trip of rows){
+  const id=Number(trip?.id?.split('-')[1]),firm=company(trip?.firmId,s),
+   route=worldDomesticProfile(WORLD_PASSENGER_ROUTES,trip?.routeId);
+  if(!route||!firm||!/^WTR-\d+$/.test(trip.id)||!Number.isSafeInteger(id)||id<=sequence||id>=s.seq
+   ||trip.journal!==id-1||!['BOOKED','ARRIVED','REFUNDED'].includes(trip.status)
+   ||typeof trip.fromPlantId!=='string'||typeof trip.toPlantId!=='string'||trip.fromPlantId===trip.toPlantId
+   ||!Number.isSafeInteger(trip.month)||trip.month<route.opensAt||trip.month>month
+   ||!Number.isSafeInteger(trip.passengers)||trip.passengers<1||trip.passengers>route.seats
+   ||trip.fare!==trip.passengers*worldPassengerFare(route,Math.floor(trip.month/12),firm.country)
+   ||!matches(firm,trip.journal,trip.month,trip.fare,'worldTravelAdvance','cash'))
+   throw Error('鉄道出張の予約・運行年代・運賃が不正です：'+trip?.id);
+  if(trip.status!=='REFUNDED'){
+   const key=trip.routeId+'|'+trip.month,capacity=(seats.get(key)??0)+trip.passengers;
+   if(capacity>route.seats)throw Error('鉄道出張の同月予約枠超過：'+trip.id);
+   seats.set(key,capacity);
+  }
+  if(trip.status==='BOOKED'){
+   if(trip.month!==month||trip.finishJournal!==null
+    ||!firm.plants.some(p=>p.id===trip.fromPlantId&&p.siteId===route.from)
+    ||!firm.plants.some(p=>p.id===trip.toPlantId&&p.siteId===route.to))
+    throw Error('鉄道出張の未利用予約が不正：'+trip.id);
+   advances.set(firm.id,(advances.get(firm.id)??0)+trip.fare);
+  }else if(trip.finishJournal<=id||!matches(firm,trip.finishJournal,trip.month,trip.fare,
+    trip.status==='ARRIVED'?'otherExpense':'cash','worldTravelAdvance')){
+   throw Error('鉄道出張の完了・返金仕訳が不正：'+trip.id);
+  }
+  sequence=id;
+ }
+ for(const firm of s.firms){
+  if(acc(firm,'worldTravelAdvance')!==(advances.get(firm.id)??0))throw Error('鉄道出張の前払残高が不一致：'+firm.id);
+ }
+}
 function worldValidateCargoInsurance(s){
  const w=s.worldExpansion,rows=w.cargoInsurance??[];
  if(!Array.isArray(rows))throw Error('貨物保険台帳が不正です');
@@ -13250,6 +13373,7 @@ function worldValidateDomesticLogistics(s){
  }
  worldValidateStorageServices(s,transferByAsset);
  worldValidateCargoInsurance(s);
+ worldValidatePassengerTrips(s);
  worldValidateDomesticOrders(s,transferByAsset);
  worldValidateDomesticShipmentPostings(s,shipments);
  worldValidateDomesticCosts(s);
@@ -13532,6 +13656,21 @@ function worldDomesticControls(firm,routes,warehouses,shipments,orders){
    +' / '+nfmt(o.requestedQty)+' kg / 単価 '+fnum(firm,o.unitPrice)+' / 運賃上限 '+fnum(firm,o.maxFreight))).join('');
   if(choices)actions.push(form(action,label,select('order','発注',choices)));
  }
+ const availableTrips=Object.entries(WORLD_PASSENGER_ROUTES).flatMap(([id,route])=>{
+  const from=firm.plants.filter(p=>worldPassengerEndpoint(S,firm,p.id,route.from));
+  const to=firm.plants.filter(p=>worldPassengerEndpoint(S,firm,p.id,route.to));
+  const limit=worldPassengerAvailability(w,firm,id,month);
+  if(!from.length||!to.length||month<route.opensAt||!limit)return [];
+  const stops=from.flatMap(a=>to.map(b=>option([id,a.id,b.id].join('|'),a.name+' → '+b.name))).join('');
+  return form('trip-book','鉄道出張を予約',select('trip',route.name,stops)
+   +'<small>旅客1名 '+fnum(firm,worldPassengerFare(route,S.year,firm.country))
+   +' <a href="'+esc(route.source)+'" target="_blank" rel="noopener noreferrer">運行史</a></small>'
+   +number('people','営業・管理部門の出張人数',limit));
+ });
+ const reservations=(w.passengerTrips??[]).filter(t=>t.firmId===firm.id&&t.status==='BOOKED');
+ if(availableTrips.length||reservations.length)actions.push('<h4>鉄道出張</h4>'+availableTrips.join(''));
+ if(reservations.length)actions.push(form('trip-cancel','予約を取り消し、運賃を返金',select('trip','当月の予約',
+  reservations.map(t=>option(t.id,t.id+' / '+WORLD_PASSENGER_ROUTES[t.routeId].name+' / '+t.passengers+'人')).join(''))));
  const storageChoices=Object.values(w.domesticWarehouses??{}).flatMap(warehouse=>{
   const provider=company(warehouse.ownerCompanyId),profile=WORLD_DOMESTIC_WAREHOUSE_PROFILES[warehouse.profileId];
   if(warehouse.retiredAt!=null||provider===firm||provider?.country!==firm.country||!canEdit(provider)
@@ -13600,6 +13739,14 @@ document.addEventListener('submit',event=>{
      Number(values.get('months')),Number(values.get('fee')));
     break;
    }
+   case 'trip-book':{
+    const [routeId,from,to]=values.get('trip').split('|');
+    worldBookPassengerTrip(S,firm.id,routeId,from,to,Number(values.get('people')));
+    break;
+   }
+   case 'trip-cancel':
+    worldCancelPassengerTrip(S,firm.id,values.get('trip'));
+    break;
    case 'cargo-insurance':
     worldBuyCargoInsurance(S,firm.id,values.get('provider'),values.get('shipment'),
      Number(values.get('coverage')),Number(values.get('premium')));
