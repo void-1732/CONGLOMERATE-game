@@ -718,3 +718,11 @@ python -B tests/test_step13_120_months.py --era 1900 --world
 - Phase 4・5の正式受入は保留。5法域の実経済接続、年代別の実帳簿通貨、史料付き通関・貿易金融・特殊貨物、歴史国境と残る都市の実施設、全操作・新HEADの長期回帰、確定仕様原本との照合を継続する。
 
 - ベルギー接続直後の開発CIは、既存の都市一覧と需要配分に「ダブリン」が重複し、Playwrightの都市表示検証が一意に要素を特定できずに失敗した。需要配分の行を従来の都市順表示へ戻し、都市名の一覧と法域別推計の両方を維持した。既存の都市表示テストは変更せずに再実行した。[push開発CIの失敗記録](https://github.com/void-1732/CONGLOMERATE-game/actions/runs/45262681693) · [PR開発CIの失敗記録](https://github.com/void-1732/CONGLOMERATE-game/actions/runs/45262695498)
+
+### Phase 4・5 1911年のポルトガル帳簿とリスボン向け石炭（2026-11-24、日本時間）
+
+- 開始HEAD `5a1b18a2cb0daca514f7230717432a67f4dcd83c` の開発CIはpush・PRとも合格した。37画面、保存・会計、120か月と、40市場・41法域・48国際経路の現物検収を確認した。1,200か月5条件と実IndexedDB300の独立試験も同じSHAで起動した。[push開発CI](https://github.com/void-1732/CONGLOMERATE-game/actions/runs/45263135133) · [PR開発CI](https://github.com/void-1732/CONGLOMERATE-game/actions/runs/45263145626) · [1,200か月](https://github.com/void-1732/CONGLOMERATE-game/actions/runs/45263145594) · [実IndexedDB300](https://github.com/void-1732/CONGLOMERATE-game/actions/runs/45263145796)
+- スペイン代表の `MKT-05` 内にポルトガルの経済・法人・PTE元帳を接続した。1911年5月22日の法令で1エスクード＝1,000レイスが定義されたため、ゲーム内で最初の完全月となる6月から、ポルトガルの新規法人と帳簿を開放する。旧レイス紙幣との併用、旧通貨残高の移行と1999年のEUR移行は残件。為替初期値・需要等はゲーム値。[ポルトガル銀行の通貨史料](https://www.bportugal.pt/en/comunicado/dissemination-historical-time-series-portuguese-escudo) · [紙幣の移行](https://www.bportugal.pt/sites/default/files/anexos/pdf-boletim/boletim_notas_e_moedas_2022.pdf) · [人口アンカーの国連統計](https://unstats.un.org/unsd/demographic-social/products/dyb/dybsets/1953%20DYB.pdf)
+- カーディフ→リスボンの石炭輸送を1912年8～12月のゲーム期間で実装した。1912年7月1日のリスボン入港記録とウェールズ港発の石炭運賃資料に基づく。実汽船・受入倉庫、輸送貨物と燃料を同じ有限現物在庫から引き当て、GBPとPTEで60日掛け、前払・検収・会計・保存を検証した。輸入関税は既存の暫定係数方式、史料付き税率を確定していない。[1912年7月5日付ポルトガル官報](https://files.diariodarepublica.pt/gratuitos/1s/1912/07/15600.pdf) · [米国議会資料のウェールズ発石炭運賃](https://www.govinfo.gov/content/pkg/SERIALSET-07240_00_00-035-2112-0000/pdf/SERIALSET-07240_00_00-035-2112-0000.pdf)
+- `index.html`、カタログとPhase 4・5のPlaywrightを変更。40市場・155都市を維持し、国内2、国際62の表示経路を既存物流IDと照合する。残る4法域、年代別通貨移行、関税・銀行・特殊貨物、全都市施設の受入、仕様原本の照合が残る。Phase 6への移行判定は保留。
+- 初回実貨物試験はポルトガルの暫定関税の登録漏れで停止した。3%のゲーム係数と表示を既存の関税方式に登録し、実際の8～11月の月次確定で支払月の連結CFを照合した。保管台帳の古い版の復元、ポルトガル法人の帳簿通貨を改竄したセーブの拒否、40市場・42法域・49経路の現物検収と、オフラインの2都市・実経路を検証した。

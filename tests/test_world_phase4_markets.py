@@ -360,6 +360,91 @@ def test_italy_coal_import(page):
     assert all(result.values()), result
 
 
+def test_portugal_coal_import(page):
+    result = page.evaluate("""async () => {
+      S=newWorldGame({country:'UK',name:'Cardiff to Lisbon coal'});
+      VIEW_FIRM=S.playerId;VIEW_COUNTRY='UK';PAGE='corporateSubsidiaries';
+      const profileId='UK-PT-CARDIFF-LISBON-COAL',cityId='CITY-05-03';
+      const initiallyClosed=S.world.ES?.currency==='ESP'&&!S.world.PT
+        &&worldCityLocation(S,cityId).jurisdictionId==='JUR-PT-KINGDOM'
+        &&!worldCityLocation(S,cityId).marketOpen&&!worldInternationalRouteAvailable(S,profileId);
+      S.year=1911;S.month=5;S.monthCommitted=ym(1911,5)-1;
+      applyWorldHistory(S);syncWorldIdentities(S);render();
+      const beforeReform=worldCityLocation(S,cityId).jurisdictionId==='JUR-PT-REPUBLIC'
+        &&!S.world.PT&&!document.querySelector('#subCountry option[value="PT"]');
+      saveAuto=async()=>true;
+      await runMonth();
+      const opened=S.monthCommitted===ym(1911,5)
+        &&S.world.PT?.currency==='PTE'&&S.world.ES?.currency==='ESP'
+        &&worldCityLocation(S,cityId).marketOpen
+        &&worldCityLocation(S,cityId).historicalMoney.currencyId==='CUR-PTE'
+        &&S.worldExpansion.openMarkets['MKT-05']===ym(1900,1)
+        &&WORLD_ENGINE_BY_MARKET['MKT-05']==='ES'
+        &&Object.keys(S.worldExpansion.openMarkets).length===40
+        &&!worldInternationalRouteAvailable(S,profileId);
+
+      S.year=1912;S.month=8;S.monthCommitted=ym(1912,8)-1;
+      applyWorldHistory(S);syncWorldIdentities(S);PAGE='corporateSubsidiaries';render();
+      document.querySelector('#subName').value='Lisbon coal importer';
+      document.querySelector('#subCountry').value='PT';
+      document.querySelector('#subIndustry').value='manufacturing';
+      document.querySelector('#subCapital').value='650000';
+      createSub();
+      let seller=company(S.playerId),buyer=S.firms.find(f=>f.name==='Lisbon coal importer');
+      const port=seller.plants[0],depot=buyer.plants[0];
+      port.siteId='UK-CDF';syncWorldIdentities(S);
+      const registration=S.worldExpansion.companies[buyer.id];
+      const currency=registration.territoryId==='TER-05-02'
+        &&registration.jurisdictionId==='JUR-PT-REPUBLIC'&&registration.currencyId==='CUR-PTE'
+        &&firmCurrency(buyer,S)==='PTE'&&firmCurrency(seller,S)==='GBP'
+        &&S.worldExpansion.facilities['FAC-'+depot.id].locationId==='LOC-PT-LIS';
+      for(const firm of [buyer,seller]){
+        firm.auto=false;firm.research.tree.done=[...new Set([...firm.research.tree.done,'production-1'])];
+      }
+      for(const [firm,id,value] of [[seller,'PRD-E18',2400],[buyer,'PRD-E20',700],[buyer,'PRD-E21',900]]){
+        post(firm,{materials:value},{cash:value},'検証用の有償設備','operating',S);
+        firm.stock[id]={q:1,v:value};
+      }
+      const source=worldBuyRegionalSupply(S,seller.id,port.id,'UK-CDF-LISBON-COAL',28);
+      const route=worldInternationalRegisterRoute(S,seller.id,profileId);
+      const warehouse=worldInternationalInstallWarehouse(S,buyer.id,depot.id,profileId);
+      const order=worldInternationalPlaceOrder(S,buyer.id,{routeId:route.id,warehouseId:warehouse.id,
+        productId:'PRD-R04',quantity:12,cargoLitres:27,unitPriceSeller:240,
+        maxPaymentBuyer:100000,paymentDays:60});
+      worldInternationalActOrder(S,seller.id,order.id,'approve');
+      async function close(month){
+        await runMonth();
+        if(S.monthCommitted!==ym(1912,month)||LAST_MONTH_DIAGNOSTIC)
+          throw Error('リスボン試験の月次処理 '+month+' '+LAST_MONTH_DIAGNOSTIC?.message);
+        seller=company(seller.id,S);buyer=company(buyer.id,S);
+        return S.worldExpansion.internationalShipments.at(-1);
+      }
+      await close(8);
+      let cargo=await close(9);
+      const shipped=cargo?.status==='IN_TRANSIT'&&cargo.orderId===order.id&&cargo.loadKg===14
+        &&cargo.sellerRate!==cargo.buyerRate&&!buyer.stock['PRD-R04']?.q
+        &&seller.stock['PRD-R04'].q===source.quantity-cargo.quantity-cargo.fuelRequired
+        &&acc(seller,'worldShipmentStock')===cargo.bookCost;
+      cargo=await close(10);
+      const paid=cargo.status==='IN_TRANSIT'&&cargo.credit.dueDate==='1912-10-31'
+        &&cargo.credit.paidAt===ym(1912,10)&&acc(buyer,'worldSupplierAdvances')===cargo.prepaidBuyer
+        &&S.consoHistory.at(-1).cf.reconciled;
+      cargo=await close(11);
+      const restored=parsePayload(savePayload(S)),consolidated=consolidate(restored);
+      const delivered=cargo.status==='DELIVERED'&&buyer.stock['PRD-R04'].q===12
+        &&acc(buyer,'worldSupplierAdvances')===0&&acc(seller,'worldShipmentStock')===0
+        &&buyer.stock['PRD-R04'].v===cargo.totalBuyer
+        &&restored.worldExpansion.internationalShipments.at(-1).receivedAt===ym(1912,11)
+        &&!check(restored).length&&!consolidated.errors.length&&consolidated.cf.reconciled;
+      const forged=structuredClone(restored);
+      forged.worldExpansion.companies[buyer.id].currencyId='CUR-ESP';
+      let auditRejects=false;
+      try{parsePayload(step7NativeSavePayload(forged));}catch{auditRejects=true;}
+      return {initiallyClosed,beforeReform,opened,currency,shipped,paid,delivered,auditRejects};
+    }""")
+    assert all(result.values()), result
+
+
 def test_south_africa_union(page):
     """Historical 1910 Union gate and sourced 1911 Cape-to-London wool."""
     result = page.evaluate("""() => {
@@ -763,6 +848,8 @@ def test_dated_colonial_export(page, data):
       if(weightDuty){
         legacy.worldExpansion.marketRegistryVersion=17;
         delete legacy.world.BE;
+        delete legacy.world.PT;
+        legacy.worldExpansion.appliedEvents=worldHistoryThrough(ym(legacy.year,legacy.month),17);
         delete legacy.worldExpansion.weightDutyFromSeq;
         const upgradedBeforeDispatch=parsePayload(savePayload(legacy));
         upgradedBeforeDispatch.month=departure;
@@ -1127,6 +1214,7 @@ def main(observe_receipts=None):
             "departure": 6, "payMonth": 7, "strictClosure": False,
         })
         test_italy_coal_import(page)
+        test_portugal_coal_import(page)
         test_steamship_export(page, {
             "profile": "IN-UK-BOMBAY-COTTON", "country": "IN", "site": "IN-BOM",
             "city": "CITY-16-02", "currency": "INR", "year": 1908, "offer": "IN-BOM-COTTON",
@@ -1252,7 +1340,7 @@ def main(observe_receipts=None):
         test_saudi_rice_import(page)
         assert not errors, errors
         browser.close()
-    print("PASS Phase 4 Canada, Australia, New Zealand, Mexico, Brazil, Argentina, Chile, Colombia, Sweden, Netherlands, Italy, Egypt, India, Belgium, South Africa, Siam, Straits Singapore, Qing China, Netherlands East Indies and Colonial Nigeria, Spain, Philippines, Russian Empire, Colonial Korea, Ottoman Empire, British Malaya, Kenya, Morocco, Switzerland, Austria, Poland, Greece, French Indochina, Qajar Persia and Saudi Arabia: sourced cargo, loading, shipment and settlement")
+    print("PASS Phase 4 Canada, Australia, New Zealand, Mexico, Brazil, Argentina, Chile, Colombia, Sweden, Netherlands, Italy, Egypt, India, Belgium, Portugal, South Africa, Siam, Straits Singapore, Qing China, Netherlands East Indies and Colonial Nigeria, Spain, Philippines, Russian Empire, Colonial Korea, Ottoman Empire, British Malaya, Kenya, Morocco, Switzerland, Austria, Poland, Greece, French Indochina, Qajar Persia and Saudi Arabia: sourced cargo, loading, shipment and settlement")
 
 
 if __name__ == "__main__":

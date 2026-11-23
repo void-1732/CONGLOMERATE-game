@@ -158,6 +158,29 @@ def test_antwerp_and_brussels(page):
     assert "登録運行期間終了" in route.inner_text()
 
 
+def test_cardiff_lisbon_route(page):
+    page.evaluate("""() => {
+      S=newWorldGame({country:'UK',name:'リスボン港地図検証'});
+      VIEW_FIRM=S.playerId;VIEW_COUNTRY='UK';PAGE='worldMap';
+      S.year=1912;S.month=9;S.monthCommitted=ym(1912,9)-1;
+      applyWorldHistory(S);syncWorldIdentities(S);render();
+    }""")
+    page.locator('[data-world-map-mode="sea"]').click()
+    route_id = "UK-PT-CARDIFF-LISBON-COAL"
+    route = page.locator(f'[data-world-map-route-row="{route_id}"]')
+    assert "開通・設備未登録" in route.inner_text()
+    route.get_by_role("button").click()
+    detail = page.locator(f'[data-world-map-detail="{route_id}"]')
+    assert "カーディフ石炭港 → リスボン港" in detail.inner_text()
+    assert detail.get_by_text("1912年8月から1912年12月まで", exact=False).count() == 1
+    assert page.locator('[data-world-map-site="PT-LIS"]').count() == 1
+    for city, site in (("CITY-05-03", "PT-LIS"), ("CITY-05-04", "PT-OPO")):
+        page.locator('[data-world-map-city-select]').select_option(city)
+        territory = page.locator(f'[data-world-map-city-detail="{city}"]')
+        assert "CUR-PTE" in territory.inner_text()
+        assert territory.locator(f'[data-world-map-build="{site}"]').is_visible()
+
+
 def main():
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(
@@ -293,8 +316,7 @@ def main():
         assert page.locator('[data-world-map-city-detail="CITY-14-01"]').count() == 1
         assert page.locator('[data-world-map-city-selected="true"]').count() == 1
 
-        # Portugal has a recorded historical jurisdiction, not an approved
-        # independent engine or silently redenominated accounting books.
+        # Before the reform, Portugal exposes its legal and monetary history.
         territory_reference = page.evaluate("""() => {
           const city=worldMapNetwork().cities.find(c=>c.territoryId==='TER-05-02');
           const state=city&&worldCityLocation(S,city.id);
@@ -325,6 +347,7 @@ def main():
         test_city_facility_management(page)
         test_historical_air_route(page)
         test_antwerp_and_brussels(page)
+        test_cardiff_lisbon_route(page)
         assert not errors, errors
         browser.close()
     print("PASS Phase 5: 40 markets, 155 city dots, exact routes, "

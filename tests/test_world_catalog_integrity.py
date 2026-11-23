@@ -41,8 +41,7 @@ def main():
           }finally{location.cityId=originalCityId}
           const state=newWorldGame({country:'JP',name:'Phase1検証'});
           // Grouped legal jurisdictions do not imply a trading engine.
-          const incomplete=['CITY-05-03','CITY-05-04',
-            'CITY-08-04','CITY-13-01','CITY-13-04'];
+          const incomplete=['CITY-08-04','CITY-13-01','CITY-13-04'];
           const registered=['CITY-05-01','CITY-08-02','CITY-08-03','CITY-13-02'];
           const compositeClosed=incomplete.every(id=>{
             const city=worldCityLocation(state,id);
@@ -109,7 +108,8 @@ def main():
           applyWorldHistory(state);syncWorldIdentities(state);validateWorldExpansion(state);
           const later=worldCityLocation(state,'CITY-01-04');
           const portugalRepublic=worldCityLocation(state,'CITY-05-03').jurisdictionId
-            ==='JUR-PT-REPUBLIC'&&!worldCityLocation(state,'CITY-05-03').marketOpen
+            ==='JUR-PT-REPUBLIC'&&worldCityLocation(state,'CITY-05-03').marketOpen
+            &&state.world.PT?.currency==='PTE'&&state.world.ES?.currency==='ESP'
             &&state.worldExpansion.appliedEvents.some(e=>e.id==='HIST-PT-1910');
           const identityAfter=JSON.stringify([
             state.firms.map(f=>[f.id,f.owners,f.loans]),
@@ -132,6 +132,8 @@ def main():
           delete legacy.worldExpansion.weightDutyFromSeq;
           delete legacy.world.BE;
           delete legacy.npcSupplyV033.markets.BE;
+          delete legacy.world.PT;
+          delete legacy.npcSupplyV033.markets.PT;
           ensureSupplyNetwork(legacy);
           const belgiumLegacy=worldCityLocation(legacy,'CITY-08-03');
           const belgiumBeforeUpgrade=belgiumLegacy.jurisdictionId===null
@@ -142,6 +144,7 @@ def main():
           const upgradePreservesLedger=oldAccepted
             &&upgraded.worldExpansion.marketRegistryVersion===WORLD_MARKET_REGISTRY_VERSION
             &&worldCityLocation(upgraded,'CITY-05-03').jurisdictionId==='JUR-PT-REPUBLIC'
+            &&upgraded.world.PT?.currency==='PTE'
             &&JSON.stringify(upgraded.firms.map(f=>[f.id,f.owners,f.journals,f.stock]))
               ===JSON.stringify(legacy.firms.map(f=>[f.id,f.owners,f.journals,f.stock]))
             &&check(upgraded).length===0;
