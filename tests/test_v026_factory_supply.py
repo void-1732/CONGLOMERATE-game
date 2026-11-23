@@ -13,7 +13,8 @@ with sync_playwright() as pw:
     page.set_content(html,wait_until='domcontentloaded')
     for _ in range(4):page.locator('[data-action="wizardNext"]').click()
     assert page.evaluate('TECH_NODES.length')==800
-    page.locator('[data-section="operations"]').click()
+    page.locator('[data-section="facilities"]').click()
+    page.locator('[data-page="facilityProduction"]').first.click()
     assert page.locator('[data-factory-pane-v026]').count()==3
     page.evaluate("""()=>{
       const f=current(),base=f.plants[0];
