@@ -748,6 +748,7 @@ def test_dated_colonial_export(page, data):
       const legacy=weightDuty?structuredClone(S):null;
       advanceFreightFixtureMonth(departure);worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
       const cargo=S.worldExpansion.internationalShipments.at(-1);
+      const unpaidAtDispatch=weightDuty?structuredClone(S):null;
       const shipped=cargo?.status==='IN_TRANSIT'&&cargo.quantity===14&&cargo.loadKg===15
         &&cargo.fuelRequired>0&&acc(seller,'worldShipmentStock')===cargo.bookCost
         &&!buyer.stock[product]?.q&&!check(S).length;
@@ -758,7 +759,7 @@ def test_dated_colonial_export(page, data):
       const prepaid=cargo.status==='IN_TRANSIT'&&cargo.credit.paidAt===ym(year,payMonth)
         &&!worldInternationalRouteAvailable(S,profile);
       const arrival=departure+worldInternationalProfile(profile).transitMonths;
-      let protectedBasis=true,heldForRelease=true,safeDelay=true,unusedDutyRefund=true;
+      let protectedBasis=true,heldForRelease=true,safeDelay=true,unusedDutyRefund=true,reassessedDuty=true;
       if(weightDuty){
         legacy.worldExpansion.marketRegistryVersion=17;
         delete legacy.worldExpansion.weightDutyFromSeq;
@@ -787,6 +788,57 @@ def test_dated_colonial_export(page, data):
         const outOfWindow=parsePayload(savePayload(late)).worldExpansion.internationalShipments[0];
         safeDelay=outOfWindow.status==='IN_TRANSIT'&&outOfWindow.customs.arrivalAt===ym(1924,5)
           &&outOfWindow.customs.releasedAt===null&&outOfWindow.dutyBuyer===39;
+        for(const paid of [true,false]){
+          const delayed=structuredClone(paid?S:unpaidAtDispatch);
+          delayed.year=1924;delayed.month=6;delayed.monthCommitted=ym(1924,6)-1;
+          applyWorldHistory(delayed);syncWorldIdentities(delayed);
+          const importer=company(buyer.id,delayed);
+          if(!paid){
+            post(importer,{otherExpense:acc(importer,'cash')},{cash:acc(importer,'cash')},
+              '検証用の資金不足','operating',delayed);
+          }
+          const before=acc(importer,'cash');
+          worldInternationalReceiveShipments(delayed);worldInternationalSettleCredit(delayed);
+          const beforeClearance=parsePayload(savePayload(delayed)).worldExpansion.internationalShipments[0];
+          const fullWarehouse=paid?structuredClone(delayed):null;
+          delayed.month=7;delayed.monthCommitted=ym(1924,7)-1;
+          worldInternationalReceiveShipments(delayed);
+          const assessed=delayed.worldExpansion.internationalShipments[0];
+          const restoredAssessment=parsePayload(savePayload(delayed));
+          const forgedDuty=structuredClone(restoredAssessment);
+          forgedDuty.worldExpansion.internationalShipments[0].customs.assessedDuty++;
+          const rejection=(()=>{try{parsePayload(savePayload(forgedDuty));return false;}catch{return true;}})();
+          reassessedDuty&&=beforeClearance.customs.arrivalAt===ym(1924,6)
+            &&beforeClearance.customs.releasedAt===null&&beforeClearance.dutyBuyer===39
+            &&assessed.status==='DELIVERED'&&assessed.customs.assessmentId==='UK-COFFEE-DUTY-1924'
+            &&assessed.customs.assessedDuty===19&&assessed.dutyBuyer===39&&assessed.receivedAt===ym(1924,7)
+            &&importer.stock[product]?.v===assessed.prepaidBuyer+19
+            &&acc(importer,'cash')===before+(paid?20:0)
+            &&acc(importer,'worldImportDutyPrepaid')===0
+            &&-acc(importer,'worldInternationalDutyPayable')===(paid?0:19)
+            &&rejection&&!check(restoredAssessment).length&&!consolidate(restoredAssessment).errors.length;
+          if(paid){
+            const receiver=company(buyer.id,fullWarehouse),full=Math.floor(receiver.plants[0].capacity*10);
+            post(receiver,{materials:full},{cash:full},'検証用の満杯在庫','operating',fullWarehouse);
+            receiver.stock[product]={q:full,v:full};
+            fullWarehouse.month=7;fullWarehouse.monthCommitted=ym(1924,7)-1;
+            worldInternationalReceiveShipments(fullWarehouse);
+            const blocked=fullWarehouse.worldExpansion.internationalShipments[0];
+            const canRefund=blocked.status==='IN_TRANSIT'&&blocked.customs.assessedDuty===19;
+            const cash=acc(receiver,'cash'),expense=acc(receiver,'otherExpense');
+            worldInternationalRefundShipment(fullWarehouse,blocked.id);
+            reassessedDuty&&=canRefund&&blocked.status==='REFUNDED'
+              &&acc(receiver,'cash')===cash+blocked.prepaidBuyer+20
+              &&acc(receiver,'otherExpense')===expense+19&&receiver.stock[product].q===full
+              &&!check(parsePayload(savePayload(fullWarehouse))).length;
+          }else{
+            const amount=assessed.prepaidBuyer+19;
+            post(importer,{cash:amount},{capital:amount},'検証用増資','financing',delayed);
+            worldInternationalSettleCredit(delayed);
+            reassessedDuty&&=assessed.credit.paidAt===ym(1924,7)&&acc(importer,'cash')===0
+              &&acc(importer,'worldInternationalDutyPayable')===0&&!check(parsePayload(savePayload(delayed))).length;
+          }
+        }
         for(const pending of [false,true]){
           const cancelled=structuredClone(S);
           cancelled.month=arrival+1;cancelled.monthCommitted=ym(year,arrival);
@@ -838,7 +890,7 @@ def test_dated_colonial_export(page, data):
         &&buyer.stock[product].v===cargo.totalBuyer&&!acc(seller,'worldShipmentStock')
         &&!check(saved).length&&!consolidate(saved).errors.length;
       return {initiallyClosed,before,opened,identities,shipped,tamper,prepaid,
-        protectedBasis,heldForRelease,safeDelay,unusedDutyRefund,done};
+        protectedBasis,heldForRelease,safeDelay,unusedDutyRefund,reassessedDuty,done};
     }""",data)
     assert all(result.values()), (data["country"],result)
 
