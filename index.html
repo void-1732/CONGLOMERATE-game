@@ -11595,6 +11595,10 @@ function worldGeneratePower(s,firmId,plantId,fuelQty){
  return receipt;
 }
 function worldPowerAvailable(state,plantId){
+ const g=state.worldExpansion?.powerGenerators?.[plantId],
+  line=state.worldExpansion?.powerLines?.[plantId],
+  now=ym(state.year,state.month);
+ if((g?.retiredAt!=null&&g.retiredAt<=now)||(line?.retiredAt!=null&&line.retiredAt<=now))return 0;
  const b=state.worldExpansion?.powerAllocations?.[plantId];
  return b&&['TEST_FIXTURE','FUEL_GENERATED','FUEL_TRANSFERRED'].includes(b.source)&&b.month===ym(state.year,state.month)
   ?Math.max(0,b.capacityKwh-b.usedKwh):0;
@@ -11675,6 +11679,8 @@ function worldValidateEnergyAsset(asset,s){
  if(!Number.isSafeInteger(asset.assetValue)||asset.assetValue<1
   ||!Number.isSafeInteger(dep)||dep<0||dep>asset.assetValue
   ||!Number.isSafeInteger(condition)||condition<0||condition>100
+  ||!Number.isSafeInteger(asset.installedAt)||asset.installedAt<WORLD_START_MONTH
+  ||(dep>0&&asset.lastDepreciatedAt==null)
   ||(asset.lastDepreciatedAt!=null&&(!Number.isSafeInteger(asset.lastDepreciatedAt)
     ||asset.lastDepreciatedAt<asset.installedAt||asset.lastDepreciatedAt>ym(s.year,s.month)))
   ||(asset.retiredAt!=null&&(!Number.isSafeInteger(asset.retiredAt)
@@ -11844,6 +11850,7 @@ function worldDispatchDomesticShipment(s,routeId,sellerId,sellerPlantId,buyerId,
  post(seller,{cash:prepay},{worldCustomerAdvances:prepay},'納品前に受領した国内取引前受金','operating',s);
  const t={id:'DS-'+s.seq++,routeId,sellerId,buyerId,sellerPlantId,buyerPlantId,
   productId,quantity,unitPrice,amount,freightCost:fuelBookCost,prepaid:prepay,bookCost,
+  fromSiteId:route.fromSiteId,toSiteId:route.toSiteId,
   dispatchedAt:month,dueAt:month+route.transitMonths,status:'IN_TRANSIT',
   receivedAt:null,refundedAt:null};
  (w.domesticShipments??=[]).push(t);
@@ -11931,12 +11938,15 @@ function worldValidateDomesticLogistics(s){
   if(!/^DS-\d+$/.test(t.id)||ids.has(t.id)||!route||!seller||!buyer
    ||seller.id===buyer.id||seller.country!==buyer.country
    ||route.ownerCompanyId!==seller.id||!sp||!bp
-   ||sp.siteId!==route.fromSiteId||bp.siteId!==route.toSiteId
+   ||t.fromSiteId!==route.fromSiteId||t.toSiteId!==route.toSiteId
    ||!item||!['resource','material'].includes(item.category)
    ||worldProductUnitClass(item.id)!=='mass'
    ||!Number.isSafeInteger(t.quantity)||t.quantity<1||t.quantity>10
    ||!Number.isSafeInteger(t.unitPrice)||t.unitPrice<1||t.unitPrice>10000000
    ||t.amount!==t.quantity*t.unitPrice
+   ||t.dispatchedAt>ym(s.year,s.month)
+   ||(t.receivedAt!=null&&t.receivedAt>ym(s.year,s.month))
+   ||(t.refundedAt!=null&&t.refundedAt>ym(s.year,s.month))
    ||!Number.isSafeInteger(t.freightCost)||t.freightCost<1
    ||t.prepaid!==t.amount+t.freightCost
    ||!Number.isSafeInteger(t.bookCost)||t.bookCost<1
