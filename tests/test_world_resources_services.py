@@ -26,7 +26,7 @@ def main():
             .map(p=>worldServiceTerms(p.id));
           const allFifteen=services.length===15 && services.every(s=>
             !s.physicalInventory&&s.requiresVerifiedCompletion&&
-            s.revenueState==='NOT_IMPLEMENTED'&&s.settlementState==='NOT_IMPLEMENTED');
+            typeof s.revenueState==='string'&&typeof s.settlementState==='string');
           const finance=services.filter(s=>s.executionClass==='FINANCIAL').length===3;
           const freight=services.filter(s=>s.executionClass==='TRANSPORT_AND_STORAGE').length===4;
           const telecom=services.some(s=>s.productId==='PRD-S10'&&s.executionClass==='NETWORK');

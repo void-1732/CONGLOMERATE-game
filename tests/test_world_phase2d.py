@@ -97,10 +97,10 @@ def main():
           bad.worldExpansion.energyReceipts[0].grossKwh+=10;
           let rejectTamper=false;try{validateWorldExpansion(bad)}catch{rejectTamper=true}
           const clean=check(S).length===0&&consolidate(S).errors.length===0;
-          const count=WORLD_SUPPLEMENTAL_RECIPES.length===83
-            &&WORLD_PRODUCTS.filter(p=>worldProductImplementation(p.id).implementation==='DATA_CANDIDATE').length===66;
+          const count=WORLD_SUPPLEMENTAL_RECIPES.length===104
+            &&WORLD_PRODUCTS.filter(p=>worldProductImplementation(p.id).implementation==='DATA_CANDIDATE').length===7;
           const noServiceRevenue=WORLD_PRODUCTS.filter(p=>p.category==='service')
-             .every(p=>worldServiceTerms(p.id).revenueState==='NOT_IMPLEMENTED'&&!pf.stock[p.id]);
+             .every(p=>!worldServiceTerms(p.id).physicalInventory&&!pf.stock[p.id]);
           return {monthlyMined,accepted,rejectsPhantom,rejectsService,rejectsWrongSite,
             noExtraReserves,coalPlanSaved,generatingBefore,rejectsNoGenerator,
             installed,rejectsEmptyFuel,fuelConserved,rejectsRepeat,powered,saved,

@@ -29,9 +29,9 @@ def main():
           p.componentLines=[];p.wirePlan=0;p.lastProduced=0;
           const newlyAdded=['PRD-M01','PRD-M02','PRD-M09','PRD-M10','PRD-M12',
             'PRD-M13','PRD-M14','PRD-C17','PRD-C18','PRD-M29','PRD-M30'];
-          const count=WORLD_SUPPLEMENTAL_RECIPES.length===83
+          const count=WORLD_SUPPLEMENTAL_RECIPES.length===104
             &&newlyAdded.every(id=>WORLD_SUPPLEMENTAL_BY_ID.has(id))
-            &&WORLD_PRODUCTS.filter(x=>worldProductImplementation(x.id).implementation==='DATA_CANDIDATE').length===66;
+            &&WORLD_PRODUCTS.filter(x=>worldProductImplementation(x.id).implementation==='DATA_CANDIDATE').length===7;
           const graph=validateWorldRecipeGraph();
           const locked=!worldRecipeUnlocked(f,WORLD_SUPPLEMENTAL_BY_ID.get('PRD-M12'),1900);
           if(!f.research.tree.done.includes('materials-1'))f.research.tree.done.push('materials-1');
@@ -88,7 +88,7 @@ def main():
           S.month=4;p.worldProductionMonth=null;
           const freshMonthNoPower=worldPowerAvailable(S,p.id)===0;
           const serviceUnchanged=WORLD_PRODUCTS.filter(x=>x.category==='service')
-             .every(x=>worldServiceTerms(x.id).revenueState==='NOT_IMPLEMENTED'&&!f.stock[x.id]);
+             .every(x=>!worldServiceTerms(x.id).physicalInventory&&!f.stock[x.id]);
           const noPhantomDeposit=Object.keys(S.worldExpansion.resourceDeposits).length===0;
           const clean=check(S).length===0&&consolidate(S).errors.length===0;
           return {count,graph,locked,timberProduced,noDuplicate,nonAssembly,

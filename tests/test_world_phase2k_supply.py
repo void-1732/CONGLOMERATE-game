@@ -28,7 +28,7 @@ def main():
           render();
         }""")
         page.locator("#world-domestic > summary").click()
-        supply = page.locator('form[data-world-domestic="supply"]')
+        supply = page.locator('form[data-world-domestic="supply"]:has(input[value^="JP-KIBA-TIMBER|"])')
         assert supply.count() == 1
         supply.locator('[name="quantity"]').fill("6")
         supply.get_by_role("button", name="現物を仕入れる").click()
