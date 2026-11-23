@@ -136,6 +136,7 @@ def main(observe_receipts=None):
             &&acc(seller,'cash')===beforeRefundSeller&&acc(buyer,'cash')===beforeRefundBuyer;
           post(seller,{ppe:beforeRefundSeller},{cash:beforeRefundSeller},'返金資金不足の検証','investing',S);
           S.world.FR.fx*=1.15;
+          worldMatchLedgerCurrencyRates(S);
           worldInternationalRefundShipment(S,prepaidMissing.id);
           const dueRefund=prepaidMissing.status==='REFUND_PENDING'&&prepaidMissing.refundedAt===null
             &&acc(seller,'cash')===0&&acc(buyer,'cash')===beforeRefundBuyer
