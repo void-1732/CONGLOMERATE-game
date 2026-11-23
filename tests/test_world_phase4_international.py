@@ -166,7 +166,7 @@ def main():
           const customs=cargo?.status==='IN_TRANSIT'&&cargo.quantity===12
             &&cargo.tariffBps===250&&cargo.dutyBuyer>0
             &&cargo.totalBuyer===cargo.prepaidBuyer+cargo.dutyBuyer
-            &&acc(buyer,'worldShipmentStock')===cargo.dutyBuyer
+            &&acc(buyer,'worldImportDutyPrepaid')===cargo.dutyBuyer
             &&acc(buyer,'worldSupplierAdvances')===cargo.prepaidBuyer
             &&!check(S).length;
           const saved=parsePayload(savePayload(S));
@@ -177,7 +177,7 @@ def main():
           const delivered=cargo.status==='DELIVERED'
             &&buyer.stock['PRD-R19'].q===12
             &&buyer.stock['PRD-R19'].v===cargo.totalBuyer
-            &&acc(buyer,'worldShipmentStock')===0
+            &&acc(buyer,'worldImportDutyPrepaid')===0
             &&!check(S).length;
           const changed=structuredClone(S);
           changed.worldExpansion.internationalShipments.at(-1).tariffBps++;
