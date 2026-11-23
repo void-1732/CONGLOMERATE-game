@@ -146,7 +146,7 @@ def main():
             f.stock[id]={q,v};
           };
           put(seller,'PRD-E18',1,4500);
-          put(seller,'PRD-M17',50,500);
+          put(seller,'PRD-R04',50,500);
           put(seller,'PRD-R19',24,1200);
           put(buyer,'PRD-E20',1,200);
           put(buyer,'PRD-E21',1,300);
