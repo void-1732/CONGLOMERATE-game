@@ -107,7 +107,7 @@ def test_australia(page):
       const prepaid=cargo.status==='IN_TRANSIT'&&cargo.credit.paidAt===ym(1913,8);
       advanceFreightFixtureMonth(9);worldInternationalReceiveShipments(S);
       const held=cargo.status==='IN_TRANSIT'&&cargo.customs?.arrivalAt===ym(1913,9)
-        &&cargo.customs.releasedAt===null&&cargo.customs.duty===0&&cargo.tariffBps===0
+        &&cargo.customs.releasedAt===null&&cargo.customs.duty===cargo.dutyBuyer&&cargo.tariffBps===350
         &&cargo.customs.authorityId==='CUSTOMS-JP-YOK-1911'&&acc(seller,'worldShipmentStock')===cargo.bookCost
         &&!buyer.stock['PRD-R21']?.q&&worldInternationalTradePanel(buyer,true).includes('保税・通関審査中')
         &&parsePayload(savePayload(S)).worldExpansion.internationalShipments[0].customs.arrivalAt===ym(1913,9);
@@ -272,7 +272,8 @@ def test_steamship_export(page, market_data):
         cargo.status==='IN_TRANSIT'&&cargo.customs?.arrivalAt===ym(year,arrival)
         &&cargo.customs.authorityId===authority
         &&cargo.customs.currencyId===(customsCurrency??'CUR-USD')
-        &&cargo.customs.releasedAt===null&&cargo.customs.duty===0
+        &&cargo.customs.releasedAt===null&&cargo.customs.duty===cargo.dutyBuyer
+        &&cargo.tariffBps===WORLD_PHASE4_TARIFF_BPS[buyer.country]
         &&!buyer.stock[product]?.q;
       if(authority!==null){advanceFreightFixtureMonth(arrival+1);worldInternationalReceiveShipments(S);}
       const reopened=parsePayload(savePayload(S));
@@ -858,13 +859,13 @@ def test_philippines_sugar_customs(page):
       const order=worldInternationalPlaceOrder(S,buyer.id,{
         routeId:route.id,warehouseId:wh.id,productId:'PRD-M40',quantity:14,
         cargoLitres:30,unitPriceSeller,maxPaymentBuyer:100000,paymentDays:60});
-      const freeQuota=worldInternationalQuote(S,route,'PRD-M40',14,unitPriceSeller,buyer.id,60,30).tariffBps===0
+      const freeQuota=worldInternationalQuote(S,route,'PRD-M40',14,unitPriceSeller,buyer.id,60,30).tariffBps===300
         &&WORLD_INTERNATIONAL_CUSTOMS[profileId].annualQuotaKg===304814400;
       worldInternationalActOrder(S,seller.id,order.id,'approve');
       advanceFreightFixtureMonth(5);worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
       const cargo=S.worldExpansion.internationalShipments.at(-1);
       const shipped=cargo?.status==='IN_TRANSIT'&&cargo.quantity===14
-        &&cargo.tariffBps===0&&cargo.dutyBuyer===0&&cargo.loadKg===15
+        &&cargo.tariffBps===300&&cargo.dutyBuyer===Math.round(cargo.goodsSeller*cargo.sellerRate/cargo.buyerRate*.03)&&cargo.loadKg===15
         &&acc(seller,'worldShipmentStock')===cargo.bookCost
         &&!buyer.stock['PRD-M40']?.q&&!check(S).length;
       advanceFreightFixtureMonth(6);worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
@@ -1004,6 +1005,8 @@ def test_dated_colonial_export(page, data):
         maxPaymentBuyer:100000,paymentDays:60});
       worldInternationalActOrder(S,seller.id,o.id,'approve');
       const weightDuty=profile==='KE-UK-MOMBASA-COFFEE';
+      // Explicit pre-SPEC-079 fixture: preserve the historical dispatch and its refund tests.
+      if(weightDuty)delete S.worldExpansion.uniformDutyFromSeq;
       const legacy=weightDuty?structuredClone(S):null;
       advanceFreightFixtureMonth(departure);worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
       const cargo=S.worldExpansion.internationalShipments.at(-1);
@@ -1039,7 +1042,8 @@ def test_dated_colonial_export(page, data):
         protectedBasis=oldCargo.tariffBps===250&&!oldCargo.customs
           &&migrated.worldExpansion.weightDutyFromSeq===legacy.seq
           &&JSON.stringify(migrated.worldExpansion.internationalShipments[0])===JSON.stringify(oldCargo)
-          &&newCargo?.dutyBuyer===39&&newCargo.customs?.centsPerHundredweight===140;
+          &&newCargo?.tariffBps===250&&newCargo.customs?.centsPerHundredweight===undefined
+          &&newCargo.dutyBuyer===Math.round(newCargo.goodsSeller*newCargo.sellerRate/newCargo.buyerRate*.025);
         migrated.month=arrival;worldInternationalReceiveShipments(migrated);
         worldInternationalSettleCredit(migrated);
         const oldDelivery=parsePayload(savePayload(migrated)).worldExpansion.internationalShipments[0];
@@ -1239,8 +1243,8 @@ def main(observe_receipts=None):
         page.wait_for_function("STORAGE_READY")
         if observe_receipts is not None:
             observe_receipts(page)
-        # A newly connected exporter does not imply an imported tariff
-        # schedule. Missing entries must fail closed before allocating cargo.
+        # SPEC-079: every registered jurisdiction has a single provisional rate.
+        # Unregistered jurisdictions still fail closed.
         tariff_guard = page.evaluate("""() => {
           const s=newWorldGame({country:'BE',name:'Belgian tariff guard'});
           const buyer=company(s.playerId,s);
@@ -1249,9 +1253,11 @@ def main(observe_receipts=None):
             profileId:'UK-PT-CARDIFF-LISBON-COAL'},'PRD-R04',1,100,buyer.id);
           const missing=Object.keys(WORLD_INTERNATIONAL_ROUTE_EVIDENCE)
             .filter(id=>!Object.hasOwn(WORLD_PHASE4_TARIFF_BPS,
-              findSite(WORLD_INTERNATIONAL_CORRIDORS[id].to)?.country));
-          return {blocked:!worldInternationalImportTariffAvailable(s,'BE')
-             &&q.problem==='輸入国の関税制度が未接続です',
+              findSite(WORLD_INTERNATIONAL_CORRIDORS[id].to)?.country))
+            .concat(Object.keys(WORLD_ENGINE_TERRITORY).filter(code=>!Object.hasOwn(WORLD_PHASE4_TARIFF_BPS,code)));
+          return {blocked:!worldInternationalImportTariffAvailable(s,'ZZ')
+             &&worldInternationalImportTariffAvailable(s,'BE')
+             &&worldInternationalTariffBps(s,'BE',null)===300&&!!q.problem,
             supported:worldInternationalImportTariffAvailable(s,'UK'),
             noMutation:before===JSON.stringify(s),missing};
         }""")

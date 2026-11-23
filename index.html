@@ -6399,6 +6399,8 @@ function parsePayload(raw){if(typeof raw!=='string')throw Error('保存データ
  validateWorldExpansion(s);
  if(s.config?.scenario==='world'){
   upgradeWorldMarketRegistry(s);
+  // Preserve pre-existing shipment terms; newly dispatched cargo uses SPEC-079.
+  s.worldExpansion.uniformDutyFromSeq??=s.seq;
   const errs=check(s);
   if(errs.length)throw Error(errs.slice(0,3).join(' / '));
   return s;
@@ -9687,7 +9689,7 @@ function worldMapRouteDetail(s,r,shipments){
   if(t.status==='IN_TRANSIT'){
    stage=domestic?'輸送中':worldInternationalShipmentStage(t);
    if(t.customs?.arrivalAt!=null){
-    const rule=WORLD_INTERNATIONAL_CUSTOMS[r.id];
+    const rule=worldInternationalCustomsRule(s,r.id,t.productId,t.dueAt,t.journals.dispatch);
     month=t.customs.releasedAt??(worldInternationalCustomsAtArrival(rule,t.customs.arrivalAt)
      ?t.customs.arrivalAt+rule.reviewMonths:null);
    }else if(t.transfer?.boardedAt===null){
@@ -12213,6 +12215,7 @@ function newWorldGame(setup){
  validateWorldCatalog();
  const state=newGame({...setup,era:1900,difficulty:'normal',history:'historical',scenario:'world'});
  state.worldExpansion=makeWorldExpansion();
+ state.worldExpansion.uniformDutyFromSeq=1;
  applyWorldHistory(state);syncWorldIdentities(state);validateWorldExpansion(state);
  return state;
 }
@@ -12328,6 +12331,8 @@ function validateWorldExpansion(s){
   ?!Number.isSafeInteger(world.weightDutyFromSeq)||world.weightDutyFromSeq<1||world.weightDutyFromSeq>s.seq
   :Object.hasOwn(world,'weightDutyFromSeq'))
   throw Error('重量関税の適用開始が不正です');
+ if(Object.hasOwn(world,'uniformDutyFromSeq')&&(!Number.isSafeInteger(world.uniformDutyFromSeq)
+  ||world.uniformDutyFromSeq<1||world.uniformDutyFromSeq>s.seq))throw Error('国別一律関税の適用開始が不正');
  const expected=makeWorldExpansion(registryVersion);
  for(const event of worldHistoryThrough(ym(s.year,s.month),registryVersion))recordWorldEvent(expected,event);
  if(JSON.stringify(world.territoryJurisdictions)!==JSON.stringify(expected.territoryJurisdictions)
@@ -15326,19 +15331,24 @@ function worldInternationalOrderBank(profileId,order){
  const bank=WORLD_INTERNATIONAL_REMITTANCE[profileId];
  return bank&&order.paymentDays>0&&(!bank.selectable||order.bankId===bank.id)?bank:null;
 }
-const WORLD_PHASE4_TARIFF_BPS=Object.freeze({JP:350,US:300,UK:250,FR:300,DE:300,NO:250,CA:300,AU:300,NZ:300,MX:300,BR:300,AR:300,CL:300,CO:300,SE:250,NL:300,IT:300,EG:300,IN:300,ZA:250,TH:300,SG:0,CN:300,ID:300,NG:250,ES:250,PT:300,IE:300,LU:300,YU:300,AL:300,PH:300,RU:300,KR:300,TR:300,MY:250,KE:250,MA:300,CH:300,AT:300,PL:250,GR:300,VN:300,IR:300,SA:300});
+const WORLD_PHASE4_TARIFF_BPS=Object.freeze({JP:350,US:300,UK:250,FR:300,DE:300,NO:250,CA:300,AU:300,NZ:300,MX:300,BR:300,AR:300,CL:300,CO:300,SE:250,NL:300,BE:300,IT:300,EG:300,IN:300,ZA:250,TH:300,SG:0,CN:300,ID:300,NG:250,ES:250,PT:300,IE:300,LU:300,YU:300,AL:300,PH:300,RU:300,KR:300,TR:300,MY:250,KE:250,MA:300,CH:300,AT:300,PL:250,GR:300,VN:300,IR:300,SA:300});
 function worldInternationalCustomsMonthAllowed(rule,month){
  return (rule.fromImportMonth==null||month>=rule.fromImportMonth)
   &&(rule.untilImportMonth==null||month<rule.untilImportMonth);
 }
 function worldInternationalCustomsAtArrival(rule,month){
- if(worldInternationalCustomsMonthAllowed(rule,month))return rule;
+ if(rule.uniformCountryDuty||worldInternationalCustomsMonthAllowed(rule,month))return rule;
  const later=rule.laterImportDuty;
  return later&&worldInternationalCustomsMonthAllowed(later,month)?later:null;
 }
 function worldInternationalCustomsRule(s,profileId,productId,importMonth,dispatchSequence){
  const rule=WORLD_INTERNATIONAL_CUSTOMS[profileId];
  if(!rule||rule.productId!==productId||!worldInternationalCustomsMonthAllowed(rule,importMonth))return null;
+ if(dispatchSequence>=s.worldExpansion.uniformDutyFromSeq){
+  // Historical sources still govern the documented inspection, not the game tax rate.
+  const {centsPerHundredweight,annualQuotaKg,laterImportDuty,...inspection}=rule;
+  return {...inspection,uniformCountryDuty:true,tariffBps:WORLD_PHASE4_TARIFF_BPS[findSite(WORLD_INTERNATIONAL_CORRIDORS[profileId].to).country]};
+ }
  if(rule.centsPerHundredweight!=null&&!(dispatchSequence>=s.worldExpansion.weightDutyFromSeq))return null;
  return rule;
 }
@@ -15533,7 +15543,7 @@ function worldInternationalReceiveShipments(s,events=[]){
    ||!worldDomesticSiteActive(seller?.plants.find(p=>p.id===t.sellerPlantId),profile.from)
    ||!worldDomesticSiteActive(bp,profile.to))continue;
   if(t.customs){
-   const rule=WORLD_INTERNATIONAL_CUSTOMS[route.profileId];
+   const rule=worldInternationalCustomsRule(s,route.profileId,t.productId,t.dueAt,t.journals.dispatch);
    if(t.customs.arrivalAt===null){
     t.customs.arrivalAt=month;
     events.push(rule.authority+' 保税貨物の搬入 '+t.id);
@@ -15866,7 +15876,7 @@ function worldValidateInternationalLogistics(s){
    ||!Number.isSafeInteger(t.sellerRate)||t.sellerRate<1
    ||!Number.isSafeInteger(t.buyerRate)||t.buyerRate<1
    ||t.prepaidBuyer!==Math.round(t.prepaidSeller*t.sellerRate/t.buyerRate)
-   ||(t.tariffBps!==undefined&&t.tariffBps!==worldInternationalTariffBps(s,buyer.country,rule))
+   ||((t.journals?.dispatch>=w.uniformDutyFromSeq||t.tariffBps!==undefined)&&t.tariffBps!==worldInternationalTariffBps(s,buyer.country,rule))
    ||(t.dutyBuyer??0)!==worldInternationalDutyBuyer(rule,t.tariffBps,t.goodsSeller,t.sellerRate,t.buyerRate,t.quantity)
    ||(t.totalBuyer??t.prepaidBuyer)!==t.prepaidBuyer+(t.dutyBuyer??0)
    ||(t.totalBuyer??t.prepaidBuyer)>order.maxPaymentBuyer
@@ -16111,7 +16121,7 @@ function worldInternationalTradePanel(firm,editable){
     +'" target="_blank" rel="noopener noreferrer">運用期間の史料</a>':'';
    const rule=WORLD_INTERNATIONAL_CUSTOMS[id];
    const customs=rule?' · <a href="'+esc(rule.authoritySource)+'" target="_blank" rel="noopener noreferrer">'
-    +esc(rule.authority)+'</a> · <a href="'+esc(rule.tariffSource)+'" target="_blank" rel="noopener noreferrer">品目関税の史料</a>'
+    +esc(rule.authority)+'</a> · <a href="'+esc(rule.tariffSource)+'" target="_blank" rel="noopener noreferrer">歴史上の品目関税（参考）</a>'
     +(rule.laterImportDuty?' · <a href="'+esc(rule.laterImportDuty.tariffSource)
       +'" target="_blank" rel="noopener noreferrer">改定後の関税史料</a>':''):'';
    const bank=WORLD_INTERNATIONAL_REMITTANCE[id];

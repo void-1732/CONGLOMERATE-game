@@ -153,7 +153,9 @@ def audit_monthly_receipts():
  for(let i=0;i<12&&cargo.status==='IN_TRANSIT';i++)cargo=await close();
  if(cargo.status!=='DELIVERED')throw Error('not delivered '+JSON.stringify(cargo));
  const saved=parsePayload(savePayload(S)),g=consolidate(saved);
- return {id,received:cargo.receivedAt,ok:buyer.stock[product]?.q===2&&buyer.stock[product].v===cargo.totalBuyer&&acc(seller,'worldShipmentStock')===0&&acc(buyer,'worldSupplierAdvances')===0&&!check(saved).length&&!g.errors.length&&g.cf.reconciled};
+ return {id,received:cargo.receivedAt,tariffBps:cargo.tariffBps,ok:cargo.tariffBps===WORLD_PHASE4_TARIFF_BPS[buyer.country]
+  &&cargo.dutyBuyer===Math.round(cargo.goodsSeller*cargo.sellerRate/cargo.buyerRate*cargo.tariffBps/10000)
+  &&buyer.stock[product]?.q===2&&buyer.stock[product].v===cargo.totalBuyer&&acc(seller,'worldShipmentStock')===0&&acc(buyer,'worldSupplierAdvances')===0&&!check(saved).length&&!g.errors.length&&g.cf.reconciled};
 }""", route_id)
             assert result["ok"], result
             receipts.append(result)
