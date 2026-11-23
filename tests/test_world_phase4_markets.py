@@ -177,25 +177,25 @@ def test_new_zealand(page):
     assert all(result.values()), result
 
 
-def test_mexico(page):
-    result = page.evaluate("""() => {
-      const profile='MX-US-VERACRUZ-COFFEE';
-      S=newWorldGame({country:'MX',name:'Veracruz coffee exporter'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='MX';
-      const seller=company(S.playerId),port=seller.plants[0],identity=worldCityLocation(S,'CITY-28-04');
-      const market=identity.marketOpen&&identity.jurisdictionId==='JUR-MX'
+def test_steamship_export(page, market_data):
+    result = page.evaluate("""({profile,country,site,city,currency,year,departure,payMonth,buyerCountry,
+                              destination,product,offer,authority}) => {
+      S=newWorldGame({country,name:site+' exporter'});VIEW_FIRM=S.playerId;VIEW_COUNTRY=country;
+      const seller=company(S.playerId),port=seller.plants[0],identity=worldCityLocation(S,city);
+      const market=identity.marketOpen&&identity.jurisdictionId==='JUR-'+country
         &&S.worldExpansion.openMarkets[identity.marketId]===ym(1900,1)
-        &&port.siteId==='MX-VER'&&firmCurrency(seller,S)==='MXP'
+        &&port.siteId===site&&firmCurrency(seller,S)===currency
         &&!worldInternationalRouteAvailable(S,profile);
-      S.year=1906;S.month=5;S.monthCommitted=ym(1906,5)-1;
+      S.year=year;S.month=departure-1;S.monthCommitted=ym(year,S.month)-1;
       applyWorldHistory(S);syncWorldIdentities(S);
       PAGE='corporateSubsidiaries';render();
-      document.querySelector('#subName').value='New Orleans coffee importer';
-      document.querySelector('#subCountry').value='US';
+      document.querySelector('#subName').value=destination+' importer';
+      document.querySelector('#subCountry').value=buyerCountry;
       document.querySelector('#subIndustry').value='manufacturing';
       document.querySelector('#subCapital').value='650000';
       createSub();
-      const buyer=S.firms.find(f=>f.name==='New Orleans coffee importer'),depot=buyer.plants[0];
-      depot.siteId='US-NEWORLEANS';syncWorldIdentities(S);
+      const buyer=S.firms.find(f=>f.name===destination+' importer'),depot=buyer.plants[0];
+      depot.siteId=destination;syncWorldIdentities(S);
       for(const firm of [buyer,seller]){
         firm.auto=false;firm.research.tree.done=[...new Set([...firm.research.tree.done,'production-1'])];
       }
@@ -203,32 +203,37 @@ def test_mexico(page):
         post(firm,{materials:value},{cash:value},'検証用の有償現物設備','operating',S);
         firm.stock[id]={q:1,v:value};
       }
-      const purchase=worldBuyRegionalSupply(S,seller.id,port.id,'MX-VER-COFFEE',14);
-      worldBuyRegionalSupply(S,seller.id,port.id,'MX-VER-BUNKER-COAL',10);
+      const purchase=worldBuyRegionalSupply(S,seller.id,port.id,offer,14);
+      worldBuyRegionalSupply(S,seller.id,port.id,site+'-BUNKER-COAL',20);
       const route=worldInternationalRegisterRoute(S,seller.id,profile);
       const warehouse=worldInternationalInstallWarehouse(S,buyer.id,depot.id,profile);
       const order=worldInternationalPlaceOrder(S,buyer.id,{routeId:route.id,warehouseId:warehouse.id,
-        productId:'PRD-R27',quantity:14,cargoLitres:30,unitPriceSeller:40,maxPaymentBuyer:100000,paymentDays:60});
+        productId:product,quantity:14,cargoLitres:30,unitPriceSeller:localFromBase(40,country),
+        maxPaymentBuyer:100000,paymentDays:60});
       worldInternationalActOrder(S,seller.id,order.id,'approve');
-      S.month=6;worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
+      S.month=departure;worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
       const [cargo]=S.worldExpansion.internationalShipments;
       const shipped=purchase.quantity===14&&cargo?.status==='IN_TRANSIT'&&cargo.loadKg===15
         &&cargo.prepaidSeller!==cargo.prepaidBuyer&&acc(seller,'worldShipmentStock')===cargo.bookCost;
-      S.month=7;worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
-      const held=cargo.status==='IN_TRANSIT'&&cargo.customs?.arrivalAt===ym(1906,7)
-        &&cargo.customs.authorityId==='CUSTOMS-US-NOLA-1897'&&cargo.customs.currencyId==='CUR-USD'
-        &&cargo.customs.releasedAt===null&&cargo.customs.duty===0
-        &&cargo.credit.paidAt===ym(1906,7)&&!buyer.stock['PRD-R27']?.q
+      S.month=payMonth;worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
+      const prepaid=cargo.status==='IN_TRANSIT'&&cargo.credit.paidAt===ym(year,payMonth)
         &&!worldInternationalRouteAvailable(S,profile);
-      S.month=8;worldInternationalReceiveShipments(S);
+      const arrival=departure+worldInternationalProfile(profile).transitMonths;
+      S.month=arrival;worldInternationalReceiveShipments(S);
+      const held=authority===null?!cargo.customs&&cargo.status==='DELIVERED':
+        cargo.status==='IN_TRANSIT'&&cargo.customs?.arrivalAt===ym(year,arrival)
+        &&cargo.customs.authorityId===authority&&cargo.customs.currencyId==='CUR-USD'
+        &&cargo.customs.releasedAt===null&&cargo.customs.duty===0
+        &&!buyer.stock[product]?.q;
+      if(authority!==null){S.month=arrival+1;worldInternationalReceiveShipments(S);}
       const reopened=parsePayload(savePayload(S));
-      const done=cargo.status==='DELIVERED'&&buyer.stock['PRD-R27'].q===14
-        &&buyer.stock['PRD-R27'].v===cargo.totalBuyer&&!acc(seller,'worldShipmentStock')
-        &&reopened.worldExpansion.internationalShipments[0].customs.releasedAt===ym(1906,8)
+      const done=cargo.status==='DELIVERED'&&buyer.stock[product].q===14
+        &&buyer.stock[product].v===cargo.totalBuyer&&!acc(seller,'worldShipmentStock')
+        &&reopened.worldExpansion.internationalShipments[0].receivedAt===ym(year,arrival+(authority!==null?1:0))
         &&!check(reopened).length&&!consolidate(reopened).errors.length;
-      return {market,shipped,held,done};
-    }""")
-    assert all(result.values()), result
+      return {market,shipped,prepaid,held,done};
+    }""", market_data)
+    assert all(result.values()), (market_data["profile"], result)
 
 
 def main():
@@ -335,10 +340,26 @@ def main():
         assert all(result.values()), result
         test_australia(page)
         test_new_zealand(page)
-        test_mexico(page)
+        gulf_coffee = {"buyerCountry": "US", "destination": "US-NEWORLEANS", "product": "PRD-R27",
+                       "departure": 6, "payMonth": 7}
+        test_steamship_export(page, {
+            **gulf_coffee,
+            "profile": "MX-US-VERACRUZ-COFFEE", "country": "MX", "site": "MX-VER", "city": "CITY-28-04",
+            "currency": "MXP", "year": 1906, "offer": "MX-VER-COFFEE", "authority": "CUSTOMS-US-NOLA-1897",
+        })
+        test_steamship_export(page, {
+            **gulf_coffee,
+            "profile": "BR-US-RIO-COFFEE", "country": "BR", "site": "BR-RIO", "city": "CITY-29-01",
+            "currency": "BRM", "year": 1910, "offer": "BR-RIO-COFFEE", "authority": "CUSTOMS-US-NOLA-1909",
+        })
+        test_steamship_export(page, {
+            "profile": "AR-UK-BUENOSAIRES-WHEAT", "country": "AR", "site": "AR-BUE", "city": "CITY-30-01",
+            "currency": "ARM", "year": 1921, "offer": "AR-BUE-WHEAT", "authority": None,
+            "buyerCountry": "UK", "destination": "UK-LIV", "product": "PRD-R22", "departure": 2, "payMonth": 4,
+        })
         assert not errors, errors
         browser.close()
-    print("PASS Phase 4 Canada, Australia, New Zealand and Mexico: historical opening, sourced cargo, loading, shipment and settlement")
+    print("PASS Phase 4 Canada, Australia, New Zealand, Mexico, Brazil and Argentina: sourced cargo, loading, shipment and settlement")
 
 
 if __name__ == "__main__":
