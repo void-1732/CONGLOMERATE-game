@@ -6883,6 +6883,12 @@ function accountingFxReview(s,rootId,g){
  const scopeHistory=[...historical,...(s.equityLinks||[]).filter(l=>(l.remainingRatio??l.ratio)<=0&&ids.has(l.parentId)&&ids.has(l.childId))].map(l=>({...l,ratio:l.originalRatio??l.ratio}));
  const starts=consolidatedMonths(s,scopeHistory,members);
  const parts=partConsolidation(s,members,historical,starts,s.monthCommitted,g.shares);
+ const international=worldInternationalConsolidationAdjustments(s,ids,t=>
+  t.yearMonth>=Math.max(starts[t.seller]??Number.MAX_SAFE_INTEGER,starts[t.buyer]??Number.MAX_SAFE_INTEGER),g.shares);
+ const openInternational=(s.worldExpansion?.internationalShipments??[]).filter(t=>
+  t.status==='IN_TRANSIT'&&ids.has(t.buyerId)&&ids.has(t.sellerId));
+ const internationalOpenAsset=openInternational.reduce((n,t)=>n+Math.round(t.prepaidBuyer*balanceFxRate(s,company(t.buyerId,s))),0);
+ const internationalOpenLiability=openInternational.reduce((n,t)=>n+Math.round(t.prepaidSeller*balanceFxRate(s,company(t.sellerId,s))),0);
  const byId=new Map();let grossAssets=0,grossLiabilities=0,grossCash=0;
  for(const f of members){
   const rate=balanceFxRate(s,f),fin=financials(f);
@@ -6953,8 +6959,8 @@ function accountingFxReview(s,rootId,g){
   interestPayable+=Math.round((loan.interestOutstanding||0)*balanceFxRate(s,f));
  }
  const internalDeposits=worldInternalBankDeposits(s,ids,f=>balanceFxRate(s,f));
- const a=grossAssets-investment+goodwill-inventoryProfit-loanReceivable-interestReceivable-parts.spotClaims-parts.spotDeferred-internalDeposits;
- const l=grossLiabilities-loanPayable-interestPayable-parts.spotClaims-internalDeposits;
+ const a=grossAssets-investment+goodwill-inventoryProfit-loanReceivable-interestReceivable-parts.spotClaims-parts.spotDeferred-internalDeposits-international.spotRetained-internationalOpenAsset;
+ const l=grossLiabilities-loanPayable-interestPayable-parts.spotClaims-internalDeposits-internationalOpenLiability;
  const totalEquity=a-l;
  const heldInvestment={};for(const x of historical){const f=company(x.parentId,s);
   heldInvestment[f.id]=(heldInvestment[f.id]||0)+Math.round((x.considerationLocal||0)*balanceFxRate(s,f));}
@@ -6969,11 +6975,13 @@ function accountingFxReview(s,rootId,g){
   const defer=Math.round((t.marginBase||0)/COUNTRIES[seller.country].fx*(t.q?remaining/t.q:0)*balanceFxRate(s,seller));
   nci-=Math.round(defer*(1-(g.shares[seller.id]??0)));
  }
+ nci-=international.spotNci;
  const bs={period:ym(s.year,s.month),assets:a,liabilities:l,equity:totalEquity,parentEquity:totalEquity-nci,
-  nci,cash:grossCash,goodwill,inventoryProfit:inventoryProfit+parts.spotDeferred,partClaimsEliminated:parts.spotClaims,investmentEliminated:investment,
+  nci,cash:grossCash,goodwill,inventoryProfit:inventoryProfit+parts.spotDeferred+international.spotRetained,partClaimsEliminated:parts.spotClaims,investmentEliminated:investment,
   loanRecEliminated:loanReceivable,loanDebtEliminated:loanPayable,
   interestRecEliminated:interestReceivable,interestDueEliminated:interestPayable,bankDepositsEliminated:internalDeposits,
   checkDifference:a-l-(totalEquity-nci)-nci,
+  internationalInternalAdvances:internationalOpenAsset,internationalDeferredProfit:international.spotRetained,
   fxVsReference:{assets:a-g.bs.assets,liabilities:l-g.bs.liab,equity:totalEquity-g.bs.equity},
   loanTranslationDifference:(loanReceivable+interestReceivable)-(loanPayable+interestPayable)};
  // Period-only accrued P&L at recognition-date FX. This is not the conversion of
@@ -13633,9 +13641,9 @@ function worldInternationalConsolidationAdjustments(s,ids,insidePeriod,shares){
    seller:t.sellerId,buyer:t.buyerId,kind:'domesticTradeCash',yearMonth:t.receivedAt,
    fromJournal:t.journals.terminal,toJournal:t.journals.terminal+2
   })).map(t=>[t.id,t]));
- let sales=0,retained=0,spotRetained=0,nci=0;
+ let sales=0,retained=0,spotRetained=0,nci=0,spotNci=0;
  for(const t of eligible.values())sales+=baseFromLocal(t.goodsSeller,company(t.sellerId,s).country);
- if(!eligible.size)return {sales,retained,spotRetained,nci,eligible};
+ if(!eligible.size)return {sales,retained,spotRetained,nci,spotNci,eligible};
  const domestic=new Map((w?.domesticShipments??[]).map(t=>[t.id,t]));
  for(const h of worldInternationalCostHoldings(s)){
   if(!ids.has(h.owner))continue;
@@ -13649,9 +13657,10 @@ function worldInternationalConsolidationAdjustments(s,ids,insidePeriod,shares){
    const seller=company(origin.sellerId,s),base=baseFromLocal(value,seller.country);
    retained+=base;spotRetained+=Math.round(value*balanceFxRate(s,seller));
    nci+=base*(1-(shares[origin.sellerId]??0));
+   spotNci+=Math.round(value*balanceFxRate(s,seller)*(1-(shares[origin.sellerId]??0)));
   }
  }
- return {sales,retained,spotRetained,nci,eligible};
+ return {sales,retained,spotRetained,nci,spotNci,eligible};
 }
 function worldValidateInternationalLogistics(s){
  const w=s.worldExpansion;if(!w)return true;
