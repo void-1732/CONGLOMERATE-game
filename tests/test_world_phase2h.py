@@ -142,8 +142,11 @@ def main():
           const manualFixture=structuredClone(restored);
           const manualBuyer=company(buyerId,manualFixture),manualSeller=company(manualId,manualFixture);
           manualSeller.owners=[{id:manualBuyer.id,econ:1,vote:1}];
+          // Restoring a legacy save activates SPEC-157 for subsequent dispatches.
+          // 29 km × 1 kg × 0.15 JPY/kg-km = 435 minor units.
+          const expectedFreight=435;
           const m=worldPlaceDomesticOrder(manualFixture,buyerId,{
-            routeId:manualRouteId,warehouseId:warehouse1,productId:'PRD-R19',quantity:1,unitPrice:16,maxFreight:6
+            routeId:manualRouteId,warehouseId:warehouse1,productId:'PRD-R19',quantity:1,unitPrice:16,maxFreight:expectedFreight
           });
           worldActOnDomesticOrder(manualFixture,manualId,m.id,'approve');
           manualFixture.month++;
@@ -151,6 +154,10 @@ def main():
           const manualConsent=m.sellerDecision==='MANUAL'&&m.status==='FILLED'
             &&worldValidateDomesticLogistics(manualFixture);
           const failed=manualFixture.worldExpansion.domesticShipments.find(t=>t.orderId===m.id);
+          if(!failed)throw Error('SPEC-157 manual order did not dispatch: '+m.result);
+          const restoredNewFreight=failed.freightCost===expectedFreight
+            &&failed.fuelBookCost===5&&failed.prepaid===16+expectedFreight
+            &&manualFixture.worldExpansion.freightRateFromSeq===restored.seq;
           const buyerBeforeRefund=acc(manualBuyer,'cash');
           manualFixture.month+=2;
           worldRefundDomesticShipment(manualFixture,failed.id);
@@ -162,7 +169,7 @@ def main():
           spoofed.worldExpansion.domesticShipments.find(t=>t.id===failed.id).accounting.terminal++;
           const alteredRefund=denied(()=>worldValidateDomesticLogistics(spoofed));
           return {marketOrders,marketAllocation,marketDelivery,authority,noPrematurePayments,pendingRoundTrip,reordered,holdsUntilNext,fifo,
-            rejected,funds,protectedLink,delivered,manualConsent,alteredPosting,refundProof,alteredRefund};
+            rejected,funds,protectedLink,delivered,manualConsent,restoredNewFreight,alteredPosting,refundProof,alteredRefund};
         }""")
         assert all(result.values()), result
         assert not errors, errors
