@@ -90,6 +90,90 @@ def test_australia(page):
     assert all(result.values()), result
 
 
+def test_new_zealand(page):
+    result = page.evaluate("""async () => {
+      S=newWorldGame({country:'UK',name:'London wool importer'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='UK';
+      S.year=1907;S.month=9;S.monthCommitted=ym(1907,9)-1;
+      applyWorldHistory(S);syncWorldIdentities(S);
+      const before=!S.world.NZ&&!worldCityLocation(S,'CITY-25-02').marketOpen;
+      saveAuto=async()=>true;await runMonth();
+      const opened=worldCityLocation(S,'CITY-25-02');
+      const opensOnDominion=S.monthCommitted===ym(1907,9)&&opened.jurisdictionId==='JUR-NZ'
+        &&opened.marketOpen&&S.worldExpansion.openMarkets['MKT-25']===ym(1907,10)
+        &&S.worldExpansion.appliedEvents.find(e=>e.id==='HIST-NZ-1907')?.effectiveDate==='1907-09-26';
+      const profile='NZ-UK-WELLINGTON-WOOL',noEarlyRoute=!worldInternationalRouteAvailable(S,profile);
+      S.year=1913;S.month=1;S.monthCommitted=ym(1913,1)-1;
+      PAGE='corporateSubsidiaries';render();
+      document.querySelector('#subName').value='Wellington wool exporter';
+      document.querySelector('#subCountry').value='NZ';
+      document.querySelector('#subIndustry').value='manufacturing';
+      document.querySelector('#subCapital').value='650000';
+      createSub();
+      const buyer=company(S.playerId),seller=S.firms.find(f=>f.name==='Wellington wool exporter');
+      const destination=buyer.plants[0],port=seller.plants[0];
+      destination.siteId='UK-LON';
+      for(const firm of [buyer,seller]){
+        firm.auto=false;firm.research.tree.done=[...new Set([...firm.research.tree.done,'production-1'])];
+      }
+      for(const [firm,id,value] of [[seller,'PRD-E18',2400],[buyer,'PRD-E20',700],[buyer,'PRD-E21',900]]){
+        post(firm,{materials:value},{cash:value},'検証用の有償現物設備','operating',S);
+        firm.stock[id]={q:1,v:value};
+      }
+      syncWorldIdentities(S);
+      const identities=firmCurrency(seller,S)==='GBP'&&firmCurrency(buyer,S)==='GBP'
+        &&S.worldExpansion.companies[seller.id].jurisdictionId==='JUR-NZ'
+        &&S.worldExpansion.companies[seller.id].jurisdictionId!==S.worldExpansion.companies[buyer.id].jurisdictionId
+        &&S.worldExpansion.facilities['FAC-'+port.id].locationId==='LOC-NZ-WLG';
+      const purchase=worldBuyRegionalSupply(S,seller.id,port.id,'NZ-WLG-WOOL',10);
+      worldBuyRegionalSupply(S,seller.id,port.id,'NZ-WLG-BUNKER-COAL',35);
+      const route=worldInternationalRegisterRoute(S,seller.id,profile);
+      const warehouse=worldInternationalInstallWarehouse(S,buyer.id,destination.id,profile);
+      const order=worldInternationalPlaceOrder(S,buyer.id,{routeId:route.id,warehouseId:warehouse.id,
+        productId:'PRD-R21',quantity:10,cargoLitres:24,unitPriceSeller:12,maxPaymentBuyer:100000,paymentDays:30});
+      worldInternationalActOrder(S,seller.id,order.id,'approve');
+      S.month=2;worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
+      const [cargo]=S.worldExpansion.internationalShipments;
+      const dispatched=purchase.quantity===10&&cargo?.status==='IN_TRANSIT'&&cargo.loadKg===12
+        &&cargo.fuelRequired===15&&acc(seller,'worldShipmentStock')===cargo.bookCost
+        &&cargo.sellerRate===cargo.buyerRate&&cargo.prepaidSeller===cargo.prepaidBuyer;
+      const dueDate=cargo.credit.dueDate==='1913-03-03';
+      S.month=3;worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
+      const bank=cargo.credit.remittance;
+      const roundtrip=parsePayload(savePayload(S));
+      const held=cargo.status==='IN_TRANSIT'&&cargo.credit.paidAt===null&&bank.sentAt===ym(1913,3)
+        &&bank.bankId==='BANK-BNZ-GBP'&&acc(buyer,'worldBankRemittance')===bank.principal
+        &&!acc(seller,'worldCustomerAdvances')&&!buyer.stock['PRD-R21']?.q
+        &&acc(company(buyer.id,roundtrip),'worldBankRemittance')===bank.principal
+        &&worldInternationalTradePanel(buyer,true).includes('外部銀行で送金中');
+      const forged=structuredClone(S);forged.worldExpansion.internationalShipments[0].credit.remittance.principal++;
+      let forgedRejected=false;
+      try{parsePayload(savePayload(forged));}catch{forgedRejected=true;}
+
+      const cancelled=structuredClone(S);
+      cancelled.month=6;
+      const buyerAtCancellation=company(buyer.id,cancelled),cashBefore=acc(buyerAtCancellation,'cash');
+      const voided=worldInternationalRefundShipment(cancelled,cargo.id);
+      const refunded=voided.status==='REFUNDED'&&voided.credit.remittance.returnedAt===ym(1913,6)
+        &&!acc(buyerAtCancellation,'worldBankRemittance')&&acc(buyerAtCancellation,'cash')===cashBefore+bank.principal
+        &&!check(parsePayload(savePayload(cancelled))).length;
+
+      S.month=4;worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
+      const prepaid=cargo.status==='IN_TRANSIT'&&cargo.credit.paidAt===ym(1913,4)&&!buyer.stock['PRD-R21']?.q
+        &&!acc(buyer,'worldBankRemittance')&&acc(buyer,'worldSupplierAdvances')===cargo.prepaidBuyer
+        &&-acc(seller,'worldCustomerAdvances')===cargo.prepaidSeller&&!worldInternationalCashPairs(S).length;
+      S.month=5;worldInternationalReceiveShipments(S);
+      const restored=parsePayload(savePayload(S));
+      const settled=cargo.status==='DELIVERED'&&buyer.stock['PRD-R21'].q===10
+        &&buyer.stock['PRD-R21'].v===cargo.totalBuyer&&!acc(seller,'worldShipmentStock')
+        &&restored.worldExpansion.internationalShipments[0].receivedAt===ym(1913,5)
+        &&!check(restored).length&&!consolidate(restored).errors.length;
+      S.month=10;
+      return {before,opensOnDominion,noEarlyRoute,identities,dispatched,dueDate,held,forgedRejected,refunded,prepaid,settled,
+        documentedPeriod:!worldInternationalRouteAvailable(S,profile)};
+    }""")
+    assert all(result.values()), result
+
+
 def main():
     with sync_playwright() as pw:
         browser = pw.chromium.launch(
@@ -193,9 +277,10 @@ def main():
         }""")
         assert all(result.values()), result
         test_australia(page)
+        test_new_zealand(page)
         assert not errors, errors
         browser.close()
-    print("PASS Phase 4 Canada and Australia: historical opening, registry upgrade, verified sourcing, loading, shipment and settlement")
+    print("PASS Phase 4 Canada, Australia and New Zealand: historical opening, registry upgrade, verified sourcing, loading, shipment and settlement")
 
 
 if __name__ == "__main__":

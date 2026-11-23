@@ -82,6 +82,7 @@ def main():
           S.month=3;
           const heldRate=b.buyerRate;
           S.world.UK.fx*=1.25;
+          worldMatchLedgerCurrencyRates(S);
           worldInternationalReceiveShipments(S);
           const claims=b.status==='DELIVERED'&&c.status==='DELIVERED'&&b.credit.paidAt===null
             &&acc(buyer,'worldSupplierAdvances')===0&&acc(seller,'worldShipmentStock')===0

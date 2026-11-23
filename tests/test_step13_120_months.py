@@ -111,7 +111,8 @@ def run(era, world=False):
             }""")
             assert len(pages)==16 and not errors,(pages,errors)
             if world:
-                assert page.evaluate("S.world.NO.demand>0 && S.worldExpansion.appliedEvents.length===1")
+                assert page.evaluate("""S.world.NO.demand>0 &&
+                    S.worldExpansion.appliedEvents.filter(event=>event.id==='HIST-NO-1905').length===1""")
             print("PASS STEP13",json.dumps({
                 "era":era,"world":world,"months":120,"firms":checkpoint["firms"],
                 "plants":checkpoint["plants"],"journals":checkpoint["journals"],

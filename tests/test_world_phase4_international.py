@@ -119,7 +119,7 @@ def main():
         multimodal=page.evaluate("""() => {
           const profiles=Object.entries(WORLD_INTERNATIONAL_CORRIDORS);
           const modes=new Set(profiles.map(([,p])=>p.mode));
-          const paths=profiles.length===26&&['road+rail-shuttle','sea','rail','air'].every(m=>modes.has(m))
+          const paths=profiles.length===27&&['road+rail-shuttle','sea','rail','air'].every(m=>modes.has(m))
             &&profiles.every(([,p])=>findSite(p.from)&&findSite(p.to)
               &&findSite(p.from).country!==findSite(p.to).country
               &&p.capacityKg>0&&p.warehouseCapacityKg>0&&p.distanceKm>0

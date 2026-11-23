@@ -65,6 +65,39 @@ WORLD_FREIGHT_FIXTURE = """() => {
   return {order:order.id,profileId,issues:check(S)};
 }"""
 
+WORLD_REMITTANCE_FIXTURE = """() => {
+  const root=company(S.playerId);
+  function form(name,country,seedBase){
+    const capital=localFromBase(seedBase,root.country),payer=S.seq;
+    if(acc(root,'cash')<capital)throw Error('Insufficient remittance fixture formation budget');
+    post(root,{investment:capital},{cash:capital},'長期回帰用・国際売買法人設立','investing',S);
+    const firm=initFirm(S,{name,country,seedBase,size:.6,publicOwnership:false});
+    firm.owners=[{id:root.id,econ:1,vote:1}];
+    registerEquityLink(S,{parentId:root.id,childId:firm.id,ratio:1,kind:'foundation',
+      considerationLocal:capital,buyerJournal:payer,childJournal:firm.journals.find(j=>j.text==='創業資本').id,
+      bookEquityBase:baseFromLocal(financials(firm).equity,country),
+      cashAcquiredBase:baseFromLocal(acc(firm,'cash'),country)});
+    firm.auto=false;firm.research.tree.done=[...new Set([...firm.research.tree.done,'production-1'])];
+    for(const model of firm.models)firm.plans[model.id]=0;
+    return firm;
+  }
+  const buyer=form('London remittance buyer','UK',480000),seller=form('Wellington wool seller','NZ',480000);
+  const plant=buyer.plants[0];plant.siteId='UK-LON';
+  for(const [firm,id,value] of [[seller,'PRD-E18',2400],[buyer,'PRD-E20',700],[buyer,'PRD-E21',900]]){
+    post(firm,{materials:value},{cash:value},'長期回帰用の有償現物設備','operating',S);
+    firm.stock[id]={q:1,v:value};
+  }
+  syncWorldIdentities(S);
+  worldBuyRegionalSupply(S,seller.id,seller.plants[0].id,'NZ-WLG-WOOL',10);
+  worldBuyRegionalSupply(S,seller.id,seller.plants[0].id,'NZ-WLG-BUNKER-COAL',25);
+  const profileId='NZ-UK-WELLINGTON-WOOL',route=worldInternationalRegisterRoute(S,seller.id,profileId);
+  const warehouse=worldInternationalInstallWarehouse(S,buyer.id,plant.id,profileId);
+  const order=worldInternationalPlaceOrder(S,buyer.id,{routeId:route.id,warehouseId:warehouse.id,
+    productId:'PRD-R21',quantity:10,cargoLitres:24,unitPriceSeller:12,maxPaymentBuyer:100000,paymentDays:30});
+  worldInternationalActOrder(S,seller.id,order.id,'approve');
+  return {order:order.id,profileId,issues:check(S)};
+}"""
+
 
 def run(era, scenario='baseline', world=False, months=MONTHS):
     with sync_playwright() as playwright:
@@ -144,7 +177,8 @@ def run(era, scenario='baseline', world=False, months=MONTHS):
                             why: LAST_MONTH_DIAGNOSTIC?.message
                           };
                         }
-                        if (S.worldExpansion?.internationalShipments.some(t=>t.credit?.paidAt===S.monthCommitted)
+                        if (S.worldExpansion?.internationalShipments.some(t=>t.credit?.paidAt===S.monthCommitted
+                              ||t.credit?.remittance?.sentAt===S.monthCommitted)
                             &&!S.consoHistory.at(-1).cf.reconciled) {
                           return {completed, failure:'international payment cash flow did not reconcile',
                             cashFlow:S.consoHistory.at(-1).cf};
@@ -166,7 +200,11 @@ def run(era, scenario='baseline', world=False, months=MONTHS):
                     freight = page.evaluate(WORLD_FREIGHT_FIXTURE)
                     assert not freight["issues"], freight
                     print("FREIGHT", json.dumps(freight, ensure_ascii=False), flush=True)
-                if count % CHECKPOINT != 0 and count != months and (not world or count != 130):
+                if world and count == 160:
+                    remittance = page.evaluate(WORLD_REMITTANCE_FIXTURE)
+                    assert not remittance["issues"], remittance
+                    print("REMITTANCE", json.dumps(remittance, ensure_ascii=False), flush=True)
+                if count % CHECKPOINT != 0 and count != months and (not world or count not in (130, 170)):
                     continue
                 checkpoint = page.evaluate(
                     """saveCheck => {
@@ -193,6 +231,7 @@ def run(era, scenario='baseline', world=False, months=MONTHS):
                           .filter(m=>m!==null).length:null,
                         international:S.worldExpansion?.internationalShipments.map(t=>({
                           id:t.id,status:t.status,orderId:t.orderId,dutyBuyer:t.dutyBuyer,paidAt:t.credit?.paidAt??null,
+                          sentAt:t.credit?.remittance?.sentAt??null,bankId:t.credit?.remittance?.bankId??null,
                           quantity:t.quantity,profileId:S.worldExpansion.internationalRoutes[t.routeId].profileId
                         }))??[]
                       };
@@ -236,6 +275,12 @@ def run(era, scenario='baseline', world=False, months=MONTHS):
                     assert any(t["orderId"] == freight["order"] and t["status"] == "DELIVERED"
                                and t["quantity"] == 5 and t["dutyBuyer"] > 0 and t["paidAt"] is not None
                                and t["profileId"] == freight["profileId"]
+                               for t in checkpoint["international"]), checkpoint
+                if world and count >= 170:
+                    assert any(t["orderId"] == remittance["order"] and t["status"] == "DELIVERED"
+                               and t["quantity"] == 10 and t["bankId"] == "BANK-BNZ-GBP"
+                               and t["paidAt"] == t["sentAt"] + 1
+                               and t["profileId"] == remittance["profileId"]
                                for t in checkpoint["international"]), checkpoint
                 if checkpoint["saveChecked"]:
                     assert checkpoint["saveConsistent"], {"era": era, "month": count, **checkpoint}

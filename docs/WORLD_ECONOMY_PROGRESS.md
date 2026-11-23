@@ -475,4 +475,12 @@ python -B tests/test_step13_120_months.py --era 1900 --world
 - 1913年のシドニー発横浜向け羊毛を実貨物として接続した。利用期間は資料を確認した年に限定し、船の途中寄港は同一船による一貫輸送として扱う。出荷には有償調達した羊毛・燃料と有限の設備容量を用いる。[定期航路時刻表](https://omaa-arts.sydney.edu.au/s/omaa/item/3904) · [往復航路の公文書](https://phlconnect.ched.gov.ph/admin/uploads/add217938e07bb1fd8796e0315b88c10/New-Rival-State.pdf) · [羊毛取引](https://www.naa.gov.au/sites/default/files/2020-06/research-guide-allies-enemies-and-trading-partners_0.pdf) · [シドニー港の船舶燃料](https://digital.library.sydney.edu.au/nodes/view/15457)
 - この区間は横浜税関・管轄・荷主・倉庫・帳簿通貨と品目・数量・課税価格を申告に記録する。当時の生羊毛は無税。入港、保税、輸入許可、検収の順に進む。審査1か月はゲーム内の暫定値。専用Playwrightで審査中に売上と買主在庫が発生しないこと、保存復元、許可日の改竄拒否、検収と決済の整合を確認した。[税関の沿革](https://www.customs.go.jp/english/zeikan/history_e.htm) · [生羊毛の無税](https://www.mofa.go.jp/mofaj/annai/honsho/shiryo/archives/pdfs/meiji_joyaku_bessatsu_hensen_04.pdf)
 - この時点で連携済みは8市場、残り32市場。複数荷主・複数区間の積替え、外部金融、他市場の通関制度・関税の史料校正、全市場についての取引証拠、最終HEADの長期試験を引き続き受入対象とする。
+
+### Phase 4 追加市場 — ニュージーランドと外部銀行送金
+
+- 市場 `MKT-25` は1907年9月26日の自治領宣言を受け、次の月初に開放する。ウェリントン港の施設は `CITY-25-02`、輸出法人は `JUR-NZ`。英国と別々の管轄を維持し、1913年の取引はどちらも同じ英ポンド建てで処理する。1930年代以降の通貨変更を帳簿に反映する経路は別途必要。[自治領宣言](https://nzhistory.govt.nz/politics/dominion-status) · [人口](https://www3.stats.govt.nz/New_Zealand_Official_Yearbooks/2008/NZOYB_2008.html) · [英ポンドとの歴史的な関係](https://www.rbnz.govt.nz/-/media/project/sites/rbnz/files/statistics/series/b/b1/new-zealand-dollar-exchange-rate-changes-before-1985.pdf)
+- 1913年のウェリントン発ロンドン向け羊毛の現物取引を追加した。出荷には有償の羊毛と船舶用石炭を使い、確認範囲を1～9月に絞る。発注、出荷、現地検収、売上、決済、保存を専用Playwrightで照合した。[貨物リスト](https://paperspast.natlib.govt.nz/newspapers/ODT19130218.2.12) · [船舶燃料](https://paperspast.natlib.govt.nz/newspapers/LT19131120.2.50)
+- 掛け取引の支払期限に買主の現金を外部銀行の送金預け金へ振り替える。銀行送金の完了後のみ売り手が受領し、未納かつ銀行送金が未決済なら預け金を買主へ返す。送金額・決済日・返金日を独立した照合対象にした。送金の1か月はゲーム用の暫定値。[当時の送金業務](https://leicester.contentdm.oclc.org/digital/api/collection/p16445coll4/id/274979/download) · [ロンドン・ウェリントンの拠点](https://leicester.contentdm.oclc.org/digital/api/collection/p16445coll4/id/34866/download)
+- 開発CI #45141517212 の120か月試験は史実イベントの総数を1件に固定した旧アサーションで失敗した。ノルウェーの対象イベントIDが重複していないことを確認するよう修正した。新しい1,200か月試験には、拡張世界での国際貨物・外部銀行預託・送金・受領と連結キャッシュフローの検算を含む。
+- 連携済みは9市場、残り31市場。各市場の史料付き貨物、実設備、通関、銀行送金の対象通貨・制度を増やし、港での積替え、全貨物の重量・容積、関税率、貿易金融を完成させてからPhase 5へ進む。
 - 再開時はDraft PR #29の最新HEADで開発CIと1,200か月5ジョブを確認し、34未接続市場の管轄・通貨・施設と具体的な史料付き区間を、実出荷・検収・決済試験と対にして追加する。

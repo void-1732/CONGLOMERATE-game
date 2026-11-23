@@ -688,7 +688,9 @@ const POPULATION_ANCHORS={
   1941:11.506655,1951:14.009429,1961:18.238247,1971:21.962032,1981:24.819915,
   1991:28.037420,2001:31.019020,2010:34.108752},
  AU:{1901:3.788,1911:4.455,1921:5.435,1933:6.630,1947:7.579,1954:8.987,1961:10.548,
-  1971:13.067,1981:14.924,1991:17.284,2001:18.972,2021:25.7}
+  1971:13.067,1981:14.924,1991:17.284,2001:18.972,2021:25.7},
+ NZ:{1906:.9565,1907:.9772,1911:1.0753,1913:1.1345,1916:1.1502,1931:1.5228,1951:1.9891,
+  1971:2.8985,1991:3.4957,2001:3.8805}
 };
 const POP_SOURCE='https://ourworldindata.org/grapher/population';
 function anchorPopulation(code,year){const anchors=POPULATION_ANCHORS[code];if(!anchors)return null;
@@ -697,7 +699,7 @@ function anchorPopulation(code,year){const anchors=POPULATION_ANCHORS[code];if(!
  if(year>=yrs[yrs.length-1])return anchors[yrs[yrs.length-1]];
  for(let i=1;i<yrs.length;i++){if(year<=yrs[i]){const lo=yrs[i-1],hi=yrs[i];return anchors[lo]+(anchors[hi]-anchors[lo])*(year-lo)/(hi-lo);}}return null;}
 
-const NAMES={JP:'日本',US:'アメリカ',UK:'イギリス',DE:'ドイツ',FR:'フランス',NO:'ノルウェー',CA:'カナダ',AU:'オーストラリア'};
+const NAMES={JP:'日本',US:'アメリカ',UK:'イギリス',DE:'ドイツ',FR:'フランス',NO:'ノルウェー',CA:'カナダ',AU:'オーストラリア',NZ:'ニュージーランド'};
 const INITIAL_ENGINE_COUNTRIES=['JP','US','UK','DE','FR'];
 const COUNTRIES={
  JP:{currency:'JPY',fx:1,pop:44,wealth:1,wage:145,demand:115,steel:420,rubber:280,steelSupply:1100,rubberSupply:1050},
@@ -711,9 +713,11 @@ const COUNTRIES={
   steel:440,rubber:307,steelSupply:140,rubberSupply:110},
  // Fixed game ledger unit in pounds. Legal tender changes do not re-denominate books.
  AU:{currency:'AUP',fx:190,pop:anchorPopulation('AU',1901),wealth:1.02,wage:146,demand:14,
-  steel:457,rubber:315,steelSupply:95,rubberSupply:75}
+  steel:457,rubber:315,steelSupply:95,rubberSupply:75},
+ NZ:{currency:'GBP',fx:190,pop:anchorPopulation('NZ',1907),wealth:1.02,wage:146,demand:7,
+  steel:461,rubber:322,steelSupply:60,rubberSupply:47}
 };
-const ACCTYPE={cash:'asset',materials:'asset',materialsTransit:'asset',componentStock:'asset',componentTransit:'asset',wip:'asset',goods:'asset',goodsTransit:'asset',constructionAssets:'asset',ppe:'asset',accdep:'contra',investment:'asset',ar:'asset',loanrec:'asset',resourceRights:'asset',worldShipmentStock:'asset',worldImportDutyPrepaid:'asset',worldInternationalReceivable:'asset',worldStoredStock:'asset',worldInsuranceReserve:'asset',worldInsurancePrepaid:'asset',worldTravelAdvance:'asset',worldBankDeposits:'asset',worldBankReserve:'asset',worldSupplierAdvances:'asset',partReceivable:'asset',partPayable:'liability',worldCustomerAdvances:'liability',worldInternationalPayable:'liability',worldInternationalDutyPayable:'liability',worldInsuranceUnearned:'liability',worldDemandDeposits:'liability',payable:'liability',wagesDue:'liability',debt:'liability',interestDue:'liability',taxDue:'liability',capital:'equity',treasuryStock:'contraEquity',sales:'revenue',serviceRevenue:'revenue',otherRevenue:'revenue',cogs:'expense',labor:'expense',rndExpense:'expense',advert:'expense',maintenance:'expense',interestExpense:'expense',depreciation:'expense',taxExpense:'expense',fxLoss:'expense',otherExpense:'expense'};
+const ACCTYPE={cash:'asset',materials:'asset',materialsTransit:'asset',componentStock:'asset',componentTransit:'asset',wip:'asset',goods:'asset',goodsTransit:'asset',constructionAssets:'asset',ppe:'asset',accdep:'contra',investment:'asset',ar:'asset',loanrec:'asset',resourceRights:'asset',worldShipmentStock:'asset',worldImportDutyPrepaid:'asset',worldInternationalReceivable:'asset',worldStoredStock:'asset',worldInsuranceReserve:'asset',worldInsurancePrepaid:'asset',worldTravelAdvance:'asset',worldBankDeposits:'asset',worldBankRemittance:'asset',worldBankReserve:'asset',worldSupplierAdvances:'asset',partReceivable:'asset',partPayable:'liability',worldCustomerAdvances:'liability',worldInternationalPayable:'liability',worldInternationalDutyPayable:'liability',worldInsuranceUnearned:'liability',worldDemandDeposits:'liability',payable:'liability',wagesDue:'liability',debt:'liability',interestDue:'liability',taxDue:'liability',capital:'equity',treasuryStock:'contraEquity',sales:'revenue',serviceRevenue:'revenue',otherRevenue:'revenue',cogs:'expense',labor:'expense',rndExpense:'expense',advert:'expense',maintenance:'expense',interestExpense:'expense',depreciation:'expense',taxExpense:'expense',fxLoss:'expense',otherExpense:'expense'};
 const PAGES={dashboard:'経営概況',marketOwn:'自社グループ市場分析',market:'世界市場分析',product:'製品・開発',factory:'工場・調達',people:'研究・人事',finance:'財務・資金',group:'企業グループ',consolidated:'連結財務三表',reports:'月次レポート',save:'保存・設定'};
 /* STEP 2: navigation only. Every tab points to a current, fully functional PAGE.
    New specialized pages are created in STEP 3+, not silently replaced with placeholders.
@@ -1490,7 +1494,7 @@ const SITE_CATALOG=[
  ...Object.entries(INDUSTRIAL_SITES).flatMap(([country,rows])=>rows.map(([id,name,land,wage,infra,labor,freight])=>(
   {id,country,name,land,wage,infra,labor,freight}))),
  ...[['US-SEA','US','シアトル港'],['UK-NORTHSHIELDS','UK','ノースシールズ港'],
-  ['CA-MTL','CA','モントリオール港'],['AU-SYD','AU','シドニー港']].map(([id,country,name])=>(
+  ['CA-MTL','CA','モントリオール港'],['AU-SYD','AU','シドニー港'],['NZ-WLG','NZ','ウェリントン港']].map(([id,country,name])=>(
   {id,country,name,land:1,wage:1,infra:1,labor:1,freight:1,worldOnly:true}))
 ];
 const findSite=id=>SITE_CATALOG.find(x=>x.id===id);
@@ -3622,7 +3626,9 @@ async function runMonth(){
   step('MARKET_STATS',()=>{
    for(const f of trial.firms)recordDelegationPerformance(trial,f);
    const totals={};for(const f of trial.firms){const t=totals[f.country]??={sales:0,prod:0,employed:0};t.sales+=f.monthly.units||0;t.prod+=f._produced||0;t.employed+=f.staff.production+f.staff.research+f.staff.sales+engineers(f);}
-   updateWorld(trial,totals);evolveMaterialMarkets(trial);
+   updateWorld(trial,totals);
+   if(trial.worldExpansion)worldMatchLedgerCurrencyRates(trial);
+   evolveMaterialMarkets(trial);
    for(const f of trial.firms){f.marketHistory??=[];f.marketHistory.push({month:ym(trial.year,trial.month),markets:structuredClone(f.marketThisMonth),demand:Object.fromEntries(Object.entries(trial.world).map(([code,w])=>[code,trial.marketAllocationV031?.[code]?.demand??w.demand]))});if(f.marketHistory.length>60)f.marketHistory.shift();}
   });
   step('CLOSE',()=>{
@@ -6763,9 +6769,11 @@ function worldInternationalCashPairs(s){
   const payment={kind:'domesticTradeCash',seller:t.sellerId,buyer:t.buyerId,
    yearMonth:t.credit?.paidAt??t.dispatchedAt,fromJournal:t.credit?t.credit.journal+1:t.journals.dispatch+3,
    toJournal:t.credit?.journal??t.journals.dispatch+2,fromCash:t.prepaidSeller,toCash:-t.prepaidBuyer};
-  return t.status==='REFUNDED'?[payment,{...payment,yearMonth:t.refundedAt,
+  const pairs=t.credit?.remittance?[]:[payment];
+  if(t.status==='REFUNDED')pairs.push({...payment,yearMonth:t.refundedAt,
    fromJournal:t.refund?.journal??t.journals.terminal,toJournal:(t.refund?.journal??t.journals.terminal)+1,
-   fromCash:-t.prepaidSeller,toCash:t.prepaidBuyer}]:[payment];
+   fromCash:-t.prepaidSeller,toCash:t.prepaidBuyer});
+  return pairs;
  });
 }
 function computePeriodCF(s,rootId,g,bridge){
@@ -7141,7 +7149,8 @@ function consolidatedPage(){const g=consolidate(S,S.playerId),b=g.bs,p=g.pl,c=g.
 }
 
 function finTable(f){const x=financials(f);return `<div class="scroll"><table><thead><tr><th>単体貸借対照表（累計）</th><th class="num">現地通貨</th></tr></thead><tbody>${[['現金',acc(f,'cash')],['材料在庫',acc(f,'materials')],['BOM部品在庫',acc(f,'componentStock')],['輸送中のBOM部品',acc(f,'componentTransit')],['部品取引・使用料売掛',acc(f,'partReceivable')],['部品取引・使用料買掛',-acc(f,'partPayable')],['仕掛品',acc(f,'wip')],['完成品・商品在庫',acc(f,'goods')],['輸送中の完成品',acc(f,'goodsTransit')],['事業設備（純額）',acc(f,'ppe')+acc(f,'accdep')],['ライン建設仮勘定',acc(f,'constructionAssets')],['投資有価証券・子会社株式',acc(f,'investment')],['売掛金・貸付金',acc(f,'ar')+acc(f,'loanrec')],['採取権',acc(f,'resourceRights')],...(S.worldExpansion?[
- ['銀行預金',acc(f,'worldBankDeposits')],['預金支払準備金',acc(f,'worldBankReserve')],['受入預金負債',-acc(f,'worldDemandDeposits')]
+ ['銀行預金',acc(f,'worldBankDeposits')],['外部銀行への送金預け金',acc(f,'worldBankRemittance')],
+ ['預金支払準備金',acc(f,'worldBankReserve')],['受入預金負債',-acc(f,'worldDemandDeposits')]
  ]:[]),['資産合計',x.assets],['負債合計',x.liab],['払込資本・自己株式控除後',x.capital],['自己株式控除（取得原価）',-Math.max(0,acc(f,'treasuryStock'))],['累計損益',x.profit],['負債＋純資産',x.liab+x.equity]].map(([k,v])=>`<tr><td>${esc(k)}</td><td class="num">${fnum(f,v)}</td></tr>`).join('')}</tbody></table></div>`}
 function financePage(){const f=current(),edit=canEdit(f),x=financials(f);const recent=f.journals.slice(-28).reverse();return titlePage('単体財務','法人別の財務情報と複式仕訳を確認します。銀行借入は資金調達タブへ移動しました。',tag('発生主義／資金決済を分離'))+(!edit?noaccess():'')+`<div class="grid">${card('単体総資産',fnum(f,x.assets),'評価額の合計','span3')}${card('現金残高',fnum(f,x.cash),'現地通貨','span3')}${card('借入残高',fnum(f,x.debt),'現地通貨','span3')}${card('累計損益',`<span class="${x.profit>=0?'positive':'negative'}">${fnum(f,x.profit)}</span>`,'創業以来の累計','span3')}
  <section class="panel span6"><h2>法人別財務三表の基礎</h2>${finTable(f)}<div class="note" style="margin-top:12px">BS照合差額：${fnum(f,x.bsDiff)}（最小通貨単位）。取引別の借貸一致と在庫原価も自動検算します。連結用の調整は「連結財務三表」画面で確認できます。取得時公正価値など未確定部分は仮計算です。</div></section>
@@ -10949,7 +10958,7 @@ const WORLD_TERRITORIES=new Map(WORLD_MARKETS.flatMap(m=>m.territories.map(t=>[t
 const WORLD_CITIES=new Map(WORLD_MARKETS.flatMap(m=>m.cities.map(c=>[c.id,c])));
 // Registry version zero is the saved pre-expansion world (five initial economies).
 // New onboarding data is additive and does not change the original scenario.
-const WORLD_MARKET_REGISTRY_VERSION=2;
+const WORLD_MARKET_REGISTRY_VERSION=3;
 const WORLD_MARKET_ONBOARDING=Object.freeze({
  CA:Object.freeze({introducedIn:1,territoryId:'TER-27-01',currencyId:'CUR-CAD',jurisdictionId:'JUR-CA',
   jurisdictionSource:'https://www.canada.ca/en/immigration-refugees-citizenship/corporate/publications-manuals/discover-canada/read-online/canadas-history.html',
@@ -10959,7 +10968,12 @@ const WORLD_MARKET_ONBOARDING=Object.freeze({
   opensAt:ym(1901,1),effectiveDate:'1901-01-01',
   jurisdictionSource:'https://peo.gov.au/understand-our-parliament/history-of-parliament/federation/the-federation-of-australia',
   currencySource:'https://www.rba.gov.au/education/resources/explainers/origins-of-the-reserve-bank-of-australia.html',
-  populationSource:'https://www.abs.gov.au/statistics/people/population/historical-population/2021'})
+  populationSource:'https://www.abs.gov.au/statistics/people/population/historical-population/2021'}),
+ NZ:Object.freeze({introducedIn:3,territoryId:'TER-25-01',currencyId:'CUR-GBP',jurisdictionId:'JUR-NZ',ledgerFxReference:'UK',
+  opensAt:ym(1907,10),effectiveDate:'1907-09-26',
+  jurisdictionSource:'https://nzhistory.govt.nz/politics/dominion-status',
+  currencySource:'https://www.rbnz.govt.nz/-/media/project/sites/rbnz/files/statistics/series/b/b1/new-zealand-dollar-exchange-rate-changes-before-1985.pdf',
+  populationSource:'https://www3.stats.govt.nz/New_Zealand_Official_Yearbooks/2008/NZOYB_2008.html'})
 });
 function worldInitialEngineCountries(registryVersion){
  return [...INITIAL_ENGINE_COUNTRIES,...Object.entries(WORLD_MARKET_ONBOARDING)
@@ -10991,7 +11005,8 @@ const WORLD_SITE_CITIES={
  'US-CHI':'CITY-26-03','US-LAX':'CITY-26-04','UK-LON':'CITY-01-01',
  'DE-RUH':'CITY-03-03','DE-BER':'CITY-03-01','DE-HAM':'CITY-03-02',
  'FR-PAR':'CITY-02-01','FR-LYO':'CITY-02-02','FR-MAR':'CITY-02-03',
- 'NO-OSL':'CITY-11-01','NO-BGO':'CITY-11-02','NO-TRD':'CITY-11-03','CA-MTL':'CITY-27-03','AU-SYD':'CITY-24-01'
+ 'NO-OSL':'CITY-11-01','NO-BGO':'CITY-11-02','NO-TRD':'CITY-11-03','CA-MTL':'CITY-27-03',
+ 'AU-SYD':'CITY-24-01','NZ-WLG':'CITY-25-02'
 };
 const WORLD_LOCATIONS=new Map(SITE_CATALOG.map(site=>[
  'LOC-'+site.id,{id:'LOC-'+site.id,territoryId:WORLD_ENGINE_TERRITORY[site.country],cityId:WORLD_SITE_CITIES[site.id]??null}
@@ -11015,6 +11030,11 @@ const WORLD_EVENTS=[
 ].sort((a,b)=>a.month-b.month);
 function worldHistoryThrough(month,registryVersion){
  return WORLD_EVENTS.filter(event=>event.month<=month&&(event.registryVersion??0)<=registryVersion);
+}
+function worldMatchLedgerCurrencyRates(s){
+ for(const [code,{ledgerFxReference}] of Object.entries(WORLD_MARKET_ONBOARDING)){
+  if(ledgerFxReference&&s.world[code])s.world[code].fx=s.world[ledgerFxReference].fx;
+ }
 }
 
 
@@ -11067,6 +11087,7 @@ function validateWorldCatalog(){
  for(const [code,row] of Object.entries(WORLD_MARKET_ONBOARDING)){
   if(!Number.isSafeInteger(row.introducedIn)||row.introducedIn<1||row.introducedIn>WORLD_MARKET_REGISTRY_VERSION
    ||!COUNTRIES[code]||!WORLD_LOCATIONS.has('LOC-'+homeSite(code).id)
+   ||(row.ledgerFxReference&&WORLD_ENGINE_CURRENCIES[row.ledgerFxReference]!==row.currencyId)
    ||!['jurisdictionSource','currencySource','populationSource'].every(key=>/^https:\/\//.test(row[key])))
    fail('追加市場の根拠または拠点 '+code);
  }
@@ -11152,6 +11173,7 @@ function applyWorldHistory(s){
    ensureSupplyNetwork(s);
   }
  }
+ worldMatchLedgerCurrencyRates(s);
 }
 
 function upgradeWorldMarketRegistry(s){
@@ -11168,6 +11190,7 @@ function upgradeWorldMarketRegistry(s){
   if(world.openMarkets[marketId]!==null)s.world[code]=seedEngineMarket(code,s.year);
  }
  world.marketRegistryVersion=WORLD_MARKET_REGISTRY_VERSION;
+ worldMatchLedgerCurrencyRates(s);
  for(const firm of s.firms)ensureNetwork(firm,s);
  ensureSupplyNetwork(s);
  validateWorldExpansion(s);
@@ -11243,6 +11266,10 @@ function validateWorldExpansion(s){
   .map(([,code])=>code);
  if(Object.keys(s.world??{}).length!==playableCodes.length||playableCodes.some(code=>s.world[code]?.code!==code)){
   throw Error('開放済み市場と動作中の経済市場が一致しません');
+ }
+ for(const [code,{ledgerFxReference}] of Object.entries(WORLD_MARKET_ONBOARDING)){
+  if(ledgerFxReference&&s.world[code]&&s.world[code].fx!==s.world[ledgerFxReference].fx)
+   throw Error('共通帳簿通貨の為替換算が一致しません：'+code);
  }
 }
 
@@ -12428,6 +12455,10 @@ function worldSupplyOffer(siteId,productId,name,firstYear,quantity,priceBase,sou
   closesAt:lastYear===null?null:ym(lastYear+1,1),quantity,priceBase,source});
 }
 const WORLD_REGIONAL_SUPPLY=Object.freeze({
+ 'NZ-WLG-WOOL':worldSupplyOffer('NZ-WLG','PRD-R21','ウェリントン港の輸出羊毛',1913,150,15,
+  'https://paperspast.natlib.govt.nz/newspapers/ODT19130218.2.12',1913),
+ 'NZ-WLG-BUNKER-COAL':worldSupplyOffer('NZ-WLG','PRD-R04','ウェリントン港の船舶用石炭',1913,130,13,
+  'https://paperspast.natlib.govt.nz/newspapers/LT19131120.2.50',1913),
  'AU-SYD-WOOL':worldSupplyOffer('AU-SYD','PRD-R21','シドニー港の輸出羊毛',1913,180,14,
   'https://www.naa.gov.au/sites/default/files/2020-06/research-guide-allies-enemies-and-trading-partners_0.pdf',1913),
  'AU-SYD-BUNKER-COAL':worldSupplyOffer('AU-SYD','PRD-R04','シドニー港の船舶用石炭',1913,180,11,
@@ -13423,10 +13454,12 @@ function worldSteamshipProfile(from,to,opensAt,distanceKm,capacityKg,warehouseCa
 const WORLD_MONTREAL_FREIGHT_SOURCE='https://www66.statcan.gc.ca/eng/1915/191502370201_p.%20201.pdf';
 const WORLD_SYDNEY_LINER_SOURCE='https://omaa-arts.sydney.edu.au/s/omaa/item/3904';
 const WORLD_SYDNEY_RETURN_SOURCE='https://phlconnect.ched.gov.ph/admin/uploads/add217938e07bb1fd8796e0315b88c10/New-Rival-State.pdf';
+const WORLD_WELLINGTON_CARGO_SOURCE='https://paperspast.natlib.govt.nz/newspapers/ODT19130218.2.12';
 const WORLD_SEATTLE_CARGO_SOURCE='https://www.portseattle.org/blog/birth-seattle-global-gateway';
 const WORLD_NORTH_SHIELDS_SOURCE='https://kringom.no/nb/midthordland/bergen/om-englandsruta-bergen-newcastle';
 const WORLD_BERGEN_CARGO_SOURCE='https://snl.no/Det_Bergenske_Dampskibsselskab';
 const WORLD_INTERNATIONAL_CORRIDORS=Object.freeze({
+ 'NZ-UK-WELLINGTON-WOOL':worldSteamshipProfile('NZ-WLG','UK-LON',ym(1913,1),22500,32,28,3,WORLD_WELLINGTON_CARGO_SOURCE),
  'AU-JP-SYDNEY-WOOL':worldSteamshipProfile('AU-SYD','JP-YOK',ym(1913,1),10500,32,28,3,WORLD_SYDNEY_LINER_SOURCE),
  'CA-UK-MONTREAL-GRAIN':worldSteamshipProfile('CA-MTL','UK-LIV',ym(1909,5),5200,32,28,2,WORLD_MONTREAL_FREIGHT_SOURCE),
  'JP-US-SEATTLE-STEAM':worldSteamshipProfile('JP-YOK','US-SEA',ym(1900,1),8100,32,28,3,WORLD_SEATTLE_CARGO_SOURCE),
@@ -13512,6 +13545,8 @@ const WORLD_INTERNATIONAL_CORRIDORS=Object.freeze({
 // the modeled capacity, distance or cost. The playable dates conservatively
 // allow time to pass after dated sources; they are not claimed opening dates.
 const WORLD_INTERNATIONAL_ROUTE_EVIDENCE=Object.freeze({
+ 'NZ-UK-WELLINGTON-WOOL':Object.freeze({untilMonth:ym(1913,10),products:Object.freeze(['PRD-R21']),
+  source:WORLD_WELLINGTON_CARGO_SOURCE,operationSource:'https://paperspast.natlib.govt.nz/newspapers/NZH19130516.2.33.2'}),
  // The documented annual scenario represents the through service on one carrier,
  // including its intermediate calls. It does not transfer cargo between carriers.
  'AU-JP-SYDNEY-WOOL':Object.freeze({untilMonth:ym(1914,1),products:Object.freeze(['PRD-R21']),
@@ -13631,6 +13666,11 @@ function worldInternationalBuyerSettlementAccounts(t,advance){
  const duty=advance?'worldImportDutyPrepaid':'worldInternationalDutyPayable';
  return {[goods]:t.prepaidBuyer,...(t.dutyBuyer?{[duty]:t.dutyBuyer}:{})};
 }
+function worldInternationalBuyerPaymentSources(t){
+ return t.credit?.remittance
+  ?{worldBankRemittance:t.prepaidBuyer,...(t.dutyBuyer?{cash:t.dutyBuyer}:{})}
+  :{cash:t.totalBuyer};
+}
 function worldInternationalPlaceOrder(s,buyerId,{routeId,warehouseId,productId,quantity,unitPriceSeller,maxPaymentBuyer,paymentDays=0,cargoLitres=0}){
  const w=s.worldExpansion,route=w?.internationalRoutes?.[routeId],
   warehouse=w?.internationalWarehouses?.[warehouseId],
@@ -13675,7 +13715,14 @@ const WORLD_INTERNATIONAL_CUSTOMS=Object.freeze({
   authority:'横浜税関',authoritySource:'https://www.customs.go.jp/english/zeikan/history_e.htm',
   tariffSource:'https://www.mofa.go.jp/mofaj/annai/honsho/shiryo/archives/pdfs/meiji_joyaku_bessatsu_hensen_04.pdf'})
 });
-const WORLD_PHASE4_TARIFF_BPS=Object.freeze({JP:350,US:300,UK:250,FR:300,DE:300,NO:250,CA:300,AU:300});
+// A separately held GBP remittance for the documented London–Wellington draft
+// service. Each receipt carries its own principal. Clearing lag is a game rule.
+const WORLD_INTERNATIONAL_REMITTANCE=Object.freeze({
+ 'NZ-UK-WELLINGTON-WOOL':Object.freeze({id:'BANK-BNZ-GBP',currencyId:'CUR-GBP',delayMonths:1,
+  source:'https://leicester.contentdm.oclc.org/digital/api/collection/p16445coll4/id/274979/download',
+  branchSource:'https://leicester.contentdm.oclc.org/digital/api/collection/p16445coll4/id/34866/download'})
+});
+const WORLD_PHASE4_TARIFF_BPS=Object.freeze({JP:350,US:300,UK:250,FR:300,DE:300,NO:250,CA:300,AU:300,NZ:300});
 function worldInternationalTariffBps(s,country,profileId,productId){
  if(!s.world?.[country]||!Object.hasOwn(WORLD_PHASE4_TARIFF_BPS,country))
   throw Error('輸入国の関税制度が未接続です');
@@ -13777,6 +13824,9 @@ function worldInternationalResolveOrders(s,events=[]){
     ...quote,journals:{dispatch:start,terminal:null}};
    if(paymentDays)t.credit={...worldInternationalCreditDeadline(month,paymentDays),
     paidAt:null,journal:null,buyerFx:null,sellerFx:null};
+   const bank=WORLD_INTERNATIONAL_REMITTANCE[route.profileId];
+   if(bank&&t.credit)t.credit.remittance={bankId:bank.id,currencyId:bank.currencyId,
+    principal:t.prepaidBuyer,sentAt:null,sentJournal:null,returnedAt:null,returnJournal:null};
    const rule=WORLD_INTERNATIONAL_CUSTOMS[route.profileId];
    if(rule)t.customs=worldInternationalDeclaration(rule,t);
    if(provenance.internationalCostLayers)t.internationalCostLayers=provenance.internationalCostLayers;
@@ -13848,10 +13898,22 @@ function worldInternationalSettleCredit(s,events=[]){
   const credit=t.credit;
   if(!credit||credit.paidAt!==null||credit.dueMonth>month||t.status==='REFUNDED')continue;
   const buyer=company(t.buyerId,s),seller=company(t.sellerId,s);
-  if(acc(buyer,'cash')<t.totalBuyer)continue;
+  const remittance=credit.remittance;
+  if(remittance){
+   const profileId=s.worldExpansion.internationalRoutes[t.routeId].profileId;
+   if(remittance.sentAt===null){
+    if(acc(buyer,'cash')<t.totalBuyer)continue;
+    remittance.sentAt=month;remittance.sentJournal=s.seq;
+    post(buyer,{worldBankRemittance:remittance.principal},{cash:remittance.principal},
+     '外部銀行の貿易送金勘定に元本を預託','operating',s);
+    events.push('外部銀行が貿易送金を受託 '+t.id);
+   }
+   if(month<remittance.sentAt+WORLD_INTERNATIONAL_REMITTANCE[profileId].delayMonths
+    ||acc(buyer,'cash')<t.dutyBuyer)continue;
+  }else if(acc(buyer,'cash')<t.totalBuyer)continue;
   const advance=t.status==='IN_TRANSIT',journal=s.seq;
   const sellerAccount=advance?'worldCustomerAdvances':'worldInternationalReceivable';
-  post(buyer,worldInternationalBuyerSettlementAccounts(t,advance),{cash:t.totalBuyer},
+  post(buyer,worldInternationalBuyerSettlementAccounts(t,advance),worldInternationalBuyerPaymentSources(t),
    advance?'国際貨物・納品前の掛代金を前払い':'国際貨物・検収済掛代金の支払い','operating',s);
   post(seller,{cash:t.prepaidSeller},{[sellerAccount]:t.prepaidSeller},
    advance?'国際貨物・納品前の掛代金を前受け':'国際貨物・検収済掛代金の回収','operating',s);
@@ -13868,6 +13930,12 @@ function worldInternationalRefundShipment(s,shipmentId){
  const seller=company(t.sellerId,s),buyer=company(t.buyerId,s);
  const paid=worldInternationalAdvanceFunded(t),month=ym(s.year,s.month);
  const refundPending=paid&&acc(seller,'cash')<t.prepaidSeller;
+ const remittance=t.credit?.remittance;
+ if(!paid&&remittance?.sentAt!=null){
+  remittance.returnedAt=month;remittance.returnJournal=s.seq;
+  post(buyer,{cash:remittance.principal},{worldBankRemittance:remittance.principal},
+   '未納貨物の未決済送金を外部銀行から回収','operating',s);
+ }
  const start=s.seq;
  if(paid){
   const sellerRefund=refundPending?'worldInternationalPayable':'cash';
@@ -14029,7 +14097,7 @@ function worldValidateInternationalLogistics(s){
    throw Error('国際貨物・外貨前払の仕訳が一致しません：'+id);
  }
  const routeMonths=new Map(),reservations=new Map();
- const receivable=new Map(),payable=new Map(),dutyPayable=new Map();
+ const receivable=new Map(),payable=new Map(),dutyPayable=new Map(),bankRemittances=new Map();
  let shipmentSequence=0;
  for(const t of shipments){
   const order=ordersById.get(t.orderId),r=routes[t.routeId],h=warehouses[t.warehouseId],
@@ -14103,6 +14171,26 @@ function worldValidateInternationalLogistics(s){
   const paidBeforeDelivery=!credit||(paid&&(c===null||credit.journal<c));
   const failed=t.status==='REFUNDED'||t.status==='REFUND_PENDING';
   const failureMonth=refund?.confirmedAt??t.refundedAt;
+  const bank=WORLD_INTERNATIONAL_REMITTANCE[r.profileId],remittance=credit?.remittance;
+  if(bank&&credit){
+   const sent=remittance?.sentAt!==null;
+   const returned=remittance?.returnedAt!==null;
+   if(!remittance||remittance.bankId!==bank.id||remittance.currencyId!==bank.currencyId
+    ||remittance.principal!==t.prepaidBuyer||t.prepaidBuyer!==t.prepaidSeller||t.buyerRate!==t.sellerRate
+    ||(sent?(!Number.isSafeInteger(remittance.sentAt)||remittance.sentAt<credit.dueMonth
+       ||remittance.sentAt>month||!Number.isSafeInteger(remittance.sentJournal)||remittance.sentJournal<=seq)
+      :remittance.sentJournal!==null)
+    ||(paid&&(!sent||returned||credit.paidAt<remittance.sentAt+bank.delayMonths||credit.journal<=remittance.sentJournal))
+    ||(returned?(!sent||paid||!failed||remittance.returnedAt!==failureMonth||remittance.returnedAt<remittance.sentAt
+       ||!Number.isSafeInteger(remittance.returnJournal)||remittance.returnJournal<=remittance.sentJournal
+       ||remittance.returnJournal!==c-1):remittance.returnJournal!==null||(failed&&sent&&!paid)))
+    throw Error('外部銀行の送金元本・通貨・預託状態が不正：'+t.id);
+   if(sent)match(buyer,remittance.sentJournal,remittance.sentAt,
+    {worldBankRemittance:remittance.principal},{cash:remittance.principal});
+   if(returned)match(buyer,remittance.returnJournal,remittance.returnedAt,
+    {cash:remittance.principal},{worldBankRemittance:remittance.principal});
+   if(sent&&!paid&&!returned)bankRemittances.set(buyer.id,(bankRemittances.get(buyer.id)??0)+remittance.principal);
+  }else if(credit&&Object.hasOwn(credit,'remittance'))throw Error('この区間の外部銀行は未登録です：'+t.id);
   if(credit){
    const deadline=worldInternationalCreditDeadline(t.dispatchedAt,order.paymentDays);
    if(credit.dueDate!==deadline.dueDate||credit.dueMonth!==deadline.dueMonth
@@ -14118,7 +14206,7 @@ function worldValidateInternationalLogistics(s){
    if(paid){
     const sellerAccount=paidBeforeDelivery?'worldCustomerAdvances':'worldInternationalReceivable';
     match(buyer,credit.journal,credit.paidAt,worldInternationalBuyerSettlementAccounts(t,paidBeforeDelivery),
-     {cash:t.totalBuyer},credit.buyerFx);
+     worldInternationalBuyerPaymentSources(t),credit.buyerFx);
     match(seller,credit.journal+1,credit.paidAt,{cash:t.prepaidSeller},
      {[sellerAccount]:t.prepaidSeller},credit.sellerFx);
    }
@@ -14166,7 +14254,8 @@ function worldValidateInternationalLogistics(s){
  for(const f of s.firms){
   if(acc(f,'worldInternationalReceivable')!==(receivable.get(f.id)??0)
    ||-acc(f,'worldInternationalPayable')!==(payable.get(f.id)??0)
-   ||-acc(f,'worldInternationalDutyPayable')!==(dutyPayable.get(f.id)??0))
+   ||-acc(f,'worldInternationalDutyPayable')!==(dutyPayable.get(f.id)??0)
+   ||acc(f,'worldBankRemittance')!==(bankRemittances.get(f.id)??0))
    throw Error('国際掛取引の債権・債務・関税未払が不一致：'+f.id);
  }
  worldValidateInternationalCostLayers(s);
@@ -14183,7 +14272,8 @@ function worldInternationalTradePanel(firm,editable){
   +'</td><td>'+nfmt(t.prepaidBuyer)+'</td><td>'+nfmt(t.prepaidSeller)
   +'</td><td>'+(t.status==='REFUND_PENDING'?'返金未払':t.status==='REFUNDED'?'未納終了'
    :!t.credit?'受注時決済':esc(t.credit.dueDate)+' / '
-   +(t.credit.paidAt!==null?'決済済':ym(S.year,S.month)>t.credit.dueMonth?'延滞':'未決済'))
+   +(t.credit.paidAt!==null?'決済済':t.credit.remittance?.sentAt!=null?'外部銀行で送金中'
+    :ym(S.year,S.month)>t.credit.dueMonth?'延滞':'未決済'))
   +(t.customs?'</td><td>'+esc(t.customs.authorityId)+' ／ '
    +(t.customs.releasedAt!==null?'輸入許可':t.customs.arrivalAt!==null?'保税・通関審査中':'申告準備')
    +' ／ '+(t.customs.duty?nfmt(t.customs.duty):'無税'):'</td><td>—')
@@ -14242,8 +14332,10 @@ function worldInternationalTradePanel(firm,editable){
    const rule=WORLD_INTERNATIONAL_CUSTOMS[id];
    const customs=rule?' · <a href="'+esc(rule.authoritySource)+'" target="_blank" rel="noopener noreferrer">'
     +esc(rule.authority)+'</a> · <a href="'+esc(rule.tariffSource)+'" target="_blank" rel="noopener noreferrer">品目関税の史料</a>':'';
+   const bank=WORLD_INTERNATIONAL_REMITTANCE[id];
+   const remittance=bank?' · <a href="'+esc(bank.source)+'" target="_blank" rel="noopener noreferrer">銀行送金の史料</a>':'';
    return '<li>'+esc(findSite(p.from).name)+' → '+esc(findSite(p.to).name)
-    +' <a href="'+esc(evidence.source)+'" target="_blank" rel="noopener noreferrer">貨物輸送の史料</a>'+operation+customs+'</li>';
+    +' <a href="'+esc(evidence.source)+'" target="_blank" rel="noopener noreferrer">貨物輸送の史料</a>'+operation+customs+remittance+'</li>';
   }).join('')+'</ul>':'')
   +'<table><thead><tr><th>注文</th><th>貨物</th><th>申込/受注</th><th>状態</th></tr></thead><tbody>'
   +(orderRows||'<tr><td colspan="4">国際注文なし</td></tr>')+'</tbody></table>'
