@@ -98,7 +98,7 @@ def main():
           worldInternationalReceiveShipments(S);
           const delivered=cargo.status==='DELIVERED'&&cargo.receivedAt===ym(2000,3)
             &&buyer.stock['PRD-R19'].q===8
-            &&buyer.stock['PRD-R19'].v===cargo.prepaidBuyer
+            &&buyer.stock['PRD-R19'].v===cargo.totalBuyer
             &&acc(buyer,'worldSupplierAdvances')===0
             &&acc(seller,'worldCustomerAdvances')===0
             &&worldValidateInternationalLogistics(S);
@@ -116,9 +116,78 @@ def main():
             inTransitValid,refunded,delivered,restored,tamper,ui};
         }""")
         assert all(result.values()),result
+        multimodal=page.evaluate("""() => {
+          const profiles=Object.entries(WORLD_INTERNATIONAL_CORRIDORS);
+          const modes=new Set(profiles.map(([,p])=>p.mode));
+          const paths=profiles.length===18&&['road+rail-shuttle','sea','rail','air'].every(m=>modes.has(m))
+            &&profiles.every(([,p])=>findSite(p.from)&&findSite(p.to)
+              &&findSite(p.from).country!==findSite(p.to).country
+              &&p.capacityKg>0&&p.warehouseCapacityKg>0&&p.distanceKm>0
+              &&p.fuel&&p.truck&&p.status==='PROVISIONAL');
+          S=newWorldGame({country:'UK',name:'Phase 4 ocean test'});
+          const buyer=company(S.playerId),bp=buyer.plants[0];
+          const capital=300000,parentJournal=S.seq;
+          post(buyer,{investment:capital},{cash:capital},'検証用海外法人の正式設立','investing',S);
+          const seller=initFirm(S,{name:'French ocean exporter',country:'FR',seedBase:570000,publicOwnership:false});
+          seller.owners=[{id:buyer.id,econ:1,vote:1}];
+          registerEquityLink(S,{parentId:buyer.id,childId:seller.id,ratio:1,kind:'foundation',
+            considerationLocal:capital,buyerJournal:parentJournal,
+            childJournal:seller.journals.find(j=>j.text==='創業資本').id,
+            bookEquityBase:baseFromLocal(capital,'UK'),
+            cashAcquiredBase:baseFromLocal(acc(seller,'cash'),'FR')});
+          bp.siteId='UK-LIV';seller.plants[0].siteId='FR-MAR';
+          buyer.auto=false;seller.auto=false;
+          for(const f of [seller,buyer]){
+            if(!f.research.tree.done.includes('production-1'))f.research.tree.done.push('production-1');
+            for(const m of f.models)f.plans[m.id]=0;
+          }
+          const put=(f,id,q,v)=>{
+            post(f,{materials:v},{cash:v},'検証用現物取得','operating',S);
+            f.stock[id]={q,v};
+          };
+          put(seller,'PRD-E18',1,4500);
+          put(seller,'PRD-M17',50,500);
+          put(seller,'PRD-R19',24,1200);
+          put(buyer,'PRD-E20',1,200);
+          put(buyer,'PRD-E21',1,300);
+          S.year=2000;S.month=1;S.monthCommitted=ym(2000,1)-1;
+          applyWorldHistory(S);syncWorldIdentities(S);
+          const route=worldInternationalRegisterRoute(S,seller.id,'FR-UK-SEA-1900');
+          const wh=worldInternationalInstallWarehouse(S,buyer.id,bp.id,'FR-UK-SEA-1900');
+          const equipment=route.assetValue===4500&&wh.assetValue===500
+            &&seller.stock['PRD-E18'].q===0&&buyer.stock['PRD-E21'].q===0;
+          const placed=worldInternationalPlaceOrder(S,buyer.id,{
+            routeId:route.id,warehouseId:wh.id,productId:'PRD-R19',
+            quantity:12,unitPriceSeller:100,maxPaymentBuyer:100000});
+          worldInternationalActOrder(S,seller.id,placed.id,'approve');
+          S.month++;
+          worldInternationalResolveOrders(S);
+          const cargo=S.worldExpansion.internationalShipments.at(-1);
+          const customs=cargo?.status==='IN_TRANSIT'&&cargo.quantity===12
+            &&cargo.tariffBps===250&&cargo.dutyBuyer>0
+            &&cargo.totalBuyer===cargo.prepaidBuyer+cargo.dutyBuyer
+            &&acc(buyer,'worldShipmentStock')===cargo.dutyBuyer
+            &&acc(buyer,'worldSupplierAdvances')===cargo.prepaidBuyer
+            &&!check(S).length;
+          const saved=parsePayload(savePayload(S));
+          const retain=worldValidateInternationalLogistics(saved)
+            &&saved.worldExpansion.internationalShipments.at(-1).dutyBuyer===cargo.dutyBuyer;
+          S.month+=2;
+          worldInternationalReceiveShipments(S);
+          const delivered=cargo.status==='DELIVERED'
+            &&buyer.stock['PRD-R19'].q===12
+            &&buyer.stock['PRD-R19'].v===cargo.totalBuyer
+            &&acc(buyer,'worldShipmentStock')===0
+            &&!check(S).length;
+          const changed=structuredClone(S);
+          changed.worldExpansion.internationalShipments.at(-1).tariffBps++;
+          const tamper=(()=>{try{parsePayload(savePayload(changed));return false}catch{return true}})();
+          return {paths,equipment,customs,retain,delivered,tamper};
+        }""")
+        assert all(multimodal.values()),multimodal
         browser.close()
     print("PASS Phase 4: cross-border physical assets, partial delivery, FX prepayment, "
-          "title, revenue, refund, tamper rejection and restore")
+          "title, customs, revenue, refund, tamper rejection and restore")
 
 if __name__=="__main__":
     main()
