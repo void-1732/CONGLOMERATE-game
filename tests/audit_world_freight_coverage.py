@@ -155,6 +155,7 @@ def audit_monthly_receipts():
  const saved=parsePayload(savePayload(S)),g=consolidate(saved);
  return {id,received:cargo.receivedAt,tariffBps:cargo.tariffBps,distanceKm:route.distanceKm,ok:route.distanceKm===p.distanceKm
   &&saved.worldExpansion.internationalRoutes[route.id].distanceKm===p.distanceKm
+  &&worldRouteDistanceReference(id,S).matched
   &&cargo.tariffBps===WORLD_PHASE4_TARIFF_BPS[buyer.country]
   &&cargo.dutyBuyer===Math.round(cargo.goodsSeller*cargo.sellerRate/cargo.buyerRate*cargo.tariffBps/10000)
   &&cargo.freightSeller===worldFreightCharge(p,cargo.loadKg,seller.country,S)

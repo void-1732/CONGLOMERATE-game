@@ -336,8 +336,8 @@ def test_italy_coal_import(page):
       const loaded=purchase.quantity===28&&cargo?.orderId===order.id
         &&cargo.status==='IN_TRANSIT'&&cargo.quantity===12
         &&cargo.cargoLitres===27&&cargo.loadKg===14
-        &&cargo.fuelRequired===2&&cargo.fuelCost>0
-        &&seller.stock['PRD-R04'].q===14
+        &&cargo.fuelRequired===3&&cargo.fuelCost>0
+        &&seller.stock['PRD-R04'].q===13
         &&acc(seller,'worldShipmentStock')===cargo.bookCost
         &&!buyer.stock['PRD-R04']?.q
         &&worldValidateInternationalLogistics(S)&&!check(S).length;

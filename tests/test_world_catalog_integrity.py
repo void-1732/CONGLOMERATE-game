@@ -151,8 +151,15 @@ def main():
             &&worldInternationalFuelRequired(sea,25)===11
             &&worldMapNetwork(state).routes.find(r=>r.id==='JP-US-SEATTLE-STEAM').distanceKm===7919
             &&worldMapDistanceNotice('JP-US-SEATTLE-STEAM',oldDistanceState).includes('LEGACY_MODEL');
-          const distanceNotInvented=!worldRouteDistanceReference('UK-FR-HOUNSLOW-LEATHER',state).matched
-            &&worldMapDistanceNotice('UK-FR-HOUNSLOW-LEATHER',state).includes('PROVISIONAL');
+          const distanceNotInvented=!worldRouteDistanceReference('FR-DE-RAIL-1900',state).matched
+            &&worldMapDistanceNotice('FR-DE-RAIL-1900',state).includes('PROVISIONAL');
+          const distanceV1=structuredClone(state);distanceV1.worldExpansion.routeDistanceVersion=1;
+          out.distanceVersionPreserved=worldInternationalProfile('SG-UK-SINGAPORE-RUBBER',distanceV1).distanceKm===14500
+            &&worldInternationalProfile('SG-UK-SINGAPORE-RUBBER',state).distanceKm===15483;
+          out.allSourcedRouteDistances=Object.keys(WORLD_INTERNATIONAL_ROUTE_EVIDENCE).length===53
+            &&Object.keys(WORLD_INTERNATIONAL_ROUTE_EVIDENCE).every(id=>worldRouteDistanceReference(id,state).matched)
+            &&Object.keys(WORLD_DOMESTIC_CORRIDORS).every(id=>worldRouteDistanceReference(id,state).matched)
+            &&worldRouteDistanceReference('UK-FR-HOUNSLOW-LEATHER',state).reference.kind==='HISTORICAL_AIR_SERVICE_AVERAGE';
           const modernExpected={AU:'AUD',MX:'MXN',BR:'BRL',AR:'ARS',CN:'CNY',RU:'RUB',TR:'TRY',MA:'MAD',VN:'VND',IR:'IRR'};
           out.modernIndependentCurrencies=Object.entries(modernExpected).every(([code,id])=>
             state.world[code]?.currency===id&&firmCurrency({country:code},state)===id);
