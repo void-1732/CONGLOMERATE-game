@@ -104,6 +104,7 @@ def main():
           const first=worldInternationalPlaceOrder(S,buyer.id,options);
           const second=worldInternationalPlaceOrder(S,buyer.id,{...options,quantity:1,cargoLitres:2});
           for(const o of [first,second])worldInternationalActOrder(S,seller.id,o.id,'approve');
+          route.condition=90;
           advance(2);worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
           const [cargo]=S.worldExpansion.internationalShipments;
           const loaded=first.acceptedQty===4&&second.result==='NO_ALLOCATION'&&cargo?.loadKg===8
@@ -111,6 +112,10 @@ def main():
             &&worldDomesticWarehouseReservations(S.worldExpansion,depot.id)===8
             &&rejects(()=>worldRetireDomesticAsset(S,seller.id,'warehouse',depot.id))
             &&!buyer.stock['PRD-M14']?.q&&acc(seller,'worldShipmentStock')===cargo.bookCost;
+          const showingRail=mapPosition(cargo,'東京・京浜 [JP-TOK] → 横浜・桜木町／新港 [JP-YOK]');
+          const equipment=document.querySelector('[data-world-map-equipment="'+route.id+'"]');
+          const routeCapacity=showingRail&&equipment?.cells[3].textContent==='9 kg'
+            &&equipment?.cells[4].textContent==='8 kg'&&equipment?.cells[5].textContent==='1 kg';
           terminal.paused=true;syncPlant(seller);
           advance(3);worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
           const pausedHub=worldMapWarehouseLedger(S).find(h=>h.id===depot.id);
@@ -143,7 +148,7 @@ def main():
             &&buyer.stock['PRD-M14'].v===cargo.totalBuyer&&!acc(seller,'worldShipmentStock')
             &&-acc(seller,'sales')===cargo.goodsSeller&&!check(reopened).length&&!consolidate(reopened).errors.length;
           return {closedEarly,blocked,inactiveRejected,registered,routeGatedCapacity,damagedCapacity,loaded,pausedCapacity,waits,
-            railPosition,held,portPosition,audit,boarded,seaPosition,stillOwned,settled};
+            routeCapacity,railPosition,held,portPosition,audit,boarded,seaPosition,stillOwned,settled};
         }""")
         assert all(result.values()), result
         assert not errors, errors

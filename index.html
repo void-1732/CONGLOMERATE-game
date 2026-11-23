@@ -9638,8 +9638,12 @@ function worldMapRouteDetail(s,r,shipments){
  const source=typeof evidence?.source==='string'?evidence.source:null;
  const equipment=assets.map(x=>{
   const owner=s.firms.find(f=>f.id===x.ownerCompanyId);
-  return '<tr><td><code>'+esc(x.id)+'</code></td><td>'+esc(owner?.name??x.ownerCompanyId)
-   +'</td><td>'+nfmt(x.condition??100)+'%</td><td>'+esc(x.retiredAt==null?'登録中':'廃止済み')+'</td></tr>';
+  const capacity=worldRouteCapacityForMonth(x,shipments,ym(s.year,s.month),!domestic);
+  return '<tr data-world-map-equipment="'+esc(x.id)+'"><td><code>'+esc(x.id)+'</code></td><td>'+esc(owner?.name??x.ownerCompanyId)
+   +'</td><td>'+nfmt(x.condition??100)+'%</td>'
+   +'<td class="num">'+nfmt(capacity.effective)+' kg</td><td class="num">'+nfmt(capacity.used)+' kg</td>'
+   +'<td class="num">'+nfmt(x.retiredAt==null?Math.max(0,capacity.remaining):0)+' kg</td>'
+   +'<td>'+esc(x.retiredAt==null?'登録中':'廃止済み')+'</td></tr>';
  }).join('');
  const inTransit=shipments.filter(t=>t.status==='IN_TRANSIT');
  const history=shipments.filter(t=>t.status!=='IN_TRANSIT').slice(-20);
@@ -9666,7 +9670,7 @@ function worldMapRouteDetail(s,r,shipments){
   +'<p class="hint">'+esc(r.from.name)+' → '+(r.via?esc(r.via.name)+' → ':'')
   +esc(r.to.name)+' / '+nfmt(r.distanceKm)
   +' km / マスター積載上限 '+nfmt(r.capacityKg)+' kg。'
-  +'設備や貨物の登録がない場合は架空の輸送実績を表示しません。</p>'
+  +'受注には設備枠に加えて、運航・倉庫・燃料の条件を満たす必要があります。</p>'
   +'<p class="hint">運用条件 '+esc(worldMapRouteStatus(r,ym(s.year,s.month)))
   +' / 稼働登録設備 '+r.installed+' / 輸送中件数 '+r.shipments
   +(source?' / <a href="'+esc(source)+'" target="_blank" rel="noopener noreferrer">路線・品目の史料</a>':'')+'</p>'
@@ -9674,7 +9678,8 @@ function worldMapRouteDetail(s,r,shipments){
    +(r.untilMonth!=null?partContractDate(r.untilMonth-1)+'まで':'')
    +(evidence.sailingMonths?' / 運航月 '+evidence.sailingMonths.join('・')+'月':'')+'。</p>':'')
   +'<div class="scroll"><table><thead><tr><th>実設備ID</th><th>所有会社</th><th>設備状態</th>'
-  +'<th>登録状態</th></tr></thead><tbody>'+(equipment||'<tr><td colspan="4">登録設備なし</td></tr>')
+  +'<th>劣化を反映した積載枠</th><th>当月使用</th><th>当月の設備枠残</th><th>登録状態</th></tr></thead><tbody>'
+  +(equipment||'<tr><td colspan="7">登録設備なし</td></tr>')
   +'</tbody></table></div>'
   +'<div class="scroll"><table><thead><tr><th>輸送ID</th><th>現物品目</th><th>数量</th>'
   +'<th>輸送・検収状況</th><th>台帳の現在区間・到着拠点</th><th>台帳の予定・記録月</th><th>設備ID</th></tr></thead><tbody>'
@@ -14343,14 +14348,19 @@ function worldDomesticCargo(s,routeId,sellerId,sellerPlantId,buyerId,buyerPlantI
   return {problem:'荷種に対応する稼働中の受入倉庫が必要です'};
  return {w,route,seller,buyer,from,to,profile,warehouse,receiving,productId,month:ym(s.year,s.month)};
 }
+function worldRouteCapacityForMonth(route,shipments,month,international){
+ const nominal=international?route.capacityKg:route.capacityQty;
+ const effective=Math.floor(nominal*(route.condition??100)/100);
+ const used=(shipments??[]).filter(t=>t.routeId===route.id&&t.dispatchedAt===month)
+  .reduce((sum,t)=>sum+(international?(t.loadKg??t.quantity):t.quantity),0);
+ return {effective,used,remaining:effective-used};
+}
 function worldDomesticRemainingCapacity(cargo){
  const {w,route,warehouse,receiving,month}=cargo;
- const used=(w.domesticShipments??[]).filter(t=>t.routeId===route.id&&t.dispatchedAt===month)
-  .reduce((sum,t)=>sum+t.quantity,0);
  return {
   storage:warehouse?worldWarehouseEffectiveCapacity(warehouse,receiving.capacity)
    -worldDomesticWarehouseReservations(w,warehouse.id):Infinity,
-  transport:Math.floor(route.capacityQty*(route.condition??100)/100)-used
+  transport:worldRouteCapacityForMonth(route,w.domesticShipments,month,false).remaining
  };
 }
 function worldDomesticQuote(cargo,quantity,unitPrice){
@@ -15201,15 +15211,14 @@ function worldInternationalResolveOrders(s,events=[]){
   }
   const transfer=profile.transfer&&worldInternationalTransferWarehouse(s,seller,profile,route.transferWarehouseId);
   if(profile.transfer&&!transfer){o.result='UNAVAILABLE';continue;}
-  const occupied=(w.internationalShipments??[]).filter(t=>t.routeId===route.id&&t.dispatchedAt===month)
-   .reduce((n,t)=>n+(t.loadKg??t.quantity),0);
+  const transportCapacity=worldRouteCapacityForMonth(route,w.internationalShipments,month,true).remaining;
   const reserved=(w.internationalShipments??[]).filter(t=>t.warehouseId===h.id&&t.status==='IN_TRANSIT')
    .reduce((n,t)=>n+(t.loadKg??t.quantity),0);
   // Damaged transfer depots cannot reserve their nominal full capacity.
   const transferCapacity=transfer?worldWarehouseEffectiveCapacity(transfer,
    WORLD_DOMESTIC_WAREHOUSE_PROFILES[transfer.profileId].capacity)
    -worldDomesticWarehouseReservations(w,transfer.id):Infinity;
-  const capacity=Math.min(Math.floor(route.capacityKg*(route.condition??100)/100)-occupied,
+  const capacity=Math.min(transportCapacity,
    worldWarehouseEffectiveCapacity(h,profile.warehouseCapacityKg)-reserved,transferCapacity);
   const limit=Math.min(o.quantity,capacity,seller.stock?.[o.productId]?.q??0);
   for(let q=limit;q>=1;q--){
