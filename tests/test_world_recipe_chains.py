@@ -60,7 +60,7 @@ def main():
             validCatalog:WORLD_SUPPLEMENTAL_RECIPES.every(r=>WORLD_PRODUCT_BY_ID.has(r.id))
           };
         }""")
-        assert result.pop("count") == 46, result
+        assert result.pop("count") == 61, result
         assert all(result.values()), result
         integration = page.evaluate("""async () => {
           S=newWorldGame({country:'JP',name:'追加世界商品・月次統合試験'});
