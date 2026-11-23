@@ -58,7 +58,7 @@ def main():
             &&persisted.worldExpansion.powerLines[target.id].accumulatedDepreciation===1;
           const balanced=!check(S).length&&!consolidate(S).errors.length;
           const catalog=WORLD_SUPPLEMENTAL_RECIPES.length===104
-            &&WORLD_PRODUCTS.filter(p=>worldProductImplementation(p.id).implementation==='DATA_CANDIDATE').length===3;
+            &&WORLD_PRODUCTS.filter(p=>worldProductImplementation(p.id).implementation==='DATA_CANDIDATE').length===2;
           const services=WORLD_PRODUCTS.filter(p=>p.category==='service')
             .every(p=>!worldServiceTerms(p.id).physicalInventory&&!f.stock[p.id]);
           return {real,depreciation,forbidsGeneratorRetireFirst,closed,refusesRestart,

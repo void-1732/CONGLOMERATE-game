@@ -98,7 +98,7 @@ def main():
           let rejectTamper=false;try{validateWorldExpansion(bad)}catch{rejectTamper=true}
           const clean=check(S).length===0&&consolidate(S).errors.length===0;
           const count=WORLD_SUPPLEMENTAL_RECIPES.length===104
-            &&WORLD_PRODUCTS.filter(p=>worldProductImplementation(p.id).implementation==='DATA_CANDIDATE').length===3;
+            &&WORLD_PRODUCTS.filter(p=>worldProductImplementation(p.id).implementation==='DATA_CANDIDATE').length===2;
           const noServiceRevenue=WORLD_PRODUCTS.filter(p=>p.category==='service')
              .every(p=>!worldServiceTerms(p.id).physicalInventory&&!pf.stock[p.id]);
           return {monthlyMined,accepted,rejectsPhantom,rejectsService,rejectsWrongSite,
