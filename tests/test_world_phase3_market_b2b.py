@@ -21,6 +21,8 @@ def main():
           const buyer=initFirm(S,{name:'Independent rice producer',country:'JP',seedBase:5000000});
           const bp=buyer.plants[0];
           sp.siteId='JP-TOK';bp.siteId='JP-YOK';
+          // PRD-C02 requires an assembly site, not the legacy integrated plant.
+          bp.kind='assembly';syncPlant(buyer);
           bp.componentLines=[];bp.lastProduced=0;
           for(const f of [seller,buyer]){
             if(!f.research.tree.done.includes('production-1'))f.research.tree.done.push('production-1');
