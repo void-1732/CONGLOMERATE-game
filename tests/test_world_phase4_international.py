@@ -119,7 +119,13 @@ def main():
         multimodal=page.evaluate("""() => {
           const profiles=Object.entries(WORLD_INTERNATIONAL_CORRIDORS);
           const modes=new Set(profiles.map(([,p])=>p.mode));
-          const paths=profiles.length===33&&['road+rail-shuttle','sea','rail','air','rail+sea'].every(m=>modes.has(m))
+          const documentedAdded=['SE-UK-GOTHENBURG-TIMBER','NL-US-ROTTERDAM-PULP',
+            'UK-IT-CARDIFF-GENOA-COAL','EG-UK-ALEXANDRIA-COTTON',
+            'IN-UK-BOMBAY-COTTON','ZA-UK-CAPE-WOOL'];
+          const paths=profiles.length>=33
+            &&documentedAdded.every(id=>WORLD_INTERNATIONAL_CORRIDORS[id]
+              &&WORLD_INTERNATIONAL_ROUTE_EVIDENCE[id]?.source?.startsWith('https://'))
+            &&['road+rail-shuttle','sea','rail','air','rail+sea'].every(m=>modes.has(m))
             &&profiles.every(([,p])=>findSite(p.from)&&findSite(p.to)
               &&findSite(p.from).country!==findSite(p.to).country
               &&p.capacityKg>0&&p.warehouseCapacityKg>0&&p.distanceKm>0
