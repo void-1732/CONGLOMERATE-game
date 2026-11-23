@@ -6736,6 +6736,15 @@ function closingFxBridge(s,memberFirms,g){
  }
  return {cash:closingCash,deltaFromReference:closingCash-g.bs.cash,items,cashByFirm};
 }
+// Reconcile only paired intercompany foreign-currency settlement cash legs.
+function worldInternationalCashPairs(s){
+ return (s.worldExpansion?.internationalShipments??[]).flatMap(t=>{
+  const dispatch={kind:'domesticTradeCash',seller:t.sellerId,buyer:t.buyerId,yearMonth:t.dispatchedAt,
+   fromJournal:t.journals.dispatch+3,toJournal:t.journals.dispatch+2};
+  return t.status==='REFUNDED'?[dispatch,{...dispatch,yearMonth:t.refundedAt,
+   fromJournal:t.journals.terminal,toJournal:t.journals.terminal+1}]:[dispatch];
+ });
+}
 function computePeriodCF(s,rootId,g,bridge){
  const period=s.monthCommitted,old=s.consoHistory||[];
  const saved=old.find(h=>h.month===period&&!h.initial);
@@ -6750,7 +6759,7 @@ function computePeriodCF(s,rootId,g,bridge){
   if(entering.length)linksEntering.set(f.id,entering.sort((a,b)=>a.buyerJournal-b.buyerJournal)[0]);
  }
  const ignored=new Set();let loanPairs=0;
- for(const t of [...(s.intercompanyTx||[]),...developmentCashPairs(s),...partCashPairs(s),...worldTelephoneCashPairs(s),...worldMedicalCashPairs(s)]){
+ for(const t of [...(s.intercompanyTx||[]),...developmentCashPairs(s),...partCashPairs(s),...worldTelephoneCashPairs(s),...worldMedicalCashPairs(s),...worldInternationalCashPairs(s)]){
   if(!memberIds.has(t.seller)||!memberIds.has(t.buyer))continue;
   if(t.yearMonth<Math.max(opens[t.seller]??0,opens[t.buyer]??0))continue;
   if(['developmentCash','partTradeCash','domesticTradeCash'].includes(t.kind)){
@@ -6801,6 +6810,12 @@ function computePeriodCF(s,rootId,g,bridge){
   const fx=Number(l.targetFxOnAcq??COUNTRIES[f.country].fx);
   const add=Math.round(local*fx);cf.investing+=add;cf.scopeAdded+=add;
   acquisitionInputs[l.childId]={local,fx};
+ }
+ for(const t of s.worldExpansion?.internationalShipments??[]){
+  if(t.dispatchedAt!==period||!t.dutyBuyer||!memberIds.has(t.sellerId)
+   ||!memberIds.has(t.buyerId)||t.dispatchedAt<Math.max(opens[t.sellerId]??0,opens[t.buyerId]??0))continue;
+  const buyer=company(t.buyerId,s),j=buyer.journals.find(x=>x.id===t.journals.dispatch+2);
+  cf.operating-=Math.round(t.dutyBuyer*Number(j?.fxAtPost??COUNTRIES[buyer.country].fx));
  }
  cf.net=cf.operating+cf.investing+cf.financing;
  if(opening===null||opening===undefined){cf.unreconciled=null;return cf;}
