@@ -100,8 +100,8 @@ def audit_monthly_receipts():
         receipts = []
         for route_id in ids:
             result = page.evaluate("""async id=>{
- const p=worldInternationalProfile(id),e=WORLD_INTERNATIONAL_ROUTE_EVIDENCE[id],product=e.products?.[0]??'PRD-R19';
  S=newWorldGame({country:'JP',name:'Monthly freight audit'});
+ const p=worldInternationalProfile(id,S),e=WORLD_INTERNATIONAL_ROUTE_EVIDENCE[id],product=e.products?.[0]??'PRD-R19';
  VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';PAGE='reports';
  const parent=company(S.playerId,S);
  const open=worldInternationalOpeningMonth(p,e);
@@ -153,7 +153,9 @@ def audit_monthly_receipts():
  for(let i=0;i<12&&cargo.status==='IN_TRANSIT';i++)cargo=await close();
  if(cargo.status!=='DELIVERED')throw Error('not delivered '+JSON.stringify(cargo));
  const saved=parsePayload(savePayload(S)),g=consolidate(saved);
- return {id,received:cargo.receivedAt,tariffBps:cargo.tariffBps,ok:cargo.tariffBps===WORLD_PHASE4_TARIFF_BPS[buyer.country]
+ return {id,received:cargo.receivedAt,tariffBps:cargo.tariffBps,distanceKm:route.distanceKm,ok:route.distanceKm===p.distanceKm
+  &&saved.worldExpansion.internationalRoutes[route.id].distanceKm===p.distanceKm
+  &&cargo.tariffBps===WORLD_PHASE4_TARIFF_BPS[buyer.country]
   &&cargo.dutyBuyer===Math.round(cargo.goodsSeller*cargo.sellerRate/cargo.buyerRate*cargo.tariffBps/10000)
   &&cargo.freightSeller===worldFreightCharge(p,cargo.loadKg,seller.country)
   &&seller.journals.find(j=>j.id===cargo.journals.terminal)?.cr.some(([key,v])=>key==='sales'&&v===worldInternationalSale(cargo))

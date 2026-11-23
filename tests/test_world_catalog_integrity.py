@@ -136,9 +136,19 @@ def main():
             &&legacyEuroSaved.world.DE.currency==='DEM'
             &&JSON.stringify(legacyEuroSaved.firms)===JSON.stringify(legacyEuro.firms);
           const distanceRefs=['JP-SHIMBASHI-YOKOHAMA','JP-TOMEI-TOKYO-KOMAKI','AL-IT-DURRES-BARI-TIMBER']
-            .every(id=>worldRouteDistanceReference(id).matched);
-          const distanceNotInvented=!worldRouteDistanceReference('JP-US-SEATTLE-STEAM').matched
-            &&worldMapDistanceNotice('JP-US-SEATTLE-STEAM').includes('PROVISIONAL');
+            .every(id=>worldRouteDistanceReference(id,state).matched);
+          const sea=worldInternationalProfile('JP-US-SEATTLE-STEAM',state);
+          const oldDistanceState=structuredClone(state);delete oldDistanceState.worldExpansion.routeDistanceVersion;
+          const oldDistance=worldInternationalProfile('JP-US-SEATTLE-STEAM',oldDistanceState);
+          const actualDistance=sea.distanceKm===7919
+            &&oldDistance.distanceKm===8100
+            &&worldInternationalProfile('JP-US-YOKOHAMA-TRANSFER',state).distanceKm===7948
+            &&worldFreightCharge(sea,2,'JP')===Math.round(7919*.025*2*100)
+            &&worldInternationalFuelRequired(sea,25)===11
+            &&worldMapNetwork(state).routes.find(r=>r.id==='JP-US-SEATTLE-STEAM').distanceKm===7919
+            &&worldMapDistanceNotice('JP-US-SEATTLE-STEAM',oldDistanceState).includes('LEGACY_MODEL');
+          const distanceNotInvented=!worldRouteDistanceReference('UK-FR-HOUNSLOW-LEATHER',state).matched
+            &&worldMapDistanceNotice('UK-FR-HOUNSLOW-LEATHER',state).includes('PROVISIONAL');
           const restored=parsePayload(savePayload(state));
           // Version 16 saves remain legal inputs. Upgrading must not
           // rewrite firms, cash, ownership or historical pre-1910 events.
@@ -174,7 +184,7 @@ def main():
             &&check(upgraded).length===0;
           return {
             ...out,compositeClosed,compositeOpen,compositeLaw,portugalRepublic,upgradePreservesLedger,
-            euroShared,euroFollowsMarket,euroTamperRejected,legacyEuroPreserved,distanceRefs,distanceNotInvented,
+            euroShared,euroFollowsMarket,euroTamperRejected,legacyEuroPreserved,distanceRefs,actualDistance,distanceNotInvented,
             belgiumBeforeUpgrade,
             belgiumAfterUpgrade:worldCityLocation(upgraded,'CITY-08-03').marketOpen
               &&upgraded.world.BE?.code==='BE'&&upgraded.world.NL?.code==='NL'

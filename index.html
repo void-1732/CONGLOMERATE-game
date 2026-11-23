@@ -9457,7 +9457,7 @@ function worldMapNetwork(s=S){
   importTariffRegistered:Object.hasOwn(WORLD_PHASE4_TARIFF_BPS,bySite.get(p.to)?.country),
   name:id,opensAt:worldInternationalOpeningMonth(p,WORLD_INTERNATIONAL_ROUTE_EVIDENCE[id]),
   untilMonth:WORLD_INTERNATIONAL_ROUTE_EVIDENCE[id]?.untilMonth,
-  distanceKm:p.distanceKm,capacityKg:p.capacityKg,
+  distanceKm:worldInternationalProfileOrNull(id,s).distanceKm,capacityKg:p.capacityKg,
   installed:Object.values(s?.worldExpansion?.internationalRoutes??{}).filter(x=>x.profileId===id&&x.retiredAt==null).length,
   shipments:(s?.worldExpansion?.internationalShipments??[]).filter(x=>s.worldExpansion.internationalRoutes?.[x.routeId]?.profileId===id&&x.status==='IN_TRANSIT').length,
   available:!!s&&worldInternationalRouteAvailable(s,id)
@@ -9667,23 +9667,78 @@ function worldMapFreightLeg(r,t){
  return [r.from,r.via];
 }
 // SPEC-148: distinguish a documented distance from the commodity/operation evidence.
+const WORLD_NGA_PUB151_SOURCE='https://msi.nga.mil/api/publications/download?key=16694076%2FSFH00000%2FPub151bk.pdf';
+function worldSeaDistanceRef(legs){
+ const nm=legs.reduce((n,leg)=>n+leg[1],0);
+ return Object.freeze({km:nm*1.852,roundTo:1,kind:'NGA_PUB151',source:WORLD_NGA_PUB151_SOURCE,
+  legs:Object.freeze(legs.map(leg=>Object.freeze(leg))),nm});
+}
 const WORLD_ROUTE_DISTANCE_REFERENCES=Object.freeze({
  'JP-SHIMBASHI-YOKOHAMA':Object.freeze({km:29,roundTo:1,kind:'HISTORICAL_ROUTE',source:'https://www.archives.go.jp/owning/mini_img/4-1.html'}),
- 'JP-TOMEI-TOKYO-KOMAKI':Object.freeze({km:346.7,roundTo:1,kind:'ROAD_ROUTE',source:'https://www.atis.co.jp/route/result/274-242/'}),
- 'AL-IT-DURRES-BARI-TIMBER':Object.freeze({km:217,roundTo:10,kind:'MODERN_SEA_REFERENCE',source:'https://oeamtc-faehren.at/en/ferry-routes/bari-durres'})
+ 'JP-TOMEI-TOKYO-KOMAKI':Object.freeze({km:346.7,roundTo:1,kind:'ROAD_ROUTE',source:'https://www.cbr.mlit.go.jp/kokudokeisei/pdf/Mapjirei.pdf'}),
+ 'AL-IT-DURRES-BARI-TIMBER':Object.freeze({km:217,roundTo:1,kind:'MODERN_SEA_REFERENCE',source:'https://oeamtc-faehren.at/en/ferry-routes/bari-durres'}),
+ 'UK-IE-HOLYHEAD-DUBLIN-TEXTILES':Object.freeze({km:58*1.852,roundTo:1,kind:'MODERN_SEA_REFERENCE',source:'https://www.ferryhopper.com/en/ferry-routes/direct/holyhead-dublin'}),
+ 'GR-FR-PIRAEUS-OLIVE':worldSeaDistanceRef([["Piraievs—Marseille south of Greece",1069]]),
+ 'PH-US-MANILA-SUGAR':worldSeaDistanceRef([["Manila—San Francisco via Balintang Channel",6221]]),
+ 'ID-JP-BATAVIA-SUGAR':worldSeaDistanceRef([["Jakarta—Yokohama",3194]]),
+ 'TH-SG-BANGKOK-RICE':worldSeaDistanceRef([["Singapore—Bangkok (reciprocal)",842]]),
+ 'CO-US-CARTAGENA-COFFEE':worldSeaDistanceRef([["Cartagena—New Orleans via Yucatan Channel and Southwest Pass",1468]]),
+ 'MX-US-VERACRUZ-COFFEE':worldSeaDistanceRef([["Veracruz—New Orleans",789]]),
+ 'AU-JP-SYDNEY-WOOL':worldSeaDistanceRef([["Sydney—Yokohama",4330]]),
+ 'JP-US-SEATTLE-STEAM':worldSeaDistanceRef([["Yokohama—Seattle south of Aleutian Islands",4276]]),
+ 'US-JP-SEATTLE-STEAM':worldSeaDistanceRef([["Seattle—Yokohama north of Aleutian Islands",4245]]),
+ 'NO-UK-NORTHSHIELDS-STEAM':worldSeaDistanceRef([["Bergen—Newcastle",403]]),
+ 'UK-NO-NORTHSHIELDS-STEAM':worldSeaDistanceRef([["Newcastle—Bergen",403]]),
+ 'NO-DE-HAMBURG-STEAM':worldSeaDistanceRef([["Bergen—Hamburg",486]]),
+ 'DE-NO-HAMBURG-STEAM':worldSeaDistanceRef([["Hamburg—Bergen",486]]),
+ 'JP-US-SEA-1900':worldSeaDistanceRef([["Yokohama—Los Angeles",4839]]),
+ 'US-JP-SEA-1900':worldSeaDistanceRef([["Los Angeles—Yokohama",4839]]),
+ 'UK-PT-CARDIFF-LISBON-COAL':worldSeaDistanceRef([["Cardiff—Bishop Rock",176],["Bishop Rock—Lisboa",710]]),
+ 'BE-US-ANTWERP-GLASS':worldSeaDistanceRef([["Antwerp—Bishop Rock",449],["Bishop Rock—New York",2937]]),
+ 'PL-UK-GDYNIA-COAL':worldSeaDistanceRef([["Gdynia—Skagens Odde",528],["Skagens Odde—Hull",462]]),
+ 'MA-FR-CASABLANCA-WHEAT':worldSeaDistanceRef([["Casablanca—Strait of Gibraltar",166],["Strait of Gibraltar—Marseille",711]]),
+ 'RU-UK-PETERSBURG-TIMBER':worldSeaDistanceRef([["Sankt-Peterburg—Skagens Odde via The Sound",841],["Skagens Odde—London",554]]),
+ 'ZA-UK-CAPE-WOOL':worldSeaDistanceRef([["Cape Town—Ile d’Ouessant",5743],["Ile d’Ouessant—London",397]]),
+ 'NL-US-ROTTERDAM-PULP':worldSeaDistanceRef([["Rotterdam—Bishop Rock",454],["Bishop Rock—Philadelphia",3092]]),
+ 'AR-UK-BUENOSAIRES-WHEAT':worldSeaDistanceRef([["Buenos Aires—Bishop Rock",5947],["Bishop Rock—Liverpool",297]]),
+ 'BR-US-RIO-COFFEE':worldSeaDistanceRef([["Rio de Janeiro—Yucatan Channel",4622],["Yucatan Channel—New Orleans",577]]),
+ 'CA-UK-MONTREAL-GRAIN':worldSeaDistanceRef([["Montreal—Inishtrahull via Strait of Belle Isle",2545],["Inishtrahull—Liverpool north of Isle of Man",210]]),
+ 'DE-UK-SEA-1900':worldSeaDistanceRef([["Hamburg—Pentland Firth",555],["Pentland Firth—Liverpool via The Minch",451]]),
+ 'UK-DE-SEA-1900':worldSeaDistanceRef([["Liverpool—Pentland Firth via The Minch",451],["Pentland Firth—Hamburg",555]]),
+ 'NO-UK-SEA-1905':worldSeaDistanceRef([["Bergen—Pentland Firth",296],["Pentland Firth—Liverpool via The Minch",451]]),
+ 'UK-NO-SEA-1905':worldSeaDistanceRef([["Liverpool—Pentland Firth via The Minch",451],["Pentland Firth—Bergen",296]]),
 });
-function worldRouteDistanceReference(id){
- const p=WORLD_DOMESTIC_CORRIDORS[id]??WORLD_INTERNATIONAL_CORRIDORS[id],ref=WORLD_ROUTE_DISTANCE_REFERENCES[id];
+function worldInternationalProfileOrNull(id,s){
+ const p=worldDomesticProfile(WORLD_INTERNATIONAL_CORRIDORS,id);
+ if(!p||s?.worldExpansion?.routeDistanceVersion!==1)return p;
+ if(p.transfer){
+  const rail=WORLD_DOMESTIC_CORRIDORS[p.transfer.railId],sea=worldInternationalProfileOrNull(p.transfer.seaId,s);
+  return {...p,distanceKm:rail.km+sea.distanceKm,seaDistanceKm:sea.distanceKm};
+ }
+ const ref=WORLD_ROUTE_DISTANCE_REFERENCES[id];
+ return ref?{...p,distanceKm:Math.round(ref.km/ref.roundTo)*ref.roundTo}:p;
+}
+function worldRouteDistanceReference(id,s=S){
+ const p=WORLD_DOMESTIC_CORRIDORS[id]??worldInternationalProfileOrNull(id,s);
  if(!p)throw Error('未登録の経路ID');
+ let ref=WORLD_ROUTE_DISTANCE_REFERENCES[id];
+ if(p.transfer){
+  const rail=worldRouteDistanceReference(p.transfer.railId,s),sea=worldRouteDistanceReference(p.transfer.seaId,s);
+  if(rail.reference&&sea.reference)ref={km:Math.round(rail.reference.km)+Math.round(sea.reference.km),
+   roundTo:1,kind:'MULTIMODAL_REFERENCE',source:sea.reference.source};
+ }
  const km=p.km??p.distanceKm;
  return {km,reference:ref??null,matched:!!ref&&Math.round(ref.km/ref.roundTo)*ref.roundTo===km};
 }
-function worldMapDistanceNotice(id){
- const d=worldRouteDistanceReference(id),ref=d.reference;
- if(!d.matched)return '<p class="hint" data-world-distance-status="PROVISIONAL">距離の独立した根拠未確認（モデル値）。</p>';
- const kind=ref.kind==='MODERN_SEA_REFERENCE'?'現代の直接航路参考値（歴史航程は未確認）':'実路線の公表距離';
- return '<p class="hint" data-world-distance-status="'+esc(ref.kind)+'">'+esc(kind)+' '+nfmt(ref.km)
-  +' km / ゲーム内 '+nfmt(d.km)+' km（'+ref.roundTo+' km単位）'
+function worldMapDistanceNotice(id,s=S){
+ const d=worldRouteDistanceReference(id,s),ref=d.reference;
+ if(!ref)return '<p class="hint" data-world-distance-status="PROVISIONAL">距離の独立した根拠未確認（モデル値）。</p>';
+ const kind=ref.kind==='NGA_PUB151'?'NGA Pub.151 航行距離（歴史航程の実測ではない）'
+  :ref.kind==='MODERN_SEA_REFERENCE'?'現代の直接航路参考値（歴史航程は未確認）'
+  :ref.kind==='MULTIMODAL_REFERENCE'?'鉄道・海上の区間別距離':'実路線の公表距離';
+ return '<p class="hint" data-world-distance-status="'+esc(d.matched?ref.kind:'LEGACY_MODEL')+'">'+esc(kind)+' '+nfmt(ref.km)
+  +' km / ゲーム内 '+nfmt(d.km)+' km'+(d.matched?'':'（旧モデル距離を保持）')
+  +(ref.nm?' / '+nfmt(ref.nm)+' 海里 / '+esc(ref.legs.map(leg=>leg[0]+' '+leg[1]+' NM').join(' / ')):'')
   +' <a href="'+esc(ref.source)+'" target="_blank" rel="noopener noreferrer">距離の根拠</a></p>';
 }
 function worldMapRouteDetail(s,r,shipments){
@@ -9729,7 +9784,7 @@ function worldMapRouteDetail(s,r,shipments){
   +esc(r.to.name)+' / '+nfmt(r.distanceKm)
   +' km / マスター積載上限 '+nfmt(r.capacityKg)+' kg。'
   +'受注には設備枠に加えて、運航・倉庫・燃料の条件を満たす必要があります。</p>'
-  +worldMapDistanceNotice(r.id)
+  +worldMapDistanceNotice(r.id,s)
   +'<p class="hint">運用条件 '+esc(worldMapRouteStatus(r,ym(s.year,s.month)))
   +' / 稼働登録設備 '+r.installed+' / 輸送中件数 '+r.shipments
   +(source?' / <a href="'+esc(source)+'" target="_blank" rel="noopener noreferrer">路線・品目の史料</a>':'')+'</p>'
@@ -12246,6 +12301,7 @@ function newWorldGame(setup){
  state.worldExpansion.freightRateFromSeq=1;
  // Existing saves keep their booked exchange-rate histories. New games share the EUR rate.
  state.worldExpansion.euroFxUnified=true;
+ state.worldExpansion.routeDistanceVersion=1;
  applyWorldHistory(state);syncWorldIdentities(state);validateWorldExpansion(state);
  return state;
 }
@@ -12365,6 +12421,7 @@ function validateWorldExpansion(s){
   ||world.uniformDutyFromSeq<1||world.uniformDutyFromSeq>s.seq))throw Error('国別一律関税の適用開始が不正');
  if(Object.hasOwn(world,'freightRateFromSeq')&&(!Number.isSafeInteger(world.freightRateFromSeq)
   ||world.freightRateFromSeq<1||world.freightRateFromSeq>s.seq))throw Error('方式別運賃の適用開始が不正');
+ if(Object.hasOwn(world,'routeDistanceVersion')&&world.routeDistanceVersion!==1)throw Error('路線距離の版が不正');
  if(Object.hasOwn(world,'euroFxUnified')&&world.euroFxUnified!==true)throw Error('EUR為替制度の識別が不正');
  if(world.euroFxUnified&&['FR','DE','IE','LU'].some(code=>s.world[code]&&
   (s.world[code].currency!=='EUR'||s.world[code].fx!==s.world.FR?.fx)))throw Error('共通EURの帳簿為替が一致しません');
@@ -14571,7 +14628,7 @@ const WORLD_FREIGHT_RATE=Object.freeze({rail:0.15,road:0.30,sea:0.025,air:0.90,'
 function worldFreightCharge(profile,load,country){
  const base=profile.transfer
   ?WORLD_DOMESTIC_CORRIDORS[profile.transfer.railId].km*WORLD_FREIGHT_RATE.rail
-   +WORLD_INTERNATIONAL_CORRIDORS[profile.transfer.seaId].distanceKm*WORLD_FREIGHT_RATE.sea
+   +(profile.seaDistanceKm??WORLD_INTERNATIONAL_CORRIDORS[profile.transfer.seaId].distanceKm)*WORLD_FREIGHT_RATE.sea
   :(profile.km??profile.distanceKm)*WORLD_FREIGHT_RATE[profile.mode];
  if(!Number.isFinite(base)||base<=0||!Number.isSafeInteger(load)||load<1)throw Error('距離・輸送方式・換算負荷が不正');
  return Math.max(1,localFromBase(base*load,country));
@@ -15125,8 +15182,8 @@ const WORLD_INTERNATIONAL_ROUTE_EVIDENCE=Object.freeze({
  'FR-UK-SEA-1900':Object.freeze({fromMonth:ym(1904,1),source:'https://discovery.nationalarchives.gov.uk/download/GB%200136%20B-ELH'}),
  'UK-FR-SEA-1900':Object.freeze({fromMonth:ym(1901,1),source:'https://www.britishnewspaperarchive.co.uk/search/results/1900-12-19/1900-12-19?anysearch=london&newspapertitle=lloyd%2527s%2Blist'})
 });
-function worldInternationalProfile(id){
- const profile=worldDomesticProfile(WORLD_INTERNATIONAL_CORRIDORS,id);
+function worldInternationalProfile(id,s=S){
+ const profile=worldInternationalProfileOrNull(id,s);
  if(!profile)throw Error('国際実経路の登録がありません');
  return profile;
 }
@@ -15153,7 +15210,7 @@ function worldInternationalTransferWarehouse(s,firm,profile,warehouseId=null){
   &&worldDomesticSiteActive(firm.plants.find(p=>p.id===h.plantId),rail.to))??null;
 }
 function worldInternationalRegisterRoute(s,firmId,profileId){
- const w=s.worldExpansion,profile=worldInternationalProfile(profileId),firm=company(firmId,s);
+ const w=s.worldExpansion,profile=worldInternationalProfile(profileId,s),firm=company(firmId,s);
  const plant=firm?.plants.find(p=>p.siteId===profile.from&&worldDomesticSiteActive(p,p.siteId));
  const transfer=w&&worldInternationalTransferWarehouse(s,firm,profile);
  if(!w||!firm||!plant||firm.country!==findSite(profile.from).country
@@ -15172,7 +15229,7 @@ function worldInternationalRegisterRoute(s,firmId,profileId){
  return route;
 }
 function worldInternationalInstallWarehouse(s,firmId,plantId,profileId){
- const w=s.worldExpansion,profile=worldInternationalProfile(profileId),firm=company(firmId,s),
+ const w=s.worldExpansion,profile=worldInternationalProfile(profileId,s),firm=company(firmId,s),
   plant=firm?.plants.find(p=>p.id===plantId);
  if(!w||!isActiveCorporateFirm(firm)||!plant||plant.siteId!==profile.to
   ||firm.country!==findSite(profile.to).country||!worldDomesticSiteActive(plant,plant.siteId)
@@ -15439,13 +15496,13 @@ function worldInternationalDeclaration(rule,t,arrivalAt=null,releasedAt=null){
 function worldInternationalFuelRequired(profile,quantity){
  if(profile.transfer){
   const rail=WORLD_DOMESTIC_CORRIDORS[profile.transfer.railId],sea=WORLD_INTERNATIONAL_CORRIDORS[profile.transfer.seaId];
-  return Math.ceil(rail.km*quantity/rail.fuelScale)+worldInternationalFuelRequired(sea,quantity);
+  return Math.ceil(rail.km*quantity/rail.fuelScale)+worldInternationalFuelRequired({...sea,distanceKm:profile.seaDistanceKm??sea.distanceKm},quantity);
  }
  return Math.ceil(profile.distanceKm*quantity/(profile.fuelScale??600));
 }
 function worldInternationalQuote(s,route,productId,quantity,unitPriceSeller,buyerId,paymentDays=0,cargoLitres=0){
  const seller=company(route.ownerCompanyId,s),buyer=company(buyerId,s),
-  profile=worldInternationalProfile(route.profileId),
+  profile=worldInternationalProfile(route.profileId,s),
   cargo=seller?.stock?.[productId],fuel=seller?.stock?.[profile.fuel];
  if(!seller||!buyer||!worldInternationalImportTariffAvailable(s,buyer.country))
   return {problem:'輸入国の関税制度が未接続です'};
@@ -15776,7 +15833,7 @@ function worldValidateInternationalTransfer(s,t,route,profile,month){
   return;
  }
  const w=s.worldExpansion,rail=WORLD_DOMESTIC_CORRIDORS[profile.transfer.railId],
-  sea=WORLD_INTERNATIONAL_CORRIDORS[profile.transfer.seaId];
+  sea=worldInternationalProfile(profile.transfer.seaId,s);
  const warehouse=w.domesticWarehouses?.[route.transferWarehouseId];
  const terminal=t.receivedAt??t.refund?.confirmedAt??t.refundedAt??month;
  if(!handoff||handoff.warehouseId!==warehouse?.id||handoff.railId!==profile.transfer.railId
@@ -15841,7 +15898,7 @@ function worldValidateInternationalLogistics(s){
  }
  const routeHistory=new Map(),warehouseHistory=new Map();
  for(const [id,r] of Object.entries(routes)){
-  const p=worldDomesticProfile(WORLD_INTERNATIONAL_CORRIDORS,r.profileId),owner=company(r.ownerCompanyId,s);
+  const p=worldInternationalProfileOrNull(r.profileId,s),owner=company(r.ownerCompanyId,s);
   const sequence=Number(id.slice(3)),key=r.ownerCompanyId+'|'+r.profileId;
   if(id!==r.id||!/^IR-[1-9]\d*$/.test(id)||!Number.isSafeInteger(sequence)||sequence>=s.seq
    ||!p||owner?.country!==findSite(p.from)?.country||typeof r.plantId!=='string'
@@ -15910,7 +15967,7 @@ function worldValidateInternationalLogistics(s){
  let shipmentSequence=0;
  for(const t of shipments){
   const order=ordersById.get(t.orderId),r=routes[t.routeId],h=warehouses[t.warehouseId],
-   seller=company(t.sellerId,s),buyer=company(t.buyerId,s),profile=WORLD_INTERNATIONAL_CORRIDORS[r?.profileId];
+   seller=company(t.sellerId,s),buyer=company(t.buyerId,s),profile=worldInternationalProfileOrNull(r?.profileId,s);
   const seq=Number(t.id?.slice(3));
   const load=profile&&order?worldInternationalLoad(profile,t.quantity,order.cargoLitres??0,order.quantity):null;
   const rule=worldInternationalCustomsRule(s,r?.profileId,t.productId,t.dueAt,t.journals?.dispatch);
