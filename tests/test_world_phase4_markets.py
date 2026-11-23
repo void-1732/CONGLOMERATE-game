@@ -310,6 +310,80 @@ def test_italy_coal_import(page):
     }""")
     assert all(result.values()), result
 
+
+def test_south_africa_union(page):
+    """Historical 1910 Union gate and sourced 1911 Cape-to-London wool."""
+    result = page.evaluate("""() => {
+      const fail=fn=>{try{fn();return false}catch{return true}};
+      S=newWorldGame({country:'UK',name:'London wool buyer'});
+      VIEW_FIRM=S.playerId;VIEW_COUNTRY='UK';
+      const profile='ZA-UK-CAPE-WOOL',buyer=company(S.playerId);
+      const closed=!S.world.ZA&&!worldCityLocation(S,'CITY-33-03').marketOpen
+        &&!worldInternationalRouteAvailable(S,profile);
+      S.year=1910;S.month=5;S.monthCommitted=ym(1910,5)-1;
+      applyWorldHistory(S);
+      const beforeUnion=!S.world.ZA;
+      S.month=6;applyWorldHistory(S);syncWorldIdentities(S);
+      const opened=S.world.ZA?.code==='ZA'&&worldCityLocation(S,'CITY-33-03').marketOpen
+        &&S.worldExpansion.openMarkets['MKT-33']===ym(1910,6)
+        &&S.worldExpansion.appliedEvents.some(e=>e.effectiveDate==='1910-05-31')
+        &&firmCurrency(buyer,S)==='GBP';
+      S.year=1911;S.month=5;S.monthCommitted=ym(1911,5)-1;
+      applyWorldHistory(S);syncWorldIdentities(S);
+      PAGE='corporateSubsidiaries';render();
+      document.querySelector('#subName').value='Cape wool exporter';
+      document.querySelector('#subCountry').value='ZA';
+      document.querySelector('#subIndustry').value='manufacturing';
+      document.querySelector('#subCapital').value='650000';
+      createSub();
+      const seller=S.firms.find(f=>f.name==='Cape wool exporter'),port=seller.plants[0],depot=buyer.plants[0];
+      depot.siteId='UK-LON';
+      for(const firm of [seller,buyer]){
+        firm.auto=false;firm.research.tree.done=[...new Set([...firm.research.tree.done,'production-1'])];
+      }
+      for(const [firm,id,value] of [[seller,'PRD-E18',2400],[buyer,'PRD-E20',700],[buyer,'PRD-E21',900]]){
+        post(firm,{materials:value},{cash:value},'検証用の有償現物設備','operating',S);
+        firm.stock[id]={q:1,v:value};
+      }
+      syncWorldIdentities(S);
+      const identity=worldCityLocation(S,'CITY-33-03');
+      const jurisdictions=identity.jurisdictionId==='JUR-ZA-UNION'
+        &&firmCurrency(seller,S)==='GBP'
+        &&S.worldExpansion.companies[seller.id].currencyId==='CUR-GBP'
+        &&S.worldExpansion.companies[seller.id].jurisdictionId!==
+          S.worldExpansion.companies[buyer.id].jurisdictionId;
+      const wool=worldBuyRegionalSupply(S,seller.id,port.id,'ZA-CPT-WOOL',14);
+      worldBuyRegionalSupply(S,seller.id,port.id,'ZA-CPT-BUNKER-COAL',22);
+      const route=worldInternationalRegisterRoute(S,seller.id,profile);
+      const wh=worldInternationalInstallWarehouse(S,buyer.id,depot.id,profile);
+      const order=worldInternationalPlaceOrder(S,buyer.id,{
+        routeId:route.id,warehouseId:wh.id,productId:'PRD-R21',
+        quantity:14,cargoLitres:30,unitPriceSeller:45,maxPaymentBuyer:100000,paymentDays:60});
+      worldInternationalActOrder(S,seller.id,order.id,'approve');
+      S.month=6;worldInternationalResolveOrders(S);worldInternationalSettleCredit(S);
+      const cargo=S.worldExpansion.internationalShipments.at(-1);
+      const freight=wool.quantity===14&&cargo?.orderId===order.id
+        &&cargo.status==='IN_TRANSIT'&&cargo.quantity===14
+        &&cargo.loadKg===15&&cargo.fuelRequired>0
+        &&cargo.sellerRate===cargo.buyerRate&&cargo.prepaidSeller===cargo.prepaidBuyer
+        &&acc(seller,'worldShipmentStock')===cargo.bookCost
+        &&!buyer.stock['PRD-R21']?.q&&!check(S).length;
+      const tampered=structuredClone(S);tampered.worldExpansion.internationalShipments.at(-1).loadKg++;
+      const tamperRejected=fail(()=>parsePayload(savePayload(tampered)));
+      S.month=7;worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
+      const paid=cargo.credit.paidAt===ym(1911,7);
+      S.month=9;worldInternationalReceiveShipments(S);
+      const saved=parsePayload(savePayload(S));
+      const delivered=cargo.status==='DELIVERED'&&buyer.stock['PRD-R21'].q===14
+        &&buyer.stock['PRD-R21'].v===cargo.totalBuyer
+        &&acc(seller,'worldShipmentStock')===0
+        &&!check(saved).length&&!consolidate(saved).errors.length;
+      S.month=10;
+      return {closed,beforeUnion,opened,jurisdictions,freight,tamperRejected,paid,delivered,
+        expired:!worldInternationalRouteAvailable(S,profile)};
+    }""")
+    assert all(result.values()), result
+
 def main():
     with sync_playwright() as pw:
         browser = pw.chromium.launch(
@@ -458,9 +532,16 @@ def main():
             "product": "PRD-R20", "departure": 6, "payMonth": 7,
         })
         test_italy_coal_import(page)
+        test_steamship_export(page, {
+            "profile": "IN-UK-BOMBAY-COTTON", "country": "IN", "site": "IN-BOM",
+            "city": "CITY-16-02", "currency": "INR", "year": 1908, "offer": "IN-BOM-COTTON",
+            "authority": None, "buyerCountry": "UK", "destination": "UK-LIV",
+            "product": "PRD-R20", "departure": 4, "payMonth": 5,
+        })
+        test_south_africa_union(page)
         assert not errors, errors
         browser.close()
-    print("PASS Phase 4 Canada, Australia, New Zealand, Mexico, Brazil, Argentina, Chile, Colombia, Sweden, Netherlands, Italy and Egypt: sourced cargo, loading, shipment and settlement")
+    print("PASS Phase 4 Canada, Australia, New Zealand, Mexico, Brazil, Argentina, Chile, Colombia, Sweden, Netherlands, Italy, Egypt, India and South Africa: sourced cargo, loading, shipment and settlement")
 
 
 if __name__ == "__main__":
