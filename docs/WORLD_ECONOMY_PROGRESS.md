@@ -788,3 +788,8 @@ python -B tests/test_step13_120_months.py --era 1900 --world
 
 - 新規世界でAU/AUD、MX/MXN、BR/BRL、AR/ARS、CN/CNY、RU/RUB、TR/TRY、MA/MAD、VN/VND、IR/IRRを固定帳簿単位とし、法域別の史実参照通貨とは分離。基準為替係数はゲーム設定値であり実市場レートではない。独立為替の変動を維持する。[ISOコード参照](https://docs.ted.europa.eu/eforms/latest/reference/code-lists/currency.html)
 - 保存版フラグなしの従来世界は旧帳簿単位を維持する。初期・後年開放市場と企業登録の帳簿通貨を検証し、旧保存の金額・仕訳、為替変動、改竄拒否の回帰を追加。残る共通EUR・旧植民地通貨と銀行決済の現代制度化は未完了。CI未確定、Phase 6未着手。
+
+### Phase 4・5 — 現代固定通貨・銀行為替制度（2026-11-24）
+- 新規世界の46法域の固定帳簿通貨、11 EUR法域共通の参照・変動為替、旧植民地通貨ペッグの解除、SARのUSD 3.75固定制度を実装。為替水準は合成ゲーム値。個々の現代中央銀行の介入帯・資本規制の精緻再現は行わない。EU: https://eur-lex.europa.eu/EN/legal-content/glossary/euro-area.html / SAMA: https://www.sama.gov.sa/en-US/MediaCenter/News/Pages/news-557.aspx 。
+- NZ/ZA→英国のGBP送金は買手GBP預託元本と売手現地通貨の契約額を分離し、会計・通関・旧保存の検証を維持。旧保存には旧帳簿通貨・換算基準を保持。新規の実際の全月次53経路・ブラウザ検証はCIで確認する。
+- CI #45283548293 はPhase 3とPhase 4個別3試験合格後、AU羊毛の全量出荷条件で停止。新運賃込みの全量見積額を上限に使用し、数量・受取額・保税・保存を引き続き検証。カタログの実JS（DOM代替）全判定合格。正式受入・Phase 6移行は未確定。

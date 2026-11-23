@@ -919,8 +919,8 @@ const firmCurrency=(f,s=S)=>s?.config?.scenario==='world'
  ?worldLedgerCurrencyId(s,f.country).slice(4):COUNTRIES[f.country]?.currency||'JPY';
 const fnum=(f,v)=>moneyLocal(v,firmCurrency(f));
 const baseMoney=v=>moneyLocal(v,'円相当');
-const localFromBase=(base,code)=>cents(base/COUNTRIES[code].fx);
-const baseFromLocal=(c,code)=>Math.round(c*COUNTRIES[code].fx);
+const localFromBase=(base,code,s=S)=>cents(base/worldReferenceFx(code,s));
+const baseFromLocal=(c,code,s=S)=>Math.round(c*worldReferenceFx(code,s));
 const esc=x=>String(x??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
 const dateKey=(s=S)=>`${s.year}年${s.month}月`;
 const ym=(year,month)=>year*12+month-1;
@@ -931,7 +931,7 @@ const hash=str=>{let h=2166136261;for(let i=0;i<str.length;i++){h^=str.charCodeA
 function company(id,s=S){return s.firms.find(f=>f.id===id)}
 function current(){return company(VIEW_FIRM)||company(S?.playerId)}
 function acc(f,name){return f.ledger[name]||0}
-function post(f,dr,cr,desc,kind='operating',s=S){const d=Object.entries(dr).map(([a,n])=>[a,Math.round(n)]).filter(x=>x[1]), c=Object.entries(cr).map(([a,n])=>[a,Math.round(n)]).filter(x=>x[1]); const ds=d.reduce((a,b)=>a+b[1],0),cs=c.reduce((a,b)=>a+b[1],0); if(ds!==cs||ds<0||!Number.isSafeInteger(ds))throw Error('仕訳不一致: '+desc+' '+ds+'/'+cs);if(!ds)return;for(const [a,n] of d){if(!ACCTYPE[a])throw Error('勘定科目 '+a);f.ledger[a]=(f.ledger[a]||0)+n}for(const [a,n] of c){if(!ACCTYPE[a])throw Error('勘定科目 '+a);f.ledger[a]=(f.ledger[a]||0)-n} f.journals.push({id:s.seq++,when:ym(s.year,s.month),text:desc,kind,amount:ds,dr:d,cr:c,fxAtPost:s?.world?.[f.country]?.fx??COUNTRIES[f.country].fx});if(f.journals.length>10000)f.journals.splice(0,f.journals.length-10000)}
+function post(f,dr,cr,desc,kind='operating',s=S){const d=Object.entries(dr).map(([a,n])=>[a,Math.round(n)]).filter(x=>x[1]), c=Object.entries(cr).map(([a,n])=>[a,Math.round(n)]).filter(x=>x[1]); const ds=d.reduce((a,b)=>a+b[1],0),cs=c.reduce((a,b)=>a+b[1],0); if(ds!==cs||ds<0||!Number.isSafeInteger(ds))throw Error('仕訳不一致: '+desc+' '+ds+'/'+cs);if(!ds)return;for(const [a,n] of d){if(!ACCTYPE[a])throw Error('勘定科目 '+a);f.ledger[a]=(f.ledger[a]||0)+n}for(const [a,n] of c){if(!ACCTYPE[a])throw Error('勘定科目 '+a);f.ledger[a]=(f.ledger[a]||0)-n} f.journals.push({id:s.seq++,when:ym(s.year,s.month),text:desc,kind,amount:ds,dr:d,cr:c,fxAtPost:s?.world?.[f.country]?.fx??worldReferenceFx(f.country,s)});if(f.journals.length>10000)f.journals.splice(0,f.journals.length-10000)}
 function financials(f){const a=f.ledger;let assets=0,liab=0,eq=0,rev=0,exp=0;for(const [k,t] of Object.entries(ACCTYPE)){let v=a[k]||0;if(t==='asset'||t==='contra')assets+=v; if(t==='liability')liab-=v;if(t==='equity'||t==='contraEquity')eq-=v;if(t==='revenue')rev-=v;if(t==='expense')exp+=v}return {assets,liab,capital:eq,revenue:rev,expenses:exp,profit:rev-exp, equity:eq+rev-exp,cash:acc(f,'cash'),debt:-acc(f,'debt'),bsDiff:assets-liab-eq-rev+exp};}
 function netWorth(f){const x=financials(f);return x.equity}
 function logNotice(text,level='info',s=S){s.notices.unshift({id:s.seq++,when:dateKey(s),text,level});if(s.notices.length>75)s.notices.pop()}
@@ -1456,7 +1456,7 @@ function processWarrantyMonth(s,f,events){ensureQualityV017(f);if(!['auto','manu
   const claims=Math.floor(q.fractions[c.modelId]+1e-9);q.fractions[c.modelId]-=claims;
   const item=modelStats[c.modelId]??={claims:0,exposed:0,repairBase:0};item.claims+=claims;item.exposed+=c.units;
   const repair=claims*Math.round((270+model.priceBase*.028)*eraCostFactor(s.year));item.repairBase+=repair;
-  if(repair)spendExpense(f,'otherExpense',localFromBase(repair,f.country),'車両品質保証・修理：'+model.name,'operating',s);
+  if(repair)spendExpense(f,'otherExpense',localFromBase(repair,f.country,s),'車両品質保証・修理：'+model.name,'operating',s);
  }
  let allClaims=0,allRepair=0;
  for(const [id,v] of Object.entries(modelStats)){allClaims+=v.claims;allRepair+=v.repairBase;
@@ -1710,13 +1710,13 @@ const V10_COMPETITOR_SEEDS=[
  {name:'Rhône Industries',c:'FR',industry:'manufacturing',size:.76,strategy:'balanced'}
 ];
 function ensureCompetitionPolicy(f,s){
- const equityBase=Math.max(0,baseFromLocal(financials(f).equity,f.country)/100),factor=f.strategy==='growth'?.19:f.strategy==='tech'?.15:f.strategy==='quality'?.13:f.strategy==='profit'?.09:.12;
+ const equityBase=Math.max(0,baseFromLocal(financials(f).equity,f.country,s)/100),factor=f.strategy==='growth'?.19:f.strategy==='tech'?.15:f.strategy==='quality'?.13:f.strategy==='profit'?.09:.12;
  const index=eraCostFactor(s.year),capex=Math.round(clamp(equityBase*factor,100000*index,650000*index)),reserve=Math.round(clamp(equityBase*.11,90000*index,300000*index));
  if(!f.competitive)f.competitive={reserveBase:reserve,annualCapexBudgetBase:capex,year:s.year,spentThisYearBase:0,lastPriceMonth:-1,lastNewModelMonth:-1,priceMoves:0,modelsReleased:0,history:[],lastAction:'年間資本計画を策定'};
  const c=f.competitive;c.history??=[];if(c.year!==s.year){c.year=s.year;c.spentThisYearBase=0;c.reserveBase=reserve;c.annualCapexBudgetBase=capex;}return c;
 }
 function recordRivalAction(s,f,kind,description){const month=ym(s.year,s.month);f.competitive.history.unshift({month,kind,description});if(f.competitive.history.length>20)f.competitive.history.pop();f.competitive.lastAction=description;s.competition.history.push({month,company:f.id,type:kind,text:f.name+'：'+description});if(s.competition.history.length>120)s.competition.history.splice(0,s.competition.history.length-120);}
-function capitalBudgetAvailable(s,f,amount){const c=ensureCompetitionPolicy(f,s),cash=baseFromLocal(acc(f,'cash'),f.country)/100;return c.spentThisYearBase+amount<=c.annualCapexBudgetBase&&cash>=amount+c.reserveBase;}
+function capitalBudgetAvailable(s,f,amount){const c=ensureCompetitionPolicy(f,s),cash=baseFromLocal(acc(f,'cash'),f.country,s)/100;return c.spentThisYearBase+amount<=c.annualCapexBudgetBase&&cash>=amount+c.reserveBase;}
 function rivalMonthlyStrategy(s,f,events){
  if(f.player||controller(s,f.id)||f.lifecycle?.phase==='withdrawn'||!f.auto)return;
  const c=ensureCompetitionPolicy(f,s),month=ym(s.year,s.month),strategy=f.strategy;
@@ -1736,7 +1736,7 @@ function rivalMonthlyStrategy(s,f,events){
    const current=f.models.find(m=>m.status==='active');if(current){
     const name=current.name+' '+(c.modelsReleased+2)+'型';
     const priceBase=Math.round(current.priceBase*(strategy==='profit'?1.07:1.02));
-    spendExpense(f,'rndExpense',localFromBase(budget,f.country),'競合企業の新型車開発費', 'operating',s);
+    spendExpense(f,'rndExpense',localFromBase(budget,f.country,s),'競合企業の新型車開発費', 'operating',s);
     f.projects.push({name,priceBase,design:{...current.design},left:5,status:'developing'});
     c.spentThisYearBase+=budget;c.lastNewModelMonth=month;c.modelsReleased++;
     recordRivalAction(s,f,'model','新型車「'+name+'」の研究・開発に着手');events.push(f.name+'：新型車の開発に着手');
@@ -1753,8 +1753,8 @@ function ensureV10(s){ensureV09(s);s.competition.maxFirms=Math.max(60,Math.min(7
 function ensureV10Delegation(f){ensureGameplayV07(f);const d=f.delegate;d.automation??={price:false,procurement:false,marketing:false,maintenance:false,limitBase:12000};d.activity??=[];d.monthActions??=[];}
 function autoOperations(s,f){if(!controller(s,f.id)||f.reorgStatus==='integrated'||f.delegate?.mode!=='delegated')return;ensureV10Delegation(f);ensureAiCenter(f);const d=f.delegate,a=d.automation,actions=[];let remaining=Math.max(0,Math.floor(a.limitBase||0)),spend=0;
  const ai=ensureAiCenter(f);const spentByArea={factory:0,sales:0};
- const eligible=(cost,area)=>cost>0&&cost<=remaining&&cost+spentByArea[area]<=Math.max(0,Number(ai.caps[area]??a.limitBase)||0)&&baseFromLocal(acc(f,'cash'),f.country)/100>=d.minCashBase+cost;
- const pay=(cost,account,reason,area)=>{if(!eligible(cost,area)){aiAudit(f,s,area==='factory'?'maintenance':'marketing','skipped','予算上限または最低現金目標を満たしていないため見送り（見積 '+nfmt(cost)+'円相当）',0);return false;}post(f,{[account]:localFromBase(cost,f.country)},{cash:localFromBase(cost,f.country)},reason,'operating',s);remaining-=cost;spend+=cost;spentByArea[area]+=cost;aiAudit(f,s,area==='factory'?'maintenance':'marketing','executed',reason,cost);return true;};
+ const eligible=(cost,area)=>cost>0&&cost<=remaining&&cost+spentByArea[area]<=Math.max(0,Number(ai.caps[area]??a.limitBase)||0)&&baseFromLocal(acc(f,'cash'),f.country,s)/100>=d.minCashBase+cost;
+ const pay=(cost,account,reason,area)=>{if(!eligible(cost,area)){aiAudit(f,s,area==='factory'?'maintenance':'marketing','skipped','予算上限または最低現金目標を満たしていないため見送り（見積 '+nfmt(cost)+'円相当）',0);return false;}post(f,{[account]:localFromBase(cost,f.country,s)},{cash:localFromBase(cost,f.country,s)},reason,'operating',s);remaining-=cost;spend+=cost;spentByArea[area]+=cost;aiAudit(f,s,area==='factory'?'maintenance':'marketing','executed',reason,cost);return true;};
  if(a.procurement&&s.supplyNetwork?.nodes&&aiModeAllows(f,'procurement')){let switched=0;for(const type of SUPPLY_TYPES){const prices=s.supplyNetwork.nodes.filter(x=>x.type===type&&x.firmId&&x.firmId!==f.id).map(node=>({node,total:supplierPriceBase(s,node)*(node.country===f.country?1:1.09)})).sort((x,y)=>x.total-y.total);if(prices.length&&f.supply.contracts[type].autoManage!==false&&f.supply.contracts[type].supplierId!==prices[0].node.id){f.supply.contracts[type].supplierId=prices[0].node.id;switched++;}}if(switched)actions.push('仕入先を'+switched+'種類見直し');}
  if(a.price&&aiModeAllows(f,'price')){for(const m of f.models.filter(m=>m.status==='active')){const quote=productCostQuote(f,m.design||DESIGN_DEFAULT,s);const goal=Math.max(500,Math.ceil(quote.unitCost*(d.priority==='growth'?1.08:1.20)));const next=Math.round(clamp(goal,m.priceBase*.96,m.priceBase*1.04));if(next!==m.priceBase){m.priceBase=next;actions.push(m.name+'の価格調整');}}}
  if(a.maintenance&&aiModeAllows(f,'maintenance')){for(const p of (f.plants||[]).filter(x=>!x.construction&&x.condition<70)){const price=Math.round((2000+p.capacity*95)*eraCostFactor(s.year));if(pay(price,'maintenance','委任AI：工場の予防保全 '+p.name,'factory')){p.condition=clamp(p.condition+16,0,100);actions.push(p.name+'の予防保全');}}syncPlant(f);}
@@ -1918,7 +1918,7 @@ function shareDealSimulation(s,buyer,target,percent,offerMultiplier){
  const willing=[...target.shareBlocks].filter(x=>x.holding>0&&offerMultiplier+1e-9>=x.reserve).sort((a,b)=>a.reserve-b.reserve);
  const lots=[];let left=fraction;
  for(const h of willing){const q=Math.min(left,h.holding);if(q>0){lots.push({id:h.id,name:h.name,shares:roundShare(q),reserve:h.reserve});left=roundShare(left-q);}}
- const reference=Math.max(180000,Math.round(Math.max(0,baseFromLocal(netWorth(target),target.country))/100*1.1));
+ const reference=Math.max(180000,Math.round(Math.max(0,baseFromLocal(netWorth(target),target.country,s))/100*1.1));
  const total=Math.round(reference*fraction*offerMultiplier);
  return {accepted:left<=.0000001,lots,left,reference,total,available};
 }
@@ -1968,11 +1968,11 @@ function saveDelegationPolicy(){try{
  }catch(e){toast(e.message)}}
 function recordDelegationPerformance(s,f){if(!f.delegate)return;
  const d=f.delegate;if(d.mode!=='delegated')return;
- d.reports??=[];d.reports.unshift({month:ym(s.year,s.month),target:d.salesTarget,units:f.monthly.units,cashBase:baseFromLocal(acc(f,'cash'),f.country),profitBase:baseFromLocal(f.monthly.profit,f.country),reserveBase:d.minCashBase,priority:d.priority,autoActions:[...(d.monthActions||[])],autoSpendBase:d.monthSpendBase||0});
+ d.reports??=[];d.reports.unshift({month:ym(s.year,s.month),target:d.salesTarget,units:f.monthly.units,cashBase:baseFromLocal(acc(f,'cash'),f.country,s),profitBase:baseFromLocal(f.monthly.profit,f.country,s),reserveBase:d.minCashBase,priority:d.priority,autoActions:[...(d.monthActions||[])],autoSpendBase:d.monthSpendBase||0});
  if(d.reports.length>48)d.reports.pop();}
 function delegatePlanning(f,s){
  const d=f.delegate;if(!d||d.mode!=='delegated')return;const previousPlans={...f.plans},previousBudget=f.rnd.budgetBase;
- const cap=factoryCapacity(f).possible,cashBase=baseFromLocal(acc(f,'cash'),f.country)/100;
+ const cap=factoryCapacity(f).possible,cashBase=baseFromLocal(acc(f,'cash'),f.country,s)/100;
  const safe= cashBase<d.minCashBase? .35:1,goal=d.salesTarget?Math.min(cap,d.salesTarget):Math.floor(cap*(d.priority==='growth'?.98:d.priority==='profit'?.65:.80));
  const actual=Math.max(0,Math.floor(goal*safe)),models=f.models.filter(x=>x.status==='active');
  models.forEach((m,i)=>f.plans[m.id]=Math.floor(actual/models.length)+(i<actual%models.length?1:0));
@@ -1986,11 +1986,11 @@ function negotiationPanel(f,edit){return `<section class="panel span5"><h2>M&A�
 function delegationPanel(f,edit){ensureGameplayV07(f);const d=f.delegate,rows=(d.reports||[]).slice(0,6);return `<section class="panel span12"><h2>経営委任・予算・目標</h2><p class="hint">現在選択中の法人「${esc(f.name)}」の月次の生産・研究予算を自動計画できます。買収・借入・増設・雇用は承認なしに委任AIが実行しません。</p><div class="setting-split"><label><input type="checkbox" id="delegateProductionAuto" ${d.productionAuto!==false?'checked':''} ${edit?'':'disabled'}> 生産量を自動計画</label><label><input type="checkbox" id="delegateResearchAuto" ${d.researchAuto!==false?'checked':''} ${edit?'':'disabled'}> 研究予算を自動設定</label></div><p class="hint">どちらか一方だけ自動化できます。どちらもOFFの場合は手動計画が優先されます。</p><div class="formgrid"><div class="field"><label>操作方式</label><select id="delegateMode" ${edit?'':'disabled'}><option value="manual" ${d.mode==='manual'?'selected':''}>手動経営</option><option value="delegated" ${d.mode==='delegated'?'selected':''}>予算限定の経営委任</option></select></div><div class="field"><label>優先方針</label><select id="delegatePriority" ${edit?'':'disabled'}>${[['balanced','均衡'],['growth','成長・生産'],['profit','利益・手元資金'],['quality','品質'],['tech','研究開発']].map(([v,n])=>`<option value="${v}" ${d.priority===v?'selected':''}>${n}</option>`).join('')}</select></div><div class="field"><label>月次販売目標（台・件、0は自動）</label><input id="delegateTarget" type="number" min="0" max="100000" value="${d.salesTarget}" ${edit?'':'disabled'}></div><div class="field"><label>最低現金目標（円相当）</label><input id="delegateReserve" type="number" min="0" max="100000000" value="${d.minCashBase}" ${edit?'':'disabled'}></div><div class="field"><label>月次研究費の上限（円相当）</label><input id="delegateRndCap" type="number" min="0" max="50000000" value="${d.researchMaxBase}" ${edit?'':'disabled'}></div><button class="btn primary" data-action="saveDelegate" ${edit?'':'disabled'}>委任方針を保存</button></div><h3>委任AIの実績報告</h3>${rows.length?`<div class="scroll"><table><thead><tr><th>確定月</th><th class="num">販売目標</th><th class="num">実績</th><th class="num">当月利益（円相当）</th><th class="num">期末現金（円相当）</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${Math.floor(r.month/12)}年${r.month%12+1}月</td><td class="num">${r.target||'自動'}</td><td class="num">${nfmt(r.units)}</td><td class="num">${baseMoney(r.profitBase)}</td><td class="num">${baseMoney(r.cashBase)}</td></tr>`).join('')}</tbody></table></div>`:'<div class="hint">委任後に月末処理を実行すると、目標と実績を記録します。</div>'}${automationSettingsPanel(f)}</section>`;}
 
 function initFirm(s,{name,country,industry='auto',player=false,strategy='growth',seedBase=1900000,size=1,publicOwnership=true}){
- const id='F'+s.seq++,fx=COUNTRIES[country].fx, f={id,name,country,industry,player,strategy,owners:publicOwnership?[{id:'PUBLIC',econ:1,vote:1}]:[],ledger:{},journals:[],payables:[],receivables:[],loans:[],stock:{steel:{q:0,v:0},rubber:{q:0,v:0}},goods:{},models:[],projects:[],rnd:{progress:0,target:'engine',budgetBase:12000},tech:1,plant:{capacity:Math.max(5,Math.round(45*size)),condition:92,assetCost:localFromBase(420000*size*eraCostFactor(s.year),country),construction:null},staff:{production:Math.max(7,Math.round(38*size)),research:Math.max(2,Math.round(5*size)),sales:Math.max(3,Math.round(10*size))},staffTarget:{},brand:{},dealers:{},adBudgets:{},plans:{},researchRights:['basic-engine'],distress:{stage:0,months:0},reserveUnits:4000,resourceStock:0,marketPresence:[country],monthly:{sales:0,cogs:0,profit:0,units:0,spent:0},history:[],auto:!player,contractPriority:'standard'};
- s.firms.push(f);post(f,{cash:localFromBase(seedBase,country)},{capital:localFromBase(seedBase,country)},'創業資本','financing',s);const factoryCost=f.plant.assetCost;post(f,{ppe:factoryCost},{cash:factoryCost},'事業設備・施設の取得','investing',s);f.brand[country]=35;f.dealers[country]=45;
+ const id='F'+s.seq++,fx=worldReferenceFx(country,s), f={id,name,country,industry,player,strategy,owners:publicOwnership?[{id:'PUBLIC',econ:1,vote:1}]:[],ledger:{},journals:[],payables:[],receivables:[],loans:[],stock:{steel:{q:0,v:0},rubber:{q:0,v:0}},goods:{},models:[],projects:[],rnd:{progress:0,target:'engine',budgetBase:12000},tech:1,plant:{capacity:Math.max(5,Math.round(45*size)),condition:92,assetCost:localFromBase(420000*size*eraCostFactor(s.year),country,s),construction:null},staff:{production:Math.max(7,Math.round(38*size)),research:Math.max(2,Math.round(5*size)),sales:Math.max(3,Math.round(10*size))},staffTarget:{},brand:{},dealers:{},adBudgets:{},plans:{},researchRights:['basic-engine'],distress:{stage:0,months:0},reserveUnits:4000,resourceStock:0,marketPresence:[country],monthly:{sales:0,cogs:0,profit:0,units:0,spent:0},history:[],auto:!player,contractPriority:'standard'};
+ s.firms.push(f);post(f,{cash:localFromBase(seedBase,country,s)},{capital:localFromBase(seedBase,country,s)},'創業資本','financing',s);const factoryCost=f.plant.assetCost;post(f,{ppe:factoryCost},{cash:factoryCost},'事業設備・施設の取得','investing',s);f.brand[country]=35;f.dealers[country]=45;
  if(industry==='auto'||industry==='manufacturing'){
- const modelId='M'+s.seq++;f.models.push({id:modelId,name:industry==='auto'?'ツーリング 01':'標準製品',priceBase:Math.round(7500*eraCostFactor(s.year)),performance:58,quality:61,segment:'標準',status:'active',months:0});f.goods[modelId]={q:0,v:0};f.plans[modelId]=Math.round(f.plant.capacity*0.86);const steel= Math.round(95*size),rubber=Math.round(95*size),initialMat=eraCostFactor(s.year),val=localFromBase((steel*COUNTRIES[country].steel+rubber*COUNTRIES[country].rubber)*initialMat,country);post(f,{materials:val},{cash:val},'創業時の実材料仕入','operating',s);f.stock.steel={q:steel,v:localFromBase(steel*COUNTRIES[country].steel*initialMat,country)};f.stock.rubber={q:rubber,v:val-f.stock.steel.v};
- }else if(industry==='trade'){f.goods.TRADE={q:60,v:localFromBase(60*900*eraCostFactor(s.year),country)};post(f,{goods:f.goods.TRADE.v},{cash:f.goods.TRADE.v},'開業時の仕入商品','operating',s)}else if(industry==='resource'){const rights=localFromBase(80000*eraCostFactor(s.year),country);post(f,{resourceRights:rights},{cash:rights},'採取権取得','investing',s)}
+ const modelId='M'+s.seq++;f.models.push({id:modelId,name:industry==='auto'?'ツーリング 01':'標準製品',priceBase:Math.round(7500*eraCostFactor(s.year)),performance:58,quality:61,segment:'標準',status:'active',months:0});f.goods[modelId]={q:0,v:0};f.plans[modelId]=Math.round(f.plant.capacity*0.86);const steel= Math.round(95*size),rubber=Math.round(95*size),initialMat=eraCostFactor(s.year),val=localFromBase((steel*COUNTRIES[country].steel+rubber*COUNTRIES[country].rubber)*initialMat,country,s);post(f,{materials:val},{cash:val},'創業時の実材料仕入','operating',s);f.stock.steel={q:steel,v:localFromBase(steel*COUNTRIES[country].steel*initialMat,country,s)};f.stock.rubber={q:rubber,v:val-f.stock.steel.v};
+ }else if(industry==='trade'){f.goods.TRADE={q:60,v:localFromBase(60*900*eraCostFactor(s.year),country,s)};post(f,{goods:f.goods.TRADE.v},{cash:f.goods.TRADE.v},'開業時の仕入商品','operating',s)}else if(industry==='resource'){const rights=localFromBase(80000*eraCostFactor(s.year),country,s);post(f,{resourceRights:rights},{cash:rights},'採取権取得','investing',s)}
  ensureFirmGameplay(f);if(s.partEconomy)ensureV27Firm(f);return f;
 }
 function seedEngineMarket(code,year){
@@ -2233,9 +2233,9 @@ function deliverMaterials(s,f,events){const month=ym(s.year,s.month),arrivals=f.
    post(seller,{cash:amount},{[shipment.type==='components'?'materials':'goods']:amount},'グループ内資材の簿価移管：'+SUPPLY_LABELS[shipment.type],'operating',s);
    post(f,{materials:amount},{cash:amount},'子会社・グループ会社からの簿価調達：'+SUPPLY_LABELS[shipment.type],'operating',s);
    const stock=f.stock[shipment.type]??={q:0,v:0};stock.q+=received;stock.v+=amount;
-   f.supply.history.push({month,type:shipment.type,origin:shipment.origin,qty:received,totalBase:baseFromLocal(amount,f.country)/100,firmId:seller.id,group:true});continue;
+   f.supply.history.push({month,type:shipment.type,origin:shipment.origin,qty:received,totalBase:baseFromLocal(amount,f.country,s)/100,firmId:seller.id,group:true});continue;
  }
- const total=localFromBase(shipment.totalBase,f.country);if(!total)continue;post(f,{materials:total},{payable:total},'調達品受領：'+SUPPLY_LABELS[shipment.type]+' '+shipment.qty,'operating',s);const stock=f.stock[shipment.type]??={q:0,v:0};stock.q+=shipment.qty;stock.v+=total;f.payables.push({amount:total,due:month+1,note:'国際調達／部品仕入',account:'payable'});f.supply.history.push({month,type:shipment.type,origin:shipment.origin,qty:shipment.qty,totalBase:shipment.totalBase});if(f.supply.history.length>96)f.supply.history.shift();}}
+ const total=localFromBase(shipment.totalBase,f.country,s);if(!total)continue;post(f,{materials:total},{payable:total},'調達品受領：'+SUPPLY_LABELS[shipment.type]+' '+shipment.qty,'operating',s);const stock=f.stock[shipment.type]??={q:0,v:0};stock.q+=shipment.qty;stock.v+=total;f.payables.push({amount:total,due:month+1,note:'国際調達／部品仕入',account:'payable'});f.supply.history.push({month,type:shipment.type,origin:shipment.origin,qty:shipment.qty,totalBase:shipment.totalBase});if(f.supply.history.length>96)f.supply.history.shift();}}
 /* STEP 2: build all monthly purchase requests before assigning suppliers. No
    company gets priority merely because it appears first in s.firms. */
 function procureNetwork(s,events){
@@ -2372,7 +2372,7 @@ function establishSalesCorporation(){let prior=null;try{const f=current(),code=i
  const errs=check(S),c=consolidate(S);if(errs.length||c.errors.length)throw Error('設立後の会計検算失敗：'+[...errs,...c.errors].join('／'));
  render();toast('地域販売法人を設立しました。法人会計と製造元売上を区別しています。');
  }catch(e){if(prior)S=prior;render();toast(e.message)}}
-function recordExportDelivery(s,f,shipment,events){const unitPrice=shipment.unitPriceBase,gross=localFromBase(unitPrice*shipment.qty,f.country),cashPart=Math.round(gross*.82),ar=gross-cashPart;
+function recordExportDelivery(s,f,shipment,events){const unitPrice=shipment.unitPriceBase,gross=localFromBase(unitPrice*shipment.qty,f.country,s),cashPart=Math.round(gross*.82),ar=gross-cashPart;
  post(f,{...(cashPart?{cash:cashPart}:{}),...(ar?{ar}:{})},{sales:gross},'輸出品到着・顧客引渡し：'+NAMES[shipment.country]+' '+shipment.qty+'台','operating',s);
  postFinishedCost(s,f,shipment.bookCost,'goodsTransit','輸出製品の売上原価：'+shipment.qty+'台',shipment.bomSources);
  if(ar)f.receivables.push({amount:ar,due:ym(s.year,s.month)+1,note:'輸出売上'});
@@ -2420,7 +2420,7 @@ function exportShipment(s,f,key,qty,unitPrice,code,events,segment=null){ensureNe
  post(f,{goodsTransit:cost},{goods:cost},'海外輸送中の完成品へ振替 '+qty+'台','operating',s);
  const channel=exportChannel(f,code,s),mult=channel.channel==='direct'?1.25:channel.channel==='subsidiary'?.84:channel.channel==='distributor'?.94:1.06;
  const transportBase=Math.round(unitPrice*qty*.05*mult+qty*(code==='US'||f.country==='US'?120:60));
- spendExpense(f,'otherExpense',localFromBase(transportBase,f.country),'国際輸送・通関・販売チャネル費用','operating',s);
+ spendExpense(f,'otherExpense',localFromBase(transportBase,f.country,s),'国際輸送・通関・販売チャネル費用','operating',s);
  f.distribution.outbound.push({id:'EXP'+s.seq++,key,qty,country:code,unitPriceBase:unitPrice*(1-.04),bookCost:cost,...(batches?{bomSources:batches}:{}),transportBase,dealerFirmId:channel.dealerId||null,segment,due:ym(s.year,s.month)+(code==='US'||f.country==='US'?2:1)});
 }
 
@@ -2479,7 +2479,7 @@ function enterpriseSynergy(s,f){
 function processHumanResources(s,events){
  for(const f of s.firms){ensureV09Firm(f,s);const h=f.hr;
   if(f.lifecycle.phase==='withdrawn'||f.reorgStatus==='integrated'){h.strikeActive=false;continue;}
-  const training=localFromBase(Math.round(h.trainingBudgetBase),f.country);
+  const training=localFromBase(Math.round(h.trainingBudgetBase),f.country,s);
   h.lastTrainingCost=training;
   if(training)spendExpense(f,'labor',training,'技能教育・研修費','operating',s);
   if(h.trainingBudgetBase>0){h.skill=clamp(h.skill+Math.min(1.1,.04+Math.sqrt(h.trainingBudgetBase/10000)*.36),0,100);}
@@ -2502,7 +2502,7 @@ function chargeGroupAdministration(s,events){
  ensureV09(s);const root=company(s.playerId,s),children=s.firms.filter(f=>f.id!==s.playerId&&controller(s,f.id));
  if(!root||!children.length)return;
  const activeChildren=children.filter(f=>f.reorgStatus!=='integrated');if(!activeChildren.length)return;const monthlyBase=Math.round(activeChildren.length*800*eraCostFactor(s.year));
- spendExpense(root,'otherExpense',localFromBase(monthlyBase,root.country),'グループ統治・共通管理費（外部支出）','operating',s);
+ spendExpense(root,'otherExpense',localFromBase(monthlyBase,root.country,s),'グループ統治・共通管理費（外部支出）','operating',s);
  if(activeChildren.length>=3)events.push(`企業グループ：傘下${activeChildren.length}社の統治・調整費 ${nfmt(monthlyBase)}円相当を計上`);
 }
 function competitorEvolution(s,events){
@@ -2510,7 +2510,7 @@ function competitorEvolution(s,events){
  for(const f of s.firms){
   if(f.player||controller(s,f.id)||f.lifecycle.phase!=='active'||f.reorgStatus==='integrated')continue;
   const h=f.lifecycle;
-  if(f.distress.stage>=3&&f.distress.months>=4&&(acc(f,'cash')<localFromBase(10000,f.country)||financials(f).equity<0)){
+  if(f.distress.stage>=3&&f.distress.months>=4&&(acc(f,'cash')<localFromBase(10000,f.country,s)||financials(f).equity<0)){
     h.phase='withdrawn';h.exited=month;h.lastAction='資金悪化により市場から撤退';
     f.marketPresence=[];f.plans=Object.fromEntries(Object.keys(f.plans).map(k=>[k,0]));f.auto=false;
     f.staff.production=0;f.staff.research=0;f.staff.sales=0;
@@ -2523,8 +2523,8 @@ function competitorEvolution(s,events){
   }
   h.growthStreak=f.monthly.profit>0?h.growthStreak+1:Math.max(0,h.growthStreak-1);
   if((s.month===1||s.month===7)&&h.growthStreak>=5&&h.investmentMonth<month-10&&['auto','manufacturing'].includes(f.industry)){
-   const indexedCapex=Math.round(120000*eraCostFactor(s.year)),capex=localFromBase(indexedCapex,f.country);
-   if(capitalBudgetAvailable(s,f,indexedCapex)&&acc(f,'cash')>capex+localFromBase(Math.round(140000*eraCostFactor(s.year)),f.country)&&f.plants?.length){
+   const indexedCapex=Math.round(120000*eraCostFactor(s.year)),capex=localFromBase(indexedCapex,f.country,s);
+   if(capitalBudgetAvailable(s,f,indexedCapex)&&acc(f,'cash')>capex+localFromBase(Math.round(140000*eraCostFactor(s.year)),f.country,s)&&f.plants?.length){
     post(f,{ppe:capex},{cash:capex},'競合企業の設備投資・能力拡大','investing',s);
     const plant=f.plants.find(p=>!p.construction&&['integrated','assembly'].includes(p.kind));
     if(plant){plant.capacity+=8;f.staff.production+=5;syncPlant(f);h.investmentMonth=month;h.lastAction='設備能力を増強';f.competitive.spentThisYearBase+=indexedCapex;recordRivalAction(s,f,'capex','設備投資で月産能力を8増強');
@@ -2579,8 +2579,9 @@ function hrManagementPanel(f,edit){ensureV09Firm(f,S);const h=f.hr;return `<sect
 function groupSynergyPanel(f){const g=enterpriseSynergy(S,f);const members=controlled();return `<section class="panel span12"><h2>グループ共同経営・相乗効果（v0.9）</h2><div class="grid">${card('共同購買の仕入値引',nfmt(g.resourceDiscount*100)+'%','資源系の支配下会社による外部仕入交渉','span3')}${card('工程支援',nfmt(g.productionBoost*100)+'%','製造子会社の工程ノウハウ共有','span3')}${card('販路協力・輸送値引',nfmt(g.distributionBoost*100)+'%','商社子会社が販路を補完・物流費'+nfmt(g.logisticsDiscount*100)+'%減','span3')}${card('研究協力',nfmt(g.researchBoost*100)+'%','技術志向サービス子会社による研究支援','span3')}</div><p class="hint">適用中：${g.source.map(esc).join('、')||'対象子会社なし'}。統治・調整の外部費用は親会社が月次に負担します（傘下1社あたり800円相当・仮）。共同購買値引きは実際の外部請求単価を下げます。グループ内の商品・資金移転を無記録で発生させるものではありません。</p><div class="scroll"><table><thead><tr><th>支配下会社</th><th>事業分野</th><th>共同経営での役割</th><th>状態</th></tr></thead><tbody>${members.filter(x=>x.id!==S.playerId).map(x=>`<tr><td>${esc(x.name)}</td><td>${industryName(x.industry)}</td><td>${esc({resource:'共同仕入価格',manufacturing:'工程・設備ノウハウ',trade:'販路・物流支援',service:'研究・技術協力',auto:'製品事業' }[x.industry]||'グループ事業')}</td><td>${x.reorgStatus==='integrated'?'事業統合済':x.lifecycle?.phase==='withdrawn'?'撤退':'稼働'}</td></tr>`).join('')||'<tr><td colspan="4">支配下会社なし</td></tr>'}</tbody></table></div></section>`}
 function competitorEcosystemPanel(){ensureV10(S);const last=S.competition.history.slice(-8).reverse();const firms=S.firms;const active=firms.filter(f=>f.lifecycle?.phase!=='withdrawn');return `<section class="panel span12"><h2>競合企業の創業・成長・市場退出（v0.9）</h2><div class="grid">${card('全法人',nfmt(firms.length)+'社','買収済み・撤退法人を含む','span3')}${card('市場参加中',nfmt(active.length)+'社','現役の独立企業・子会社','span3')}${card('市場撤退',nfmt(firms.length-active.length)+'社','会計台帳と株主情報は保持','span3')}${card('新規参入',nfmt(S.competition.entryCount||0)+'社','開始後の参入実績','span3')}</div><div class="scroll"><table><thead><tr><th>企業</th><th>国</th><th>業種</th><th>戦略</th><th>経営状態</th><th class="num">月次損益</th></tr></thead><tbody>${firms.map(f=>`<tr><td>${esc(f.name)}</td><td>${NAMES[f.country]}</td><td>${industryName(f.industry)}</td><td>${strategyName(f.strategy)}</td><td>${f.lifecycle?.phase==='withdrawn'?tag('市場退出','warn'):f.distress.stage>=2?tag('資金難','warn'):tag('稼働','good')}</td><td class="num">${fnum(f,f.monthly.profit)}</td></tr>`).join('')}</tbody></table></div>${last.length?`<h3>直近の企業動向</h3>${last.map(x=>`<div class="notice">${esc(x.text)}</div>`).join('')}`:''}<p class="hint">独立企業は業績・資金状態に応じ設備へ再投資し、毎年の参入候補が市場に参加します。深刻な資金難が続く企業は市場退出しますが、法人や債務は削除しません。競合の倒産法制・精緻な資本再建は未実装です。</p></section>${rivalStrategyPanel()}`;}
 
-function newGame(cfg){const era=Number(cfg.era),capitalBase=Math.round((era<1930?2400000:era<1960?4200000:era<1990?7000000:12000000)*Math.pow(eraCostFactor(era),.70)*(cfg.difficulty==='easy'?1.6:cfg.difficulty==='hard'?.7:1));
+function newGame(cfg,modernWorld=false){const era=Number(cfg.era),capitalBase=Math.round((era<1930?2400000:era<1960?4200000:era<1990?7000000:12000000)*Math.pow(eraCostFactor(era),.70)*(cfg.difficulty==='easy'?1.6:cfg.difficulty==='hard'?.7:1));
  const s={schema:VERSION,year:era,month:1,startYear:era,seq:1,rng:390182+(era*101),config:{...cfg},world:blankWorld(era,cfg.scenario==='world'),firms:[],playerId:'',history:[],notices:[],reports:[],lastReport:null,monthCommitted:ym(era,1)-1,autosaveState:'未保存',started:true,worldEffects:{},monthEvents:[]};
+ if(modernWorld){s._modernCurrencyInitialization=true;worldMatchLedgerCurrencyRates(s);}
  const f=initFirm(s,{name:cfg.name.trim()||'東亜自動車工業',country:cfg.country,player:true,seedBase:capitalBase,size:1.2,strategy:'balanced'});s.playerId=f.id;ensureSupplyNetwork(s);for(const firm of s.firms)ensureNetwork(firm,s);
  const others=[{name:'日本交通機械',c:'JP',size:1.05,strategy:'quality'},{name:'North Atlantic Motors',c:'US',size:1.8,strategy:'growth'},{name:'Albion Motor Works',c:'UK',size:1,strategy:'profit'},{name:'Continental Automobil',c:'DE',size:1.15,strategy:'tech'},{name:'Automobiles Lumière',c:'FR',size:.95,strategy:'balanced'},{name:'東亜物産',c:'JP',industry:'trade',size:.48,strategy:'profit'}];
  for(const o of others)initFirm(s,{name:o.name,country:o.c,industry:o.industry||'auto',size:o.size,seedBase:Math.round((o.industry?350000:2400000*o.size)*eraCostFactor(s.year)),strategy:o.strategy});
@@ -2589,7 +2590,7 @@ function newGame(cfg){const era=Number(cfg.era),capitalBase=Math.round((era<1930
   ensureV10(s);
  logNotice('創業しました。まず製品価格・生産計画・研究予算を確認し、月末処理を実行してください。','good',s);
  logNotice('人口は史実推計の概数を開始時の基準値に採用しました。通貨・為替・価格・需要は試作係数で、国境・通貨制度の年代別再現は未完成です。','warn',s);
- s.equityLinks=[];s.intercompanyTx=[];s.reorgHistory=[];s.consoHistory=[{month:ym(era,1)-1,cash:baseFromLocal(acc(f,'cash'),f.country),fxCash:Math.round(acc(f,'cash')*(s.world[f.country]?.fx||COUNTRIES[f.country].fx)),firmCash:{[f.id]:{cashLocal:acc(f,'cash'),fx:s.world[f.country]?.fx||COUNTRIES[f.country].fx}},initial:true}];s.history.push({date:`${s.year}/${s.month}`,baseCash:baseFromLocal(acc(f,'cash'),f.country),baseEquity:baseFromLocal(netWorth(f),f.country),profit:0});
+ s.equityLinks=[];s.intercompanyTx=[];s.reorgHistory=[];s.consoHistory=[{month:ym(era,1)-1,cash:baseFromLocal(acc(f,'cash'),f.country,s),fxCash:Math.round(acc(f,'cash')*(s.world[f.country]?.fx||worldReferenceFx(f.country,s))),firmCash:{[f.id]:{cashLocal:acc(f,'cash'),fx:s.world[f.country]?.fx||worldReferenceFx(f.country,s)}},initial:true}];s.history.push({date:`${s.year}/${s.month}`,baseCash:baseFromLocal(acc(f,'cash'),f.country,s),baseEquity:baseFromLocal(netWorth(f),f.country,s),profit:0});
  ensureMAState(s);ensureV20(s);ensureV27(s);produceNpcV033(s,[]);ensureSupplyNetwork(s);return s
 }
 function controlSet(s,source=s.playerId){
@@ -2631,7 +2632,7 @@ function issueInterplantShipment(f,fromId,toId,qty,s=S){ensureV11Firm(f);
  const fromSite=ensurePlantLocation(f,from),toSite=ensurePlantLocation(f,to);
  const lead=v21Freight(fromSite,toSite,qty,s).lead;
  const freightBase=v21Freight(fromSite,toSite,qty,s).base;
- const freight=localFromBase(freightBase,f.country);
+ const freight=localFromBase(freightBase,f.country,s);
  if(acc(f,'cash')<freight)throw Error('部品運賃を払う現金が不足');
  const bookCost=consume(f,'components',qty);
  f.interplant.siteComponents[fromId]-=qty;
@@ -2664,7 +2665,7 @@ function produceSupportParts(s,events){for(const f of s.firms){if(f.reorgStatus=
  for(const p of supportPartFactories(f)){if(f.factoryOps?.mode==='detailed')continue;let planned=f.interplant.partPlans[p.id]||0;
   const assigned=factoryLaborPlanV026(f).byId[p.id]?.assigned||0,potential=Math.floor(assigned*2),bomOutput=bomMonthlyFactoryOutputV0263(s,f,p);const possible=Math.min(planned,Math.max(0,supportOutputCapacityV035(p)-bomPlantLoad(f,p)),Math.max(0,potential-bomPlantLoad(f,p)),f.stock.steel.q,f.stock.rubber.q);p.lastAssignedStaff=assigned;
   if(possible<=0){p.lastProduced=bomOutput.good;p.lastUtilization=bomOutput.attempted/Math.max(1,p.capacity);continue;}
-  const raw=consume(f,'steel',possible)+consume(f,'rubber',possible),wages=localFromBase(possible*85*eraCostFactor(s.year),f.country);
+  const raw=consume(f,'steel',possible)+consume(f,'rubber',possible),wages=localFromBase(possible*85*eraCostFactor(s.year),f.country,s);
   const paid=Math.min(wages,Math.max(0,acc(f,'cash'))),due=wages-paid;
   post(f,{materials:raw+wages},{materials:raw,...(paid?{cash:paid}:{}),...(due?{wagesDue:due}:{})},'部品工場の材料加工・製造人件費','operating',s);
   f.stock.components.q+=possible;f.stock.components.v+=raw+wages;
@@ -2717,7 +2718,7 @@ function transferPlantBusiness(s,source,target,plantId,{modelId='',moveAllStaff=
  const plantDep=Math.max(0,-acc(source,'accdep')-domestic.dep);
  const gross=Math.round(plantGross*p.capacity/totalCap);
  const dep=Math.round(plantDep*p.capacity/totalCap);
- const net=Math.max(0,gross-dep),fee=localFromBase(2500,source.country);
+ const net=Math.max(0,gross-dep),fee=localFromBase(2500,source.country,s);
  if(acc(target,'cash')<net+fee)throw Error('移管先の工場簿価と外部手続費用を支払う現金が不足');
  if(gross){post(source,{...(net?{cash:net}:{}),...(dep?{accdep:dep}:{})},{ppe:gross},'工場事業譲渡・'+p.name,'investing',s);
   post(target,{ppe:net},{cash:net},'工場事業取得・'+p.name,'investing',s);}
@@ -2795,7 +2796,7 @@ function integrateBusiness(s,source,target){reorganizeEligibility(s,source,targe
  ensureNetwork(target,s);
  source.rnd.budgetBase=0;source.auto=false;source.delegate.mode='manual';
  source.reorgStatus='integrated';source.integrationInto=target.id;source.lifecycle.lastAction='事業統合済み（法人・債務・履歴は存続）';
- const fee=localFromBase(5000,target.country);if(acc(target,'cash')<fee)throw Error('統合費用の現金が不足');post(target,{otherExpense:fee},{cash:fee},'グループ内事業統合・外部費用','operating',s);
+ const fee=localFromBase(5000,target.country,s);if(acc(target,'cash')<fee)throw Error('統合費用の現金が不足');post(target,{otherExpense:fee},{cash:fee},'グループ内事業統合・外部費用','operating',s);
  v11Record(s,{kind:'business-integration',source:source.id,target:target.id,fee,remainingLiability:financials(source).liab});
 }
 function integrateBusinessUI(){try{const f=current(),to=company(inputValue('reorgMergeTarget'));if(!canEdit(f))throw Error('権限がありません');if(groupMergerPlans(S).some(p=>mergerPlanActive(p)&&[f.id,to?.id].some(id=>id&&(p.fromId===id||p.toId===id))))throw Error('合併手続き中の法人は事業統合できません');const trial=structuredClone(S);
@@ -2972,7 +2973,7 @@ function mergerPlanActive(p){return p.status==='pending'||p.status==='blocked';}
 function groupMergerSize(s,from,to){
  const workers=[from,to].reduce((n,f)=>n+Object.values(f.staff||{}).reduce((t,v)=>t+(Number(v)||0),0),0);
  const plants=(from.plants?.length||0)+(to.plants?.length||0);
- const assetsYen=Math.round([from,to].reduce((n,f)=>n+Math.max(0,baseFromLocal(financials(f).assets,f.country)/100),0));
+ const assetsYen=Math.round([from,to].reduce((n,f)=>n+Math.max(0,baseFromLocal(financials(f).assets,f.country,s)/100),0));
  const large=workers>=500||plants>=8||assetsYen>=100000000;
  const medium=workers>=150||plants>=3||assetsYen>=10000000;
  return {label:large?'大規模':medium?'中規模':'小規模',turns:large?12:medium?5:2,workers,plants,assetsYen};
@@ -3136,7 +3137,7 @@ function maybeWar(s){
 }
 function nextMonthDate(s){s.month++;if(s.month>12){s.year++;s.month=1}}
 function currentMonthPrice(s,code,mat){return Math.round(s.world[code][mat==='steel'?'steelPrice':'rubberPrice'])}
-function updateWorld(s,totals){for(const [code,w] of Object.entries(s.world)){const d=totals[code]||{sales:0,prod:0,employed:0};const z=rnd(-.018,.018,s);const prevCycle=w.cycle;w.cycle=clamp(.76*w.cycle+z+clamp((d.sales/w.demand-.55)*.004,-.007,.007),-.18,.18);w.inflation=clamp(.82*w.inflation+.18*(.014+w.cycle*.09),-.02,.18);w.rate=clamp(.85*w.rate+.15*(.035+Math.max(0,w.inflation-.02)*.55),0,.23);const fast=clamp((w.steelPrice-COUNTRIES[code].steel)/COUNTRIES[code].steel,-.2,.2);w.steelPrice=Math.round(clamp(w.steelPrice*(1+w.inflation/12+.35*z+.003*d.prod/Math.max(1,w.demand)-.04*fast),COUNTRIES[code].steel*.25,COUNTRIES[code].steel*12));w.rubberPrice=Math.round(clamp(w.rubberPrice*(1+w.inflation/12+.46*z+.002),COUNTRIES[code].rubber*.25,COUNTRIES[code].rubber*12));w.unemployment=clamp(w.unemployment-.001*d.employed/180+(-w.cycle)*.002,.01,.3);w.pop=clamp(w.pop*(1+.00065),Math.min(1,COUNTRIES[code].pop),3000);w.wealth=clamp(w.wealth*(1+.0008+w.cycle*.001),.2,20);w.demand=Math.max(10,Math.round(COUNTRIES[code].demand*Math.pow(w.pop/COUNTRIES[code].pop,1.1)*Math.pow(w.wealth/COUNTRIES[code].wealth,.66)*(1+w.cycle)*((s.year<1930)?1:s.year<1960?1.1:s.year<1990?1.3:1.5)));w.fx=code==='JP'?1:clamp(w.fx*(1+rnd(-.005,.005,s)+w.cycle*.002),COUNTRIES[code].fx*.25,COUNTRIES[code].fx*5);}}
+function updateWorld(s,totals){for(const [code,w] of Object.entries(s.world)){const d=totals[code]||{sales:0,prod:0,employed:0};const z=rnd(-.018,.018,s);const prevCycle=w.cycle;w.cycle=clamp(.76*w.cycle+z+clamp((d.sales/w.demand-.55)*.004,-.007,.007),-.18,.18);w.inflation=clamp(.82*w.inflation+.18*(.014+w.cycle*.09),-.02,.18);w.rate=clamp(.85*w.rate+.15*(.035+Math.max(0,w.inflation-.02)*.55),0,.23);const fast=clamp((w.steelPrice-COUNTRIES[code].steel)/COUNTRIES[code].steel,-.2,.2);w.steelPrice=Math.round(clamp(w.steelPrice*(1+w.inflation/12+.35*z+.003*d.prod/Math.max(1,w.demand)-.04*fast),COUNTRIES[code].steel*.25,COUNTRIES[code].steel*12));w.rubberPrice=Math.round(clamp(w.rubberPrice*(1+w.inflation/12+.46*z+.002),COUNTRIES[code].rubber*.25,COUNTRIES[code].rubber*12));w.unemployment=clamp(w.unemployment-.001*d.employed/180+(-w.cycle)*.002,.01,.3);w.pop=clamp(w.pop*(1+.00065),Math.min(1,COUNTRIES[code].pop),3000);w.wealth=clamp(w.wealth*(1+.0008+w.cycle*.001),.2,20);w.demand=Math.max(10,Math.round(COUNTRIES[code].demand*Math.pow(w.pop/COUNTRIES[code].pop,1.1)*Math.pow(w.wealth/COUNTRIES[code].wealth,.66)*(1+w.cycle)*((s.year<1930)?1:s.year<1960?1.1:s.year<1990?1.3:1.5)));w.fx=code==='JP'?1:clamp(w.fx*(1+rnd(-.005,.005,s)+w.cycle*.002),worldReferenceFx(code,s)*.25,worldReferenceFx(code,s)*5);}}
 function settleScheduled(f,s){const due=f.payables.filter(x=>isPastOrDue(x,s));f.payables=f.payables.filter(x=>!isPastOrDue(x,s));for(const item of due){const usable=Math.max(0,acc(f,'cash'));const paid=Math.min(item.amount,usable);if(paid)post(f,{[item.account||'payable']:paid},{cash:paid},'期日債務決済：'+item.note,'operating',s);if(paid<item.amount){f.payables.push({...item,amount:item.amount-paid,due:ym(s.year,s.month)+1});f.distress.stage=Math.max(f.distress.stage,2);}}
  const rcv=f.receivables.filter(x=>isPastOrDue(x,s));f.receivables=f.receivables.filter(x=>!isPastOrDue(x,s));for(const item of rcv){post(f,{cash:item.amount},{ar:item.amount},'売掛金回収：'+item.note,'operating',s)}}
 function payWages(f,s){const old=-acc(f,'wagesDue');if(old<=0)return;const paid=Math.min(old,Math.max(0,acc(f,'cash')));if(paid)post(f,{wagesDue:paid},{cash:paid},'前月までの未払賃金支払','operating',s)}
@@ -3147,8 +3148,8 @@ function planAI(f,s){ensureGameplayV07(f);
  }
  planAILegacy(f,s);
 }
-function planAILegacy(f,s){if(!f.auto)return;const runway=acc(f,'cash')/(Math.max(1,(f.staff.production+f.staff.research+f.staff.sales+engineers(f))*localFromBase(s.world[f.country].wage,f.country)));const target=f.plant.capacity*(runway<1?.4:.83);for(const m of f.models.filter(m=>m.status==='active'))f.plans[m.id]=Math.round(target/Math.max(1,f.models.filter(m=>m.status==='active').length));if(f.strategy==='tech')f.rnd.budgetBase=16000;else if(f.strategy==='profit')f.rnd.budgetBase=5000;else if(f.strategy==='growth')f.rnd.budgetBase=9500;else f.rnd.budgetBase=8000;if(f.competitive&&f.lifecycle?.phase==='active')f.rnd.budgetBase=f.strategy==='tech'?18000:f.strategy==='quality'?13000:f.strategy==='profit'?4500:8000;autoSelectTech(f,s);}
-function procureOld(s,events){const avail={};for(const [c,w] of Object.entries(s.world))avail[c]={steel:w.steelSupply*(w.war?.75:1),rubber:w.rubberSupply*(w.war?.8:1)};for(const typ of ['steel','rubber'])for(const code of Object.keys(s.world)){const buyers=s.firms.filter(f=>f.country===code&&(f.industry==='auto'||f.industry==='manufacturing'));let req=buyers.map(f=>({f,q:Math.max(0,Math.round(f.plant.capacity*1.1)-f.stock[typ].q)}));const total=req.reduce((a,b)=>a+b.q,0);const limit=Math.floor(avail[code][typ]);const ratio=total?Math.min(1,limit/total):1;let assigned=0;for(let i=0;i<req.length;i++){const {f,q}=req[i];let amount=Math.min(q,i===req.length-1?Math.max(0,limit-assigned):Math.floor(q*ratio));if(amount<=0)continue;assigned+=amount;const basePrice=currentMonthPrice(s,code,typ),amountLocal=localFromBase(amount*basePrice,code);post(f,{materials:amountLocal},{payable:amountLocal},'原材料受領：'+(typ==='steel'?'鋼材':'ゴム')+' '+amount+'単位','operating',s);f.stock[typ].q+=amount;f.stock[typ].v+=amountLocal;f.payables.push({amount:amountLocal,due:ym(s.year,s.month)+1,note:'材料仕入',account:'payable'});}if(total>limit)events.push(`${NAMES[code]}：${typ==='steel'?'鋼材':'ゴム'}の供給不足 ${total-limit}単位`);}}
+function planAILegacy(f,s){if(!f.auto)return;const runway=acc(f,'cash')/(Math.max(1,(f.staff.production+f.staff.research+f.staff.sales+engineers(f))*localFromBase(s.world[f.country].wage,f.country,s)));const target=f.plant.capacity*(runway<1?.4:.83);for(const m of f.models.filter(m=>m.status==='active'))f.plans[m.id]=Math.round(target/Math.max(1,f.models.filter(m=>m.status==='active').length));if(f.strategy==='tech')f.rnd.budgetBase=16000;else if(f.strategy==='profit')f.rnd.budgetBase=5000;else if(f.strategy==='growth')f.rnd.budgetBase=9500;else f.rnd.budgetBase=8000;if(f.competitive&&f.lifecycle?.phase==='active')f.rnd.budgetBase=f.strategy==='tech'?18000:f.strategy==='quality'?13000:f.strategy==='profit'?4500:8000;autoSelectTech(f,s);}
+function procureOld(s,events){const avail={};for(const [c,w] of Object.entries(s.world))avail[c]={steel:w.steelSupply*(w.war?.75:1),rubber:w.rubberSupply*(w.war?.8:1)};for(const typ of ['steel','rubber'])for(const code of Object.keys(s.world)){const buyers=s.firms.filter(f=>f.country===code&&(f.industry==='auto'||f.industry==='manufacturing'));let req=buyers.map(f=>({f,q:Math.max(0,Math.round(f.plant.capacity*1.1)-f.stock[typ].q)}));const total=req.reduce((a,b)=>a+b.q,0);const limit=Math.floor(avail[code][typ]);const ratio=total?Math.min(1,limit/total):1;let assigned=0;for(let i=0;i<req.length;i++){const {f,q}=req[i];let amount=Math.min(q,i===req.length-1?Math.max(0,limit-assigned):Math.floor(q*ratio));if(amount<=0)continue;assigned+=amount;const basePrice=currentMonthPrice(s,code,typ),amountLocal=localFromBase(amount*basePrice,code,s);post(f,{materials:amountLocal},{payable:amountLocal},'原材料受領：'+(typ==='steel'?'鋼材':'ゴム')+' '+amount+'単位','operating',s);f.stock[typ].q+=amount;f.stock[typ].v+=amountLocal;f.payables.push({amount:amountLocal,due:ym(s.year,s.month)+1,note:'材料仕入',account:'payable'});}if(total>limit)events.push(`${NAMES[code]}：${typ==='steel'?'鋼材':'ゴム'}の供給不足 ${total-limit}単位`);}}
 // Keep the existing weighted-average legal cost. Trace each domestic acquisition's
 // embedded profit alongside it so reporting can follow mixed stock without repricing it.
 function worldMergeCostLayers(target,layers,via=null){
@@ -3205,7 +3206,7 @@ function consume(f,key,q,provenance=null){
  st.q-=q;st.v-=amount;
  return amount;
 }
-function laborAndPlant(s,events,industry=null){for(const f of s.firms){if(industry&&f.industry!==industry)continue;ensureFirmGameplay(f);ensureV09Firm(f,s);if(f.lifecycle.phase==='withdrawn'||f.reorgStatus==='integrated'){f._produced=0;f._salesNow=0;f._unitsNow=0;f._shipmentsThisMonth={};f.modelEconomics={};continue;}const w=s.world[f.country],salary=localFromBase(w.wage*eraCostFactor(s.year)*(1+(f.hr?.payPremium||0)),f.country);
+function laborAndPlant(s,events,industry=null){for(const f of s.firms){if(industry&&f.industry!==industry)continue;ensureFirmGameplay(f);ensureV09Firm(f,s);if(f.lifecycle.phase==='withdrawn'||f.reorgStatus==='integrated'){f._produced=0;f._salesNow=0;f._unitsNow=0;f._shipmentsThisMonth={};f.modelEconomics={};continue;}const w=s.world[f.country],salary=localFromBase(w.wage*eraCostFactor(s.year)*(1+(f.hr?.payPremium||0)),f.country,s);
  const capInfo=factoryCapacity(f,s);let prodPossible=0;
  if(['auto','manufacturing','resource'].includes(f.industry)){prodPossible=f.industry==='resource'?Math.max(0,Math.floor(f.plant.capacity*f.plant.condition/100*Math.min(1,f.staff.production/40))):capInfo.possible;if(f.distress.stage>=3)prodPossible=Math.floor(prodPossible*.5);prodPossible=Math.floor(prodPossible*clamp(1+((f.hr?.skill??50)-50)*.004,.78,1.18)*(f.hr?.strikeActive?.4:1));}
  const intended=['auto','manufacturing'].includes(f.industry)?Object.values(f.plans).reduce((a,b)=>a+b,0):f.industry==='resource'?prodPossible:0;
@@ -3214,20 +3215,20 @@ function laborAndPlant(s,events,industry=null){for(const f of s.firms){if(indust
  if(internallyAssembled&&controller(s,f.id))events.push(f.name+'：総合完成車工場で'+internallyAssembled+'台分のエンジン・車体・電子部品を内製し、当月の車両組立に投入');
  else if(f.industry==='resource')produced=(s.worldExpansion&&f.plants.some(p=>p.worldMiningPlan?.quantity>0))?0:Math.min(prodPossible,f.reserveUnits);
  const usedRatio=prodPossible?produced/prodPossible:0;
- const baseWagesProd=Math.max(0,Math.round(f.staff.production*salary*sitePayrollFactor(f,s))),internalWages=localFromBase(Math.round(internalLaborBase*eraCostFactor(s.year)),f.country),wagesProd=baseWagesProd+internalWages,wagesResearch=Math.max(0,Math.round(f.staff.research*salary)),wagesSales=Math.max(0,Math.round(f.staff.sales*salary));const capWage=Math.round(baseWagesProd*usedRatio)+internalWages,idleWage=wagesProd-capWage;
+ const baseWagesProd=Math.max(0,Math.round(f.staff.production*salary*sitePayrollFactor(f,s))),internalWages=localFromBase(Math.round(internalLaborBase*eraCostFactor(s.year)),f.country,s),wagesProd=baseWagesProd+internalWages,wagesResearch=Math.max(0,Math.round(f.staff.research*salary)),wagesSales=Math.max(0,Math.round(f.staff.sales*salary));const capWage=Math.round(baseWagesProd*usedRatio)+internalWages,idleWage=wagesProd-capWage;
  const wagesEngineering=engineers(f)*salary;
  const allWage=wagesProd+wagesResearch+wagesSales+wagesEngineering,paid=Math.min(allWage,Math.max(0,acc(f,'cash'))),credits={};if(paid)credits.cash=paid;if(allWage-paid)credits.wagesDue=allWage-paid;post(f,{...(capWage?{wip:capWage}:{}),labor:idleWage+wagesResearch+wagesSales+wagesEngineering},credits,'月次給与・製造労務原価','operating',s);
  processEngineering(s,f);
  const ppeGross=acc(f,'ppe');const dep=Math.max(0,Math.min(Math.round(ppeGross/360),Math.round(ppeGross+acc(f,'accdep'))));if(dep)post(f,{...(produced?{wip:dep}:{depreciation:dep})},{accdep:dep},'設備減価償却','operating',s);
  let totalCost=capWage+(produced?dep:0);
- if(['auto','manufacturing'].includes(f.industry)&&produced>0){const qc=localFromBase(warrantyInspectionCost(f,produced,s),f.country);
+ if(['auto','manufacturing'].includes(f.industry)&&produced>0){const qc=localFromBase(warrantyInspectionCost(f,produced,s),f.country,s);
   if(qc){const paid=Math.min(qc,Math.max(0,acc(f,'cash'))),due=qc-paid;
    post(f,{wip:qc},{...(paid?{cash:paid}:{}),...(due?{payable:due}:{})},'完成車品質検査・製造原価','operating',s);
    if(due)f.payables.push({amount:due,due:ym(s.year,s.month)+1,note:'完成車品質検査',account:'payable'});
    totalCost+=qc;}
  }
  if(['auto','manufacturing'].includes(f.industry)){const matCost=consume(f,'steel',steelUsed)+consume(f,'rubber',rubberUsed)+consume(f,'components',componentsUsed)+V21_MODULE_TYPES.reduce((sum,type)=>sum+consume(f,type,(moduleUsed||{})[type]||0),0)+EXTRA_RESOURCES.reduce((sum,t)=>sum+consume(f,t,extraUsed[t]||0),0);if(matCost)post(f,{wip:matCost},{materials:matCost},'当月製造・材料払出','operating',s);totalCost+=matCost;
-  const routeCharge=localFromBase(siteLogisticsExpenseBase(f),f.country);if(routeCharge){const paid=Math.min(routeCharge,Math.max(0,acc(f,'cash'))),outstanding=routeCharge-paid;post(f,{wip:routeCharge},{...(paid?{cash:paid}:{}),...(outstanding?{payable:outstanding}:{})},'工場立地・資材搬送費','operating',s);if(outstanding)f.payables.push({amount:outstanding,due:ym(s.year,s.month)+1,note:'工場物流費',account:'payable'});totalCost+=routeCharge;}
+  const routeCharge=localFromBase(siteLogisticsExpenseBase(f),f.country,s);if(routeCharge){const paid=Math.min(routeCharge,Math.max(0,acc(f,'cash'))),outstanding=routeCharge-paid;post(f,{wip:routeCharge},{...(paid?{cash:paid}:{}),...(outstanding?{payable:outstanding}:{})},'工場立地・資材搬送費','operating',s);if(outstanding)f.payables.push({amount:outstanding,due:ym(s.year,s.month)+1,note:'工場物流費',account:'payable'});totalCost+=routeCharge;}
    const active=f.models.filter(m=>m.status==='active'),totalWeight=Object.values(modelWeights).reduce((a,b)=>a+b,0);
   let allocated=0;const filled=active.filter(m=>(byModel[m.id]||0)>0);for(let i=0;i<filled.length;i++){const m=filled[i],q=byModel[m.id];const val=i===filled.length-1?totalCost-allocated:Math.round(totalCost*modelWeights[m.id]/Math.max(1,totalWeight));allocated+=val;
    const batch=bomBatches[m.id],bookValue=val+(batch?.inputCost??0);
@@ -3240,11 +3241,11 @@ function laborAndPlant(s,events,industry=null){for(const f of s.firms){if(indust
    const byType=rawSplitV032(f,produced);let rest=cost;
    for(let i=0;i<RAW_TYPES_V032.length;i++){const t=RAW_TYPES_V032[i],q=byType[t],v=i===RAW_TYPES_V032.length-1?rest:produced?Math.round(cost*q/produced):0,bin=rawBinV032(f,t);bin.q+=q;bin.v+=v;rest-=v}
    f.rawOpsV032.lastProduction={month:ym(s.year,s.month),byType};
- }else if(f.industry==='trade'){const cur=f.goods.TRADE||{q:0,v:0};const q=Math.max(0,Math.floor(f.staff.sales*3)-cur.q);if(q){const amount=localFromBase(q*900,f.country);post(f,{goods:amount},{payable:amount},'商品仕入','operating',s);cur.q+=q;cur.v+=amount;f.goods.TRADE=cur;f.payables.push({due:ym(s.year,s.month)+1,amount,note:'商業仕入',account:'payable'});}}
+ }else if(f.industry==='trade'){const cur=f.goods.TRADE||{q:0,v:0};const q=Math.max(0,Math.floor(f.staff.sales*3)-cur.q);if(q){const amount=localFromBase(q*900,f.country,s);post(f,{goods:amount},{payable:amount},'商品仕入','operating',s);cur.q+=q;cur.v+=amount;f.goods.TRADE=cur;f.payables.push({due:ym(s.year,s.month)+1,amount,note:'商業仕入',account:'payable'});}}
  // Factory fixed costs are real operating expenses even when production is zero.
  if(['auto','manufacturing'].includes(f.industry)){
-  for(const p of f.plants){if(p.construction)continue;const shape=FACTORY_SCALES[p.scale];const site=ensurePlantLocation(f,p),base=Math.round((shape?.overhead||p.capacity*52)*(.5+site.land*.25+site.wage*.25)*eraCostFactor(s.year)*(p.paused?.35:1));spendExpense(f,'otherExpense',localFromBase(base,f.country),'工場維持固定費：'+p.name,'operating',s);}
-  if(intended>capInfo.possible){const load=intended/Math.max(1,capInfo.possible);if(load>1.2){spendExpense(f,'otherExpense',localFromBase(Math.min(20000,(load-1)*3000),f.country),'超過計画・段取り変更費','operating',s);events.push(f.name+'：生産計画が設備・人員能力を超過。未生産と追加負担が発生');}}
+  for(const p of f.plants){if(p.construction)continue;const shape=FACTORY_SCALES[p.scale];const site=ensurePlantLocation(f,p),base=Math.round((shape?.overhead||p.capacity*52)*(.5+site.land*.25+site.wage*.25)*eraCostFactor(s.year)*(p.paused?.35:1));spendExpense(f,'otherExpense',localFromBase(base,f.country,s),'工場維持固定費：'+p.name,'operating',s);}
+  if(intended>capInfo.possible){const load=intended/Math.max(1,capInfo.possible);if(load>1.2){spendExpense(f,'otherExpense',localFromBase(Math.min(20000,(load-1)*3000),f.country,s),'超過計画・段取り変更費','operating',s);events.push(f.name+'：生産計画が設備・人員能力を超過。未生産と追加負担が発生');}}
  }
  for(const p of f.plants){if(p.construction){p.construction.monthsLeft--;if(p.construction.monthsLeft<=0){p.construction=null;events.push(`${f.name}：${p.name}の建設完了（能力${p.capacity}）`);}}}
  syncPlant(f);
@@ -3252,10 +3253,10 @@ function laborAndPlant(s,events,industry=null){for(const f of s.firms){if(indust
  if(['auto','manufacturing'].includes(f.industry)){
   const activeProducts=f.models.filter(m=>m.status==='active').length;
   const upkeep=Math.round((activeProducts*260+produced*18)*eraCostFactor(s.year));
-  if(upkeep)spendExpense(f,'otherExpense',localFromBase(upkeep,f.country),'車種維持・設計改修・型式管理費','operating',s);
+  if(upkeep)spendExpense(f,'otherExpense',localFromBase(upkeep,f.country,s),'車種維持・設計改修・型式管理費','operating',s);
  }
  if(f.research.roadmap?.auto&&f.research.roadmap.targets.length)autoSelectTech(f,s);
- const research=localFromBase(f.rnd.budgetBase,f.country);spendExpense(f,'rndExpense',research,'研究開発予算：'+RND_DOMAINS[f.research.topic].name,'operating',s);
+ const research=localFromBase(f.rnd.budgetBase,f.country,s);spendExpense(f,'rndExpense',research,'研究開発予算：'+RND_DOMAINS[f.research.topic].name,'operating',s);
  if(f.rnd.budgetBase>0&&f.staff.research>0){
   progressTechTree(s,f,events);
  }
@@ -3266,8 +3267,8 @@ function laborAndPlant(s,events,industry=null){for(const f of s.firms){if(indust
  f.projects=f.projects.filter(p=>p.status!=='complete');modelLifecycleMonth(s,f,events);
  f._produced=produced;f._productionByModel=byModel;f._factoryCapacity=prodPossible;f._factoryNominal=capInfo.nominal;f._wages=allWage;f._salesNow=0;f._unitsNow=0;f._shipmentsThisMonth={};f.modelEconomics={};
 }}
-function sellGoods(s,f,key,q,priceBase,code,events,segment=null){const it=f.goods[key];if(!it||q<=0)return;const {cost,batches}=takeFinishedGoods(f,key,q);const netBase=priceBase*(code===f.country?1:.85);const gross=localFromBase(netBase*q,f.country);const cashPart=Math.round(gross*.82),receivable=gross-cashPart;post(f,{...(cashPart?{cash:cashPart}:{}),...(receivable?{ar:receivable}:{})},{sales:gross},'商品販売：'+NAMES[code]+' '+q+'個','operating',s);postFinishedCost(s,f,cost,'goods','売上原価 '+q+'個',batches);if(receivable)f.receivables.push({amount:receivable,due:ym(s.year,s.month)+1,note:'商品売上'});if(code!==f.country)spendExpense(f,'otherExpense',localFromBase(netBase*q*.05,f.country),'輸送・関税費用','operating',s);f._salesNow+=gross;f._unitsNow+=q;recordVehicleProfit(f,key,code,q,gross,cost,s);registerMarketSale(f,code,key,q,gross,s,segment);recordQualitySold(f,key,code,q,s);}
-function sellServices(s,f,code){const possible=Math.max(0,Math.floor((f.staff.sales+f.staff.production)*2.1*f.plant.condition/100));const demand=Math.floor(s.world[code].demand*.32);const qty=Math.min(possible,demand);if(qty<=0)return;const gross=localFromBase(qty*1300,f.country);post(f,{cash:gross},{serviceRevenue:gross},'サービス提供 '+qty+'件','operating',s);f._salesNow+=gross;f._unitsNow+=qty;registerMarketSale(f,code,'SERVICE',qty,gross,s)}
+function sellGoods(s,f,key,q,priceBase,code,events,segment=null){const it=f.goods[key];if(!it||q<=0)return;const {cost,batches}=takeFinishedGoods(f,key,q);const netBase=priceBase*(code===f.country?1:.85);const gross=localFromBase(netBase*q,f.country,s);const cashPart=Math.round(gross*.82),receivable=gross-cashPart;post(f,{...(cashPart?{cash:cashPart}:{}),...(receivable?{ar:receivable}:{})},{sales:gross},'商品販売：'+NAMES[code]+' '+q+'個','operating',s);postFinishedCost(s,f,cost,'goods','売上原価 '+q+'個',batches);if(receivable)f.receivables.push({amount:receivable,due:ym(s.year,s.month)+1,note:'商品売上'});if(code!==f.country)spendExpense(f,'otherExpense',localFromBase(netBase*q*.05,f.country,s),'輸送・関税費用','operating',s);f._salesNow+=gross;f._unitsNow+=q;recordVehicleProfit(f,key,code,q,gross,cost,s);registerMarketSale(f,code,key,q,gross,s,segment);recordQualitySold(f,key,code,q,s);}
+function sellServices(s,f,code){const possible=Math.max(0,Math.floor((f.staff.sales+f.staff.production)*2.1*f.plant.condition/100));const demand=Math.floor(s.world[code].demand*.32);const qty=Math.min(possible,demand);if(qty<=0)return;const gross=localFromBase(qty*1300,f.country,s);post(f,{cash:gross},{serviceRevenue:gross},'サービス提供 '+qty+'件','operating',s);f._salesNow+=gross;f._unitsNow+=qty;registerMarketSale(f,code,'SERVICE',qty,gross,s)}
 /* v0.31 — market allocation entry points. Keep non-vehicle sales on the legacy path. */
 function marketDemandSnapshotV031(s,code){
  const w=s.world[code],demand=Math.max(0,Math.round(w.demand*(1+w.cycle)*(w.war?.6:1)));
@@ -3372,8 +3373,8 @@ function settleRegionalSalesAgentsV035(s,events){
    if((agent.staff?.sales||0)<1)continue;
    const wanted=Math.max(0,Math.round(market.revenue*.04));
    const parentFee=Math.min(wanted,Math.max(0,acc(maker,'cash')));
-   const makerFx=Number(s.world?.[maker.country]?.fx??COUNTRIES[maker.country].fx);
-   const agentFx=Number(s.world?.[agent.country]?.fx??COUNTRIES[agent.country].fx);
+   const makerFx=Number(s.world?.[maker.country]?.fx??worldReferenceFx(maker.country,s));
+   const agentFx=Number(s.world?.[agent.country]?.fx??worldReferenceFx(agent.country,s));
    const agentFee=Math.round(parentFee*makerFx/agentFx);
    if(!parentFee||!agentFee)continue;
    const payerJournal=s.seq;
@@ -3470,7 +3471,7 @@ function bankruptcyHoldingBasis(s,seller,target){
  return {owner,oldUnits,records,totalCost};
 }
 function bankruptcyQuoteLocal(s,target,country,units,discount){
- return Math.max(1,localFromBase(Math.max(1,Math.round(maValuation(s,target).reference*(units/1000000)*discount)),country));
+ return Math.max(1,localFromBase(Math.max(1,Math.round(maValuation(s,target).reference*(units/1000000)*discount)),country,s));
 }
 function bankruptcyCashBid(s,seller,target,units){
  const referenceLocal=bankruptcyQuoteLocal(s,target,seller.country,1000000,.70);
@@ -3478,7 +3479,7 @@ function bankruptcyCashBid(s,seller,target,units){
   b.country===seller.country&&b.lifecycle?.phase!=='withdrawn'&&b.reorgStatus!=='integrated'&&
   !controller(s,b.id)&&!controller(s,b.id,seller.id)&&!controller(s,b.id,target.id))
   .map(b=>({firm:b,capacity:Math.max(0,Math.min(Math.floor(acc(b,'cash')*.65),
-   acc(b,'cash')-localFromBase(Math.round(20000*eraCostFactor(s.year)),b.country)))}))
+   acc(b,'cash')-localFromBase(Math.round(20000*eraCostFactor(s.year)),b.country,s)))}))
   .filter(x=>x.capacity>0).sort((a,b)=>b.capacity-a.capacity||a.firm.id.localeCompare(b.firm.id));
  for(const c of candidates){
   let quantity=Math.min(units,Math.floor(c.capacity/referenceLocal*1000000));
@@ -3550,8 +3551,8 @@ function bankruptcySaleToFirm(s,seller,target,basis,bid,entry){
  const nowControl=controller(s,target.id,bid.buyer.id);
  registerEquityLink(s,{parentId:bid.buyer.id,childId:target.id,ratio:disposal.fraction,
   kind:'liquidationPurchase',considerationLocal:bid.payment,buyerJournal,
-  bookEquityBase:baseFromLocal(netWorth(target),target.country),
-  cashAcquiredBase:baseFromLocal(acc(target,'cash'),target.country),
+  bookEquityBase:baseFromLocal(netWorth(target),target.country,s),
+  cashAcquiredBase:baseFromLocal(acc(target,'cash'),target.country,s),
   controlEstablished:nowControl&&!priorControl,sellerId:seller.id});
  return bankruptcyRecordSale(s,seller,target,entry,'sale',bid.buyer.id,bid.units,bid.payment,disposal.cost);
 }
@@ -3660,7 +3661,7 @@ function financeMonthly(s,events){
    const interest=Math.round(loan.outstanding*loan.rate/12);
    if(interest){post(f,{interestExpense:interest},{interestDue:interest},'当月借入利息発生','operating',s);const loanInterestJournal=f.journals.at(-1)?.id;loan.interestOutstanding=(loan.interestOutstanding||0)+interest;
     if(loan.parent){const parent=company(loan.parent,s);if(!parent)throw Error('親会社貸付の参照が破損');const parentInterest=Math.round(interest*s.world[f.country].fx/s.world[parent.country].fx);
-     if(parentInterest){post(parent,{ar:parentInterest},{otherRevenue:parentInterest},'子会社貸付の利息発生','operating',s);registerInterco(s,{kind:'interest',seller:parent.id,buyer:f.id,yearMonth:ym(s.year,s.month),fromJournal:parent.journals.at(-1)?.id,toJournal:loanInterestJournal,revenueBase:baseFromLocal(parentInterest,parent.country),expenseBase:baseFromLocal(interest,f.country)});loan.parentInterestRemaining=(loan.parentInterestRemaining||0)+parentInterest;}
+     if(parentInterest){post(parent,{ar:parentInterest},{otherRevenue:parentInterest},'子会社貸付の利息発生','operating',s);registerInterco(s,{kind:'interest',seller:parent.id,buyer:f.id,yearMonth:ym(s.year,s.month),fromJournal:parent.journals.at(-1)?.id,toJournal:loanInterestJournal,revenueBase:baseFromLocal(parentInterest,parent.country,s),expenseBase:baseFromLocal(interest,f.country,s)});loan.parentInterestRemaining=(loan.parentInterestRemaining||0)+parentInterest;}
     }
    }
    let paidInterest=Math.min(loan.interestOutstanding||0,Math.max(0,acc(f,'cash')));
@@ -3820,7 +3821,7 @@ async function runMonth(){
    trial.monthCommitted=ym(trial.year,trial.month);const originalDate=dateKey(trial);const ff=company(trial.playerId,trial);const ffin=financials(ff);
    const snap={date:originalDate,cash:ffin.cash,assets:ffin.assets,equity:ffin.equity,netProfit:ff.monthly.profit,sales:ff.monthly.sales,units:ff.monthly.units,produced:ff._produced||0,events:events.slice(0,40),firms:controlled(trial).length};
    trial.lastReport=snap;trial.reports.unshift(snap);if(trial.reports.length>24)trial.reports.pop();
-   trial.history.push({date:`${trial.year}/${trial.month}`,baseCash:baseFromLocal(ffin.cash,ff.country),baseEquity:baseFromLocal(ffin.equity,ff.country),profit:baseFromLocal(ff.monthly.profit,ff.country)});
+   trial.history.push({date:`${trial.year}/${trial.month}`,baseCash:baseFromLocal(ffin.cash,ff.country,trial),baseEquity:baseFromLocal(ffin.equity,ff.country,trial),profit:baseFromLocal(ff.monthly.profit,ff.country,trial)});
    if(trial.history.length>1200)trial.history.shift();nextMonthDate(trial);applyWorldHistory(trial);syncWorldIdentities(trial);validateWorldExpansion(trial);refreshPartContracts(trial);
   });
   step('CHECK_AFTER',()=>{const errs=check(trial);if(errs.length)throw Error('月末整合性検証失敗：'+errs.slice(0,15).join(' / '))});
@@ -3965,11 +3966,11 @@ function processEngineering(s,f){
  const month=ym(s.year,s.month);
  if(e.lastAppliedMonth===month)return;
 
- const training=Math.min(localFromBase(e.policy.trainingBase??0,f.country),Math.max(0,acc(f,'cash')));
+ const training=Math.min(localFromBase(e.policy.trainingBase??0,f.country,s),Math.max(0,acc(f,'cash')));
  if(training&&engineeringSkill(f)<100){
   const before=engineeringSkill(f),trainees=engineers(f),journal=s.seq;
   post(f,{labor:training},{cash:training},'製品設計技術者の技能教育','operating',s);
-  e.policy.skill=Math.min(100,before+Math.min(2,Math.sqrt(baseFromLocal(training,f.country)/100/trainees/100)));
+  e.policy.skill=Math.min(100,before+Math.min(2,Math.sqrt(baseFromLocal(training,f.country,s)/100/trainees/100)));
   if(s.worldExpansion&&e.policy.skill>before){
    (s.worldExpansion.trainingServiceReceipts??=[]).push({id:'WSE-'+s.seq++,firmId:f.id,month,
     trainees,before,after:e.policy.skill,amount:training,journal});
@@ -4342,7 +4343,7 @@ function partProjectQuote(s,f,family,values,parent,repair){
  const tech=partTechnologyProfile(f,family);
  const work=Math.min(ENGINEERING_MAX_WORK,Math.ceil(PART_FAMILIES[family].work*scope*Math.sqrt(factor)*(1-tech.design/100)));
  const base=Math.min(10000000,Math.round((work*40+values.cost*.15)*eraCostFactor(s.year)*(1-tech.prototype/100)));
- return {work,estimate:localFromBase(base,f.country)};
+ return {work,estimate:localFromBase(base,f.country,s)};
 }
 
 function submitPartProject(s,f,part,repair=false){
@@ -4945,7 +4946,7 @@ function proposeLineJob(s,f,p,kind,lineId,specKey,amount,source='manual',review=
  const job={planId:'INV-'+s.partEconomy.nextSerial,firmId:f.id,plantId:p.id,
   lineId:kind==='ADD_LINE'?'LIN-'+(s.partEconomy.nextSerial+1):line.lineId,
   kind,specKey:kind==='EXPAND_LINE'?line.specKey:specKey,fromSpec:kind==='ADD_LINE'?null:line.specKey,delta,
-  cost:localFromBase(costBase,f.country),duration:def.months,source,review,state:'PROPOSED',
+  cost:localFromBase(costBase,f.country,s),duration:def.months,source,review,state:'PROPOSED',
   proposedAt:ym(s.year,s.month),startedAt:null,finishedAt:null,paymentJournal:null,closeJournal:null};
  const reason=lineEligibility(s,f,p,job);
  if(reason)throw Error(reason);
@@ -4969,14 +4970,14 @@ function startLineJob(s,f,job,approvalMode){
  if(reason)throw Error(reason);
  if(job.source==='ai'){
   const latest=reviewLineInvestment(s,f,p,partRecord(s,job.specKey),job,approvalMode==='independentAI');
-  if(latest.reason||localFromBase(latest.costBase,f.country)!==job.cost||latest.kind!==job.kind||latest.lineId!==(job.kind==='ADD_LINE'?null:job.lineId)||latest.delta!==job.delta){
+  if(latest.reason||localFromBase(latest.costBase,f.country,s)!==job.cost||latest.kind!==job.kind||latest.lineId!==(job.kind==='ADD_LINE'?null:job.lineId)||latest.delta!==job.delta){
    throw Error('AI提案を再審査できません。'+(latest.reason||'工場・需要の条件が変更されました'));
   }
   job.review=latest;
  }
  if(acc(f,'cash')<job.cost)throw Error('工事費を支払う現金が不足しています');
  const journal=s.seq;
- if(job.source==='ai')ensureCompetitionPolicy(f,s).spentThisYearBase+=baseFromLocal(job.cost,f.country)/100;
+ if(job.source==='ai')ensureCompetitionPolicy(f,s).spentThisYearBase+=baseFromLocal(job.cost,f.country,s)/100;
  post(f,{constructionAssets:job.cost},{cash:job.cost},'ライン工事着工 '+job.planId,'investing',s);
  job.paymentJournal=journal;
  job.approvalMode=approvalMode;
@@ -5082,11 +5083,11 @@ function independentLineCost(s,f,p,spec,economicUnits,market){
   rawBase+=q*supplierPriceBase(s,quoted);
  }
  const wage=s.world[f.country].wage*eraCostFactor(s.year)*(.5+.5*ensurePlantLocation(f,p).wage);
- const material=localFromBase(Math.ceil(rawBase),f.country);
- const processing=bomOperationCost(s,f,spec,tech)+localFromBase(Math.ceil(wage*.5),f.country);
+ const material=localFromBase(Math.ceil(rawBase),f.country,s);
+ const processing=bomOperationCost(s,f,spec,tech)+localFromBase(Math.ceil(wage*.5),f.country,s);
  const unitCost=Math.ceil((material+processing)*100/Math.min(100,Math.max(75,p.condition)*(1+tech.throughput/100)));
  const net=market.quote-unitCost;
- const savingBase=Math.floor(baseFromLocal(net*economicUnits,f.country)/100);
+ const savingBase=Math.floor(baseFromLocal(net*economicUnits,f.country,s)/100);
  return {savingBase,unitCost,workingCapitalLocal:unitCost*economicUnits,reason:net>0?'':'内製見積が仕入・販売単価を下回りません'};
 }
 function independentLineCandidates(s,f){
@@ -5131,7 +5132,7 @@ function reviewLineInvestment(s,f,p,spec,exclude=null,autonomous=false){
  const available=factoryLaborPlanV026(f).byId[p.id]?.assigned??0;
  if(Math.floor(available*capacity/p.capacity)<Math.ceil(capacity*.5))return reject('ラインに配分できる製造人員が不足しています');
  const def=LINE_JOBS[kind],costBase=lineCostBase(s,f,p,kind,capacity);
- const cost=localFromBase(costBase,f.country);
+ const cost=localFromBase(costBase,f.country,s);
  const reserve=Math.max(0,f.delegate?.minCashBase??0,ensureCompetitionPolicy(f,s).reserveBase);
  const immediateDebt=(f.loans??[]).reduce((n,l)=>n+Math.max(0,Math.ceil((l.outstanding??0)/Math.max(1,l.monthsLeft??12))),0);
  const throughput=Math.min(need,capacity);
@@ -5142,7 +5143,7 @@ function reviewLineInvestment(s,f,p,spec,exclude=null,autonomous=false){
  const partDebt=market?(s.partEconomy.tradeEvents??[]).filter(e=>e.buyer===f.id&&!e.settlement&&e.due<=dueMonth)
   .reduce((n,e)=>n+e.amount,0):0;
  const payrollDebt=market?Math.max(0,-acc(f,'wagesDue')):0;
- const liquidity=localFromBase(reserve,f.country)+immediateDebt+supplierDebt+partDebt+payrollDebt+(economics?.workingCapitalLocal??0);
+ const liquidity=localFromBase(reserve,f.country,s)+immediateDebt+supplierDebt+partDebt+payrollDebt+(economics?.workingCapitalLocal??0);
  if(!capitalBudgetAvailable(s,f,costBase)||acc(f,'cash')-cost<liquidity){
   return reject('投資予算・現金留保・返済余力の条件を満たしていません');
  }
@@ -5172,7 +5173,7 @@ function proposeAIComponentLines(s,events){
    const review=reviewLineInvestment(s,f,plant,spec,pending,true);
    const target=pending.kind==='ADD_LINE'?null:pending.lineId;
    if(review.reason||review.kind!==pending.kind||review.lineId!==target||review.delta!==pending.delta||
-      localFromBase(review.costBase,f.country)!==pending.cost){
+      localFromBase(review.costBase,f.country,s)!==pending.cost){
     pending.state='CANCELLED';
     pending.finishedAt=month;
     pending.review={reason:review.reason||'工事費または設備・需要条件が変更されました'};
@@ -5427,7 +5428,7 @@ function bomPartRecipe(spec,tech){
 }
 function bomOperationCost(s,f,spec,tech){
  const base=(12+spec.values.cost*.08)*eraCostFactor(s.year)*(1-tech.processing/100);
- return Math.max(1,localFromBase(Math.round(base),f.country));
+ return Math.max(1,localFromBase(Math.round(base),f.country,s));
 }
 function bomBinding(f,m){
  return f.partOperations?.approvedModels.find(x=>x.modelId===m.id);
@@ -5531,7 +5532,7 @@ function dispatchBomParts(s,f,from,to,specKey,quantity){
  const lots=bomPlantLots(f,from.id,specKey);
  if(lots.reduce((n,x)=>n+x.quantity,0)<quantity)throw Error('発送元の部品ロットが不足しています');
  const quote=v21Freight(ensurePlantLocation(f,from),ensurePlantLocation(f,to),quantity,s);
- const freight=localFromBase(quote.base,f.country);
+ const freight=localFromBase(quote.base,f.country,s);
  if(acc(f,'cash')<freight)throw Error('輸送費の現金が不足しています');
  if(!Number.isSafeInteger(freight+lots.reduce((sum,l)=>sum+l.cost,0))){
   throw Error('対象部品の輸送原価が計算上限を超えています');
@@ -5565,7 +5566,7 @@ function autoDispatchBomParts(s){
    const quantity=Math.min(plan.quantity,bomPlantLots(f,from.id,line.specKey).reduce((n,x)=>n+x.quantity,0));
    if(!quantity)continue;
    const quote=v21Freight(ensurePlantLocation(f,from),ensurePlantLocation(f,to),quantity,s);
-   if(acc(f,'cash')<localFromBase(quote.base,f.country))continue;
+   if(acc(f,'cash')<localFromBase(quote.base,f.country,s))continue;
    dispatchBomParts(s,f,from,to,line.specKey,quantity);
    plan.sentAt=month;
   }
@@ -5951,7 +5952,7 @@ function placePartOrder(s,buyer,seller,from,to,specKey,quantity,unitPrice){
  const lots=bomPlantLots(seller,from.id,specKey).filter(l=>!issue||l.origin.orderId||l.origin.shipId);
  if(lots.reduce((n,l)=>n+l.quantity,0)<quantity)throw Error('出荷可能な部品在庫が不足しています');
  const quote=v21Freight(ensurePlantLocation(seller,from),ensurePlantLocation(buyer,to),quantity,s);
- const freight=localFromBase(quote.base,seller.country);
+ const freight=localFromBase(quote.base,seller.country,s);
  if(!Number.isSafeInteger(freight+lots.reduce((n,l)=>n+l.cost,0)))throw Error('出荷原価が計算上限を超えています');
  if(external&&(!seller.auto||unitPrice<externalPartUnitPrice(s,seller,spec))){
   throw Error('独立企業の提示単価と採算条件を満たしてください');
@@ -5974,7 +5975,7 @@ function placePartOrder(s,buyer,seller,from,to,specKey,quantity,unitPrice){
  return order;
 }
 function externalPartUnitPrice(s,f,spec){
- return Math.max(1,localFromBase(Math.ceil(spec.values.cost*eraCostFactor(s.year)*1.2),f.country));
+ return Math.max(1,localFromBase(Math.ceil(spec.values.cost*eraCostFactor(s.year)*1.2),f.country,s));
 }
 function dispatchPartOrder(s,o){
  if(o.state!=='ORDERED')throw Error('発送できる注文は引当済みのものです');
@@ -6083,7 +6084,7 @@ function partConsolidation(s,members,links,opens,period,shares){
  for(const e of events){
   if(!ids.has(e.seller)||!ids.has(e.buyer))continue;
   const seller=company(e.seller,s);
-  const spot=balanceFxRate(s,seller),reference=COUNTRIES[seller.country].fx;
+  const spot=balanceFxRate(s,seller),reference=worldReferenceFx(seller.country,s);
   if(!e.settlement){
    result.claims+=Math.round(e.amount*reference);
    result.spotClaims+=Math.round(e.amount*spot);
@@ -6692,8 +6693,8 @@ function peoplePage(){const f=current(),edit=canEdit(f),w=S.world[f.country];ens
    under SPEC-001..094; this engine clearly labels its book-value PPA assumption. */
 function registerEquityLink(s,rec){
  const child=company(rec.childId,s),buyer=company(rec.parentId,s),net=financials(child);
- const bFx=s.world[buyer.country]?.fx??COUNTRIES[buyer.country].fx;
- const tFx=s.world[child.country]?.fx??COUNTRIES[child.country].fx;
+ const bFx=s.world[buyer.country]?.fx??worldReferenceFx(buyer.country,s);
+ const tFx=s.world[child.country]?.fx??worldReferenceFx(child.country,s);
  const enriched={id:'E'+s.seq++,month:ym(s.year,s.month),...rec,
   recognition:'book-value-provisional',buyerCurrency:firmCurrency(buyer,s),targetCurrency:firmCurrency(child,s),
   buyerFxOnAcq:bFx,targetFxOnAcq:tFx,bookEquityLocal:net.equity,cashAcquiredLocal:net.cash,
@@ -6721,8 +6722,8 @@ function legacyLinks(s){
    for(const [k,v] of j.cr)old[k]=(old[k]||0)-v;
   }
   if(kind==='acquisition'&&!child.journals.some(j=>j.id<journal.id))warnings.push(child.name+'：取得前の過去帳簿が残っていません');
-  const before=financials({ledger:old});const cf=kind==='foundation'?baseFromLocal(-acc(child,'capital'),child.country):baseFromLocal(before.equity,child.country);
-  const rec={id:'L'+journal.id,parentId:parent.id,childId:child.id,kind,month:journal.when,ratio:owner.econ,considerationLocal:journal.amount,buyerJournal:journal.id,bookEquityBase:cf,cashAcquiredBase:kind==='foundation'?baseFromLocal(acc(child,'cash'),child.country):baseFromLocal(before.cash,child.country),revAtAcq:kind==='foundation'?0:before.revenue,expAtAcq:kind==='foundation'?0:before.expenses,legacy:true};
+  const before=financials({ledger:old});const cf=kind==='foundation'?baseFromLocal(-acc(child,'capital'),child.country,s):baseFromLocal(before.equity,child.country,s);
+  const rec={id:'L'+journal.id,parentId:parent.id,childId:child.id,kind,month:journal.when,ratio:owner.econ,considerationLocal:journal.amount,buyerJournal:journal.id,bookEquityBase:cf,cashAcquiredBase:kind==='foundation'?baseFromLocal(acc(child,'cash'),child.country,s):baseFromLocal(before.cash,child.country,s),revAtAcq:kind==='foundation'?0:before.revenue,expAtAcq:kind==='foundation'?0:before.expenses,legacy:true};
   links.push(rec);seen.add(key);
  }}
  return {links,warnings};
@@ -6763,14 +6764,14 @@ function consolidate(s,rootId=s.playerId){
  const documented=new Set(activeLinks.map(l=>l.parentId+'|'+l.childId));
  for(const f of members)for(const o of f.owners.filter(v=>ids.has(v.id)))if(!documented.has(o.id+'|'+f.id))errors.push(f.name+'：取得元帳不明');
  const sums={};for(const a of Object.keys(ACCTYPE))sums[a]=0;
- for(const f of members)for(const k of Object.keys(ACCTYPE))sums[k]+=baseFromLocal(acc(f,k),f.country);
+ for(const f of members)for(const k of Object.keys(ACCTYPE))sums[k]+=baseFromLocal(acc(f,k),f.country,s);
  const bs={cash:sums.cash,assets:ACCOUNT_ASSETS.reduce((a,k)=>a+sums[k],0),liab:-ACCOUNT_LIAB.reduce((a,k)=>a+sums[k],0),investment:sums.investment,goods:sums.goods,goodwill:0,nci:0,parentEquity:0,equity:0,liabEquityDiff:0,roundingResidual:0};
  // Every ownership link eliminates the corresponding investment asset and adds positive
  // book-value residual as provisional goodwill (negative is a bargain gain).
  let internalInvest=0,bargain=0,goodwill=0,nciGoodwill=0;
  const acquired=[];
- for(const l of activeLinks){const par=company(l.parentId,s),child=company(l.childId,s),pay=baseFromLocal(l.considerationLocal,par.country);internalInvest+=pay;
-  const goodwillBasis=(l.internalSellerId&&ids.has(l.internalSellerId)&&l.consolidationCostLocal!==undefined)?baseFromLocal(l.consolidationCostLocal,par.country):pay;
+ for(const l of activeLinks){const par=company(l.parentId,s),child=company(l.childId,s),pay=baseFromLocal(l.considerationLocal,par.country,s);internalInvest+=pay;
+  const goodwillBasis=(l.internalSellerId&&ids.has(l.internalSellerId)&&l.consolidationCostLocal!==undefined)?baseFromLocal(l.consolidationCostLocal,par.country,s):pay;
   const delta=goodwillBasis-(l.consolidationBookEquityBase??l.bookEquityBase??0)*l.ratio;if(delta>=0){goodwill+=delta;nciGoodwill+=(1-(ownership.shares[l.parentId]||0))*delta;}
   else bargain+=-delta;
   acquired.push({parent:par.name,child:child.name,kind:l.kind,ratio:l.ratio,paid:pay,bookEquity:l.bookEquityBase||0,residual:Math.round(delta),month:l.month});
@@ -6810,10 +6811,10 @@ function consolidate(s,rootId=s.playerId){
  // Fully settled interest remains a P&L elimination but not an open receivable/payable.
  let loanRecEliminated=0,loanDebtEliminated=0,interestRecEliminated=0,interestDueEliminated=0;
  for(const child of members)for(const loan of child.loans||[]){if(!loan.parent||!ids.has(loan.parent))continue;const parent=company(loan.parent,s);
-  loanRecEliminated+=baseFromLocal(loan.parentRemaining||0,parent.country);
-  loanDebtEliminated+=baseFromLocal(loan.outstanding||0,child.country);
-  interestRecEliminated+=baseFromLocal(loan.parentInterestRemaining||0,parent.country);
-  interestDueEliminated+=baseFromLocal(loan.interestOutstanding||0,child.country);
+  loanRecEliminated+=baseFromLocal(loan.parentRemaining||0,parent.country,s);
+  loanDebtEliminated+=baseFromLocal(loan.outstanding||0,child.country,s);
+  interestRecEliminated+=baseFromLocal(loan.parentInterestRemaining||0,parent.country,s);
+  interestDueEliminated+=baseFromLocal(loan.interestOutstanding||0,child.country,s);
  }
  bs.assets-=loanRecEliminated+interestRecEliminated;
  bs.liab-=loanDebtEliminated+interestDueEliminated;
@@ -6822,15 +6823,15 @@ function consolidate(s,rootId=s.playerId){
  const domestic=s.worldExpansion;
  const domesticAdvances=(domestic?.domesticShipments??[]).filter(t=>
   t.status==='IN_TRANSIT'&&ids.has(t.sellerId)&&ids.has(t.buyerId));
- const advances=domesticAdvances.reduce((total,t)=>total+baseFromLocal(t.prepaid,company(t.buyerId,s).country),0);
+ const advances=domesticAdvances.reduce((total,t)=>total+baseFromLocal(t.prepaid,company(t.buyerId,s).country,s),0);
  bs.assets-=advances;bs.liab-=advances;
- const foreignBalances=worldInternationalOpenBalances(s,ids,(amount,f)=>baseFromLocal(amount,f.country));
+ const foreignBalances=worldInternationalOpenBalances(s,ids,(amount,f)=>baseFromLocal(amount,f.country,s));
  const internationalAdvanceAsset=foreignBalances.advanceAsset;
  bs.assets-=foreignBalances.advanceAsset+foreignBalances.creditAsset;
  bs.liab-=foreignBalances.advanceLiability+foreignBalances.creditLiability;
  if(Math.abs(foreignBalances.advanceAsset+foreignBalances.creditAsset-foreignBalances.advanceLiability-foreignBalances.creditLiability)>2)
   notes.push('国際グループ内債権債務の通貨換算差は期末ブリッジで監査');
- const internalDeposits=worldInternalBankDeposits(s,ids,f=>COUNTRIES[f.country].fx);
+ const internalDeposits=worldInternalBankDeposits(s,ids,f=>worldReferenceFx(f.country,s));
  bs.assets-=internalDeposits;bs.liab-=internalDeposits;
  const assetCash=(domestic?.domesticAssetTransfers??[]).map(t=>({kind:'domesticAssetCash',
   seller:t.fromCompanyId,buyer:t.toCompanyId,yearMonth:t.when,fromJournal:t.sellerJournal,toJournal:t.buyerJournal}));
@@ -6847,14 +6848,14 @@ function consolidate(s,rootId=s.playerId){
  })).filter(t=>ids.has(t.seller)&&ids.has(t.buyer)&&insidePeriod(t));
  const phoneCash=worldTelephoneCashPairs(s).filter(t=>ids.has(t.seller)&&ids.has(t.buyer)&&insidePeriod(t));
  const medicalCash=worldMedicalCashPairs(s).filter(t=>ids.has(t.seller)&&ids.has(t.buyer)&&insidePeriod(t));
- const serviceFees=[...storageCash,...phoneCash,...medicalCash].reduce((sum,t)=>sum+baseFromLocal(t.fee,company(t.seller,s).country),0);
+ const serviceFees=[...storageCash,...phoneCash,...medicalCash].reduce((sum,t)=>sum+baseFromLocal(t.fee,company(t.seller,s).country,s),0);
  let insuranceInternalFees=0;
  const insuranceCash=[];
  for(const p of domestic?.cargoInsurance??[]){
   if(!ids.has(p.clientId)||!ids.has(p.providerId))continue;
   const base={kind:'domesticTradeCash',seller:p.providerId,buyer:p.clientId};
   const start={...base,yearMonth:p.month,fromJournal:p.journal+1,toJournal:p.journal};
-  const value=amount=>baseFromLocal(amount,company(p.providerId,s).country);
+  const value=amount=>baseFromLocal(amount,company(p.providerId,s).country,s);
   if(insidePeriod(start))insuranceCash.push(start);
   if(p.closedAt===null){bs.assets-=value(p.premium);bs.liab-=value(p.premium);continue;}
   const settlement={...base,yearMonth:p.closedAt,fromJournal:p.closeJournal+1,toJournal:p.closeJournal};
@@ -6875,8 +6876,8 @@ function consolidate(s,rootId=s.playerId){
  for(const l of activeLinks)if(l.kind==='foundation')for(const id of [l.buyerJournal,l.childJournal])if(id!==undefined)cashJournals.add(id);
  // Group assets minus group debts determine consolidated net equity. Subsidiary net
  // assets (not gross balance sheet items) are allocated to NCI by effective ownership.
- const controlledInvestByOwner={};for(const l of activeLinks)controlledInvestByOwner[l.parentId]=(controlledInvestByOwner[l.parentId]||0)+baseFromLocal(l.considerationLocal,company(l.parentId,s).country);
- let nci=0;for(const f of members){if(f.id===rootId)continue;const minority=1-(ownership.shares[f.id]||0),net=baseFromLocal(financials(f).equity,f.country)-(controlledInvestByOwner[f.id]||0);nci+=minority*net;}
+ const controlledInvestByOwner={};for(const l of activeLinks)controlledInvestByOwner[l.parentId]=(controlledInvestByOwner[l.parentId]||0)+baseFromLocal(l.considerationLocal,company(l.parentId,s).country,s);
+ let nci=0;for(const f of members){if(f.id===rootId)continue;const minority=1-(ownership.shares[f.id]||0),net=baseFromLocal(financials(f).equity,f.country,s)-(controlledInvestByOwner[f.id]||0);nci+=minority*net;}
  nci+=nciGoodwill-parts.nci-domesticCost.nci-internationalCost.nci;
  nci-=stockTx.reduce((a,t)=>{const buyer=company(t.buyer,s),remain=buyer.goods[t.stockKey]?.q||0;const ratio=t.q?Math.min(1,remain/t.q):0;return a+Math.round(t.marginBase*ratio)*(1-(ownership.shares[t.seller]||0));},0);
  bs.nci=Math.round(nci);bs.equity=bs.assets-bs.liab;bs.parentEquity=bs.equity-bs.nci;bs.liabEquityDiff=bs.assets-bs.liab-bs.equity;
@@ -6891,8 +6892,8 @@ function consolidate(s,rootId=s.playerId){
     const baseline=groupEntryIncomeBaseline(f,entry,relevant?.buyerJournal??Number.MAX_SAFE_INTEGER,s);
     preRevenue=baseline.revenue;preExpense=baseline.expenses;
    }
-  rev+=baseFromLocal(fin.revenue-preRevenue,f.country);
-  exp+=baseFromLocal(fin.expenses-preExpense,f.country);
+  rev+=baseFromLocal(fin.revenue-preRevenue,f.country,s);
+  exp+=baseFromLocal(fin.expenses-preExpense,f.country,s);
  }
  const internalEquity=(s.equityTransfers||[]).filter(t=>ids.has(t.seller)&&ids.has(t.buyer)&&t.month>=Math.max(opens[t.seller]||0,opens[t.buyer]||0));
  const equityRevenueEliminated=internalEquity.reduce((n,t)=>n+Math.max(0,t.gainBase||0),0),equityExpenseEliminated=internalEquity.reduce((n,t)=>n+Math.max(0,-(t.gainBase||0)),0);
@@ -6904,7 +6905,7 @@ function consolidate(s,rootId=s.playerId){
  let minorProfit=0;
  for(const f of members){if(f.id===rootId)continue;const entry=opens[f.id]??0,l=scopeHistory.filter(l=>l.childId===f.id&&l.month===entry).sort((a,b)=>a.buyerJournal-b.buyerJournal)[0];
   const fin=financials(f),baseline=groupEntryIncomeBaseline(f,entry,l?.buyerJournal??Number.MAX_SAFE_INTEGER,s);
-  const p=fin.profit-baseline.profit;minorProfit+=(1-(ownership.shares[f.id]||0))*baseFromLocal(p,f.country);}
+  const p=fin.profit-baseline.profit;minorProfit+=(1-(ownership.shares[f.id]||0))*baseFromLocal(p,f.country,s);}
  minorProfit-=stockTx.reduce((a,t)=>{const it=company(t.buyer,s).goods[t.stockKey],ratio=t.q?Math.min(1,(it?.q||0)/t.q):0;return a+t.marginBase*ratio*(1-(ownership.shares[t.seller]||0));},0);
  minorProfit-=accrued.reduce((a,t)=>a+(1-(ownership.shares[t.seller]||0))*t.revenueBase-(1-(ownership.shares[t.buyer]||0))*t.expenseBase,0);
  minorProfit-=internalEquity.reduce((n,t)=>n+(t.gainBase||0)*(1-(ownership.shares[t.seller]||0)),0);
@@ -6915,9 +6916,9 @@ function consolidate(s,rootId=s.playerId){
  const cf={period,operating:0,investing:0,financing:0,net:0,internalEliminated:0,internationalFxCash:0,openingCash:null,closingCash:bs.cash,fxAndAcquisitions:0,reconciled:true,unlinked:[]};
  for(const f of members){const start=opens[f.id]||0;for(const j of f.journals){if(j.when!==period||j.when<start)continue;
   const cash=(j.dr.filter(x=>x[0]==='cash').reduce((a,b)=>a+b[1],0)-j.cr.filter(x=>x[0]==='cash').reduce((a,b)=>a+b[1],0));if(!cash)continue;
-  const base=baseFromLocal(cash,f.country);
+  const base=baseFromLocal(cash,f.country,s);
   if(cashJournals.has(j.id)){cf.internalEliminated+=base;continue;}
-  const foreign=baseFromLocal(internationalLegs.get(j.id)??0,f.country);
+  const foreign=baseFromLocal(internationalLegs.get(j.id)??0,f.country,s);
   cf.internationalFxCash+=foreign;
   const cat=j.kind==='financing'?'financing':j.kind==='investing'?'investing':'operating';cf[cat]+=base-foreign;
  }}
@@ -6938,15 +6939,15 @@ function consolidate(s,rootId=s.playerId){
    translation is a separately reconciled bridge; original prototype book consolidation
    remains visible and preserved. No historical FX or unapproved PPA inputs invented. */
 const consolidateBookV03=consolidate;
-function balanceFxRate(s,f){return Number(s.world?.[f.country]?.fx??COUNTRIES[f.country].fx);}
+function balanceFxRate(s,f){return Number(s.world?.[f.country]?.fx??worldReferenceFx(f.country,s));}
 function foundingRootJournal(s,rootId,f,j,period){return f.id===rootId&&period===ym(s.startYear,1)&&['創業資本','事業設備・施設の取得','創業時の実材料仕入','開業時の仕入商品','採取権取得'].includes(j.text)}
 function cashOfJournal(j){return j.dr.filter(a=>a[0]==='cash').reduce((x,a)=>x+a[1],0)-j.cr.filter(a=>a[0]==='cash').reduce((x,a)=>x+a[1],0);}
 function closingFxBridge(s,memberFirms,g){
  const cashByFirm={},items=[];let closingCash=0,localFxDelta=0;
- for(const f of memberFirms){const r=balanceFxRate(s,f),base=COUNTRIES[f.country].fx,local=acc(f,'cash');
+ for(const f of memberFirms){const r=balanceFxRate(s,f),base=worldReferenceFx(f.country,s),local=acc(f,'cash');
   closingCash+=Math.round(local*r);localFxDelta+=Math.round(local*(r-base));
   cashByFirm[f.id]={cashLocal:local,fx:r};items.push({firm:f.name,currency:firmCurrency(f,s),closingRate:r,referenceRate:base,
-     cashLocal:local,cashSpot:Math.round(local*r),cashReference:baseFromLocal(local,f.country)});
+     cashLocal:local,cashSpot:Math.round(local*r),cashReference:baseFromLocal(local,f.country,s)});
  }
  return {cash:closingCash,deltaFromReference:closingCash-g.bs.cash,items,cashByFirm};
 }
@@ -7016,7 +7017,7 @@ function computePeriodCF(s,rootId,g,bridge){
    if(entering&&j.when===entering.month&&j.id<entering.buyerJournal)continue;
    if(ignored.has(j.id))continue;
    const value=cashOfJournal(j);if(!value)continue;
-   const rate=Number(j.fxAtPost??COUNTRIES[f.country].fx);
+   const rate=Number(j.fxAtPost??worldReferenceFx(f.country,s));
    const category=j.kind==='financing'?'financing':j.kind==='investing'?'investing':'operating';
    const internal=internationalLegs.get(j.id)??0;
    const external=value-internal;
@@ -7036,8 +7037,8 @@ function computePeriodCF(s,rootId,g,bridge){
  for(const l of active){if(l.month!==period||l.kind!=='acquisition')continue;
   if(!memberIds.has(l.childId)||opens[l.childId]!==period||acquisitionInputs[l.childId])continue;
   const controlling=linksEntering.get(l.childId);if(controlling?.id!==l.id)continue;
-  const f=company(l.childId,s),local=Number(l.cashAcquiredLocal??(l.cashAcquiredBase||0)/COUNTRIES[f.country].fx);
-  const fx=Number(l.targetFxOnAcq??COUNTRIES[f.country].fx);
+  const f=company(l.childId,s),local=Number(l.cashAcquiredLocal??(l.cashAcquiredBase||0)/worldReferenceFx(f.country,s));
+  const fx=Number(l.targetFxOnAcq??worldReferenceFx(f.country,s));
   const add=Math.round(local*fx);cf.investing+=add;cf.scopeAdded+=add;
   acquisitionInputs[l.childId]={local,fx};
  }
@@ -7047,7 +7048,7 @@ function computePeriodCF(s,rootId,g,bridge){
  let fx=0,canExplain=true;
  for(const f of members){const endRate=balanceFxRate(s,f);
   const priorInfo=previous?.firmCash?.[f.id]??null;
-  const founder=f.id===rootId&&period===ym(s.startYear,1)&&!priorInfo?{cashLocal:(foundingBaseline?.baseCash||0)/COUNTRIES[f.country].fx,fx:COUNTRIES[f.country].fx}:null;
+  const founder=f.id===rootId&&period===ym(s.startYear,1)&&!priorInfo?{cashLocal:(foundingBaseline?.baseCash||0)/worldReferenceFx(f.country,s),fx:worldReferenceFx(f.country,s)}:null;
   const start=priorInfo||founder;
   if(start)fx+=Math.round(start.cashLocal*(endRate-start.fx));
   else if(!acquisitionInputs[f.id]&&!active.some(l=>l.kind==='foundation'&&l.childId===f.id&&l.month===period)&&period!==ym(s.startYear,1))canExplain=false;
@@ -7055,7 +7056,7 @@ function computePeriodCF(s,rootId,g,bridge){
   for(const j of f.journals){if(j.when!==period||foundingRootJournal(s,rootId,f,j,period))continue;
    const entering=linksEntering.get(f.id);if(entering&&j.id<entering.buyerJournal)continue;
    // Even internal cash transfers create FX exposure between transfer and close.
-   const cash=cashOfJournal(j);if(cash)fx+=Math.round(cash*(endRate-Number(j.fxAtPost??COUNTRIES[f.country].fx)));
+   const cash=cashOfJournal(j);if(cash)fx+=Math.round(cash*(endRate-Number(j.fxAtPost??worldReferenceFx(f.country,s))));
   }
   if(acquisitionInputs[f.id]){const a=acquisitionInputs[f.id];fx+=Math.round(a.local*(endRate-a.fx));}
  }
@@ -7126,14 +7127,14 @@ function accountingFxReview(s,rootId,g){
  for(const l of historical){
   const par=company(l.parentId,s),child=company(l.childId,s);
   const buyerRate=balanceFxRate(s,par),targetRate=balanceFxRate(s,child);
-  const acqBuyerRate=Number(l.buyerFxOnAcq??COUNTRIES[par.country].fx);
-  const acqChildRate=Number(l.targetFxOnAcq??COUNTRIES[child.country].fx);
+  const acqBuyerRate=Number(l.buyerFxOnAcq??worldReferenceFx(par.country,s));
+  const acqChildRate=Number(l.targetFxOnAcq??worldReferenceFx(child.country,s));
   // Parent investment remains a non-monetary historical carrying amount in its
   // local ledger, translated when parent balance sheet is consolidated.
   const bookedLocal=Number(l.considerationLocal||0),historicalConsideration=Math.round(bookedLocal*acqBuyerRate);
   const goodwillConsideration=l.internalSellerId&&ids.has(l.internalSellerId)&&l.consolidationCostLocal!==undefined?Math.round(l.consolidationCostLocal*acqBuyerRate):historicalConsideration;
   const snapshotEquity=Number(l.consolidationSnapshotEquityLocal??l.acquisitionSnapshot?.equity??l.bookEquityLocal??
-    ((l.bookEquityBase||0)/COUNTRIES[child.country].fx));
+    ((l.bookEquityBase||0)/worldReferenceFx(child.country,s)));
   const historicalBookNet=Math.round(snapshotEquity*acqChildRate);
   const difference=goodwillConsideration-Math.round(historicalBookNet*l.ratio);
   const goodwillClose=difference>0?Math.round(difference*targetRate/acqChildRate):0;
@@ -7159,7 +7160,7 @@ function accountingFxReview(s,rootId,g){
   if(t.kind==='goods'){
    const seller=company(t.seller,s),buyer=company(t.buyer,s),it=buyer.goods[t.stockKey];
    const unsold=Math.min(t.q||0,Math.max(0,it?.q||0));
-   const originalBase=COUNTRIES[seller.country].fx;
+   const originalBase=worldReferenceFx(seller.country,s);
    const costLocal=Number(t.marginBase||0)/originalBase;
    inventoryProfit+=Math.round(costLocal*(t.q?unsold/t.q:0)*balanceFxRate(s,seller));
    if(t.yearMonth===period){
@@ -7169,8 +7170,8 @@ function accountingFxReview(s,rootId,g){
   }else if(t.kind==='interest'&&t.yearMonth===period){
    const sj=relatedJournal(company(t.seller,s),t.fromJournal);
    const bj=relatedJournal(company(t.buyer,s),t.toJournal);
-   if(sj)interestRevenuePeriod+=Math.round(journalIncome(sj).revenue*Number(sj.fxAtPost??COUNTRIES[company(t.seller,s).country].fx));
-   if(bj)interestExpensePeriod+=Math.round(journalIncome(bj).expenses*Number(bj.fxAtPost??COUNTRIES[company(t.buyer,s).country].fx));
+   if(sj)interestRevenuePeriod+=Math.round(journalIncome(sj).revenue*Number(sj.fxAtPost??worldReferenceFx(company(t.seller,s).country,s)));
+   if(bj)interestExpensePeriod+=Math.round(journalIncome(bj).expenses*Number(bj.fxAtPost??worldReferenceFx(company(t.buyer,s).country,s)));
   }
  }
  let loanReceivable=0,loanPayable=0,interestReceivable=0,interestPayable=0;
@@ -7196,7 +7197,7 @@ function accountingFxReview(s,rootId,g){
  for(const t of txs){if(t.kind!=='goods')continue;
   const seller=company(t.seller,s),buyer=company(t.buyer,s),units=buyer.goods[t.stockKey]?.q||0;
   const remaining=Math.min(t.q||0,Math.max(0,units));
-  const defer=Math.round((t.marginBase||0)/COUNTRIES[seller.country].fx*(t.q?remaining/t.q:0)*balanceFxRate(s,seller));
+  const defer=Math.round((t.marginBase||0)/worldReferenceFx(seller.country,s)*(t.q?remaining/t.q:0)*balanceFxRate(s,seller));
   nci-=Math.round(defer*(1-(g.shares[seller.id]??0)));
  }
  nci-=international.spotNci;
@@ -7217,7 +7218,7 @@ function accountingFxReview(s,rootId,g){
   const entry=historical.filter(x=>x.childId===f.id&&x.month===starts[f.id]).sort((a,b)=>a.buyerJournal-b.buyerJournal)[0];
   for(const j of f.journals){if(j.when!==period||j.when<(starts[f.id]??Number.MAX_SAFE_INTEGER))continue;
    if(entry&&j.when===entry.month&&j.id<entry.buyerJournal)continue;
-   const jIncome=journalIncome(j),rate=Number(j.fxAtPost??COUNTRIES[f.country].fx);
+   const jIncome=journalIncome(j),rate=Number(j.fxAtPost??worldReferenceFx(f.country,s));
    revenue+=Math.round(jIncome.revenue*rate);expenses+=Math.round(jIncome.expenses*rate);entryCount++;
   }
   income=revenue-expenses;rev+=revenue;exp+=expenses;
@@ -7233,7 +7234,7 @@ function accountingFxReview(s,rootId,g){
  const internationalDelta=international.spotRetained-previousInternational;
  const internationalPeriodSales=[...international.eligible.values()].filter(t=>t.receivedAt===period).reduce((n,t)=>{
   const seller=company(t.sellerId,s),j=seller.journals.find(j=>j.id===t.journals.terminal);
-  return n+Math.round(worldInternationalSale(t)*Number(j?.fxAtPost??COUNTRIES[seller.country].fx));
+  return n+Math.round(worldInternationalSale(t)*Number(j?.fxAtPost??worldReferenceFx(seller.country,s)));
  },0);
  const deltaDeferred=inventoryProfit-previousDeferred+parts.periodDeferral+internationalDelta;
  for(const call of [...(s.worldExpansion?.telephoneCalls??[]),...(s.worldExpansion?.medicalTreatments??[])]){
@@ -7242,13 +7243,13 @@ function accountingFxReview(s,rootId,g){
   if(parties.some((id,index)=>call.month<(starts[id]??Number.MAX_SAFE_INTEGER)
    ||historical.some(link=>link.childId===id&&link.month===call.month&&legs[index]<link.buyerJournal)))continue;
   const provider=company(call.providerId,s),journal=relatedJournal(provider,legs[1]);
-  internalSalesPeriod+=Math.round(call.fee*Number(journal?.fxAtPost??COUNTRIES[provider.country].fx));
+  internalSalesPeriod+=Math.round(call.fee*Number(journal?.fxAtPost??worldReferenceFx(provider.country,s)));
  }
  rev-=internalSalesPeriod+interestRevenuePeriod+parts.periodSales+internationalPeriodSales;
  exp-=internalSalesPeriod+interestExpensePeriod+parts.periodSales+internationalPeriodSales;
  exp+=deltaDeferred;
  const insideEquity=(s.equityTransfers||[]).filter(t=>t.month===period&&ids.has(t.seller)&&ids.has(t.buyer));
- const shareGain=insideEquity.map(t=>{const f=company(t.seller,s);const j=f.journals.find(j=>j.id===t.sellerJournal);return Math.round((t.gainLocal||0)*Number(j?.fxAtPost??COUNTRIES[f.country].fx));});
+ const shareGain=insideEquity.map(t=>{const f=company(t.seller,s);const j=f.journals.find(j=>j.id===t.sellerJournal);return Math.round((t.gainLocal||0)*Number(j?.fxAtPost??worldReferenceFx(f.country,s)));});
  rev-=shareGain.reduce((n,v)=>n+Math.max(0,v),0);exp-=shareGain.reduce((n,v)=>n+Math.max(0,-v),0);
  nciProfit-=Math.round(insideEquity.reduce((n,t)=>n+(t.gainBase||0)*(1-(g.shares[t.seller]??0)),0));
  const bargainCurrent=acquisition.filter(x=>x.month===period).reduce((v,x)=>v+Math.max(0,-x.historicalDifference),0);
@@ -7258,7 +7259,7 @@ function accountingFxReview(s,rootId,g){
  for(const t of txs){if(t.kind!=='goods')continue;
   const seller=company(t.seller,s),buyer=company(t.buyer,s),q=buyer.goods[t.stockKey]?.q||0;
   const old=preceding?.deferredByTx?.[t.id]??0;
-  const current=Math.round((t.marginBase||0)/COUNTRIES[seller.country].fx*(t.q?Math.min(t.q,q)/t.q:0)*balanceFxRate(s,seller));
+  const current=Math.round((t.marginBase||0)/worldReferenceFx(seller.country,s)*(t.q?Math.min(t.q,q)/t.q:0)*balanceFxRate(s,seller));
   nciProfit-=Math.round((current-old)*(1-(g.shares[t.seller]??0)));
  }
  nciProfit-=parts.periodNci+international.spotNci-Number(preceding?.spotInternationalNci??0);
@@ -7270,7 +7271,7 @@ function accountingFxReview(s,rootId,g){
  const accepted=already?.periodPL??pl;
  const deferredByTx={...parts.byEvent};for(const t of txs){if(t.kind!=='goods')continue;
   const seller=company(t.seller,s),buyer=company(t.buyer,s),remaining=Math.min(t.q||0,Math.max(0,buyer.goods[t.stockKey]?.q||0));
-  deferredByTx[t.id]=Math.round((t.marginBase||0)/COUNTRIES[seller.country].fx*(t.q?remaining/t.q:0)*balanceFxRate(s,seller));
+  deferredByTx[t.id]=Math.round((t.marginBase||0)/worldReferenceFx(seller.country,s)*(t.q?remaining/t.q:0)*balanceFxRate(s,seller));
  }
  return {bs,periodPL:accepted,periodPLCurrent:pl,periodEntries,deferredByTx,acquisition,partDeferredLocal:parts.localByEvent,legacyDeferredInventory:inventoryProfit,
   spotDeferredInternational:international.spotRetained,spotInternationalNci:international.spotNci,
@@ -7636,7 +7637,7 @@ function maOwnership(f,s=S){
 }
 function ownershipShort(f,s=S){const sh=maOwnership(f,s);const firms=f.owners.filter(o=>o.id!=='PUBLIC');const own=firms.map(o=>esc(company(o.id,s)?.name||'企業株主')+' '+maPct(o.econ));const x=sh.public>0?['外部（銀行・政府・個人等） '+maPct(sh.public)]:[];return [...own,...x].join(' / ')||'株主不明';}
 function maValuation(s,f){
- const a=financials(f),fx=COUNTRIES[f.country].fx;
+ const a=financials(f),fx=worldReferenceFx(f.country,s);
  const toBase=v=>Math.round(v*fx/100);
  const book=Math.max(0,toBase(a.equity)),cash=Math.max(0,toBase(a.cash)),debt=Math.max(0,toBase(a.debt));
  const sales=Math.max(0,toBase(f.monthly?.sales||0))*12,profit=toBase(f.monthly?.profit||0)*12;
@@ -7668,7 +7669,7 @@ function maQuote(s,buyer,target,percent,multiplier){
  }
  // Never grant an extremely small share position for zero consideration.
  const total=Math.max(1,Math.round(v.reference*q*multiplier));
- const available=Math.max(0,Math.round(acc(buyer,'cash')*COUNTRIES[buyer.country].fx/100));
+ const available=Math.max(0,Math.round(acc(buyer,'cash')*worldReferenceFx(buyer.country,s)/100));
  return {...v,percent:requestedUnits/10000,fraction:q,multiplier,total,available,lots,
   missing:leftUnits/1000000,accepted:leftUnits===0&&total<=available,
   consent:leftUnits===0,affordable:total<=available,publicHolding};
@@ -7678,7 +7679,7 @@ function executeMADeal(s,buyerId,targetId,percent,multiplier,actor='player'){
  const quote=maQuote(s,buyer,target,percent,multiplier);
  if(!quote.consent)throw Error('必要な株式が集まりません。売却条件を引き上げるか取得割合を減らしてください（不足'+maPct(quote.missing)+'）');
  if(!quote.affordable)throw Error('買収資金不足：見積 '+maMoney(quote.total)+'、手元現金 '+maMoney(quote.available));
- const paid=localFromBase(quote.total,buyer.country);
+ const paid=localFromBase(quote.total,buyer.country,s);
  if(paid<1)throw Error('取得対価が取引通貨の最小単位を下回ります。');
  if(paid>acc(buyer,'cash'))throw Error('買収に利用できる現金が不足しています');
  const hadControl=controller(s,target.id,buyerId);
@@ -7692,7 +7693,7 @@ function executeMADeal(s,buyerId,targetId,percent,multiplier,actor='player'){
  if(!currentOwner){currentOwner={id:buyer.id,econ:0,vote:0};target.owners.push(currentOwner);}
  currentOwner.econ=roundShare(currentOwner.econ+take);currentOwner.vote=roundShare(currentOwner.vote+take);
  const nowControl=controller(s,target.id,buyerId);
- registerEquityLink(s,{parentId:buyerId,childId:targetId,ratio:take,kind:'acquisition',considerationLocal:paid,buyerJournal:journal,bookEquityBase:baseFromLocal(netWorth(target),target.country),cashAcquiredBase:baseFromLocal(acc(target,'cash'),target.country),controlEstablished:nowControl&&!hadControl});
+ registerEquityLink(s,{parentId:buyerId,childId:targetId,ratio:take,kind:'acquisition',considerationLocal:paid,buyerJournal:journal,bookEquityBase:baseFromLocal(netWorth(target),target.country,s),cashAcquiredBase:baseFromLocal(acc(target,'cash'),target.country,s),controlEstablished:nowControl&&!hadControl});
  const entry={id:'MA'+s.seq++,month:ym(s.year,s.month),buyer:buyerId,target:targetId,percent:quote.percent,priceBase:quote.total,multiplier,actor,holders:quote.lots.map(l=>({name:l.name,percent:Math.round(l.holding*1000000)/10000})),control:nowControl,reference:quote.reference};
  s.maDeals.unshift(entry);if(s.maDeals.length>150)s.maDeals.pop();
  // Legacy negotiated equity history also stays available to older reports.
@@ -7719,7 +7720,7 @@ function corporateSellerDemand(s,buyer,seller,target,stake,mode){
  if(seller.industry===target.industry){factor+=.16;reasons.push('戦略子会社の売却拒否')}
  if(current>.5&&current-stake<=.5){factor+=.43;reasons.push('経営支配権の喪失')}
  if(v.profit>Math.max(100000,v.book)*.12){factor+=.18;reasons.push('高収益企業')}
- if(acc(seller,'cash')>localFromBase(2000000,seller.country)){factor+=.12;reasons.push('親会社の資金余力')}
+ if(acc(seller,'cash')>localFromBase(2000000,seller.country,s)){factor+=.12;reasons.push('親会社の資金余力')}
  return {factor:Math.min(3.8,Math.round(factor*100)/100),reasons:reasons.length?reasons:['一般株式売却審査']};
 }
 function corporateShareQuote(s,buyerId,targetId,sellerId,percent,mode,offerFactor){
@@ -7744,7 +7745,7 @@ function corporateShareQuote(s,buyerId,targetId,sellerId,percent,mode,offerFacto
  if((s.groupMergerPlans||[]).some(p=>(p.status==='pending'||p.status==='blocked')&&[buyer.id,target.id,seller.id].some(id=>p.fromId===id||p.toId===id)))throw Error('合併手続き中の法人は株式を譲渡できません');
  const fraction=units/1000000,reserve=corporateSellerDemand(s,buyer,seller,target,fraction,mode);
  const total=Math.max(1,Math.round(value.reference*fraction*offerFactor));
- const buyerPay=localFromBase(total,buyer.country),sellerReceive=localFromBase(total,seller.country);
+ const buyerPay=localFromBase(total,buyer.country,s),sellerReceive=localFromBase(total,seller.country,s);
  const consent=offerFactor+1e-9>=reserve.factor;
  const affordable=buyerPay>0&&sellerReceive>0&&buyerPay<=acc(buyer,'cash');
  return {buyer,target,seller,units,percent:units/10000,fraction,mode,offerFactor,reserve:reserve.factor,
@@ -7792,13 +7793,13 @@ function executeCorporateShareTransfer(s,buyerId,targetId,sellerId,percent,mode,
  owner.econ=roundShare(owner.econ+q.fraction);owner.vote=roundShare(owner.vote+q.fraction);
  const nowControl=controller(s,target.id,buyer.id),isInternal=controller(s,seller.id,s.playerId)&&controller(s,buyer.id,s.playerId);
  registerEquityLink(s,{parentId:buyer.id,childId:target.id,ratio:q.fraction,kind:nowControl&&!hadControl?'acquisition':'secondaryTransfer',considerationLocal:q.buyerPay,buyerJournal,
-  bookEquityBase:isInternal?inheritedNet:baseFromLocal(netWorth(target),target.country),
-  cashAcquiredBase:baseFromLocal(acc(target,'cash'),target.country),controlEstablished:nowControl&&!hadControl,
-  sellerId:seller.id,...(isInternal?{internalSellerId:seller.id,consolidationCostLocal:localFromBase(baseFromLocal(bookCost,seller.country)/100,buyer.country)}:{})});
+  bookEquityBase:isInternal?inheritedNet:baseFromLocal(netWorth(target),target.country,s),
+  cashAcquiredBase:baseFromLocal(acc(target,'cash'),target.country,s),controlEstablished:nowControl&&!hadControl,
+  sellerId:seller.id,...(isInternal?{internalSellerId:seller.id,consolidationCostLocal:localFromBase(baseFromLocal(bookCost,seller.country,s)/100,buyer.country,s)}:{})});
  if(isInternal){const historical=links[0],newLink=s.equityLinks.at(-1);const fx=historical?.targetFxOnAcq??newLink.targetFxOnAcq;newLink.acquisitionSnapshot={...newLink.acquisitionSnapshot,...(historical?.acquisitionSnapshot||{}),equity:Math.round(weightedLocalEquity)};newLink.bookEquityLocal=Math.round(weightedLocalEquity);newLink.consolidationBookEquityBase=inheritedNet;newLink.consolidationSnapshotEquityLocal=Math.round(weightedLocalEquity);newLink.targetFxOnAcq=fx;}
  const rec={id:'ET'+s.seq++,month:ym(s.year,s.month),buyer:buyer.id,seller:seller.id,target:target.id,percent:q.percent,
   ratio:q.fraction,priceBase:q.total,multiplier:offerFactor,mode,required:q.reserve,bookCostLocal:bookCost,gainLocal:gain,
-  gainBase:baseFromLocal(gain,seller.country),buyerJournal,sellerJournal,internal:isInternal};
+  gainBase:baseFromLocal(gain,seller.country,s),buyerJournal,sellerJournal,internal:isInternal};
  s.equityTransfers.push(rec); // Keep all accounting events needed for cumulative intra-group profit eliminations.
  if(isInternal)registerInterco(s,{kind:'equityCash',seller:seller.id,buyer:buyer.id,yearMonth:rec.month,fromJournal:sellerJournal,toJournal:buyerJournal});
  const entry={id:'MA'+s.seq++,month:rec.month,buyer:buyer.id,seller:seller.id,target:target.id,percent:q.percent,priceBase:q.total,
@@ -7816,7 +7817,7 @@ function processMAMonth(s,events){
  ensureMAState(s);const month=ym(s.year,s.month);
  for(const p of s.maPlans){if(!['active','paused'].includes(p.mode)||p.done)continue;
   const buyer=company(p.buyer,s),target=company(p.target,s);if(!buyer||!target||!controller(s,target.id,buyer.id)){p.mode='halted';continue;}
-  const fee=localFromBase(p.costBase,buyer.country);
+  const fee=localFromBase(p.costBase,buyer.country,s);
   if(acc(buyer,'cash')<fee){p.mode='paused';events.push(buyer.name+'：'+target.name+'の統合を資金不足で一時停止');continue;}
   p.mode='active';
   // Fees are real operating expenses; operational improvements affect real market/plant state.
@@ -7831,7 +7832,7 @@ function processMAMonth(s,events){
  }
  // AI major transactions: monthly evaluation, at most one independent-company acquisition per 6-month window.
  if(![1,7].includes(s.month)||s.firms.length<3)return;
- const pool=s.firms.filter(f=>!f.player&&!controller(s,f.id)&&f.lifecycle?.phase==='active'&&f.reorgStatus!=='integrated'&&month-(f.maCooldown||-200)>18&&financials(f).cash>localFromBase(250000,f.country)&&financials(f).equity>0).sort((a,b)=>financials(b).cash/COUNTRIES[b.country].fx-financials(a).cash/COUNTRIES[a.country].fx);
+ const pool=s.firms.filter(f=>!f.player&&!controller(s,f.id)&&f.lifecycle?.phase==='active'&&f.reorgStatus!=='integrated'&&month-(f.maCooldown||-200)>18&&financials(f).cash>localFromBase(250000,f.country,s)&&financials(f).equity>0).sort((a,b)=>financials(b).cash/worldReferenceFx(b.country,s)-financials(a).cash/worldReferenceFx(a.country,s));
  let completed=0;
  for(const buyer of pool.slice(0,7)){
   if(completed>=1)break;
@@ -8101,7 +8102,7 @@ function capitalQuote(s,f,percent,issueFactor){
  if(!Number.isFinite(issueFactor)||issueFactor<.8||issueFactor>1.2)throw Error('発行価格倍率は80〜120%で指定してください');
  const preShares=f.sharesOutstanding,newShares=Math.round(preShares*percent/100),postShares=preShares+newShares;
  const valuation=maValuation(s,f),grossBase=Math.max(1,Math.round(valuation.reference*newShares/preShares*issueFactor));
- const proceedsLocal=localFromBase(grossBase,f.country),activeBefore=preShares-(f.treasuryShares||0),dilution=newShares/(activeBefore+newShares);
+ const proceedsLocal=localFromBase(grossBase,f.country,s),activeBefore=preShares-(f.treasuryShares||0),dilution=newShares/(activeBefore+newShares);
  return {preShares,newShares,postShares,grossBase,proceedsLocal,dilution,reference:valuation.reference,pricePerShare:valuation.reference/preShares*issueFactor};
 }
 function executeCapitalIssuance(s,issuerId,percent,issueFactor,investor,actor='player'){
@@ -8168,7 +8169,7 @@ function shareBuybackQuoteV0271(s,f,percent,offerFactor){
  const lots=[];let need=roundShare(fraction);
  for(const b of candidates){if(need<=0)break;const take=Math.min(need,b.holding);if(take>0){lots.push({id:b.id,name:b.name,holding:roundShare(take)});need=roundShare(need-take);}}
  const quotedBase=Math.max(1,Math.round(maValuation(s,f).reference*fraction*offerFactor));
- const costLocal=localFromBase(quotedBase,f.country),available=acc(f,'cash');
+ const costLocal=localFromBase(quotedBase,f.country,s),available=acc(f,'cash');
  return {active,qty,fraction,costLocal,quotedBase,percent,offerFactor,lots,missing:Math.max(0,need),consent:need<.000001,affordable:costLocal>0&&costLocal<=available,available,treasuryBefore:f.treasuryShares||0};
 }
 function executeShareBuybackV0271(s,issuerId,percent,offerFactor){
@@ -8242,7 +8243,7 @@ function aiCapitalIssuance(s,events){
   if(f.player||controller(s,f.id)||f.lifecycle?.phase!=='active'||f.reorgStatus==='integrated')continue;
   if(ym(s.year,s.month)-f.capitalPolicy.lastIssueMonth<12)continue;
   if(f.industry!=='auto'&&f.industry!=='manufacturing')continue;
-  const cash=baseFromLocal(acc(f,'cash'),f.country)/100;
+  const cash=baseFromLocal(acc(f,'cash'),f.country,s)/100;
   const bench=maValuation(s,f).reference;
   if(cash>bench*.22&&f.distress.stage===0)continue;
   if(random(s)>.14)continue;
@@ -8721,7 +8722,7 @@ function produceModulesV21(s,events){for(const f of s.firms){ensureFactoryV21(f)
  for(const p of supportPartFactories(f)){const typ=v21ModuleType(p),spec=V21_MODULE_INFO[typ];if(!typ)continue;
   const planned=Math.max(0,Math.floor(f.factoryOps.plans[p.id]||0));const staff=factoryLaborPlanV026(f).byId[p.id]?.assigned||0;let q=Math.min(planned,Math.max(0,supportOutputCapacityV035(p)-bomPlantLoad(f,p)),Math.max(0,Math.floor(staff*2)-bomPlantLoad(f,p)),Math.floor(f.stock.steel.q/spec.steel),Math.floor(f.stock.rubber.q/spec.rubber));p.lastAssignedStaff=staff;const bomOutput=bomMonthlyFactoryOutputV0263(s,f,p);if(q<=0){p.lastProduced=bomOutput.good;p.lastUtilization=bomOutput.attempted/Math.max(1,p.capacity);continue;}
   const raw=consume(f,'steel',q*spec.steel)+consume(f,'rubber',q*spec.rubber);
-  const wage=localFromBase(q*(typ==='moduleElectronics'?110:typ==='moduleEngine'?125:95)*eraCostFactor(s.year),f.country);
+  const wage=localFromBase(q*(typ==='moduleElectronics'?110:typ==='moduleEngine'?125:95)*eraCostFactor(s.year),f.country,s);
   const paid=Math.min(wage,Math.max(0,acc(f,'cash'))),due=wage-paid;
   post(f,{materials:raw+wage},{materials:raw,...(paid?{cash:paid}:{}),...(due?{wagesDue:due}:{})},'専門部品製造：'+spec.name,'operating',s);
   f.stock[typ].q+=q;f.stock[typ].v+=raw+wage;moduleAtV21(f,p.id)[typ]+=q;
@@ -8733,7 +8734,7 @@ function issueModuleShipmentV21(f,fromId,toId,qty,s=S,automated=false){ensureFac
  const from=f.plants.find(p=>p.id===fromId),to=f.plants.find(p=>p.id===toId),typ=v21ModuleType(from);
  if(!from||!to||from.id===to.id||from.construction||to.construction||!['assembly','integrated'].includes(to.kind)||!typ)throw Error('発送元・到着先の指定が不正です');
  if(!Number.isSafeInteger(qty)||qty<=0||qty>(moduleAtV21(f,fromId)[typ]||0))throw Error('発送可能な部品在庫が不足しています');
- const freight=v21Freight(ensurePlantLocation(f,from),ensurePlantLocation(f,to),qty,s);const cash=localFromBase(freight.base,f.country);
+ const freight=v21Freight(ensurePlantLocation(f,from),ensurePlantLocation(f,to),qty,s);const cash=localFromBase(freight.base,f.country,s);
  if(acc(f,'cash')<cash)throw Error('輸送費用の現金が不足しています');
  const value=consume(f,typ,qty);moduleAtV21(f,fromId)[typ]-=qty;
  post(f,{materialsTransit:value},{materials:value},'専門部品発送・輸送中振替','operating',s);
@@ -10662,7 +10663,7 @@ function step4FirmSizeSnapshot(f,s){
     +step4Num(f.staff?.sales)+(typeof engineers==='function'?step4Num(engineers(f)):step4Num(f.staff?.designEngineers));
   const yearFactor=typeof eraCostFactor==='function'?Math.max(1,eraCostFactor(s.year)):1;
   const salesLocal=step4Num(f.monthly?.sales),assetsLocal=step4Num(typeof financials==='function'?financials(f).assets:f.assets);
-  const base=x=>typeof baseFromLocal==='function'?step4Num(baseFromLocal(x,f.country)):x;
+  const base=x=>typeof baseFromLocal==='function'?step4Num(baseFromLocal(x,f.country,s)):x;
   const sales=base(salesLocal)/yearFactor,assets=base(assetsLocal)/yearFactor;
   const activePlants=(f.plants||[]).filter(p=>!p.construction&&!p.paused&&!p.renovation).length;
   const activeModels=(f.models||[]).filter(m=>m.status==='active').length;
@@ -10951,7 +10952,7 @@ function step5UpgradeQuote(f,s,id){
   const requiredPeople=def.cost.minPeople[next-1],requiredSkill=STEP5_PROMOTION_SKILLS[next-1];
   const actual=step5Allocation(f).byId[id].actual;
   const base=Math.round(def.cost.openingBase*STEP4_COST.upgrades[next-1]*eraCostFactor(s.year));
-  const localCost=localFromBase(base,f.country);
+  const localCost=localFromBase(base,f.country,s);
   const reasons=[];
   if(actual<requiredPeople)reasons.push(`実配置${requiredPeople}人以上が必要`);
   if(dept.skill<requiredSkill)reasons.push(`技能${requiredSkill}以上が必要`);
@@ -11024,11 +11025,11 @@ function step5Month(s,events){
     const quote=step5MonthlyQuote(f,s);
     for(const row of quote.detail){
       const dept=o.departments.find(d=>d.id===row.id);if(!dept)continue;
-      const amount=localFromBase(row.maintenanceBase,f.country);
+      const amount=localFromBase(row.maintenanceBase,f.country,s);
       if(amount>0)spendExpense(f,STEP5_MAINTENANCE_ACCT,amount,
         '専門部門月次維持費：'+row.name,'operating',s);
       if(row.educationBase>0){
-        const trainAmount=localFromBase(row.educationBase,f.country);
+        const trainAmount=localFromBase(row.educationBase,f.country,s);
         if(trainAmount>0)spendExpense(f,'labor',trainAmount,
           '専門部門技能研修：'+row.name,'operating',s);
       }
@@ -11295,7 +11296,7 @@ function step6CostQuote(f,s,id){
   const feeBase=(kind==='fee'||kind==='hours')?Math.max(1,Math.round(baseFee*(1-effect))):baseFee;
   const uncertainty=kind==='uncertainty'?Number((.20*(1-effect)).toFixed(5)):.20;
   const detection=kind==='detection'?Math.min(1,Number((.55*(1+effect)).toFixed(5))):.55;
-  const cashNeeded=localFromBase(feeBase,f.country);
+  const cashNeeded=localFromBase(feeBase,f.country,s);
   return {ready:acc(f,'cash')>=cashNeeded,departmentId:best.id,group,
     name:primary.name,kind,effect,baseFee,feeBase,originalHours,hours,
     uncertainty,detection,localCost:cashNeeded,
@@ -11374,9 +11375,9 @@ function step6ReserveLocal(f,s){
   const wage=Math.max(0,Number(s.world?.[f.country]?.wage)||145);
   const headcount=step5ParentCount(f,'production')+step5ParentCount(f,'research')+
     step5ParentCount(f,'design')+step5ParentCount(f,'sales');
-  const monthlyWage=localFromBase(wage*eraCostFactor(s.year)*(1+(f.hr?.payPremium||0))*headcount,f.country);
-  const specialist=localFromBase(step5MonthlyQuote(f,s).totalMaintenanceBase,f.country);
-  return Math.max(localFromBase(50000*eraCostFactor(s.year),f.country),
+  const monthlyWage=localFromBase(wage*eraCostFactor(s.year)*(1+(f.hr?.payPremium||0))*headcount,f.country,s);
+  const specialist=localFromBase(step5MonthlyQuote(f,s).totalMaintenanceBase,f.country,s);
+  return Math.max(localFromBase(50000*eraCostFactor(s.year),f.country,s),
     6*(monthlyWage+specialist));
 }
 function step6AIScore(def,f,policy){
@@ -11430,7 +11431,7 @@ function step6AIManage(f,s){
   // than one organizational change per three months.
   const promotes=o.departments.filter(dep=>dep.level<3).map(dep=>({dep,
     quote:step5UpgradeQuote(f,s,dep.id),def:STEP4_CATALOG_BY_ID[dep.id]}))
-    .filter(x=>x.quote.ready&&x.quote.base>0&&cash-localFromBase(x.quote.base,f.country)>reserve)
+    .filter(x=>x.quote.ready&&x.quote.base>0&&cash-localFromBase(x.quote.base,f.country,s)>reserve)
     .sort((a,b)=>step6AIScore(b.def,f,policy)-step6AIScore(a.def,f,policy)||a.def.id.localeCompare(b.def.id));
   if(promotes.length&&o.departments.length>=Math.max(1,threshold-1)){
     const item=promotes[0];step5UpgradeDepartment(f,s,item.dep.id);
@@ -11445,8 +11446,8 @@ function step6AIManage(f,s){
     const def=c.def,required=def.cost.minPeople[0],available=step5Allocation(f).remaining[def.base];
     if(available<required)continue;
     if(def.base==='production'&&step6AIFreeProduction(f,s)<required)continue;
-    const postCash=cash-localFromBase(c.unlock.openingEstimateBase,f.country);
-    const nextMaintenance=localFromBase(Math.round((def.cost.monthlyBase+required*12)*eraCostFactor(s.year)),f.country);
+    const postCash=cash-localFromBase(c.unlock.openingEstimateBase,f.country,s);
+    const nextMaintenance=localFromBase(Math.round((def.cost.monthlyBase+required*12)*eraCostFactor(s.year)),f.country,s);
     if(postCash<reserve+6*nextMaintenance)continue;
     step5OpenDepartment(f,s,def.id); // identical actual cost/requirements to player
     ai.lastActionMonth=now;ai.lastAction='設立 '+def.name;
@@ -11469,7 +11470,7 @@ function step6AIReviewTraining(f,s){
     const r=allocation.byId[d.id];
     if(!r||r.state==='dormant'||d.skill>=72)continue;
     if(d.trainingBudgetBase>0)continue; // Never override an existing policy.
-    const affordableBase=Math.floor(baseFromLocal(freeCash,f.country)/100/Math.max(1,eraCostFactor(s.year))*.002);
+    const affordableBase=Math.floor(baseFromLocal(freeCash,f.country,s)/100/Math.max(1,eraCostFactor(s.year))*.002);
     const training=Math.max(0,Math.min(2000,affordableBase));
     if(training>=100)step5SetTraining(f,d.id,training);
   }
@@ -12033,9 +12034,26 @@ const WORLD_MODERN_INDEPENDENT_CURRENCIES=Object.freeze({
  AU:'CUR-AUD',MX:'CUR-MXN',BR:'CUR-BRL',AR:'CUR-ARS',CN:'CUR-CNY',
  RU:'CUR-RUB',TR:'CUR-TRY',MA:'CUR-MAD',VN:'CUR-VND',IR:'CUR-IRR'
 });
+const WORLD_EURO_MEMBERS=Object.freeze(['FR','DE','IE','LU','NL','BE','IT','ES','PT','AT','GR']);
+const WORLD_MODERN_CURRENCIES=Object.freeze({
+ ...WORLD_ENGINE_CURRENCIES,...WORLD_MODERN_INDEPENDENT_CURRENCIES,
+ ...Object.fromEntries(WORLD_EURO_MEMBERS.map(code=>[code,'CUR-EUR'])),
+ NZ:'CUR-NZD',ZA:'CUR-ZAR',SG:'CUR-SGD',MY:'CUR-MYR',ID:'CUR-IDR',NG:'CUR-NGN',KR:'CUR-KRW',KE:'CUR-KES'
+});
+function worldUsesModernCurrency(s){
+ return s?.worldExpansion?.modernCurrencyVersion===1||s?._modernCurrencyInitialization===true;
+}
+function worldReferenceFx(code,s=S){
+ if(worldUsesModernCurrency(s)){
+  if(WORLD_EURO_MEMBERS.includes(code))return COUNTRIES.FR.fx;
+  if(code==='SA')return COUNTRIES.US.fx/3.75;
+ }
+ return COUNTRIES[code].fx;
+}
 function worldLedgerCurrencyId(s,code){
- return (s?.worldExpansion?.modernIndependentCurrencyVersion===1
-  ?WORLD_MODERN_INDEPENDENT_CURRENCIES[code]:null)??WORLD_ENGINE_CURRENCIES[code];
+ return worldUsesModernCurrency(s)?WORLD_MODERN_CURRENCIES[code]:
+  ((s?.worldExpansion?.modernIndependentCurrencyVersion===1
+    ?WORLD_MODERN_INDEPENDENT_CURRENCIES[code]:null)??WORLD_ENGINE_CURRENCIES[code]);
 }
 // Sourced monetary units are references, NOT the simulated bookkeeping
 // denomination. Changing a company ledger without translating every journal,
@@ -12111,7 +12129,7 @@ function worldLedgerCurrencyNotice(s,firm){
   +'" target="_blank" rel="noopener noreferrer">通貨史料</a></p>';
 }
 const WORLD_CURRENCIES=new Set([...Object.values(WORLD_ENGINE_CURRENCIES),
- ...Object.values(WORLD_MODERN_INDEPENDENT_CURRENCIES),
+ ...Object.values(WORLD_MODERN_CURRENCIES),
  ...Object.values(WORLD_TERRITORY_MONETARY_REFERENCES).flatMap(entries=>entries.map(row=>row[1]))]);
 const WORLD_JURISDICTIONS=new Map([
  ['JUR-UK',{name:'イギリス',currencyId:'CUR-GBP'}],
@@ -12196,6 +12214,12 @@ function worldHistoryThrough(month,registryVersion){
  return WORLD_EVENTS.filter(event=>event.month<=month&&(event.registryVersion??0)<=registryVersion);
 }
 function worldMatchLedgerCurrencyRates(s){
+ if(worldUsesModernCurrency(s)){
+  for(const [code,w] of Object.entries(s.world))w.currency=WORLD_MODERN_CURRENCIES[code].slice(4);
+  for(const code of WORLD_EURO_MEMBERS)if(s.world[code])s.world[code].fx=s.world.FR.fx;
+  if(s.world.SA)s.world.SA.fx=s.world.US.fx/3.75;
+  return;
+ }
  if(s.worldExpansion?.modernIndependentCurrencyVersion===1){
   for(const [code,id] of Object.entries(WORLD_MODERN_INDEPENDENT_CURRENCIES))
    if(s.world[code])s.world[code].currency=id.slice(4);
@@ -12304,20 +12328,21 @@ function worldCityLocation(s,cityId){
  const version=s.worldExpansion.marketRegistryVersion??0;
  const economicEngineConnected=!!code&&(WORLD_MARKET_ONBOARDING[code]?.introducedIn??0)<=version;
  return {cityId,territoryId:territory.id,marketId:market.id,jurisdictionId,
-  historicalMoney,economicEngineConnected,
+  historicalMoney,economicEngineConnected,ledgerCurrencyId:code?worldLedgerCurrencyId(s,code):null,
   marketOpen:s.worldExpansion.openMarkets[market.id]!==null&&jurisdictionId!=null
     &&economicEngineConnected&&Object.hasOwn(s.world,code)};
 }
 
-function newWorldGame(setup){
+function newWorldGame(setup,legacyCurrency=false){
  validateWorldCatalog();
- const state=newGame({...setup,era:1900,difficulty:'normal',history:'historical',scenario:'world'});
+ const state=newGame({...setup,era:1900,difficulty:'normal',history:'historical',scenario:'world'},!legacyCurrency);
  state.worldExpansion=makeWorldExpansion();
  state.worldExpansion.uniformDutyFromSeq=1;
  state.worldExpansion.freightRateFromSeq=1;
  // Existing saves keep their booked exchange-rate histories. New games share the EUR rate.
  state.worldExpansion.euroFxUnified=true;
- state.worldExpansion.modernIndependentCurrencyVersion=1;
+ if(!legacyCurrency){state.worldExpansion.modernIndependentCurrencyVersion=1;state.worldExpansion.modernCurrencyVersion=1;}
+ delete state._modernCurrencyInitialization;
  state.worldExpansion.routeDistanceVersion=1;
  applyWorldHistory(state);syncWorldIdentities(state);validateWorldExpansion(state);
  return state;
@@ -12439,10 +12464,16 @@ function validateWorldExpansion(s){
  if(Object.hasOwn(world,'freightRateFromSeq')&&(!Number.isSafeInteger(world.freightRateFromSeq)
   ||world.freightRateFromSeq<1||world.freightRateFromSeq>s.seq))throw Error('方式別運賃の適用開始が不正');
  if(Object.hasOwn(world,'routeDistanceVersion')&&world.routeDistanceVersion!==1)throw Error('路線距離の版が不正');
+ if(Object.hasOwn(world,'modernCurrencyVersion')&&world.modernCurrencyVersion!==1)throw Error('現代通貨制度の版が不正');
+ if(worldUsesModernCurrency(s)){
+  for(const [code,w] of Object.entries(s.world))if(w.currency!==WORLD_MODERN_CURRENCIES[code]?.slice(4)||!Number.isFinite(w.fx)||w.fx<=0)throw Error('現代通貨・為替が不正：'+code);
+  if(WORLD_EURO_MEMBERS.some(code=>s.world[code]&&s.world[code].fx!==s.world.FR.fx))throw Error('共通EUR為替が一致しません');
+  if(s.world.SA&&s.world.SA.fx!==s.world.US.fx/3.75)throw Error('SARのUSD連動為替が不正');
+ }
  if(Object.hasOwn(world,'modernIndependentCurrencyVersion')&&world.modernIndependentCurrencyVersion!==1)throw Error('現代通貨制度の版が不正');
- if(world.modernIndependentCurrencyVersion===1&&Object.entries(WORLD_MODERN_INDEPENDENT_CURRENCIES).some(([code,id])=>s.world[code]&&s.world[code].currency!==id.slice(4)))throw Error('現代帳簿通貨が一致しません');
+ if(!worldUsesModernCurrency(s)&&world.modernIndependentCurrencyVersion===1&&Object.entries(WORLD_MODERN_INDEPENDENT_CURRENCIES).some(([code,id])=>s.world[code]&&s.world[code].currency!==id.slice(4)))throw Error('現代帳簿通貨が一致しません');
  if(Object.hasOwn(world,'euroFxUnified')&&world.euroFxUnified!==true)throw Error('EUR為替制度の識別が不正');
- if(world.euroFxUnified&&['FR','DE','IE','LU'].some(code=>s.world[code]&&
+ if(!worldUsesModernCurrency(s)&&world.euroFxUnified&&['FR','DE','IE','LU'].some(code=>s.world[code]&&
   (s.world[code].currency!=='EUR'||s.world[code].fx!==s.world.FR?.fx)))throw Error('共通EURの帳簿為替が一致しません');
  const expected=makeWorldExpansion(registryVersion);
  for(const event of worldHistoryThrough(ym(s.year,s.month),registryVersion))recordWorldEvent(expected,event);
@@ -12483,7 +12514,7 @@ function validateWorldExpansion(s){
  if(Object.keys(s.world??{}).length!==playableCodes.length||playableCodes.some(code=>s.world[code]?.code!==code)){
   throw Error('開放済み市場と動作中の経済市場が一致しません');
  }
- for(const [code,{ledgerFxReference,pegFxReference,pegFxScale}] of Object.entries(WORLD_MARKET_ONBOARDING)){
+ if(!worldUsesModernCurrency(s))for(const [code,{ledgerFxReference,pegFxReference,pegFxScale}] of Object.entries(WORLD_MARKET_ONBOARDING)){
   const reference=ledgerFxReference??pegFxReference;
   if(reference&&s.world[code]&&s.world[reference]
    &&s.world[code].fx!==s.world[reference].fx*(pegFxScale??1))
@@ -12530,7 +12561,7 @@ function worldPhase3ConsumerQuoteForEngine(s,market,productId,code){
  if(!recipe)throw Error('消費財レシピが存在しません：'+productId);
  const available=s.year>=Math.max(recipe.year,TECH_BY_ID[recipe.tech]?.year??recipe.year);
  const price=available?Math.max(1,Math.round(
-  localFromBase(recipe.cost*eraCostFactor(s.year),code)*
+  localFromBase(recipe.cost*eraCostFactor(s.year),code,s)*
   (1.25+clamp(w.inflation??0,-.2,.3)*.4+clamp(w.cycle??0,-.3,.3)*.2))):0;
  const quantity=available?Math.max(0,Math.round(
   Math.max(0,w.pop)*100*Math.max(.1,w.wealth)*
@@ -12736,7 +12767,7 @@ function produceWorldWire(s,events){
   if(firm.reorgStatus==='integrated'||firm.lifecycle?.phase==='withdrawn'||firm.distress?.stage>=3
       ||!firm.plants.some(plant=>plant.wirePlan>0))continue;
   const labor=factoryLaborPlanV026(firm).byId;
-  const unitCost=Math.max(1,localFromBase(recipe.baseCostPerUnit*eraCostFactor(s.year),firm.country));
+  const unitCost=Math.max(1,localFromBase(recipe.baseCostPerUnit*eraCostFactor(s.year),firm.country,s));
   for(const plant of activeFactories(firm)){
    // Pilot takes an idle factory only. Component lines and vehicle manufacture
    // already draw from the same installed capacity and assigned labor.
@@ -13938,7 +13969,7 @@ function worldRegionalSupplyUsage(w){
  return used;
 }
 const worldRegionalSupplyOpen=(offer,month)=>month>=offer.opensAt&&(offer.closesAt==null||month<offer.closesAt);
-const worldRegionalSupplyPrice=(offer,year,country)=>Math.max(1,localFromBase(offer.priceBase*eraCostFactor(year),country));
+const worldRegionalSupplyPrice=(offer,year,country,s=S)=>Math.max(1,localFromBase(offer.priceBase*eraCostFactor(year),country,s));
 function worldBuyRegionalSupply(s,actorId,plantId,supplyId,quantity){
  const w=s.worldExpansion,offer=worldDomesticProfile(WORLD_REGIONAL_SUPPLY,supplyId),
   buyer=company(actorId,s),plant=buyer?.plants.find(p=>p.id===plantId),month=ym(s.year,s.month);
@@ -13951,7 +13982,7 @@ function worldBuyRegionalSupply(s,actorId,plantId,supplyId,quantity){
  if(quantity>remaining)throw Error('史料付き仕入枠の残量が不足しています');
  const stock=buyer.stock[offer.productId],room=Math.floor(plant.capacity*10)-(stock?.q??0);
  if(quantity>room)throw Error('現物を受け入れる保管容量が不足しています');
- const unitPrice=worldRegionalSupplyPrice(offer,s.year,buyer.country),amount=quantity*unitPrice;
+ const unitPrice=worldRegionalSupplyPrice(offer,s.year,buyer.country,s),amount=quantity*unitPrice;
  if(!Number.isSafeInteger(amount)||acc(buyer,'cash')<amount)throw Error('仕入に必要な現預金が不足しています');
  const journal=s.seq;
  post(buyer,{materials:amount},{cash:amount},'地域の現物仕入・'+offer.name,'operating',s);
@@ -13977,7 +14008,7 @@ function worldValidateRegionalSupplies(s){
    ||t.productId!==offer.productId||t.siteId!==offer.siteId||typeof t.plantId!=='string'
    ||!Number.isSafeInteger(t.month)||t.month<lastMonth||t.month>month||!worldRegionalSupplyOpen(offer,t.month)
    ||!Number.isSafeInteger(t.quantity)||t.quantity<1||sum>offer.quantity
-   ||t.unitPrice!==worldRegionalSupplyPrice(offer,Math.floor(t.month/12),buyer.country)
+   ||t.unitPrice!==worldRegionalSupplyPrice(offer,Math.floor(t.month/12),buyer.country,s)
    ||t.amount!==t.unitPrice*t.quantity||!Number.isSafeInteger(t.amount))
    throw Error('地域仕入の数量・取得原価・参照が不正です：'+t?.id);
   if(!journals.has(buyer.id))journals.set(buyer.id,new Map(buyer.journals.map(j=>[j.id,j])));
@@ -14240,7 +14271,7 @@ function worldTelephoneCashPairs(s){
  }));
 }
 function worldTelephoneFee(s){
- return Math.max(1,localFromBase(WORLD_TELEPHONE_PROFILE.priceBase*eraCostFactor(s.year),'JP'));
+ return Math.max(1,localFromBase(WORLD_TELEPHONE_PROFILE.priceBase*eraCostFactor(s.year),'JP',s));
 }
 function worldTelephonePower(s,exchange,provider){
  const budget=s.worldExpansion.powerAllocations?.[exchange.plantId],month=ym(s.year,s.month);
@@ -14303,7 +14334,7 @@ function worldInstallMedicalClinic(s,providerId,plantId,workers){
  return clinic;
 }
 function worldMedicalFee(s){
- return Math.max(1,localFromBase(WORLD_MEDICAL_PROFILE.feeBase*eraCostFactor(s.year),'JP'));
+ return Math.max(1,localFromBase(WORLD_MEDICAL_PROFILE.feeBase*eraCostFactor(s.year),'JP',s));
 }
 function worldMedicalOpenSlots(s,clinic,includeReservations=false){
  const provider=company(clinic?.ownerCompanyId,s),month=ym(s.year,s.month),
@@ -14474,8 +14505,8 @@ function worldStartStorageService(s,clientId,plantId,warehouseId,productId,quant
  (w.storageServices??=[]).push(record);
  return record;
 }
-function worldPassengerFare(route,year,country){
- return Math.max(1,localFromBase(route.fareBase*eraCostFactor(year),country));
+function worldPassengerFare(route,year,country,s=S){
+ return Math.max(1,localFromBase(route.fareBase*eraCostFactor(year),country,s));
 }
 function worldPassengerAvailability(w,firm,routeId,month){
  let occupied=0,reservedStaff=0;
@@ -14497,7 +14528,7 @@ function worldBookPassengerTrip(s,firmId,routeId,fromPlantId,toPlantId,passenger
   throw Error('運行年代と両都市の自社稼働拠点を確認してください');
  if(!Number.isSafeInteger(passengers)||passengers<1||passengers>worldPassengerAvailability(w,firm,routeId,month))
   throw Error('営業・管理部門の出張可能人数または予約枠を超えています');
- const fare=passengers*worldPassengerFare(route,s.year,firm.country),journal=s.seq;
+ const fare=passengers*worldPassengerFare(route,s.year,firm.country,s),journal=s.seq;
  if(!Number.isSafeInteger(fare)||acc(firm,'cash')<fare)throw Error('運賃を支払う現金が不足しています');
  post(firm,{worldTravelAdvance:fare},{cash:fare},'営業・管理部門の鉄道出張前払','operating',s);
  const trip={id:'WTR-'+s.seq++,firmId,routeId,fromPlantId,toPlantId,passengers,fare,month,
@@ -14644,13 +14675,13 @@ function worldDomesticRemainingCapacity(cargo){
 }
 // SPEC-157: modeled base-yen rates per equivalent kg-km, not historical tariffs.
 const WORLD_FREIGHT_RATE=Object.freeze({rail:0.15,road:0.30,sea:0.025,air:0.90,'road+rail-shuttle':0.35});
-function worldFreightCharge(profile,load,country){
+function worldFreightCharge(profile,load,country,s=S){
  const base=profile.transfer
   ?WORLD_DOMESTIC_CORRIDORS[profile.transfer.railId].km*WORLD_FREIGHT_RATE.rail
    +(profile.seaDistanceKm??WORLD_INTERNATIONAL_CORRIDORS[profile.transfer.seaId].distanceKm)*WORLD_FREIGHT_RATE.sea
   :(profile.km??profile.distanceKm)*WORLD_FREIGHT_RATE[profile.mode];
  if(!Number.isFinite(base)||base<=0||!Number.isSafeInteger(load)||load<1)throw Error('距離・輸送方式・換算負荷が不正');
- return Math.max(1,localFromBase(base*load,country));
+ return Math.max(1,localFromBase(base*load,country,s));
 }
 function worldDomesticFuelCost(t){return t.fuelBookCost??t.freightCost;}
 function worldDomesticSale(t){return t.amount+(t.fuelBookCost!==undefined?t.freightCost:0);}
@@ -14661,7 +14692,7 @@ function worldInternationalSale(t){return t.goodsSeller+(t.freightSeller??0);}
 function worldInternationalMargin(t){return worldInternationalSale(t)-t.bookCost-(t.freightSeller===undefined?0:t.fuelCost);}
 function worldInternationalReceiptCredits(t){return t.freightSeller===undefined
  ?{sales:t.goodsSeller,otherExpense:t.fuelCost}:{sales:worldInternationalSale(t)};}
-function worldDomesticQuote(cargo,quantity,unitPrice){
+function worldDomesticQuote(cargo,quantity,unitPrice,s=S){
  const {route,seller,buyer,profile,productId}=cargo;
  const fuelId=profile?.fuel??'PRD-R04',fuelRequired=worldDomesticFreightUnits(route,quantity),
   stock=seller.stock?.[productId],fuel=seller.stock?.[fuelId],shared=productId===fuelId;
@@ -14671,7 +14702,7 @@ function worldDomesticQuote(cargo,quantity,unitPrice){
  const bookCost=Math.round(stock.v*quantity/stock.q);
  const fuelBookCost=Math.round((fuel.v-(shared?bookCost:0))*fuelRequired/(fuel.q-(shared?quantity:0)));
  const priced=profile&&cargo.w.freightRateFromSeq!==undefined;
- const freight=priced?worldFreightCharge(profile,quantity,seller.country):fuelBookCost;
+ const freight=priced?worldFreightCharge(profile,quantity,seller.country,s):fuelBookCost;
  const amount=quantity*unitPrice,prepay=amount+freight;
  if(!Number.isSafeInteger(amount)||!Number.isSafeInteger(prepay)||bookCost<1||fuelBookCost<1||freight<1
   ||acc(buyer,'cash')<prepay||acc(seller,'materials')<bookCost+fuelBookCost)
@@ -14688,7 +14719,7 @@ function worldDispatchDomesticShipment(s,routeId,sellerId,sellerPlantId,buyerId,
  const capacity=worldDomesticRemainingCapacity(cargo);
  if(quantity>capacity.storage)throw Error('受入倉庫の引当済み容量を超えています');
  if(quantity>capacity.transport)throw Error('当月の物理運搬容量が不足しています');
- const quote=worldDomesticQuote(cargo,quantity,unitPrice);
+ const quote=worldDomesticQuote(cargo,quantity,unitPrice,s);
  if(quote.problem)throw Error(quote.problem);
  return worldPostDomesticShipment(s,cargo,quote);
 }
@@ -14794,7 +14825,7 @@ function worldResolveDomesticOrders(s,events=[]){
   const protectedFuel=auto?(productId===fuelId?protectedCargo:worldDomesticPlannedInput(s,seller,fuelId)):0;
   const limit=Math.min(requestedQty,10,storage,transport,(seller.stock[productId]?.q??0)-protectedCargo);
   for(let quantity=limit;quantity>=1;quantity--){
-   const quote=worldDomesticQuote(cargo,quantity,unitPrice);
+   const quote=worldDomesticQuote(cargo,quantity,unitPrice,s);
    if(quote.problem||quote.freight>maxFreight)continue;
    if(auto&&(quote.amount<quote.bookCost
      ||(seller.stock[fuelId]?.q??0)-quote.fuelRequired-(productId===fuelId?quantity:0)<protectedFuel))continue;
@@ -15479,7 +15510,8 @@ function worldInternationalCustomsRule(s,profileId,productId,importMonth,dispatc
  if(dispatchSequence>=s.worldExpansion.uniformDutyFromSeq){
   // Historical sources still govern the documented inspection, not the game tax rate.
   const {centsPerHundredweight,annualQuotaKg,laterImportDuty,...inspection}=rule;
-  return {...inspection,uniformCountryDuty:true,tariffBps:WORLD_PHASE4_TARIFF_BPS[findSite(WORLD_INTERNATIONAL_CORRIDORS[profileId].to).country]};
+  const country=findSite(WORLD_INTERNATIONAL_CORRIDORS[profileId].to).country;
+  return {...inspection,currencyId:worldUsesModernCurrency(s)?worldLedgerCurrencyId(s,country):inspection.currencyId,uniformCountryDuty:true,tariffBps:WORLD_PHASE4_TARIFF_BPS[country]};
  }
  if(rule.centsPerHundredweight!=null&&!(dispatchSequence>=s.worldExpansion.weightDutyFromSeq))return null;
  return rule;
@@ -15536,7 +15568,7 @@ function worldInternationalQuote(s,route,productId,quantity,unitPriceSeller,buye
   ?Math.round((cargo.v-bookCost)*fuelRequired/(cargo.q-quantity))
   :Math.round(fuel.v*fuelRequired/fuel.q);
  const priced=s.seq>=s.worldExpansion.freightRateFromSeq;
- const freightSeller=priced?worldFreightCharge(profile,load.loadKg,seller.country):fuelCost;
+ const freightSeller=priced?worldFreightCharge(profile,load.loadKg,seller.country,s):fuelCost;
  const goodsSeller=quantity*unitPriceSeller,prepaidSeller=goodsSeller+freightSeller;
  const sellerRate=Math.round(s.world[seller.country].fx*100000),
   buyerRate=Math.round(s.world[buyer.country].fx*100000);
@@ -15825,7 +15857,7 @@ function worldInternationalConsolidationAdjustments(s,ids,insidePeriod,shares){
    fromJournal:t.journals.terminal,toJournal:t.journals.terminal+2
   })).map(t=>[t.id,t]));
  let sales=0,retained=0,spotRetained=0,nci=0,spotNci=0;
- for(const t of eligible.values())sales+=baseFromLocal(worldInternationalSale(t),company(t.sellerId,s).country);
+ for(const t of eligible.values())sales+=baseFromLocal(worldInternationalSale(t),company(t.sellerId,s).country,s);
  if(!eligible.size)return {sales,retained,spotRetained,nci,spotNci,eligible};
  const domestic=new Map((w?.domesticShipments??[]).map(t=>[t.id,t]));
  for(const h of worldInternationalCostHoldings(s)){
@@ -15837,7 +15869,7 @@ function worldInternationalConsolidationAdjustments(s,ids,insidePeriod,shares){
     const shipment=domestic.get(id);
     return !!shipment&&ids.has(shipment.sellerId)&&ids.has(shipment.buyerId);
    }))continue;
-   const seller=company(origin.sellerId,s),base=baseFromLocal(value,seller.country);
+   const seller=company(origin.sellerId,s),base=baseFromLocal(value,seller.country,s);
    retained+=base;spotRetained+=Math.round(value*balanceFxRate(s,seller));
    nci+=base*(1-(shares[origin.sellerId]??0));
    spotNci+=Math.round(value*balanceFxRate(s,seller)*(1-(shares[origin.sellerId]??0)));
@@ -16007,7 +16039,7 @@ function worldValidateInternationalLogistics(s){
    ||(load.cargoLitres>0&&t.loadKg===undefined)
    ||t.fuelRequired!==worldInternationalFuelRequired(profile,load.loadKg)
    ||((t.journals?.dispatch>=w.freightRateFromSeq)!==Object.hasOwn(t,'freightSeller'))
-   ||(t.freightSeller!==undefined&&t.freightSeller!==worldFreightCharge(profile,load.loadKg,seller.country))
+   ||(t.freightSeller!==undefined&&t.freightSeller!==worldFreightCharge(profile,load.loadKg,seller.country,s))
    ||t.prepaidSeller!==t.goodsSeller+(t.freightSeller??t.fuelCost)
    ||!Number.isSafeInteger(t.sellerRate)||t.sellerRate<1
    ||!Number.isSafeInteger(t.buyerRate)||t.buyerRate<1
@@ -16076,7 +16108,8 @@ function worldValidateInternationalLogistics(s){
    const sent=remittance?.sentAt!==null;
    const returned=remittance?.returnedAt!==null;
    if(!remittance||remittance.bankId!==bank.id||remittance.currencyId!==bank.currencyId
-    ||remittance.principal!==t.prepaidBuyer||t.prepaidBuyer!==t.prepaidSeller||t.buyerRate!==t.sellerRate
+    ||remittance.principal!==t.prepaidBuyer
+    ||(worldUsesModernCurrency(s)?remittance.currencyId!==worldLedgerCurrencyId(s,buyer.country):t.prepaidBuyer!==t.prepaidSeller||t.buyerRate!==t.sellerRate)
     ||(sent?(!Number.isSafeInteger(remittance.sentAt)||remittance.sentAt<credit.dueMonth
        ||remittance.sentAt>month||!Number.isSafeInteger(remittance.sentJournal)||remittance.sentJournal<=seq)
       :remittance.sentJournal!==null)
@@ -16357,7 +16390,7 @@ function worldPlanDomesticPurchases(s,events=[]){
      if(!Number.isSafeInteger(unitPrice)||unitPrice<1||unitPrice>10000000)continue;
      const cap=Math.min(missing,stock.q,Math.floor(route.capacityQty*(route.condition??100)/100),cargo.receiving.capacity);
      for(let quantity=cap;quantity>=1;quantity--){
-      const quote=worldDomesticQuote(cargo,quantity,unitPrice);
+      const quote=worldDomesticQuote(cargo,quantity,unitPrice,s);
       if(quote.problem||quote.prepay>budget||quote.freight>100000000)continue;
       const order=worldQueueDomesticOrder(s,cargo,quantity,unitPrice,quote.freight,'AI');
       budget-=quote.prepay;missing-=quantity;
@@ -16616,7 +16649,7 @@ function worldDomesticCostAdjustments(s,ids,insidePeriod,shares){
    yearMonth:t.receivedAt??t.month??t.when,fromJournal:sale?.sellerJournal??t.sellerJournal,
    toJournal:sale?.buyerJournal??t.buyerJournal}))continue;
   included.add(id);
-  if(sale)totals.sales+=baseFromLocal(worldDomesticSale(t),company(seller,s).country);
+  if(sale)totals.sales+=baseFromLocal(worldDomesticSale(t),company(seller,s).country,s);
  }
  if(!included.size)return totals;
  for(const h of worldDomesticCostHoldings(s)){
@@ -16624,7 +16657,7 @@ function worldDomesticCostAdjustments(s,ids,insidePeriod,shares){
   for(const [path,value] of Object.entries(h.layers)){
    const chain=path.split('|');
    if(!chain.every(id=>included.has(id)))continue;
-   const source=edges.get(chain[0]),base=baseFromLocal(value,company(source.sellerId,s).country);
+   const source=edges.get(chain[0]),base=baseFromLocal(value,company(source.sellerId,s).country,s);
    totals.retained+=base;
    totals.nci+=base*(1-(shares[source.sellerId]??0));
   }
@@ -16885,7 +16918,7 @@ function worldValidatePassengerTrips(s){
    ||typeof trip.fromPlantId!=='string'||typeof trip.toPlantId!=='string'||trip.fromPlantId===trip.toPlantId
    ||!Number.isSafeInteger(trip.month)||trip.month<route.opensAt||trip.month>month
    ||!Number.isSafeInteger(trip.passengers)||trip.passengers<1||trip.passengers>route.seats
-   ||trip.fare!==trip.passengers*worldPassengerFare(route,Math.floor(trip.month/12),firm.country)
+   ||trip.fare!==trip.passengers*worldPassengerFare(route,Math.floor(trip.month/12),firm.country,s)
    ||!matches(firm,trip.journal,trip.month,trip.fare,'worldTravelAdvance','cash'))
    throw Error('鉄道出張の予約・運行年代・運賃が不正です：'+trip?.id);
   if(trip.status!=='REFUNDED'){
@@ -17056,7 +17089,7 @@ function worldValidateDomesticLogistics(s){
    ||!Number.isSafeInteger(t.freightCost)||t.freightCost<1
    ||((!!route.profileId&&Number(t.id.slice(3))>=w.freightRateFromSeq)!==Object.hasOwn(t,'fuelBookCost'))
    ||(t.fuelBookCost!==undefined&&(!Number.isSafeInteger(t.fuelBookCost)||t.fuelBookCost<1
-    ||t.freightCost!==worldFreightCharge(WORLD_DOMESTIC_CORRIDORS[route.profileId],t.quantity,seller.country)))
+    ||t.freightCost!==worldFreightCharge(WORLD_DOMESTIC_CORRIDORS[route.profileId],t.quantity,seller.country,s)))
    ||t.prepaid!==t.amount+t.freightCost
    ||!Number.isSafeInteger(t.bookCost)||t.bookCost<1
    ||!Number.isSafeInteger(t.dispatchedAt)||t.dispatchedAt<route.installedAt
@@ -17152,7 +17185,7 @@ function worldValidateTrainingServices(s){
    ||!Number.isSafeInteger(t.month)||t.month<WORLD_START_MONTH||t.month>ym(s.year,s.month)
    ||!Number.isSafeInteger(t.trainees)||t.trainees<1||t.trainees>ENGINEERING_MAX_STAFF
    ||!Number.isFinite(t.before)||t.before<0||t.before>=100||!Number.isSafeInteger(t.amount)||t.amount<1
-   ||t.after!==Math.min(100,t.before+Math.min(2,Math.sqrt(baseFromLocal(t.amount,firm.country)/100/t.trainees/100))))
+   ||t.after!==Math.min(100,t.before+Math.min(2,Math.sqrt(baseFromLocal(t.amount,firm.country,s)/100/t.trainees/100))))
    throw Error('技能教育サービスの人員・技能・費用が不正：'+t?.id);
   if(!journals.has(firm.id))journals.set(firm.id,new Map(firm.journals.map(j=>[j.id,j])));
   const j=journals.get(firm.id).get(t.journal);
@@ -17245,7 +17278,7 @@ function produceWorldSupplemental(state,events){
    if(recipe.equipment&&!tool)continue;
    const capacity=Math.floor(plant.capacity*Math.min(plant.condition,tool?.condition??100)/100);
    const people=labor[plant.id]?.assigned??0;
-   const conversion=Math.max(1,localFromBase(recipe.cost*eraCostFactor(state.year),firm.country));
+   const conversion=Math.max(1,localFromBase(recipe.cost*eraCostFactor(state.year),firm.country,state));
    let quantity=Math.min(plan.quantity,capacity,people,Math.floor(acc(firm,'cash')/conversion));
    if(recipe.powerKwh)quantity=Math.min(quantity,Math.floor(worldPowerAvailable(state,plant.id)/recipe.powerKwh));
    for(const [input,amount] of recipe.inputs){

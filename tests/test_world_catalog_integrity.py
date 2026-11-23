@@ -110,7 +110,7 @@ def main():
           const later=worldCityLocation(state,'CITY-01-04');
           const portugalRepublic=worldCityLocation(state,'CITY-05-03').jurisdictionId
             ==='JUR-PT-REPUBLIC'&&worldCityLocation(state,'CITY-05-03').marketOpen
-            &&state.world.PT?.currency==='PTE'&&state.world.ES?.currency==='ESP'
+            &&state.world.PT?.currency==='EUR'&&state.world.ES?.currency==='EUR'
             &&state.worldExpansion.appliedEvents.some(e=>e.id==='HIST-PT-1910');
           const identityAfter=JSON.stringify([
             state.firms.map(f=>[f.id,f.owners,f.loans]),
@@ -130,6 +130,10 @@ def main():
           try{parsePayload(savePayload(badEuro))}catch{euroTamperRejected=true}
           const legacyEuro=structuredClone(state);
           delete legacyEuro.worldExpansion.euroFxUnified;
+          delete legacyEuro.worldExpansion.modernCurrencyVersion;
+          for(const [code,w] of Object.entries(legacyEuro.world))w.currency=worldLedgerCurrencyId(legacyEuro,code).slice(4);
+          syncWorldIdentities(legacyEuro);
+          worldMatchLedgerCurrencyRates(legacyEuro);
           legacyEuro.world.DE.fx+=1;legacyEuro.world.DE.currency='DEM';
           const legacyEuroSaved=parsePayload(savePayload(legacyEuro));
           const legacyEuroPreserved=legacyEuroSaved.world.DE.fx===legacyEuro.world.DE.fx
@@ -160,6 +164,9 @@ def main():
             &&modernFx.world.AU.fx!==state.world.AU.fx;
           const oldCurrency=structuredClone(state);
           delete oldCurrency.worldExpansion.modernIndependentCurrencyVersion;
+          delete oldCurrency.worldExpansion.modernCurrencyVersion;
+          for(const [code,w] of Object.entries(oldCurrency.world))w.currency=WORLD_ENGINE_CURRENCIES[code].slice(4);
+          worldMatchLedgerCurrencyRates(oldCurrency);
           for(const code of Object.keys(modernExpected)){
             oldCurrency.world[code].currency=WORLD_ENGINE_CURRENCIES[code].slice(4);
           }
@@ -171,6 +178,24 @@ def main():
           const badCurrency=structuredClone(state);badCurrency.world.AU.currency='AUP';
           try{parsePayload(savePayload(badCurrency));out.rejectModernCurrencyTamper=false}
           catch{out.rejectModernCurrencyTamper=true}
+          const modernFull=structuredClone(state);
+          modernFull.year=1935;modernFull.month=1;applyWorldHistory(modernFull);syncWorldIdentities(modernFull);
+          const expectedCurrency={FR:'EUR',DE:'EUR',NL:'EUR',BE:'EUR',IT:'EUR',ES:'EUR',PT:'EUR',AT:'EUR',GR:'EUR',IE:'EUR',LU:'EUR',NZ:'NZD',ZA:'ZAR',SG:'SGD',MY:'MYR',ID:'IDR',NG:'NGN',KR:'KRW',KE:'KES'};
+          out.modernFull=Object.keys(modernFull.world).length===46&&Object.entries(expectedCurrency).every(([code,id])=>modernFull.world[code]?.currency===id)
+            &&WORLD_EURO_MEMBERS.every(code=>modernFull.world[code].fx===modernFull.world.FR.fx&&localFromBase(155,code,modernFull)===100)
+            &&modernFull.world.SA.fx===modernFull.world.US.fx/3.75;
+          const modernFloating=structuredClone(modernFull);
+          modernFloating.world.UK.fx*=1.1;modernFloating.world.US.fx*=1.05;
+          modernFloating.world.FR.fx*=1.04;modernFloating.world.SG.fx*=1.02;
+          worldMatchLedgerCurrencyRates(modernFloating);
+          out.modernRegimes=modernFloating.world.NZ.fx===modernFull.world.NZ.fx
+            &&modernFloating.world.ZA.fx===modernFull.world.ZA.fx
+            &&modernFloating.world.NG.fx===modernFull.world.NG.fx
+            &&modernFloating.world.PH.fx===modernFull.world.PH.fx
+            &&modernFloating.world.MY.fx===modernFull.world.MY.fx
+            &&modernFloating.world.KR.fx===modernFull.world.KR.fx
+            &&modernFloating.world.SA.fx===modernFloating.world.US.fx/3.75
+            &&WORLD_EURO_MEMBERS.every(code=>modernFloating.world[code].fx===modernFloating.world.FR.fx);
           const restored=parsePayload(savePayload(state));
           // Version 16 saves remain legal inputs. Upgrading must not
           // rewrite firms, cash, ownership or historical pre-1910 events.
@@ -200,7 +225,7 @@ def main():
           const upgradePreservesLedger=oldAccepted
             &&upgraded.worldExpansion.marketRegistryVersion===WORLD_MARKET_REGISTRY_VERSION
             &&worldCityLocation(upgraded,'CITY-05-03').jurisdictionId==='JUR-PT-REPUBLIC'
-            &&upgraded.world.PT?.currency==='PTE'
+            &&upgraded.world.PT?.currency==='EUR'
             &&JSON.stringify(upgraded.firms.map(f=>[f.id,f.owners,f.journals,f.stock]))
               ===JSON.stringify(legacy.firms.map(f=>[f.id,f.owners,f.journals,f.stock]))
             &&check(upgraded).length===0;
