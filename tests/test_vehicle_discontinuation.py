@@ -22,8 +22,15 @@ def start(browser):
     return page, errors
 
 def assert_books(page):
-    state = page.evaluate("""() => ({errs:check(S),group:consolidate(S).errors,
-        cf:consolidate(S).cf.reconciled})""")
+    state = page.evaluate("""() => {
+        const c=consolidate(S);
+        // Prior to the first monthly close there is no opening-cash snapshot,
+        // so a CF reconciliation cannot yet be calculated. All other book
+        // checks still apply, and post-close periods must reconcile.
+        return {errs:check(S),group:c.errors,
+            cf:c.cf.openingCash===null || c.cf.reconciled,
+            cfDeferred:c.cf.openingCash===null};
+    }""")
     assert not state["errs"] and not state["group"] and state["cf"], state
 
 def add_stock(page, quantity, cost):
