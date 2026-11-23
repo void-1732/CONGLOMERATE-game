@@ -639,3 +639,13 @@ python -B tests/test_step13_120_months.py --era 1900 --world
 - 既存 `worldCityLocation` と `WORLD_JURISDICTIONS` を直接参照。史実通貨が `REFERENCE_ONLY` / `PARTIAL_TERRITORY_REFERENCE` の場合は明示し、現預金・売掛買掛・仕訳・契約を転換しない。ポルトガル等の未接続領域は法域情報を表示しても実企業の操業不可のままとする。
 - 都市に登録された既存法人の工場をSITE_CATALOGの都市対応IDから読み取り専用で表示。存在しない都市拠点・施設・資金を生成せず、未実装の全都市建設権限を装わない。
 - オフラインPlaywrightに東京のドロップダウン選択、SVGクリック・キーボード選択、ポルトガルの領域参照/未開放判定、画面操作によるセーブ対象状態の非変更を追加。CI/長期試験の実行結果は別途合否確定まで待機扱い。
+
+### Phase 4・5 倉庫の実効容量と都市からの設備操作（2026-11-23、日本時間）
+
+- 着手HEAD `e1629ba4297f9455e718527e66bb6e6f43fac3f7`。実装コミット `e35003770117ed85b1730e117117cd01d97ae7bc`。対象は `index.html`、`tests/test_world_catalog_integrity.py`、`tests/test_world_phase2g.py`、`tests/test_world_phase2l_services.py`、`tests/test_world_phase4_markets.py`、`tests/test_world_phase4_transshipment.py`、`tests/test_world_phase5_map.py`。
+- **Phase 4。** 国内の新規出荷・保管預託、国際積替え・受入、地図台帳の実効容量を `worldWarehouseEffectiveCapacity` に統一した。入庫引当後に劣化した倉庫に新規の過大引当をせず、既存引当は保存・復元後も検収可能。操業終了法人の国際倉庫設置を会計記帳前に拒否。ダブリンは市場所属・法域・史実通貨の参照を維持し、独立法域の工場・取引が未接続であることを都市明細で示す。
+- **Phase 4 Playwrightの復旧。** 年月を直接進める試験で月末と同じ歴史イベントを適用。フィリピン砂糖と朝鮮米の発注価格を試験の仕入簿価から算定し、サウジ米輸入の発注月を出荷終了前に修正。既存の市場・期間・簿価・会計・保存の判定を使用した。
+- **Phase 5。** Natural Earth 1:110mの海岸線を単一HTMLに収録。世界155都市と実台帳を参照し、鉄道・海運の横浜積替え、貨物の保税・船積み・検収予定月を表示。既存の登録立地から新設画面、支配下の工場から設備・保全に遷移する。都市点のポインター操作、キーボード操作後のフォーカス、他社の操作拒否を検証した。名古屋の工場を通常UIで建設し、工期後に休止・再開し、倉庫設備の資産化と保存復元を確認した。[Natural Earth](https://www.naturalearthdata.com/downloads/110m-physical-vectors/110m-land/)
+- **受入上の残件。** Phase 4は複合市場の各法域の実経済接続、年代別の実帳簿通貨移行、全市場の史料に基づく通関・上限・貿易金融、特殊貨物と多段積替えが未達。Phase 5は歴史的国境・路線の精密地理、全155都市の施設管理、全操作・長期試験の受入が未達。確定仕様台帳174項目・詳細設計v0.1/v1.0の原本とFigmaファイルは作業資料に見つからず、照合は既存の設計計画、史料付き定数、実装と受入試験を対象にした。Phase 6への着手は両Phaseの正式受入後。
+- **長期試験の途中経過。** 引継ぎHEADのローカル `python -B tests/test_step9_1200_months.py --era 1900 --world` で400か月まで確認。300か月のJSON復元・財務諸表照合および世界貨物・外部銀行のケースは合格。変更後の実行に切り替えるため旧HEADのローカル実行を終了した。GitHubの引継ぎ開発CI #45178632980 と1,200か月試験 #45178632965 は開始時点で待機。旧 #45175546278 はキャンセル済みで、旧 #45175546058 は待機。1,200か月の完走と最新HEADのActions合格は個別に追跡する。
+- **ローカル検証。** Development CI定義の35コマンドを実ブラウザ（Chromium）で完走。主要変更の倉庫引当・保管・国際積替えと最終の地図操作を個別にも再実行した。`tests/test_step10_37_pages.py` は1900年・2020年の37画面とIndexedDB復元に合格。`tests/test_fx_book_and_period_pl.py`、`tests/test_v029_trade.py`、`tests/test_autosave_retention.py` も合格。`tests/test_step13_120_months.py --era 1900 --world` は120か月、貸借・連結・CF・復元の検査に合格。終点は39法人・40工場、JSONは41,678,608バイト。ローカル合格とGitHub Actionsの合否は別々に判定する。
