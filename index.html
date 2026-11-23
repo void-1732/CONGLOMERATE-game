@@ -9385,14 +9385,14 @@ function worldSelectedCode(){return Object.hasOwn(S.world,VIEW_COUNTRY)?VIEW_COU
 // All gameplay capacity, distances, schedules and money stay in the existing ledgers.
 const WORLD_MAP_CITY_COORDS=Object.freeze({"MKT-01":[51.51,-0.13,53.48,-2.24,52.49,-1.89,53.35,-6.26],"MKT-02":[48.86,2.35,45.76,4.84,43.3,5.37,50.63,3.06],"MKT-03":[52.52,13.4,53.55,10,51.45,7,48.14,11.58],"MKT-04":[41.9,12.5,45.46,9.19,45.07,7.69,40.85,14.27],"MKT-05":[40.42,-3.7,41.39,2.17,38.72,-9.14,41.15,-8.61],"MKT-06":[55.76,37.62,59.94,30.31,55.03,82.92,43.12,131.89],"MKT-07":[52.23,21,50.06,19.94,51.76,19.46,54.35,18.65],"MKT-08":[52.37,4.9,51.92,4.48,50.85,4.35,49.61,6.13],"MKT-09":[46.95,7.45,47.37,8.54,46.2,6.14,47.56,7.59],"MKT-10":[59.33,18.06,57.71,11.97,55.61,13],"MKT-11":[59.91,10.75,60.39,5.32,63.43,10.4],"MKT-12":[48.21,16.37,47.07,15.44,48.31,14.29],"MKT-13":[44.79,20.45,37.98,23.73,45.81,15.98,41.33,19.82,43.85,18.41],"MKT-14":[35.68,139.76,34.69,135.5,35.18,136.9,34.69,135.2],"MKT-15":[39.9,116.4,31.23,121.47,23.13,113.26,30.6,114.3],"MKT-16":[28.61,77.21,19.08,72.88,22.57,88.36,13.08,80.27],"MKT-17":[37.57,126.98,35.18,129.07,37.46,126.7,35.87,128.6],"MKT-18":[-6.21,106.85,-7.26,112.75,-6.91,107.61,3.59,98.67],"MKT-19":[21.03,105.85,10.82,106.63,20.85,106.68,16.05,108.2],"MKT-20":[13.76,100.5,18.79,98.99,14.98,102.1],"MKT-21":[3.14,101.69,5.41,100.33,1.46,103.76],"MKT-22":[1.35,103.82,1.33,103.7,1.44,103.79],"MKT-23":[14.6,120.98,10.32,123.89,7.07,125.61,10.72,122.56],"MKT-24":[-33.87,151.21,-37.81,144.96,-27.47,153.03,-31.95,115.86],"MKT-25":[-36.85,174.76,-41.29,174.78,-43.53,172.63],"MKT-26":[38.91,-77.04,40.71,-74.01,41.88,-87.63,34.05,-118.24,29.76,-95.37],"MKT-27":[45.42,-75.7,43.65,-79.38,45.5,-73.57,49.28,-123.12],"MKT-28":[19.43,-99.13,25.69,-100.31,20.67,-103.35,19.17,-96.14],"MKT-29":[-22.91,-43.2,-23.55,-46.63,-12.98,-38.5,-30.03,-51.23],"MKT-30":[-34.6,-58.38,-31.42,-64.18,-32.95,-60.65,-32.89,-68.84],"MKT-31":[-33.45,-70.67,-33.05,-71.62,-36.82,-73.05,-23.65,-70.4],"MKT-32":[4.71,-74.07,6.24,-75.58,3.45,-76.53,10.4,-75.5],"MKT-33":[-25.75,28.19,-26.2,28.05,-33.92,18.42,-29.86,31.03],"MKT-34":[30.04,31.24,31.2,29.92,29.97,32.55,31.27,32.31],"MKT-35":[6.52,3.38,12,8.52,7.38,3.93,6.34,5.63],"MKT-36":[-1.29,36.82,-4.05,39.67,-0.09,34.76,-0.3,36.08],"MKT-37":[34.02,-6.84,33.57,-7.59,34.06,-4.98,35.78,-5.81],"MKT-38":[41.01,28.98,39.93,32.85,38.42,27.14,40.19,29.06],"MKT-39":[24.71,46.67,21.49,39.19,26.42,50.09,21.39,39.86],"MKT-40":[35.69,51.42,32.65,51.68,38.08,46.29,36.26,59.6]});
 const WORLD_MAP_EXTRA_SITES=Object.freeze({"DE-FRE":[48,7.85],"ES-BIL":[43.26,-2.93],"IR-BND":[27.19,56.28],"IT-GEN":[44.41,8.93],"JP-YOK":[35.45,139.64],"PL-GDY":[54.52,18.54],"UK-CDF":[51.48,-3.18],"UK-HULL":[53.74,-0.34],"UK-LIV":[53.4,-2.98],"UK-NORTHSHIELDS":[55.01,-1.45],"US-NEWORLEANS":[29.95,-90.07],"US-PHL":[39.95,-75.17],"US-SEA":[47.61,-122.33],"US-SFO":[37.77,-122.42]});
-let WORLD_MAP_TRANSPORT_MODE='all',WORLD_MAP_FOCUS='global';
+let WORLD_MAP_TRANSPORT_MODE='all',WORLD_MAP_FOCUS='global',WORLD_MAP_ACTIVITY='all',WORLD_MAP_SELECTED_ROUTE_ID=null;
 const WORLD_MAP_WIDTH=1152,WORLD_MAP_HEIGHT=594;
 function worldMapProject(lat,lon){
  if(!Number.isFinite(lat)||!Number.isFinite(lon)||lat>90||lat< -90||lon>180||lon< -180)
   throw Error('地図参照座標が範囲外');
  return {x:Math.round((lon+180)*3.2*10)/10,y:Math.round((90-lat)*3.3*10)/10};
 }
-function worldMapNetwork(){
+function worldMapNetwork(s=S){
  const cities=WORLD_MARKETS.flatMap(m=>{
   const loc=WORLD_MAP_CITY_COORDS[m.id];
   if(!loc||loc.length!==m.cities.length*2)throw Error('地図の都市座標が不足：'+m.id);
@@ -9411,16 +9411,16 @@ function worldMapNetwork(){
  const routes=[...Object.entries(WORLD_DOMESTIC_CORRIDORS).map(([id,p])=>({
   id,kind:'domestic',mode:p.mode,fromId:p.from,toId:p.to,
   name:p.name??id,opensAt:p.opensAt,distanceKm:p.km,capacityKg:p.capacity,
-  installed:Object.values(S?.worldExpansion?.domesticRoutes??{}).filter(x=>x.profileId===id).length,
-  shipments:(S?.worldExpansion?.domesticShipments??[]).filter(x=>S.worldExpansion.domesticRoutes?.[x.routeId]?.profileId===id&&x.status==='IN_TRANSIT').length,
-  available:!!S&&ym(S.year,S.month)>=p.opensAt
+  installed:Object.values(s?.worldExpansion?.domesticRoutes??{}).filter(x=>x.profileId===id&&x.retiredAt==null).length,
+  shipments:(s?.worldExpansion?.domesticShipments??[]).filter(x=>s.worldExpansion.domesticRoutes?.[x.routeId]?.profileId===id&&x.status==='IN_TRANSIT').length,
+  available:!!s&&ym(s.year,s.month)>=p.opensAt
  })),
  ...Object.entries(WORLD_INTERNATIONAL_CORRIDORS).map(([id,p])=>({
   id,kind:'international',mode:p.mode??'sea',fromId:p.from,toId:p.to,
   name:id,opensAt:p.opensAt,distanceKm:p.distanceKm,capacityKg:p.capacityKg,
-  installed:Object.values(S?.worldExpansion?.internationalRoutes??{}).filter(x=>x.profileId===id).length,
-  shipments:(S?.worldExpansion?.internationalShipments??[]).filter(x=>S.worldExpansion.internationalRoutes?.[x.routeId]?.profileId===id&&x.status==='IN_TRANSIT').length,
-  available:!!S&&worldInternationalRouteAvailable(S,id)
+  installed:Object.values(s?.worldExpansion?.internationalRoutes??{}).filter(x=>x.profileId===id&&x.retiredAt==null).length,
+  shipments:(s?.worldExpansion?.internationalShipments??[]).filter(x=>s.worldExpansion.internationalRoutes?.[x.routeId]?.profileId===id&&x.status==='IN_TRANSIT').length,
+  available:!!s&&worldInternationalRouteAvailable(s,id)
  }))];
  for(const r of routes){
   r.from=bySite.get(r.fromId);r.to=bySite.get(r.toId);
@@ -9432,7 +9432,8 @@ function worldMapNetwork(){
 function worldMapSvgLine(route){
  const a=route.from,b=route.to,color=route.mode==='rail'?'#eab75b':route.mode==='road'?'#e97373':
   route.mode==='air'?'#b998f7':route.mode==='rail+sea'?'#62d5c1':'#5da8ed';
- const opacity=route.available?'.84':'.22',dash=route.available?'':' stroke-dasharray="5 5"';
+ const selected=route.id===WORLD_MAP_SELECTED_ROUTE_ID;
+ const opacity=selected?'1':route.available?'.84':'.22',dash=route.available?'':' stroke-dasharray="5 5"';
  const segments=[];
  if(Math.abs(a.x-b.x)>WORLD_MAP_WIDTH/2){
   const east=a.x>b.x?a:b,west=a.x>b.x?b:a;
@@ -9440,9 +9441,9 @@ function worldMapSvgLine(route){
    edgeY=east.y+(west.y-east.y)*t;
   segments.push([east.x,east.y,WORLD_MAP_WIDTH,edgeY],[0,edgeY,west.x,west.y]);
  }else segments.push([a.x,a.y,b.x,b.y]);
- return '<g data-world-map-route="'+esc(route.id)+'" opacity="'+opacity+'">'
+ return '<g data-world-map-route="'+esc(route.id)+'"'+(selected?' data-world-map-selected-route="true"':'')+' opacity="'+opacity+'">'
   +segments.map(v=>'<line x1="'+v[0]+'" y1="'+v[1]+'" x2="'+v[2]+'" y2="'+v[3]
-  +'" stroke="'+color+'" stroke-width="'+(route.installed?2.7:1.3)+'"'+dash+'/>').join('')
+  +'" stroke="'+color+'" stroke-width="'+(selected?4:route.installed?2.7:1.3)+'"'+dash+'/>').join('')
   +'<title>'+esc(route.name)+' ('+esc(route.fromId)+' → '+esc(route.toId)+')</title></g>';
 }
 function worldMapSvg(nodes,routes){
@@ -9473,48 +9474,100 @@ function worldMapSvg(nodes,routes){
   +'<rect x="0" y="0" width="1152" height="594" fill="#102d45"/>'
   +grid+polygons+routes.map(worldMapSvgLine).join('')+circles+emphasized+'</svg>';
 }
+// The detail inspector joins real route assets and shipments by their ledger IDs.
+function worldMapRouteDetail(s,r){
+ if(!r)return '';
+ const w=s.worldExpansion,domestic=r.kind==='domestic',registry=domestic?w.domesticRoutes??{}:w.internationalRoutes??{};
+ const assets=Object.values(registry).filter(x=>x.profileId===r.id);
+ const shipments=(domestic?w.domesticShipments??[]:w.internationalShipments??[])
+  .filter(t=>registry[t.routeId]?.profileId===r.id);
+ const profile=domestic?WORLD_DOMESTIC_CORRIDORS[r.id]:WORLD_INTERNATIONAL_CORRIDORS[r.id];
+ const evidence=domestic?profile:WORLD_INTERNATIONAL_ROUTE_EVIDENCE[r.id];
+ const source=typeof evidence?.source==='string'?evidence.source:null;
+ const equipment=assets.map(x=>{
+  const owner=s.firms.find(f=>f.id===x.ownerCompanyId);
+  return '<tr><td><code>'+esc(x.id)+'</code></td><td>'+esc(owner?.name??x.ownerCompanyId)
+   +'</td><td>'+nfmt(x.condition??100)+'%</td><td>'+esc(x.retiredAt==null?'登録中':'廃止済み')+'</td></tr>';
+ }).join('');
+ const freight=shipments.slice(-20).map(t=>'<tr><td><code>'+esc(t.id)+'</code></td>'
+  +'<td>'+esc(t.productId)+'</td><td>'+nfmt(t.quantity)+' kg</td>'
+  +'<td>'+esc(t.status)+'</td><td>'+esc(t.routeId)+'</td></tr>').join('');
+ return '<section class="panel" aria-label="Phase 5 経路明細" data-world-map-detail="'+esc(r.id)+'">'
+  +'<h3>経路別の実物台帳: '+esc(r.id)+'</h3>'
+  +'<p class="hint">'+esc(r.from.name)+' → '+esc(r.to.name)+' / '+nfmt(r.distanceKm)
+  +' km / マスター積載上限 '+nfmt(r.capacityKg)+' kg。'
+  +'設備や貨物の登録がない場合は架空の輸送実績を表示しません。</p>'
+  +'<p class="hint">時期・航路条件: '+esc(r.available?'経路条件を満たす':'経路条件待ち')
+  +' / 稼働登録設備 '+r.installed+' / 輸送中件数 '+r.shipments
+  +(source?' / <a href="'+esc(source)+'" target="_blank" rel="noopener noreferrer">路線・品目の史料</a>':'')+'</p>'
+  +'<div class="scroll"><table><thead><tr><th>実設備ID</th><th>所有会社</th><th>設備状態</th>'
+  +'<th>登録状態</th></tr></thead><tbody>'+(equipment||'<tr><td colspan="4">登録設備なし</td></tr>')
+  +'</tbody></table></div>'
+  +'<div class="scroll"><table><thead><tr><th>輸送ID</th><th>現物品目</th><th>数量</th>'
+  +'<th>検収状況</th><th>設備ID</th></tr></thead><tbody>'
+  +(freight||'<tr><td colspan="5">出荷履歴なし</td></tr>')+'</tbody></table></div>'
+  +'</section>';
+}
 function worldMapTransportPanel(s){
- const network=worldMapNetwork(),options=[['all','すべて'],['sea','海運'],['rail','鉄道'],
+ const network=worldMapNetwork(s),options=[['all','すべて'],['sea','海運'],['rail','鉄道'],
   ['road','道路'],['air','航空'],['rail+sea','鉄道＋海運'],['road+rail-shuttle','道路＋鉄道']];
+ const activity=[['all','全路線'],['registered','設備登録あり'],['transit','輸送中あり']];
  const selectedCode=worldSelectedCode();
  const filtered=network.routes.filter(r=>
   (WORLD_MAP_TRANSPORT_MODE==='all'||r.mode===WORLD_MAP_TRANSPORT_MODE)
-  &&(WORLD_MAP_FOCUS==='global'||r.from.country===selectedCode||r.to.country===selectedCode));
- const routes=filtered.map(r=>'<tr data-world-map-route-row="'+esc(r.id)+'"><td><code>'+esc(r.id)
-  +'</code></td><td>'+esc(r.from.name)+' → '+esc(r.to.name)+'</td><td>'+esc(r.mode)
+  &&(WORLD_MAP_FOCUS==='global'||r.from.country===selectedCode||r.to.country===selectedCode)
+  &&(WORLD_MAP_ACTIVITY==='all'||WORLD_MAP_ACTIVITY==='registered'&&r.installed>0
+   ||WORLD_MAP_ACTIVITY==='transit'&&r.shipments>0));
+ const selected=filtered.find(r=>r.id===WORLD_MAP_SELECTED_ROUTE_ID)??null;
+ const rows=filtered.map(r=>'<tr data-world-map-route-row="'+esc(r.id)+'"><td>'
+  +'<button type="button" class="btn sm" data-world-map-select-route="'+esc(r.id)
+  +'" aria-pressed="'+(r.id===WORLD_MAP_SELECTED_ROUTE_ID)+'">'+esc(r.id)+'</button></td>'
+  +'<td>'+esc(r.from.name)+' → '+esc(r.to.name)+'</td><td>'+esc(r.mode)
   +'</td><td>'+Math.floor(r.opensAt/12)+'年</td><td class="num">'+nfmt(r.distanceKm)
-  +' km</td><td>'+esc(r.available?'利用可能':'年代・条件待ち')
+  +' km</td><td>'+esc(!r.available?'年代・航路条件待ち':r.installed?'開通・設備登録あり':'開通・設備未登録')
   +'</td><td class="num">'+r.installed+' / '+r.shipments+'</td></tr>').join('');
  return '<section class="panel span12" aria-label="Phase 5 オフライン交通地図">'
   +'<h2>オフライン世界地図・貨物輸送網</h2>'
-  +'<p class="hint">都市155地点と既存の国内・国際物流ルートを表示。模式地図の緯度経度は参考位置です。'
-  +'輸送距離・容量・稼働判定は共通の実物流マスターとゲーム台帳を使用し、地図から変更しません。</p>'
+  +'<p class="hint">世界155都市と実際の国内・国際物流経路IDを参照。模式地図の座標は参考位置で、'
+  +'輸送距離・容量・受入審査には使用しません。</p>'
   +'<div class="row" role="group" aria-label="輸送手段の表示切替">'
   +options.map(([id,label])=>'<button type="button" class="btn sm" data-world-map-mode="'+id
     +'" aria-pressed="'+(WORLD_MAP_TRANSPORT_MODE===id?'true':'false')+'">'+label+'</button>').join('')
   +'</div><div class="row" role="group" aria-label="地図の範囲">'
   +'<button class="btn sm" type="button" data-world-map-focus="global" aria-pressed="'+(WORLD_MAP_FOCUS==='global')+'">世界全体</button>'
   +'<button class="btn sm" type="button" data-world-map-focus="country" aria-pressed="'+(WORLD_MAP_FOCUS==='country')+'">'+esc(NAMES[selectedCode]??selectedCode)+'に接続する路線</button>'
+  +'</div><div class="row" role="group" aria-label="経路の実稼働台帳で絞り込む">'
+  +activity.map(([id,label])=>'<button type="button" class="btn sm" data-world-map-activity="'+id
+    +'" aria-pressed="'+(WORLD_MAP_ACTIVITY===id?'true':'false')+'">'+label+'</button>').join('')
   +'</div><div class="phase5-map-frame">'+worldMapSvg(network.cities,filtered)+'</div>'
   +'<p class="hint">水色は海運、黄は鉄道、赤は道路、紫は航空、緑は複合輸送。'
-  +'実線は現時点で使用条件を満たす路線、点線は将来または条件待ち。'
-  +'路線の太さは登録済み輸送設備の有無を表します。</p>'
+  +'実線は時代・航路条件成立、点線は条件待ち。太線は登録設備、強調線は選択経路です。'
+  +'経路が開通していても設備未登録なら出荷できません。</p>'
   +'<div class="grid">'+card('登録都市',network.cities.length+'地点','40経済市場','span3')
   +card('貨物ルート',network.routes.length+'路線','国内・国際の既存ID','span3')
-  +card('表示路線',filtered.length+'路線','選択中の輸送手段','span3')
-  +card('実設備登録',network.routes.reduce((n,r)=>n+r.installed,0)+'件','ゲーム台帳由来','span3')+'</div>'
-  +'<div class="scroll"><table><thead><tr><th>経路ID</th><th>出発 → 到着</th>'
+  +card('表示路線',filtered.length+'路線','選択中のフィルタ','span3')
+  +card('実設備登録',network.routes.reduce((n,r)=>n+r.installed,0)+'件','廃止済みを除く','span3')+'</div>'
+  +'<div class="scroll"><table><thead><tr><th>経路ID・詳細</th><th>出発 → 到着</th>'
   +'<th>方式</th><th>開始年（参考）</th><th class="num">マスター距離</th>'
-  +'<th>状態</th><th class="num">設備 / 輸送中</th></tr></thead><tbody>'+routes
+  +'<th>状態</th><th class="num">設備 / 輸送中</th></tr></thead><tbody>'+rows
+  +(rows?'':'<tr><td colspan="7">現在の絞込条件に該当する経路はありません。</td></tr>')
   +'</tbody></table></div>'
+  +worldMapRouteDetail(s,selected)
   +worldMapWarehousePanel(s)
   +'<div class="row"><button type="button" class="btn" data-page="transportNetwork">輸送網管理</button>'
   +'<button type="button" class="btn" data-page="logisticsHubs">物流拠点管理</button></div></section>';
 }
 document.addEventListener('click',event=>{
- const btn=event.target.closest('[data-world-map-mode],[data-world-map-focus]');
+ const btn=event.target.closest('[data-world-map-mode],[data-world-map-focus],[data-world-map-activity],[data-world-map-select-route]');
  if(!btn||!S||PAGE!=='worldMap')return;
- if(btn.dataset.worldMapFocus){
+ if(btn.dataset.worldMapSelectRoute){
+  const id=btn.dataset.worldMapSelectRoute;
+  if(!Object.hasOwn(WORLD_DOMESTIC_CORRIDORS,id)&&!Object.hasOwn(WORLD_INTERNATIONAL_CORRIDORS,id))return;
+  WORLD_MAP_SELECTED_ROUTE_ID=WORLD_MAP_SELECTED_ROUTE_ID===id?null:id;
+ }else if(btn.dataset.worldMapActivity){
+  if(!['all','registered','transit'].includes(btn.dataset.worldMapActivity))return;
+  WORLD_MAP_ACTIVITY=btn.dataset.worldMapActivity;
+ }else if(btn.dataset.worldMapFocus){
   if(!['global','country'].includes(btn.dataset.worldMapFocus))return;
   WORLD_MAP_FOCUS=btn.dataset.worldMapFocus;
  }else{
@@ -9524,7 +9577,6 @@ document.addEventListener('click',event=>{
  }
  render();
 });
-
 
 // Read-only view of the very same reservations used by domestic and
 // international order allocation. No warehouse or shipment is synthesized.
@@ -9549,10 +9601,13 @@ function worldMapWarehouseLedger(s){
    const plant=owner?.plants.find(p=>p.id===h.plantId);
    const active=h.retiredAt==null&&!!siteId&&!!owner&&isActiveCorporateFirm(owner)
     &&worldDomesticSiteActive(plant,siteId);
+   // A serviceable warehouse is not bookable when its international route
+   // fails the historical/seasonal/market-opening gate.
+   const routeEligible=kind==='国内'||worldInternationalRouteAvailable(s,h.profileId);
    rows.push({id:h.id,kind,ownerCompanyId:h.ownerCompanyId,
     siteId:siteId??null,profileId:h.profileId,nominal:nominal??0,
-    effectiveCapacity,reserved,available:active?Math.max(0,effectiveCapacity-reserved):0,
-    status:h.retiredAt!=null?'廃止済み':active?'稼働設備':'拠点休止中'});
+    effectiveCapacity,reserved,available:active&&routeEligible?Math.max(0,effectiveCapacity-reserved):0,
+    status:h.retiredAt!=null?'廃止済み':!active?'拠点休止中':routeEligible?'稼働設備':'航路条件待ち'});
   }
  }
  return rows;

@@ -57,6 +57,13 @@ def main():
           const depot=worldInstallDomesticWarehouse(S,seller.id,terminal.id,'JP-YOKOHAMA-SHINKO');
           const route=worldInternationalRegisterRoute(S,seller.id,profile);
           const warehouse=worldInternationalInstallWarehouse(S,buyer.id,destination.id,profile);
+          const openBuyerHub=worldMapWarehouseLedger(S).find(h=>h.id===warehouse.id);
+          const dateYear=S.year,dateMonth=S.month;
+          S.year=1900;S.month=1;
+          const closedBuyerHub=worldMapWarehouseLedger(S).find(h=>h.id===warehouse.id);
+          S.year=dateYear;S.month=dateMonth;
+          const routeGatedCapacity=openBuyerHub?.status==='稼働設備'&&openBuyerHub?.available>0
+            &&closedBuyerHub?.status==='航路条件待ち'&&closedBuyerHub?.available===0;
           const registered=route.plantId===origin.id&&route.transferWarehouseId===depot.id
             &&route.assetValue===9000&&route.capacityKg===10;
           const options={routeId:route.id,warehouseId:warehouse.id,productId:'PRD-M14',
@@ -110,7 +117,7 @@ def main():
           const settled=cargo.status==='DELIVERED'&&buyer.stock['PRD-M14'].q===4
             &&buyer.stock['PRD-M14'].v===cargo.totalBuyer&&!acc(seller,'worldShipmentStock')
             &&-acc(seller,'sales')===cargo.goodsSeller&&!check(reopened).length&&!consolidate(reopened).errors.length;
-          return {closedEarly,blocked,registered,damagedCapacity,loaded,pausedCapacity,waits,held,audit,boarded,stillOwned,settled};
+          return {closedEarly,blocked,registered,routeGatedCapacity,damagedCapacity,loaded,pausedCapacity,waits,held,audit,boarded,stillOwned,settled};
         }""")
         assert all(result.values()), result
         assert not errors, errors

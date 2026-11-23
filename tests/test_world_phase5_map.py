@@ -43,6 +43,7 @@ def main():
               routeGraphics:document.querySelectorAll('[data-world-map-route]').length,
               noMutation:JSON.stringify(S)===before,
               noPhantomWarehouses:worldMapWarehouseLedger(S).length===0,
+              noPhantomEquipment:n.routes.every(r=>r.installed===0&&r.shipments===0),
               check:check(S).length
             };
         }""")
@@ -53,7 +54,7 @@ def main():
         assert audit["svg"] == 1 and audit["cityCircles"] == 155, audit
         assert audit["routeGraphics"] == audit["routes"], audit
         assert audit["noMutation"] and audit["check"] == 0, audit
-        assert audit["noPhantomWarehouses"], audit
+        assert audit["noPhantomWarehouses"] and audit["noPhantomEquipment"], audit
 
         page.locator('[data-world-map-mode="rail"]').click()
         rail_count = page.evaluate("""() => Object.values(WORLD_INTERNATIONAL_CORRIDORS)
@@ -72,6 +73,37 @@ def main():
 
         page.locator('[data-world-map-focus="global"]').click()
         assert page.locator('[data-world-map-route-row]').count() == audit["routes"]
+
+        first_route = page.locator('[data-world-map-select-route]').first()
+        selected_id = first_route.get_attribute("data-world-map-select-route")
+        first_route.click()
+        assert page.locator('[data-world-map-detail]').get_attribute("data-world-map-detail") == selected_id
+        assert page.locator('[data-world-map-selected-route="true"]').count() == 1
+        assert page.locator('[data-world-map-select-route]').first().get_attribute("aria-pressed") == "true"
+        assert page.locator('[data-world-map-detail]').locator("text=登録設備なし").count() == 1
+        assert page.locator('[data-world-map-detail]').locator("text=出荷履歴なし").count() == 1
+
+        page.locator('[data-world-map-activity="registered"]').click()
+        assert page.locator('[data-world-map-route-row]').count() == 0
+        assert page.locator('[data-world-map-detail]').count() == 0
+        page.locator('[data-world-map-activity="transit"]').click()
+        assert page.locator('[data-world-map-route-row]').count() == 0
+        page.locator('[data-world-map-activity="all"]').click()
+        assert page.locator('[data-world-map-detail]').get_attribute("data-world-map-detail") == selected_id
+        page.locator('[data-world-map-select-route]').first().click()
+        assert page.locator('[data-world-map-detail]').count() == 0
+
+        # Registry views must not report retired infrastructure as installed.
+        live_only = page.evaluate("""() => {
+          const copy=structuredClone(S),id=Object.keys(WORLD_DOMESTIC_CORRIDORS)[0];
+          copy.worldExpansion.domesticRoutes={
+            'DR-900':{id:'DR-900',profileId:id,retiredAt:ym(1912,1)},
+            'DR-901':{id:'DR-901',profileId:id,retiredAt:null}
+          };
+          const r=worldMapNetwork(copy).routes.find(x=>x.id===id);
+          return r.installed===1&&worldMapNetwork(S).routes.find(x=>x.id===id).installed===0;
+        }""")
+        assert live_only
 
         page.evaluate("PAGE='logisticsHubs';render();")
         assert page.locator('[aria-label="Phase 5 現物物流拠点"]').count() == 1
