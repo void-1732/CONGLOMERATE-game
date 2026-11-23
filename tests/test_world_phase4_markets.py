@@ -384,7 +384,7 @@ def test_ireland_textiles_import(page):
  for(const event of worldHistoryThrough(ym(legacy.year,legacy.month),20))recordWorldEvent(old,event);
  Object.assign(legacy.worldExpansion,{marketRegistryVersion:20,territoryJurisdictions:old.territoryJurisdictions,
   openMarkets:old.openMarkets,appliedEvents:old.appliedEvents});
- delete legacy.world.IE;delete legacy.npcSupplyV033.markets.IE;ensureSupplyNetwork(legacy);syncWorldIdentities(legacy);
+ for(const [code,row] of Object.entries(WORLD_MARKET_ONBOARDING))if(row.introducedIn>20){delete legacy.world[code];delete legacy.npcSupplyV033.markets[code];}ensureSupplyNetwork(legacy);syncWorldIdentities(legacy);
  const legacyAccepted=!check(legacy).length,restoredLegacy=parsePayload(savePayload(legacy));
  const migration=legacyAccepted&&restoredLegacy.world.IE?.code==='IE'
   &&JSON.stringify(restoredLegacy.firms.map(f=>[f.id,f.owners,f.journals,f.stock]))
@@ -447,6 +447,91 @@ def test_ireland_textiles_import(page):
  return {before,preIndependence,opened,demand,migration,identity,mapMatch,shipped,paid,delivered,tamper};
 }""")
     assert all(result.values()), result
+
+
+def test_remaining_jurisdictions(page, d):
+    """Use normal monthly close for physical freight, credit and save in each new jurisdiction."""
+    result=page.evaluate("""async d => {
+      S=newWorldGame({country:'JP',name:'Remaining jurisdiction freight'});
+      VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';PAGE='reports';
+      const parent=company(S.playerId,S);
+      const date=(y,m)=>{S.year=y;S.month=m;S.monthCommitted=ym(y,m)-1;applyWorldHistory(S);syncWorldIdentities(S)};
+      const initial=worldCityLocation(S,d.city);
+      const initialGate=initial.marketOpen===!d.open;
+      if(d.open){
+        const [y,m]=d.open;
+        date(y,m-1);
+        if(S.world[d.code])throw Error('early jurisdiction '+d.code);
+        date(y,m);
+        if(!S.world[d.code])throw Error('missing jurisdiction '+d.code);
+      }
+      date(d.year,d.month);
+      const identity=worldCityLocation(S,d.city);
+      const primary=identity.marketId===d.market&&identity.jurisdictionId===d.jur
+        &&identity.marketOpen&&WORLD_ENGINE_BY_MARKET[d.market]===d.rep
+        &&Object.keys(S.worldExpansion.openMarkets).length===40;
+      const legacy=structuredClone(S),old=makeWorldExpansion(21);
+      for(const e of worldHistoryThrough(ym(legacy.year,legacy.month),21))recordWorldEvent(old,e);
+      Object.assign(legacy.worldExpansion,{marketRegistryVersion:21,territoryJurisdictions:old.territoryJurisdictions,
+        openMarkets:old.openMarkets,appliedEvents:old.appliedEvents});
+      for(const [code,row] of Object.entries(WORLD_MARKET_ONBOARDING))if(row.introducedIn>21){
+        delete legacy.world[code];delete legacy.npcSupplyV033.markets[code];
+      }
+      ensureSupplyNetwork(legacy);syncWorldIdentities(legacy);
+      const upgraded=parsePayload(savePayload(legacy));
+      const migration=!!upgraded.world[d.code]&&!check(upgraded).length
+        &&JSON.stringify(upgraded.firms.map(f=>[f.id,f.owners,f.journals,f.stock]))===JSON.stringify(legacy.firms.map(f=>[f.id,f.owners,f.journals,f.stock]));
+      const make=(code,name)=>{
+        const capital=localFromBase(750000,parent.country),j=S.seq;
+        post(parent,{investment:capital},{cash:capital},'輸送試験会社払込','investing',S);
+        const f=initFirm(S,{name,country:code,industry:'manufacturing',seedBase:750000,size:.5,publicOwnership:false});
+        f.owners=[{id:parent.id,econ:1,vote:1}];
+        registerEquityLink(S,{parentId:parent.id,childId:f.id,ratio:1,kind:'foundation',considerationLocal:capital,
+          buyerJournal:j,childJournal:f.journals.find(j=>j.text==='創業資本').id,
+          bookEquityBase:baseFromLocal(financials(f).equity,code),cashAcquiredBase:baseFromLocal(acc(f,'cash'),code)});
+        f.auto=false;f.research.tree.done=[...new Set([...f.research.tree.done,'production-1'])];
+        return f;
+      };
+      let seller=make(d.code,d.code+' exporter'),buyer=make(d.destCountry,d.dest+' importer');
+      const port=seller.plants[0],depot=buyer.plants[0];
+      const location=port.siteId===d.site&&firmCurrency(seller,S)===d.currency;
+      port.siteId=d.exportSite||d.site;depot.siteId=d.dest;
+      for(const [f,id,v] of [...(d.rail?[[seller,'PRD-E16',2400],[seller,'PRD-E17',2500]]:[[seller,'PRD-E18',2400]]),[buyer,'PRD-E20',700],[buyer,'PRD-E21',900]]){
+        post(f,{materials:v},{cash:v},'有償輸送設備','operating',S);f.stock[id]={q:1,v};
+      }
+      syncWorldIdentities(S);
+      const line=worldMapNetwork(S).routes.find(r=>r.id===d.profile);
+      const map=line?.fromId===port.siteId&&line.toId===depot.siteId&&line.available;
+      const purchase=worldBuyRegionalSupply(S,seller.id,port.id,port.siteId+'-'+d.code+'-CARGO',14);
+      worldBuyRegionalSupply(S,seller.id,port.id,port.siteId+'-BUNKER-COAL',20);
+      const route=worldInternationalRegisterRoute(S,seller.id,d.profile),wh=worldInternationalInstallWarehouse(S,buyer.id,depot.id,d.profile);
+      const price=Math.ceil(seller.stock[d.product].v/seller.stock[d.product].q*1.25);
+      const q=worldInternationalQuote(S,route,d.product,14,price,buyer.id,60,30);
+      if(q.problem)throw Error('quote '+JSON.stringify(q));
+      const o=worldInternationalPlaceOrder(S,buyer.id,{routeId:route.id,warehouseId:wh.id,productId:d.product,quantity:14,cargoLitres:30,unitPriceSeller:price,maxPaymentBuyer:Math.max(100000,q.totalBuyer*2),paymentDays:60});
+      worldInternationalActOrder(S,seller.id,o.id,'approve');saveAuto=async()=>true;
+      const close=async m=>{
+        await runMonth();
+        if(S.monthCommitted!==ym(d.year,m)||LAST_MONTH_DIAGNOSTIC)throw Error(d.code+' close '+m+' '+LAST_MONTH_DIAGNOSTIC?.message);
+        seller=company(seller.id,S);buyer=company(buyer.id,S);
+        return S.worldExpansion.internationalShipments.at(-1);
+      };
+      await close(d.month);
+      let cargo=await close(d.month+1);
+      const shipped=purchase.quantity===14&&cargo?.orderId===o.id&&cargo.status==='IN_TRANSIT'&&cargo.quantity===14
+        &&cargo.fuelRequired>0&&acc(seller,'worldShipmentStock')===cargo.bookCost&&!buyer.stock[d.product]?.q;
+      cargo=await close(d.month+2);
+      const paid=cargo?.status==='IN_TRANSIT'&&cargo.credit.paidAt===ym(d.year,d.month+2)
+        &&acc(buyer,'worldSupplierAdvances')===cargo.prepaidBuyer;
+      cargo=await close(d.month+3);
+      const restored=parsePayload(savePayload(S)),group=consolidate(restored);
+      const delivered=cargo?.status==='DELIVERED'&&buyer.stock[d.product]?.q===14&&buyer.stock[d.product].v===cargo.totalBuyer
+        &&acc(buyer,'worldSupplierAdvances')===0&&acc(seller,'worldShipmentStock')===0&&!check(restored).length&&!group.errors.length&&group.cf.reconciled;
+      const damaged=structuredClone(restored);damaged.worldExpansion.companies[seller.id].currencyId='INVALID';
+      let tamper=false;try{parsePayload(step7NativeSavePayload(damaged))}catch{tamper=true}
+      return {initialGate,primary,migration,location,map,shipped,paid,delivered,tamper};
+    }""",d)
+    assert all(result.values()), (d["code"],result)
 
 
 def test_portugal_coal_import(page):
@@ -938,8 +1023,7 @@ def test_dated_colonial_export(page, data):
         legacy.worldExpansion.marketRegistryVersion=17;
         delete legacy.world.BE;
         delete legacy.world.PT;
-        delete legacy.world.IE;
-        delete legacy.npcSupplyV033.markets.IE;
+        for(const [code,row] of Object.entries(WORLD_MARKET_ONBOARDING))if(row.introducedIn>17){delete legacy.world[code];delete legacy.npcSupplyV033.markets[code];}
         legacy.worldExpansion.appliedEvents=worldHistoryThrough(ym(legacy.year,legacy.month),17);
         delete legacy.worldExpansion.weightDutyFromSeq;
         const upgradedBeforeDispatch=parsePayload(savePayload(legacy));
@@ -1325,6 +1409,8 @@ def main(observe_receipts=None):
         test_italy_coal_import(page)
         test_portugal_coal_import(page)
         test_ireland_textiles_import(page)
+        for data in [{"code":"LU","city":"CITY-08-04","market":"MKT-08","jur":"JUR-LU","rep":"NL","open":None,"year":1913,"month":4,"destCountry":"FR","dest":"FR-THI","site":"LU-LUX","exportSite":None,"currency":"EUR","rail":True,"product":"PRD-R01","profile":"LU-FR-LUXEMBOURG-IRON"},{"code":"YU","city":"CITY-13-03","market":"MKT-13","jur":"JUR-YU","rep":"GR","open":[1918,12],"year":1922,"month":4,"destCountry":"IT","dest":"IT-TRI","site":"YU-ZAG","exportSite":None,"currency":"RSD","rail":True,"product":"PRD-R19","profile":"YU-IT-ZAGREB-TRIESTE-TIMBER"},{"code":"AL","city":"CITY-13-04","market":"MKT-13","jur":"JUR-AL","rep":"GR","open":[1912,12],"year":1937,"month":8,"destCountry":"IT","dest":"IT-BAR","site":"AL-TIR","exportSite":"AL-DUR","currency":"ALL","rail":False,"product":"PRD-R19","profile":"AL-IT-DURRES-BARI-TIMBER"}]:
+            test_remaining_jurisdictions(page,data)
         test_steamship_export(page, {
             "profile": "IN-UK-BOMBAY-COTTON", "country": "IN", "site": "IN-BOM",
             "city": "CITY-16-02", "currency": "INR", "year": 1908, "offer": "IN-BOM-COTTON",

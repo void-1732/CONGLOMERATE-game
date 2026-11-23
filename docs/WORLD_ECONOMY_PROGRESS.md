@@ -750,3 +750,10 @@ python -B tests/test_step13_120_months.py --era 1900 --world
 - 1923年1月にIE法域を開放し、40市場・155都市・英国代表MKT-01を維持。仕様155に従い固定EUR元帳と史実IEP参照を区別し、為替をFRのゲームEURレートに連動。1926年人口2.97百万人はCSO、他の経済係数と輸入先国別3%はモデル値。[独立史料](https://data.oireachtas.ie/ie/oireachtas/communications/other/2021/2021-12-16_centenary-of-the-treaty-debates_en.pdf) · [人口](https://www.cso.ie/en/releasesandpublications/ep/p-tnli/thenandnowlifeinirelandin1926and2022/keyfindings/) · [紙幣](https://prelive.oireachtas.ie/en/visit-and-learn/history-and-buildings/historical-documents/in-the-display-case/)
 - 1932年4月LMS社内誌の貨物船運航と織物通関の記録から同年5〜12月のモデル経路を追加。実船・倉庫・有限有償仕入・燃料・重量容積・掛け・検収を共通台帳に接続。距離・容量・価格・燃料・月次期間はPROVISIONAL。[LMS誌](https://lmssociety.org.uk/topics/LMSinIFS1.php)
 - 全HTMLの実JavaScriptをDOMスタブ（描画・保存I/Oを代替）付きで実行し、開放前拒否、歴史開放、法域別需要、版20復元、法人施設、地図ID、5〜8月の実月次処理で現物出荷・前払・検収、連結CF・保存と改竄拒否の11判定合格。初回試験の販売単価と買手の設立規模を修正し、手動時刻移動でなく本来の月次処理にしてCFを再検証した。カタログ・法域・旧保存の既存評価も実JavaScriptで合格。実ブラウザ・全回帰・CIは未確定。43法域・50史料付き経路を登録（全件検収監査はCI待ち）。Phase 4・5未受入、Phase 6未着手。残りLU・旧ユーゴスラヴィア地域・AL。
+
+### Phase 4・5 残る3法域の接続とEUR連動試験修正（2026-11-24）
+
+- 指定CI #45271008444 の失敗は国際貨物試験のFR為替直接変更後のIE同期漏れ。国際貨物・掛け決済試験で既存の `worldMatchLedgerCurrencyRates` を適用し、保存検証は維持。
+- LU、YU、ALを版22の独立経済法域として追加。40市場・155都市の構造と従来43法域、50経路を維持。LUはEUR（FR連動）、YUは地域集約の代表固定RSD（現代の全地域の法定通貨とはみなさない）、ALは固定ALL。人口史料とゲーム係数を区別する。
+- 1913年のルクセンブルク→フランス鉄鉱石、1922年の旧ユーゴスラヴィア→トリエステ鉄道木材、1937年のドゥラス→バーリ木材を史料に基づくモデル経路として接続。出発駅等の具体的なゲーム拠点・距離・容量・価格は暫定値。旧ユーゴスラヴィアの輸出統計はトリエステ経由の集計であり個別ザグレブ発貨物を立証するものではない。各法域の現物仕入・設備・燃料・掛け・月次検収・保存・会計・地図IDを確認するPlaywright回帰を追加。実ブラウザ・全回帰はActionsの結果確定が必要。
+- 46法域・53史料付きモデル経路の登録を目標とする変更であり、検収合格の証明ではない。Phase 4・5は未受入、Phase 6は未着手。main/PR #29 Draft維持。

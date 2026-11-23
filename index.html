@@ -724,6 +724,9 @@ const POPULATION_ANCHORS={
  SE:{1900:5.136441,1910:5.522403,1950:7.042,2020:10.38},
  NL:{1900:5.104137,1910:5.858175,1950:10.027,2020:17.407},
  // Portuguese census anchors from the UN Demographic Yearbook and national series.
+ LU:{1900:0.234674},
+ YU:{1921:11.984911},
+ AL:{1930:1.003097},
  IE:{1926:2.97}, // CSO census, millions (rounded published value).
  PT:{1900:5.423132,1911:5.960056,1920:6.032991,1930:6.825883,1950:8.441312,1991:9.862540},
  // Statbel census anchors, in millions.
@@ -760,7 +763,7 @@ function anchorPopulation(code,year){const anchors=POPULATION_ANCHORS[code];if(!
  if(year>=yrs[yrs.length-1])return anchors[yrs[yrs.length-1]];
  for(let i=1;i<yrs.length;i++){if(year<=yrs[i]){const lo=yrs[i-1],hi=yrs[i];return anchors[lo]+(anchors[hi]-anchors[lo])*(year-lo)/(hi-lo);}}return null;}
 
-const NAMES={JP:'日本',US:'アメリカ',UK:'イギリス',DE:'ドイツ',FR:'フランス',NO:'ノルウェー',CA:'カナダ',AU:'オーストラリア',NZ:'ニュージーランド',MX:'メキシコ',BR:'ブラジル',AR:'アルゼンチン',CL:'チリ',CO:'コロンビア',SE:'スウェーデン',NL:'オランダ',IT:'イタリア',EG:'エジプト',IN:'英領インド',ZA:'南アフリカ連邦',SG:'英領シンガポール',TH:'シャム王国',CN:'清朝中国',ID:'オランダ領東インド',NG:'英領ナイジェリア',ES:'スペイン',PH:'米領フィリピン',RU:'ロシア帝国',KR:'朝鮮（日本統治下）',TR:'オスマン帝国',MY:'英領マラヤ',KE:'英領ケニア',MA:'仏保護領モロッコ',CH:'スイス連邦',AT:'オーストリア=ハンガリー帝国領オーストリア',PL:'ポーランド共和国',GR:'ギリシャ王国',VN:'仏領インドシナ',BE:'ベルギー王国',PT:'ポルトガル共和国',IE:'アイルランド自由国',IR:'ガージャール朝ペルシア',SA:'サウジアラビア王国'};
+const NAMES={JP:'日本',US:'アメリカ',UK:'イギリス',DE:'ドイツ',FR:'フランス',NO:'ノルウェー',CA:'カナダ',AU:'オーストラリア',NZ:'ニュージーランド',MX:'メキシコ',BR:'ブラジル',AR:'アルゼンチン',CL:'チリ',CO:'コロンビア',SE:'スウェーデン',NL:'オランダ',IT:'イタリア',EG:'エジプト',IN:'英領インド',ZA:'南アフリカ連邦',SG:'英領シンガポール',TH:'シャム王国',CN:'清朝中国',ID:'オランダ領東インド',NG:'英領ナイジェリア',ES:'スペイン',PH:'米領フィリピン',RU:'ロシア帝国',KR:'朝鮮（日本統治下）',TR:'オスマン帝国',MY:'英領マラヤ',KE:'英領ケニア',MA:'仏保護領モロッコ',CH:'スイス連邦',AT:'オーストリア=ハンガリー帝国領オーストリア',PL:'ポーランド共和国',GR:'ギリシャ王国',VN:'仏領インドシナ',BE:'ベルギー王国',PT:'ポルトガル共和国',IE:'アイルランド自由国',LU:'ルクセンブルク大公国',YU:'旧ユーゴスラヴィア地域（セルブ・クロアート・スロヴェーン王国）',AL:'アルバニア',IR:'ガージャール朝ペルシア',SA:'サウジアラビア王国'};
 const INITIAL_ENGINE_COUNTRIES=['JP','US','UK','DE','FR'];
 const COUNTRIES={
  JP:{currency:'JPY',fx:1,pop:44,wealth:1,wage:145,demand:115,steel:420,rubber:280,steelSupply:1100,rubberSupply:1050},
@@ -856,6 +859,9 @@ const COUNTRIES={
  PT:{currency:'PTE',fx:152,pop:anchorPopulation('PT',1911),wealth:.86,wage:129,demand:15,
   steel:469,rubber:320,steelSupply:120,rubberSupply:95},
  // SPEC-155 fixed modern ledger; macro coefficients are modeled.
+ LU:{currency:'EUR',fx:155,pop:anchorPopulation('LU',1900),wealth:.85,wage:130,demand:3,steel:460,rubber:312,steelSupply:85,rubberSupply:70},
+ YU:{currency:'RSD',fx:1.45,pop:anchorPopulation('YU',1921),wealth:.85,wage:130,demand:18,steel:460,rubber:312,steelSupply:85,rubberSupply:70},
+ AL:{currency:'ALL',fx:1.5,pop:anchorPopulation('AL',1930),wealth:.85,wage:130,demand:5,steel:460,rubber:312,steelSupply:85,rubberSupply:70},
  IE:{currency:'EUR',fx:155,pop:anchorPopulation('IE',1926),wealth:.88,wage:135,demand:9,
   steel:460,rubber:312,steelSupply:85,rubberSupply:70},
  SA:{currency:'SAR',fx:49,pop:anchorPopulation('SA',1932),wealth:.72,wage:123,demand:14,
@@ -1648,6 +1654,13 @@ const SITE_CATALOG=[
   ['NL-ROT','NL','ロッテルダム港'],['US-PHL','US','フィラデルフィア港'],
   ['BE-ANR','BE','アントワープ港'],['BE-BRU','BE','ブリュッセル'],['US-NYC','US','ニューヨーク港'],
   ['PT-LIS','PT','リスボン港'],['PT-OPO','PT','ポルト'],
+  ['LU-LUX','LU','ルクセンブルク貨物駅'],
+  ['FR-THI','FR','ティオンヴィル貨物駅'],
+  ['YU-ZAG','YU','ザグレブ貨物駅',1918],
+  ['IT-TRI','IT','トリエステ貨物駅'],
+  ['AL-TIR','AL','ティラナ',1912],
+  ['AL-DUR','AL','ドゥラス港',1937],
+  ['IT-BAR','IT','バーリ港'],
   ['IE-DUB','IE','ダブリン・ノースウォール港',1923],['UK-HOL','UK','ホーリーヘッド港',1932],
   ['UK-CDF','UK','カーディフ石炭港'],['IT-GEN','IT','ジェノヴァ港'],
   ['EG-ALX','EG','アレクサンドリア港'],
@@ -9405,7 +9418,7 @@ function worldSelectedCode(){return Object.hasOwn(S.world,VIEW_COUNTRY)?VIEW_COU
 const WORLD_MAP_CITY_COORDS=Object.freeze({"MKT-01":[51.51,-0.13,53.48,-2.24,52.49,-1.89,53.35,-6.26],"MKT-02":[48.86,2.35,45.76,4.84,43.3,5.37,50.63,3.06],"MKT-03":[52.52,13.4,53.55,10,51.45,7,48.14,11.58],"MKT-04":[41.9,12.5,45.46,9.19,45.07,7.69,40.85,14.27],"MKT-05":[40.42,-3.7,41.39,2.17,38.72,-9.14,41.15,-8.61],"MKT-06":[55.76,37.62,59.94,30.31,55.03,82.92,43.12,131.89],"MKT-07":[52.23,21,50.06,19.94,51.76,19.46,54.35,18.65],"MKT-08":[52.37,4.9,51.92,4.48,50.85,4.35,49.61,6.13],"MKT-09":[46.95,7.45,47.37,8.54,46.2,6.14,47.56,7.59],"MKT-10":[59.33,18.06,57.71,11.97,55.61,13],"MKT-11":[59.91,10.75,60.39,5.32,63.43,10.4],"MKT-12":[48.21,16.37,47.07,15.44,48.31,14.29],"MKT-13":[44.79,20.45,37.98,23.73,45.81,15.98,41.33,19.82,43.85,18.41],"MKT-14":[35.68,139.76,34.69,135.5,35.18,136.9,34.69,135.2],"MKT-15":[39.9,116.4,31.23,121.47,23.13,113.26,30.6,114.3],"MKT-16":[28.61,77.21,19.08,72.88,22.57,88.36,13.08,80.27],"MKT-17":[37.57,126.98,35.18,129.07,37.46,126.7,35.87,128.6],"MKT-18":[-6.21,106.85,-7.26,112.75,-6.91,107.61,3.59,98.67],"MKT-19":[21.03,105.85,10.82,106.63,20.85,106.68,16.05,108.2],"MKT-20":[13.76,100.5,18.79,98.99,14.98,102.1],"MKT-21":[3.14,101.69,5.41,100.33,1.46,103.76],"MKT-22":[1.35,103.82,1.33,103.7,1.44,103.79],"MKT-23":[14.6,120.98,10.32,123.89,7.07,125.61,10.72,122.56],"MKT-24":[-33.87,151.21,-37.81,144.96,-27.47,153.03,-31.95,115.86],"MKT-25":[-36.85,174.76,-41.29,174.78,-43.53,172.63],"MKT-26":[38.91,-77.04,40.71,-74.01,41.88,-87.63,34.05,-118.24,29.76,-95.37],"MKT-27":[45.42,-75.7,43.65,-79.38,45.5,-73.57,49.28,-123.12],"MKT-28":[19.43,-99.13,25.69,-100.31,20.67,-103.35,19.17,-96.14],"MKT-29":[-22.91,-43.2,-23.55,-46.63,-12.98,-38.5,-30.03,-51.23],"MKT-30":[-34.6,-58.38,-31.42,-64.18,-32.95,-60.65,-32.89,-68.84],"MKT-31":[-33.45,-70.67,-33.05,-71.62,-36.82,-73.05,-23.65,-70.4],"MKT-32":[4.71,-74.07,6.24,-75.58,3.45,-76.53,10.4,-75.5],"MKT-33":[-25.75,28.19,-26.2,28.05,-33.92,18.42,-29.86,31.03],"MKT-34":[30.04,31.24,31.2,29.92,29.97,32.55,31.27,32.31],"MKT-35":[6.52,3.38,12,8.52,7.38,3.93,6.34,5.63],"MKT-36":[-1.29,36.82,-4.05,39.67,-0.09,34.76,-0.3,36.08],"MKT-37":[34.02,-6.84,33.57,-7.59,34.06,-4.98,35.78,-5.81],"MKT-38":[41.01,28.98,39.93,32.85,38.42,27.14,40.19,29.06],"MKT-39":[24.71,46.67,21.49,39.19,26.42,50.09,21.39,39.86],"MKT-40":[35.69,51.42,32.65,51.68,38.08,46.29,36.26,59.6]});
 const WORLD_MAP_EXTRA_SITES=Object.freeze({"DE-FRE":[48,7.85],"ES-BIL":[43.26,-2.93],"IR-BND":[27.19,56.28],"IT-GEN":[44.41,8.93],"JP-YOK":[35.45,139.64],"PL-GDY":[54.52,18.54],"UK-CDF":[51.48,-3.18],"UK-HULL":[53.74,-0.34],"UK-LIV":[53.4,-2.98],"UK-NORTHSHIELDS":[55.01,-1.45],"US-NEWORLEANS":[29.95,-90.07],"US-PHL":[39.95,-75.17],"US-SEA":[47.61,-122.33],"US-SFO":[37.77,-122.42],
  "UK-HOUNSLOW-HEATH":[51.46,-0.39],"FR-LE-BOURGET":[48.97,2.44],
- "BE-ANR":[51.23,4.4],"US-NYC":[40.76,-74.01],"PT-LIS":[38.71,-9.13],"IE-DUB":[53.35,-6.24],"UK-HOL":[53.31,-4.63]});
+ "BE-ANR":[51.23,4.4],"US-NYC":[40.76,-74.01],"PT-LIS":[38.71,-9.13],"IE-DUB":[53.35,-6.24],"UK-HOL":[53.31,-4.63],"FR-THI":[49.35,6.17],"IT-TRI":[45.65,13.77],"IT-BAR":[41.13,16.87],"AL-DUR":[41.31,19.45]});
 let WORLD_MAP_TRANSPORT_MODE='all',WORLD_MAP_FOCUS='global',WORLD_MAP_ACTIVITY='all',WORLD_MAP_SELECTED_ROUTE_ID=null,WORLD_MAP_SELECTED_CITY_ID=null;
 const WORLD_MAP_WIDTH=1152,WORLD_MAP_HEIGHT=594;
 function worldMapProject(lat,lon){
@@ -11724,7 +11737,7 @@ const WORLD_TERRITORIES=new Map(WORLD_MARKETS.flatMap(m=>m.territories.map(t=>[t
 const WORLD_CITIES=new Map(WORLD_MARKETS.flatMap(m=>m.cities.map(c=>[c.id,c])));
 // Registry version zero is the saved pre-expansion world (five initial economies).
 // New onboarding data is additive and does not change the original scenario.
-const WORLD_MARKET_REGISTRY_VERSION=21;
+const WORLD_MARKET_REGISTRY_VERSION=22;
 const WORLD_WEIGHT_DUTY_REGISTRY_VERSION=18;
 const WORLD_MARKET_ONBOARDING=Object.freeze({
  CA:Object.freeze({introducedIn:1,territoryId:'TER-27-01',currencyId:'CUR-CAD',jurisdictionId:'JUR-CA',
@@ -11911,6 +11924,12 @@ const WORLD_MARKET_ONBOARDING=Object.freeze({
   jurisdictionSource:'https://history.state.gov/historicaldocuments/frus1910/d911',
   currencySource:'https://www.bportugal.pt/en/comunicado/dissemination-historical-time-series-portuguese-escudo',
   populationSource:'https://unstats.un.org/unsd/demographic-social/products/dyb/dybsets/1953%20DYB.pdf'}),
+ LU:Object.freeze({introducedIn:22,territoryId:'TER-08-03',currencyId:'CUR-EUR',jurisdictionId:'JUR-LU',secondaryMarketMember:true,ledgerFxReference:'FR',
+  jurisdictionSource:'https://luxembourg.public.lu/en/society-and-culture/history/steel-industry-luxembourg.html',currencySource:'https://www.bcl.lu/en/About/histoire_monetaire/index.html',populationSource:'https://sip.gouvernement.lu/dam-assets/publications/brochure-livre/minist-etat/sip/brochure/a-propos/A_propos_Histoire/a-propos-histoire-luxembourg-en.pdf'}),
+ YU:Object.freeze({introducedIn:22,territoryId:'TER-13-01',currencyId:'CUR-RSD',jurisdictionId:'JUR-YU',secondaryMarketMember:true,opensAt:ym(1918,12),effectiveDate:'1918-12-01',
+  jurisdictionSource:'https://www.arhivyu.rs/en/izlozbe/stalna-izlozba',currencySource:'https://www.nbs.rs/en/o_nbs/jub140/jub_ist/',populationSource:'https://www.arhivyu.rs/en/izlozbe/stalna-izlozba'}),
+ AL:Object.freeze({introducedIn:22,territoryId:'TER-13-02',currencyId:'CUR-ALL',jurisdictionId:'JUR-AL',secondaryMarketMember:true,opensAt:ym(1912,12),effectiveDate:'1912-11-28',
+  jurisdictionSource:'https://www.mhk.gov.al/en/?elemenfolio=pavijoni-i-pavaresise-2',currencySource:'https://www.bankofalbania.org/About_the_Bank/Brief_history_of_Bank_of_Albania/',populationSource:'https://ndiqparate.al/?lang=en&p=9033'}),
  IE:Object.freeze({introducedIn:21,territoryId:'TER-01-02',currencyId:'CUR-EUR',jurisdictionId:'JUR-IE',
   secondaryMarketMember:true,opensAt:ym(1923,1),effectiveDate:'1922-12-06',ledgerFxReference:'FR',
   jurisdictionSource:'https://data.oireachtas.ie/ie/oireachtas/communications/other/2021/2021-12-16_centenary-of-the-treaty-debates_en.pdf',currencySource:'https://www.ecb.europa.eu/euro/intro/html/index.en.html',
@@ -12027,7 +12046,7 @@ const WORLD_INITIAL_JURISDICTIONS={...Object.fromEntries(
 const WORLD_SITE_CITIES={
  'JP-TOK':'CITY-14-01','JP-NGO':'CITY-14-03','JP-OSA':'CITY-14-02',
  'US-CHI':'CITY-26-03','US-LAX':'CITY-26-04','US-NYC':'CITY-26-02','UK-LON':'CITY-01-01',
- 'BE-BRU':'CITY-08-03','PT-LIS':'CITY-05-03','PT-OPO':'CITY-05-04','IE-DUB':'CITY-01-04',
+ 'BE-BRU':'CITY-08-03','PT-LIS':'CITY-05-03','PT-OPO':'CITY-05-04','IE-DUB':'CITY-01-04','LU-LUX':'CITY-08-04','YU-ZAG':'CITY-13-03','AL-TIR':'CITY-13-04',
  'DE-RUH':'CITY-03-03','DE-BER':'CITY-03-01','DE-HAM':'CITY-03-02',
  'FR-PAR':'CITY-02-01','FR-LYO':'CITY-02-02','FR-MAR':'CITY-02-03',
  'UK-HOUNSLOW-HEATH':'CITY-01-01','FR-LE-BOURGET':'CITY-02-01',
@@ -13555,6 +13574,12 @@ const WORLD_LISBON_COAL_SOURCE='https://www.govinfo.gov/content/pkg/SERIALSET-07
 const WORLD_LISBON_STEAM_SOURCE='https://files.diariodarepublica.pt/gratuitos/1s/1912/07/15600.pdf';
 const WORLD_IRISH_SEA_SOURCE='https://lmssociety.org.uk/topics/LMSinIFS1.php';
 const WORLD_REGIONAL_SUPPLY=Object.freeze({
+ 'LU-LUX-LU-CARGO':worldSupplyOffer('LU-LUX','PRD-R01','鉄鉱石（史料付き地域仕入・モデル枠）',1913,100,12,'https://pubs.usgs.gov/bul/0703/report.pdf',1913),
+ 'LU-LUX-BUNKER-COAL':worldSupplyOffer('LU-LUX','PRD-R04','輸送燃料用石炭（モデル仕入枠）',1913,100,17,'https://bnl.public.lu/de/a-la-une/a-la-loupe/2024/epopee-du-rail.html',1913),
+ 'YU-ZAG-YU-CARGO':worldSupplyOffer('YU-ZAG','PRD-R19','木材（史料付き地域仕入・モデル枠）',1922,100,12,'https://www.academia.edu/40973919/Goran_Latinovic_Yugoslav_Italian_Economic_Relations_1918_1941_',1922),
+ 'YU-ZAG-BUNKER-COAL':worldSupplyOffer('YU-ZAG','PRD-R04','輸送燃料用石炭（モデル仕入枠）',1922,100,17,'https://muzej.hzinfra.hr/?page_id=1286',1922),
+ 'AL-DUR-AL-CARGO':worldSupplyOffer('AL-DUR','PRD-R19','木材（史料付き地域仕入・モデル枠）',1937,100,12,'https://www.academia.edu/40973919/Goran_Latinovic_Yugoslav_Italian_Economic_Relations_1918_1941_',1937),
+ 'AL-DUR-BUNKER-COAL':worldSupplyOffer('AL-DUR','PRD-R04','輸送燃料用石炭（モデル仕入枠）',1937,100,17,'https://www.academia.edu/40973919/Goran_Latinovic_Yugoslav_Italian_Economic_Relations_1918_1941_',1937),
  'UK-HOL-DUBLIN-TEXTILES':worldSupplyOffer('UK-HOL','PRD-M36','ホーリーヘッドからダブリン向けの織物',1932,100,28,
   WORLD_IRISH_SEA_SOURCE,1932),
  'UK-HOL-BUNKER-COAL':worldSupplyOffer('UK-HOL','PRD-R04','アイリッシュ海汽船用石炭（モデル仕入枠）',1932,100,17,
@@ -14726,6 +14751,9 @@ function worldInternationalRailProfile(from,to,opensAt,distanceKm,source){
   truck:'PRD-E16',fuelScale:1200});
 }
 const WORLD_INTERNATIONAL_CORRIDORS=Object.freeze({
+ 'LU-FR-LUXEMBOURG-IRON':worldInternationalRailProfile('LU-LUX','FR-THI',ym(1913,4),34,'https://bnl.public.lu/de/a-la-une/a-la-loupe/2024/epopee-du-rail.html'),
+ 'YU-IT-ZAGREB-TRIESTE-TIMBER':worldInternationalRailProfile('YU-ZAG','IT-TRI',ym(1922,4),350,'https://muzej.hzinfra.hr/?page_id=1286'),
+ 'AL-IT-DURRES-BARI-TIMBER':worldSteamshipProfile('AL-DUR','IT-BAR',ym(1937,8),220,28,24,2,'https://www.academia.edu/40973919/Goran_Latinovic_Yugoslav_Italian_Economic_Relations_1918_1941_'),
  // 1932 LMS freight and textile inspection; numerical coefficients modeled.
  'UK-IE-HOLYHEAD-DUBLIN-TEXTILES':worldSteamshipProfile('UK-HOL','IE-DUB',ym(1932,5),110,28,24,2,
   WORLD_IRISH_SEA_SOURCE),
@@ -14885,6 +14913,9 @@ const WORLD_INTERNATIONAL_CORRIDORS=Object.freeze({
 // the modeled capacity, distance or cost. The playable dates conservatively
 // allow time to pass after dated sources; they are not claimed opening dates.
 const WORLD_INTERNATIONAL_ROUTE_EVIDENCE=Object.freeze({
+ 'LU-FR-LUXEMBOURG-IRON':Object.freeze({untilMonth:ym(1914,1),products:Object.freeze(['PRD-R01']),source:'https://pubs.usgs.gov/bul/0703/report.pdf',operationSource:'https://bnl.public.lu/de/a-la-une/a-la-loupe/2024/epopee-du-rail.html'}),
+ 'YU-IT-ZAGREB-TRIESTE-TIMBER':Object.freeze({untilMonth:ym(1923,1),products:Object.freeze(['PRD-R19']),source:'https://www.academia.edu/40973919/Goran_Latinovic_Yugoslav_Italian_Economic_Relations_1918_1941_',operationSource:'https://muzej.hzinfra.hr/?page_id=1286'}),
+ 'AL-IT-DURRES-BARI-TIMBER':Object.freeze({untilMonth:ym(1938,1),products:Object.freeze(['PRD-R19']),source:'https://www.academia.edu/40973919/Goran_Latinovic_Yugoslav_Italian_Economic_Relations_1918_1941_',operationSource:'https://www.academia.edu/40973919/Goran_Latinovic_Yugoslav_Italian_Economic_Relations_1918_1941_'}),
  'UK-IE-HOLYHEAD-DUBLIN-TEXTILES':Object.freeze({untilMonth:ym(1933,1),products:Object.freeze(['PRD-M36']),
   source:WORLD_IRISH_SEA_SOURCE,operationSource:WORLD_IRISH_SEA_SOURCE}),
  'UK-PT-CARDIFF-LISBON-COAL':Object.freeze({untilMonth:ym(1913,1),products:Object.freeze(['PRD-R04']),
@@ -15296,7 +15327,7 @@ function worldInternationalOrderBank(profileId,order){
  const bank=WORLD_INTERNATIONAL_REMITTANCE[profileId];
  return bank&&order.paymentDays>0&&(!bank.selectable||order.bankId===bank.id)?bank:null;
 }
-const WORLD_PHASE4_TARIFF_BPS=Object.freeze({JP:350,US:300,UK:250,FR:300,DE:300,NO:250,CA:300,AU:300,NZ:300,MX:300,BR:300,AR:300,CL:300,CO:300,SE:250,NL:300,IT:300,EG:300,IN:300,ZA:250,TH:300,SG:0,CN:300,ID:300,NG:250,ES:250,PT:300,IE:300,PH:300,RU:300,KR:300,TR:300,MY:250,KE:250,MA:300,CH:300,AT:300,PL:250,GR:300,VN:300,IR:300,SA:300});
+const WORLD_PHASE4_TARIFF_BPS=Object.freeze({JP:350,US:300,UK:250,FR:300,DE:300,NO:250,CA:300,AU:300,NZ:300,MX:300,BR:300,AR:300,CL:300,CO:300,SE:250,NL:300,IT:300,EG:300,IN:300,ZA:250,TH:300,SG:0,CN:300,ID:300,NG:250,ES:250,PT:300,IE:300,LU:300,YU:300,AL:300,PH:300,RU:300,KR:300,TR:300,MY:250,KE:250,MA:300,CH:300,AT:300,PL:250,GR:300,VN:300,IR:300,SA:300});
 function worldInternationalCustomsMonthAllowed(rule,month){
  return (rule.fromImportMonth==null||month>=rule.fromImportMonth)
   &&(rule.untilImportMonth==null||month<rule.untilImportMonth);

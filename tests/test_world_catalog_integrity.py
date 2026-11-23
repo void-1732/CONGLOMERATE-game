@@ -41,11 +41,11 @@ def main():
           }finally{location.cityId=originalCityId}
           const state=newWorldGame({country:'JP',name:'Phase1検証'});
           // Grouped legal jurisdictions do not imply a trading engine.
-          const incomplete=['CITY-08-04','CITY-13-01','CITY-13-04'];
-          const registered=['CITY-05-01','CITY-08-02','CITY-08-03','CITY-13-02'];
+          const incomplete=['CITY-13-01','CITY-13-04'];
+          const registered=['CITY-05-01','CITY-08-02','CITY-08-03','CITY-08-04','CITY-13-02'];
           const compositeClosed=incomplete.every(id=>{
             const city=worldCityLocation(state,id);
-            return !city.marketOpen&&!city.economicEngineConnected;
+            return !city.marketOpen&&city.economicEngineConnected;
           });
           const compositeLaw=(
             worldCityLocation(state,'CITY-05-03').jurisdictionId==='JUR-PT-KINGDOM'
@@ -134,8 +134,7 @@ def main():
           delete legacy.npcSupplyV033.markets.BE;
           delete legacy.world.PT;
           delete legacy.npcSupplyV033.markets.PT;
-          delete legacy.world.IE;
-          delete legacy.npcSupplyV033.markets.IE;
+          for(const [code,row] of Object.entries(WORLD_MARKET_ONBOARDING))if(row.introducedIn>16){delete legacy.world[code];delete legacy.npcSupplyV033.markets[code];}
           ensureSupplyNetwork(legacy);
           const belgiumLegacy=worldCityLocation(legacy,'CITY-08-03');
           const belgiumBeforeUpgrade=belgiumLegacy.jurisdictionId===null
