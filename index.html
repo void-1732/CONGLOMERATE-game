@@ -10898,7 +10898,7 @@ function makeWorldExpansion(){
   catalogVersion:WORLD_CATALOG_VERSION,
   territoryJurisdictions:Object.fromEntries([...WORLD_TERRITORIES.keys()].map(id=>[id,WORLD_INITIAL_JURISDICTIONS[id]??null])),
   openMarkets:Object.fromEntries(WORLD_MARKETS.map(m=>[m.id,INITIAL_ENGINE_COUNTRIES.includes(WORLD_ENGINE_BY_MARKET[m.id])?WORLD_START_MONTH:null])),
-  appliedEvents:[],companies:{},facilities:{},resourceDeposits:{},powerAllocations:{},powerGenerators:{},energyReceipts:[],physicalDeliveries:[],powerLines:{},powerTransfers:[],localSupplyPlans:{},domesticRoutes:{},domesticShipments:[],domesticWarehouses:{},domesticAssetTransfers:[],domesticOrders:[]
+  appliedEvents:[],companies:{},facilities:{},resourceDeposits:{},powerAllocations:{},powerGenerators:{},energyReceipts:[],physicalDeliveries:[],powerLines:{},powerTransfers:[],localSupplyPlans:{},domesticRoutes:{},domesticShipments:[],domesticWarehouses:{},domesticAssetTransfers:[],domesticOrders:[],regionalSupplyPurchases:[]
  };
 }
 
@@ -11885,9 +11885,89 @@ const WORLD_DOMESTIC_WAREHOUSE_PROFILES=Object.freeze({
   products:Object.freeze(['PRD-R22','PRD-R23','PRD-R24','PRD-R25']),
   source:'https://www.port-of-nagoya.jp/shokai/kohoshiryo/1001070.html'})
 });
+// Historical evidence is for the commodity and area. Quantities are finite
+// game procurement allotments, independent of mine reserves and historical prices.
+const WORLD_REGIONAL_SUPPLY=Object.freeze({
+ 'JP-KIBA-TIMBER':Object.freeze({siteId:'JP-TOK',productId:'PRD-R19',name:'東京・木場の木材',
+  opensAt:ym(1900,1),closesAt:ym(1974,4),quantity:180,priceBase:12,
+  source:'https://www.rinya.maff.go.jp/j/kikaku/hakusyo/26hakusyo/pdf/5hon1-1.pdf'}),
+ 'JP-TOKYO-COAL-1910':Object.freeze({siteId:'JP-TOK',productId:'PRD-R04',name:'東京向けの釧路炭（1910年度）',
+  opensAt:ym(1910,4),closesAt:ym(1911,4),quantity:70,priceBase:9,
+  source:'https://api.lib.kyushu-u.ac.jp/opac_download_md/4774261/880506_p095.pdf'}),
+ 'JP-TOYOSU-COAL':Object.freeze({siteId:'JP-TOK',productId:'PRD-R04',name:'東京・豊洲の石炭',
+  opensAt:ym(1951,1),closesAt:ym(1968,1),quantity:100,priceBase:11,
+  source:'https://www.pa.ktr.mlit.go.jp/tokyo/business/history.html'}),
+ 'JP-TOKYO-RICE':Object.freeze({siteId:'JP-TOK',productId:'PRD-R23',name:'東京の卸売米',
+  opensAt:ym(1951,4),closesAt:null,quantity:180,priceBase:16,
+  source:'https://www.kitoku-shinryo.co.jp/ja/study/history.html'}),
+ 'JP-KEIHIN-DIESEL':Object.freeze({siteId:'JP-TOK',productId:'PRD-M16',name:'京浜・川崎の軽油',
+  opensAt:ym(1994,1),closesAt:null,quantity:120,priceBase:19,
+  source:'https://www.eneos.co.jp/company/branch/kawasaki/refinery/'})
+});
 const worldDomesticProfile=(catalog,id)=>Object.hasOwn(catalog,id)?catalog[id]:null;
 const worldDomesticSiteActive=(plant,site)=>!!plant&&plant.siteId===site
  &&!plant.construction&&!plant.paused&&!plant.renovation;
+function worldRegionalSupplyUsage(w){
+ const used=new Map();
+ for(const entry of w.regionalSupplyPurchases??[]){
+  used.set(entry.supplyId,(used.get(entry.supplyId)??0)+entry.quantity);
+ }
+ return used;
+}
+const worldRegionalSupplyOpen=(offer,month)=>month>=offer.opensAt&&(offer.closesAt==null||month<offer.closesAt);
+const worldRegionalSupplyPrice=(offer,year,country)=>Math.max(1,localFromBase(offer.priceBase*eraCostFactor(year),country));
+function worldBuyRegionalSupply(s,actorId,plantId,supplyId,quantity){
+ const w=s.worldExpansion,offer=worldDomesticProfile(WORLD_REGIONAL_SUPPLY,supplyId),
+  buyer=company(actorId,s),plant=buyer?.plants.find(p=>p.id===plantId),month=ym(s.year,s.month);
+ if(!w||!offer||!worldRegionalSupplyOpen(offer,month))throw Error('この仕入枠の取扱期間外です');
+ if(!isActiveCorporateFirm(buyer)||!controller(s,actorId)||buyer.country!==findSite(offer.siteId)?.country
+  ||!worldDomesticSiteActive(plant,offer.siteId))
+  throw Error('仕入地点に稼働中の所有施設が必要です');
+ if(!Number.isSafeInteger(quantity)||quantity<1)throw Error('仕入数量が不正です');
+ const remaining=offer.quantity-(worldRegionalSupplyUsage(w).get(supplyId)??0);
+ if(quantity>remaining)throw Error('史料付き仕入枠の残量が不足しています');
+ const stock=buyer.stock[offer.productId],room=Math.floor(plant.capacity*10)-(stock?.q??0);
+ if(quantity>room)throw Error('現物を受け入れる保管容量が不足しています');
+ const unitPrice=worldRegionalSupplyPrice(offer,s.year,buyer.country),amount=quantity*unitPrice;
+ if(!Number.isSafeInteger(amount)||acc(buyer,'cash')<amount)throw Error('仕入に必要な現預金が不足しています');
+ const journal=s.seq;
+ post(buyer,{materials:amount},{cash:amount},'地域の現物仕入・'+offer.name,'operating',s);
+ const received=buyer.stock[offer.productId]??={q:0,v:0};
+ received.q+=quantity;received.v+=amount;
+ const entry={id:'WS-'+s.seq++,supplyId,buyerId:buyer.id,plantId,siteId:offer.siteId,
+  productId:offer.productId,quantity,unitPrice,amount,month,journal};
+ (w.regionalSupplyPurchases??=[]).push(entry);
+ return entry;
+}
+function worldValidateRegionalSupplies(s){
+ const w=s.worldExpansion;
+ if(!w||w.regionalSupplyPurchases===undefined)return;
+ if(!Array.isArray(w.regionalSupplyPurchases))throw Error('地域仕入台帳の形式が不正です');
+ const totals=new Map(),month=ym(s.year,s.month),journals=new Map();
+ let lastId=0,lastMonth=WORLD_START_MONTH;
+ for(const t of w.regionalSupplyPurchases){
+  const offer=worldDomesticProfile(WORLD_REGIONAL_SUPPLY,t?.supplyId),buyer=company(t?.buyerId,s),
+   id=Number(t?.id?.split('-')[1]);
+  const sum=(totals.get(t?.supplyId)??0)+t?.quantity;
+  if(!offer||!buyer||buyer.country!==findSite(offer.siteId)?.country
+   ||!/^WS-\d+$/.test(t.id)||!Number.isSafeInteger(id)||id<=lastId||id>=s.seq||t.journal!==id-1
+   ||t.productId!==offer.productId||t.siteId!==offer.siteId||typeof t.plantId!=='string'
+   ||!Number.isSafeInteger(t.month)||t.month<lastMonth||t.month>month||!worldRegionalSupplyOpen(offer,t.month)
+   ||!Number.isSafeInteger(t.quantity)||t.quantity<1||sum>offer.quantity
+   ||t.unitPrice!==worldRegionalSupplyPrice(offer,Math.floor(t.month/12),buyer.country)
+   ||t.amount!==t.unitPrice*t.quantity||!Number.isSafeInteger(t.amount))
+   throw Error('地域仕入の数量・取得原価・参照が不正です：'+t?.id);
+  if(!journals.has(buyer.id))journals.set(buyer.id,new Map(buyer.journals.map(j=>[j.id,j])));
+  const j=journals.get(buyer.id).get(t.journal);
+  const archived=!j&&buyer.journals.length===10000&&t.journal<buyer.journals[0].id;
+  if(!archived&&(!j||j.when!==t.month||j.kind!=='operating'||j.text!=='地域の現物仕入・'+offer.name
+   ||j.dr.length!==1||j.dr[0][0]!=='materials'||j.dr[0][1]!==t.amount
+   ||j.cr.length!==1||j.cr[0][0]!=='cash'||j.cr[0][1]!==t.amount))
+   throw Error('地域仕入と現金仕訳が一致しません：'+t.id);
+  totals.set(t.supplyId,sum);
+  lastId=id;lastMonth=t.month;
+ }
+}
 function worldCapitalizeDomesticEquipment(s,owner,ids,description){
  const stocks=ids.map(id=>owner.stock?.[id]);
  if(stocks.some(stock=>!stock||!Number.isSafeInteger(stock.q)||stock.q<1
@@ -12664,6 +12744,7 @@ function worldValidateDomesticLogistics(s){
 }
 
 function validateWorldSupplemental(state){
+ worldValidateRegionalSupplies(state);
  worldValidatePhase2E(state);
  worldValidateLocalSupply(state);
  worldValidateDomesticLogistics(state);
@@ -12793,6 +12874,23 @@ function worldDomesticControls(firm,routes,warehouses,shipments,orders){
   number=(name,label,max)=>'<label>'+label+' <input type="number" name="'+name+'" min="1" max="'+max+'" required></label>',
   form=(key,label,fields)=>'<form class="row" data-world-domestic="'+key+'">'+fields
    +'<button class="btn sm" type="submit">'+label+'</button></form>';
+ const month=ym(S.year,S.month),usage=worldRegionalSupplyUsage(w);
+ const supplies=Object.entries(WORLD_REGIONAL_SUPPLY).flatMap(([id,offer])=>{
+  if(!worldRegionalSupplyOpen(offer,month)||firm.country!==findSite(offer.siteId)?.country)return [];
+  const remaining=offer.quantity-(usage.get(id)??0);
+  const unit=worldProductUnitClass(offer.productId)==='volume'?'L':'kg';
+  const rows=firm.plants.filter(p=>worldDomesticSiteActive(p,offer.siteId)).map(plant=>{
+   const limit=Math.min(remaining,Math.floor(plant.capacity*10)-(firm.stock[offer.productId]?.q??0));
+   const price=fnum(firm,worldRegionalSupplyPrice(offer,S.year,firm.country));
+   const details='<small>'+esc(offer.name)+' / '+esc(plant.name)+' / 残り '+nfmt(remaining)+' '+unit
+    +' / '+price+' / '+unit+' <a href="'+offer.source+'" target="_blank" rel="noopener noreferrer">史料</a></small>';
+   return limit>0?form('supply','現物を仕入れる',details
+    +'<input type="hidden" name="offer" value="'+esc(id+'|'+plant.id)+'">'
+    +number('quantity','数量（'+unit+'）',limit)):'<div>'+details+'</div>';
+  });
+  return rows;
+ });
+ if(supplies.length)actions.push('<h4>地域の現物仕入</h4><p>数量枠と価格はゲーム内の暫定値です。現金で購入し、残量は月が変わっても補充されません。</p>'+supplies.join(''));
  const corridors=Object.entries(WORLD_DOMESTIC_CORRIDORS).filter(([,r])=>
   ym(S.year,S.month)>=r.opensAt&&firm.plants.some(p=>worldDomesticSiteActive(p,r.from)));
  if(corridors.length)actions.push(form('route','経路を登録',select('profile','登録する経路',
@@ -12862,6 +12960,11 @@ document.addEventListener('submit',event=>{
    case 'warehouse':{
     const [profile,plant]=values.get('installation').split('|');
     worldInstallDomesticWarehouse(S,firm.id,plant,profile);
+    break;
+   }
+   case 'supply':{
+    const [supplyId,plantId]=values.get('offer').split('|');
+    worldBuyRegionalSupply(S,firm.id,plantId,supplyId,Number(values.get('quantity')));
     break;
    }
    case 'order':{

@@ -20,6 +20,7 @@ on:
       - tests/test_world_phase2h.py
       - tests/test_world_phase2i.py
       - tests/test_world_phase2k_cost.py
+      - tests/test_world_phase2k_supply.py
       - tests/test_vehicle_discontinuation.py
       - .github/workflows/world-economy-development.yml
   pull_request:
@@ -67,8 +68,10 @@ jobs:
         run: |
           python -B tests/test_world_phase2h.py
           python -B tests/test_world_phase2i.py
-      - name: Phase 2-K domestic inventory cost and consolidation
-        run: python -B tests/test_world_phase2k_cost.py
+      - name: Phase 2-K inventory, consolidation and regional procurement
+        run: |
+          python -B tests/test_world_phase2k_cost.py
+          python -B tests/test_world_phase2k_supply.py
       - name: Existing UI, trade and save regression
         run: |
           python -B tests/test_step10_37_pages.py
