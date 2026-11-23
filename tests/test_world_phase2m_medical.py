@@ -132,9 +132,16 @@ def main():
           worldRetireDomesticAsset(S,providerId,'medical',id);
           const closed=clinic.retiredAt===ym(S.year,S.month)
             &&!check(parsePayload(savePayload(S))).length;
-          return {depreciated,closed};
+          return {depreciated,closed,diagnostics:{
+            monthCommitted:S.monthCommitted,month:ym(S.year,S.month),
+            depreciation:clinic.accumulatedDepreciation,
+            lastDepreciatedAt:clinic.lastDepreciatedAt,
+            errors:report.errors,cfReconciled:report.cf.reconciled,
+            cf:report.cf,periodPL:spot.periodPL,
+            expectedInternalSales:window.medicalFixture.total
+          }};
         }""")
-        assert all(final.values()), final
+        assert final["depreciated"] and final["closed"], final
         assert not errors,errors
         browser.close()
     print("PASS Phase 2-M S08 E27, real worker allocation, delivery-only revenue, capacity, "
