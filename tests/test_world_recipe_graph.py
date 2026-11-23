@@ -91,7 +91,7 @@ def main():
             firstPass,secondPass,noDuplicate,saved,goodLedger,uiUpdated,allCandidateProducts
           };
         }""")
-        assert result.pop("n") == 46, result
+        assert result.pop("n") == 61, result
         assert all(result.values()), result
         assert not errors, errors
         browser.close()
