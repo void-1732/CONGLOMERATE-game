@@ -20,6 +20,8 @@ def main():
         page.wait_for_function("STORAGE_READY")
         result = page.evaluate("""() => {
           S=newWorldGame({country:'JP',name:'Phase 2-I supplier'});
+          // Historical exact-amount fixture; new tariff is covered by the monthly freight audit.
+          delete S.worldExpansion.freightRateFromSeq;
           S.year=1970;S.month=1;S.monthCommitted=ym(1970,1)-1;
           const seller=company(S.playerId),plant=seller.plants[0];
           const buyer=initFirm(S,{name:'Independent wood mill',country:'JP',seedBase:5000000});

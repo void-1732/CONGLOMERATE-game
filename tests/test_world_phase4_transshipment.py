@@ -148,7 +148,7 @@ def main(observe_receipts=None):
           const reopened=parsePayload(savePayload(S));
           const settled=cargo.status==='DELIVERED'&&buyer.stock['PRD-M14'].q===4
             &&buyer.stock['PRD-M14'].v===cargo.totalBuyer&&!acc(seller,'worldShipmentStock')
-            &&-acc(seller,'sales')===cargo.goodsSeller&&!check(reopened).length&&!consolidate(reopened).errors.length;
+            &&-acc(seller,'sales')===worldInternationalSale(cargo)&&!check(reopened).length&&!consolidate(reopened).errors.length;
           return {closedEarly,blocked,inactiveRejected,registered,routeGatedCapacity,damagedCapacity,loaded,pausedCapacity,waits,
             routeCapacity,railPosition,held,portPosition,audit,boarded,seaPosition,stillOwned,settled};
         }""")

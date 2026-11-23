@@ -20,6 +20,8 @@ def main():
         page.wait_for_function("STORAGE_READY")
         result = page.evaluate("""() => {
           S=newWorldGame({country:'JP',name:'Phase 2-K'});
+          // Historical exact-amount fixture; new tariff is covered by the monthly freight audit.
+          delete S.worldExpansion.freightRateFromSeq;
           const parent=company(S.playerId);
           const subsidiary=name=>{
             const capital=60000000,parentJournal=S.seq;

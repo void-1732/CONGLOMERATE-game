@@ -91,7 +91,7 @@ def main(observe_receipts=None):
             &&acc(seller,'worldInternationalReceivable')===b.prepaidSeller+c.prepaidSeller
             &&acc(buyer,'worldInternationalPayable')===-(b.prepaidBuyer+c.prepaidBuyer)
             &&acc(buyer,'worldInternationalDutyPayable')===-(b.dutyBuyer+c.dutyBuyer)
-            &&-acc(seller,'sales')===a.goodsSeller+b.goodsSeller+c.goodsSeller&&!check(S).length;
+            &&-acc(seller,'sales')===worldInternationalSale(a)+worldInternationalSale(b)+worldInternationalSale(c)&&!check(S).length;
           const retirementWhileUnpaid=rejects(()=>worldRetireInternationalAsset(S,seller.id,route.id))
             &&rejects(()=>worldRetireInternationalAsset(S,buyer.id,wh.id));
           const grouped=consolidate(S);

@@ -129,8 +129,8 @@ def main():
           const roadLoad=dispatch(road,roadReceiver,'PRD-R22',5);
           const capacity=refuses(()=>dispatch(rail,railReceiver,'PRD-R19',2),'引当済み容量')
             &&refuses(()=>dispatch(road,roadReceiver,'PRD-R22',2),'引当済み容量');
-          const freight=railLoad.fuelId==='PRD-R04'&&railLoad.fuelQuantity===1&&railLoad.freightCost===5
-            &&roadLoad.fuelId==='PRD-M16'&&roadLoad.fuelQuantity===3&&roadLoad.freightCost===18
+          const freight=railLoad.fuelId==='PRD-R04'&&railLoad.fuelQuantity===1&&railLoad.fuelBookCost===5&&railLoad.freightCost===worldFreightCharge(WORLD_DOMESTIC_CORRIDORS[railId],7,'JP')
+            &&roadLoad.fuelId==='PRD-M16'&&roadLoad.fuelQuantity===3&&roadLoad.fuelBookCost===18&&roadLoad.freightCost===worldFreightCharge(WORLD_DOMESTIC_CORRIDORS[roadId],5,'JP')
             &&seller.stock['PRD-R19'].q===9&&seller.stock['PRD-M16'].q===5;
           const pay=railLoad.prepaid+roadLoad.prepaid;
           const escrow=acc(seller,'sales')===0&&-acc(seller,'worldCustomerAdvances')===pay
@@ -149,7 +149,7 @@ def main():
           worldDepreciateInfrastructure(S);
           worldReceiveDomesticShipments(S);
           const receipt=railLoad.status==='DELIVERED'&&roadLoad.status==='IN_TRANSIT'
-            &&-acc(seller,'sales')===railLoad.amount&&buyer.stock['PRD-R19'].v===railLoad.prepaid
+            &&-acc(seller,'sales')===worldDomesticSale(railLoad)&&buyer.stock['PRD-R19'].v===railLoad.prepaid
             &&worldDomesticWarehouseReservations(S.worldExpansion,railDepot.id)===0;
           const routeGross=rail.assetValue,routeDep=rail.accumulatedDepreciation;
           const buyerPpe=acc(buyer,'ppe'),sellerPpe=acc(seller,'ppe'),sellerAccDep=acc(seller,'accdep');

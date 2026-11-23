@@ -22,6 +22,8 @@ def main():
         page.wait_for_function("STORAGE_READY")
         page.evaluate("""() => {
           S=newWorldGame({country:'JP',name:'Phase 2-K supplies'});
+          // Historical exact-amount fixture; new tariff is covered by the monthly freight audit.
+          delete S.worldExpansion.freightRateFromSeq;
           VIEW_FIRM=S.playerId;PAGE='facilityProduction';
           requestOperationSaveV037=()=>true;
           window.openingCash=acc(company(S.playerId),'cash');

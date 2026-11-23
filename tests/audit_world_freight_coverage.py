@@ -155,6 +155,8 @@ def audit_monthly_receipts():
  const saved=parsePayload(savePayload(S)),g=consolidate(saved);
  return {id,received:cargo.receivedAt,tariffBps:cargo.tariffBps,ok:cargo.tariffBps===WORLD_PHASE4_TARIFF_BPS[buyer.country]
   &&cargo.dutyBuyer===Math.round(cargo.goodsSeller*cargo.sellerRate/cargo.buyerRate*cargo.tariffBps/10000)
+  &&cargo.freightSeller===worldFreightCharge(p,cargo.loadKg,seller.country)
+  &&seller.journals.find(j=>j.id===cargo.journals.terminal)?.cr.some(([key,v])=>key==='sales'&&v===worldInternationalSale(cargo))
   &&buyer.stock[product]?.q===2&&buyer.stock[product].v===cargo.totalBuyer&&acc(seller,'worldShipmentStock')===0&&acc(buyer,'worldSupplierAdvances')===0&&!check(saved).length&&!g.errors.length&&g.cf.reconciled};
 }""", route_id)
             assert result["ok"], result

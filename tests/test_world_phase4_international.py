@@ -19,6 +19,8 @@ def main(observe_receipts=None):
             observe_receipts(page)
         result=page.evaluate("""() => {
           S=newWorldGame({country:'UK',name:'Phase 4 Channel freight'});
+          // Historical exact-amount fixture; new tariff is covered by the monthly freight audit.
+          delete S.worldExpansion.freightRateFromSeq;
           const buyer=company(S.playerId),bp=buyer.plants[0];
           const capital=300000,parentJournal=S.seq;
           post(buyer,{investment:capital},{cash:capital},'検証用海外法人の正式設立','investing',S);
@@ -195,6 +197,8 @@ def main(observe_receipts=None):
               &&p.capacityKg>0&&p.warehouseCapacityKg>0&&p.distanceKm>0
               &&p.fuel&&p.truck&&p.status==='PROVISIONAL');
           S=newWorldGame({country:'UK',name:'Phase 4 ocean test'});
+          // Historical exact-amount fixture; new tariff is covered by the monthly freight audit.
+          delete S.worldExpansion.freightRateFromSeq;
           const buyer=company(S.playerId),bp=buyer.plants[0];
           const capital=300000,parentJournal=S.seq;
           post(buyer,{investment:capital},{cash:capital},'検証用海外法人の正式設立','investing',S);
