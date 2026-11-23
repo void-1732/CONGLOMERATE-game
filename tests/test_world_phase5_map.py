@@ -42,6 +42,7 @@ def main():
               cityCircles:document.querySelectorAll('[data-world-map-city]').length,
               routeGraphics:document.querySelectorAll('[data-world-map-route]').length,
               noMutation:JSON.stringify(S)===before,
+              noPhantomWarehouses:worldMapWarehouseLedger(S).length===0,
               check:check(S).length
             };
         }""")
@@ -52,6 +53,7 @@ def main():
         assert audit["svg"] == 1 and audit["cityCircles"] == 155, audit
         assert audit["routeGraphics"] == audit["routes"], audit
         assert audit["noMutation"] and audit["check"] == 0, audit
+        assert audit["noPhantomWarehouses"], audit
 
         page.locator('[data-world-map-mode="rail"]').click()
         rail_count = page.evaluate("""() => Object.values(WORLD_INTERNATIONAL_CORRIDORS)

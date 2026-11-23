@@ -61,6 +61,19 @@ def main():
             &&route.assetValue===9000&&route.capacityKg===10;
           const options={routeId:route.id,warehouseId:warehouse.id,productId:'PRD-M14',
             quantity:9,cargoLitres:36,unitPriceSeller:1200,maxPaymentBuyer:100000,paymentDays:60};
+          // Phase 4 regression: a damaged transfer depot must cap new
+          // international allocation, not merely the unchanged route capacity.
+          const damaged=structuredClone(S),d=damaged.worldExpansion.domesticWarehouses[depot.id];
+          d.condition=50;
+          const damagedOrder=worldInternationalPlaceOrder(damaged,buyer.id,options);
+          worldInternationalActOrder(damaged,seller.id,damagedOrder.id,'approve');
+          damaged.month=2;worldInternationalResolveOrders(damaged);
+          const damagedCargo=damaged.worldExpansion.internationalShipments[0];
+          const damagedHub=worldMapWarehouseLedger(damaged).find(h=>h.id===depot.id);
+          const damagedCapacity=damagedOrder.acceptedQty===2&&damagedCargo?.loadKg===4
+            &&damagedHub?.effectiveCapacity===4&&damagedHub?.reserved===4
+            &&damagedHub?.available===0&&damagedHub?.status==='稼働設備'
+            &&!check(damaged).length;
           const first=worldInternationalPlaceOrder(S,buyer.id,options);
           const second=worldInternationalPlaceOrder(S,buyer.id,{...options,quantity:1,cargoLitres:2});
           for(const o of [first,second])worldInternationalActOrder(S,seller.id,o.id,'approve');
@@ -73,6 +86,9 @@ def main():
             &&!buyer.stock['PRD-M14']?.q&&acc(seller,'worldShipmentStock')===cargo.bookCost;
           terminal.paused=true;syncPlant(seller);
           S.month=3;worldInternationalReceiveShipments(S);worldInternationalSettleCredit(S);
+          const pausedHub=worldMapWarehouseLedger(S).find(h=>h.id===depot.id);
+          const pausedCapacity=pausedHub?.status==='拠点休止中'&&pausedHub?.available===0
+            &&pausedHub?.reserved===8;
           const waits=cargo.transfer.arrivedAt===null&&cargo.transfer.boardedAt===null
             &&cargo.credit.dueDate==='1920-04-01'&&cargo.credit.paidAt===null;
           terminal.paused=false;syncPlant(seller);
@@ -94,7 +110,7 @@ def main():
           const settled=cargo.status==='DELIVERED'&&buyer.stock['PRD-M14'].q===4
             &&buyer.stock['PRD-M14'].v===cargo.totalBuyer&&!acc(seller,'worldShipmentStock')
             &&-acc(seller,'sales')===cargo.goodsSeller&&!check(reopened).length&&!consolidate(reopened).errors.length;
-          return {closedEarly,blocked,registered,loaded,waits,held,audit,boarded,stillOwned,settled};
+          return {closedEarly,blocked,registered,damagedCapacity,loaded,pausedCapacity,waits,held,audit,boarded,stillOwned,settled};
         }""")
         assert all(result.values()), result
         assert not errors, errors

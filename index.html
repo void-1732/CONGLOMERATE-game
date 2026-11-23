@@ -9526,38 +9526,59 @@ document.addEventListener('click',event=>{
 });
 
 
+// Read-only view of the very same reservations used by domestic and
+// international order allocation. No warehouse or shipment is synthesized.
+function worldMapWarehouseLedger(s){
+ const w=s.worldExpansion;
+ if(!w)return [];
+ const rows=[];
+ for(const [kind,collection] of [
+  ['国内',Object.values(w.domesticWarehouses??{})],
+  ['国際',Object.values(w.internationalWarehouses??{})]
+ ]){
+  for(const h of collection){
+   const profile=kind==='国内'?WORLD_DOMESTIC_WAREHOUSE_PROFILES[h.profileId]
+    :WORLD_INTERNATIONAL_CORRIDORS[h.profileId];
+   const siteId=kind==='国内'?profile?.site:profile?.to;
+   const nominal=kind==='国内'?profile?.capacity:profile?.warehouseCapacityKg;
+   const effectiveCapacity=Math.floor((nominal??0)*(h.condition??100)/100);
+   const reserved=kind==='国内'?worldDomesticWarehouseReservations(w,h.id)
+    :(w.internationalShipments??[]).filter(t=>t.warehouseId===h.id&&t.status==='IN_TRANSIT')
+      .reduce((sum,t)=>sum+(t.loadKg??t.quantity),0);
+   const owner=s.firms.find(f=>f.id===h.ownerCompanyId);
+   const plant=owner?.plants.find(p=>p.id===h.plantId);
+   const active=h.retiredAt==null&&!!siteId&&!!owner&&isActiveCorporateFirm(owner)
+    &&worldDomesticSiteActive(plant,siteId);
+   rows.push({id:h.id,kind,ownerCompanyId:h.ownerCompanyId,
+    siteId:siteId??null,profileId:h.profileId,nominal:nominal??0,
+    effectiveCapacity,reserved,available:active?Math.max(0,effectiveCapacity-reserved):0,
+    status:h.retiredAt!=null?'廃止済み':active?'稼働設備':'拠点休止中'});
+  }
+ }
+ return rows;
+}
 function worldMapWarehousePanel(s){
- const w=s.worldExpansion;if(!w)return '';
- const list=[
-  ...Object.values(w.domesticWarehouses??{}).map(x=>({
-   id:x.id,kind:'国内',owner:x.ownerCompanyId,installedAt:x.installedAt,
-   siteId:WORLD_DOMESTIC_WAREHOUSE_PROFILES[x.profileId]?.site??null,
-   capacity:WORLD_DOMESTIC_WAREHOUSE_PROFILES[x.profileId]?.capacity??0,
-   mode:'road / rail',profileId:x.profileId,retiredAt:x.retiredAt
-  })),
-  ...Object.values(w.internationalWarehouses??{}).map(x=>{
-   const profile=WORLD_INTERNATIONAL_CORRIDORS[x.profileId];
-   return {id:x.id,kind:'国際',owner:x.ownerCompanyId,installedAt:x.installedAt,
-    siteId:profile?.to??null,capacity:profile?.warehouseCapacityKg??0,
-    mode:profile?.mode??'sea',profileId:x.profileId,retiredAt:x.retiredAt};
-  })
- ];
- const rows=list.map(a=>{
+ if(!s.worldExpansion)return '';
+ const rows=worldMapWarehouseLedger(s).map(a=>{
   const site=SITE_CATALOG.find(x=>x.id===a.siteId);
-  const owner=s.firms.find(f=>f.id===a.owner);
+  const owner=s.firms.find(f=>f.id===a.ownerCompanyId);
   return '<tr data-world-hub-id="'+esc(a.id)+'"><td><code>'+esc(a.id)+'</code></td>'
    +'<td>'+esc(a.kind)+'</td><td>'+esc(site?.name??a.siteId??'所在地未登録')+'</td>'
-   +'<td>'+esc(owner?.name??a.owner)+'</td><td>'+esc(a.profileId)+'</td>'
-   +'<td class="num">'+nfmt(a.capacity)+' kg</td><td>'
-   +(a.retiredAt!=null?'廃止済み':'稼働設備')+'</td></tr>';
+   +'<td>'+esc(owner?.name??a.ownerCompanyId)+'</td><td>'+esc(a.profileId)+'</td>'
+   +'<td class="num">'+nfmt(a.nominal)+' kg</td>'
+   +'<td class="num">'+nfmt(a.effectiveCapacity)+' kg</td>'
+   +'<td class="num">'+nfmt(a.reserved)+' kg</td>'
+   +'<td class="num">'+nfmt(a.available)+' kg</td>'
+   +'<td>'+esc(a.status)+'</td></tr>';
  }).join('');
  return '<section class="panel span12" aria-label="Phase 5 現物物流拠点">'
   +'<h2>現物輸送設備・入荷倉庫の登録台帳</h2>'
-  +'<p class="hint">全社共通の現物台帳を参照します。所有者、立地ID、受入能力は実際の経済処理と同じ値です。'
-  +'新設・発注は既存の権限・現物資金・研究・輸送条件の審査を通して実行してください。</p>'
+  +'<p class="hint">実経済台帳と同じ引当を使用。実効容量は設備状態を反映し、拠点休止中は新規受付可能量を0と表示します。'
+  +'積替え途中の貨物と保管中の現物も国内倉庫の引当に含みます。</p>'
   +'<div class="scroll"><table><thead><tr><th>倉庫ID</th><th>用途</th><th>所在地</th><th>所有者</th>'
-  +'<th>経路・施設プロファイル</th><th class="num">最大重量</th><th>状態</th></tr></thead><tbody>'
-  +(rows||'<tr><td colspan="7">登録済みの実物倉庫はありません。</td></tr>')
+  +'<th>経路・施設</th><th class="num">名目上限</th><th class="num">実効容量</th>'
+  +'<th class="num">引当済み</th><th class="num">受付可能</th><th>状態</th></tr></thead><tbody>'
+  +(rows||'<tr><td colspan="10">登録済みの実物倉庫はありません。</td></tr>')
   +'</tbody></table></div>'
   +'<div class="row"><button type="button" class="btn" data-page="factory">製造・物流操作へ</button>'
   +'<button type="button" class="btn" data-page="worldMap">実物拠点を地図で確認</button></div>'
@@ -14770,8 +14791,9 @@ function worldInternationalResolveOrders(s,events=[]){
    .reduce((n,t)=>n+(t.loadKg??t.quantity),0);
   const reserved=(w.internationalShipments??[]).filter(t=>t.warehouseId===h.id&&t.status==='IN_TRANSIT')
    .reduce((n,t)=>n+(t.loadKg??t.quantity),0);
-  const transferCapacity=transfer?WORLD_DOMESTIC_WAREHOUSE_PROFILES[transfer.profileId].capacity
-   -worldDomesticWarehouseReservations(w,transfer.id):Infinity;
+  // Damaged transfer depots cannot reserve their nominal full capacity.
+  const transferCapacity=transfer?Math.floor(WORLD_DOMESTIC_WAREHOUSE_PROFILES[transfer.profileId].capacity
+   *(transfer.condition??100)/100)-worldDomesticWarehouseReservations(w,transfer.id):Infinity;
   const capacity=Math.min(Math.floor(route.capacityKg*(route.condition??100)/100)-occupied,
    Math.floor(profile.warehouseCapacityKg*(h.condition??100)/100)-reserved,transferCapacity);
   const limit=Math.min(o.quantity,capacity,seller.stock?.[o.productId]?.q??0);
