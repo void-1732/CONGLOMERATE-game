@@ -117,6 +117,28 @@ def main():
             state.worldExpansion.companies,
             state.worldExpansion.facilities
           ]);
+          const euroShared=state.worldExpansion.euroFxUnified===true
+            &&['FR','DE','IE','LU'].every(code=>state.world[code]?.currency==='EUR'
+              &&state.world[code].fx===state.world.FR.fx);
+          const euroFixture=structuredClone(state);
+          euroFixture.world.FR.fx*=1.1;
+          worldMatchLedgerCurrencyRates(euroFixture);
+          const euroFollowsMarket=['DE','IE','LU'].every(code=>euroFixture.world[code].fx===euroFixture.world.FR.fx)
+            &&euroFixture.world.FR.fx!==state.world.FR.fx;
+          const badEuro=structuredClone(euroFixture);badEuro.world.DE.fx+=1;
+          let euroTamperRejected=false;
+          try{parsePayload(savePayload(badEuro))}catch{euroTamperRejected=true}
+          const legacyEuro=structuredClone(state);
+          delete legacyEuro.worldExpansion.euroFxUnified;
+          legacyEuro.world.DE.fx+=1;legacyEuro.world.DE.currency='DEM';
+          const legacyEuroSaved=parsePayload(savePayload(legacyEuro));
+          const legacyEuroPreserved=legacyEuroSaved.world.DE.fx===legacyEuro.world.DE.fx
+            &&legacyEuroSaved.world.DE.currency==='DEM'
+            &&JSON.stringify(legacyEuroSaved.firms)===JSON.stringify(legacyEuro.firms);
+          const distanceRefs=['JP-SHIMBASHI-YOKOHAMA','JP-TOMEI-TOKYO-KOMAKI','AL-IT-DURRES-BARI-TIMBER']
+            .every(id=>worldRouteDistanceReference(id).matched);
+          const distanceNotInvented=!worldRouteDistanceReference('JP-US-SEATTLE-STEAM').matched
+            &&worldMapDistanceNotice('JP-US-SEATTLE-STEAM').includes('PROVISIONAL');
           const restored=parsePayload(savePayload(state));
           // Version 16 saves remain legal inputs. Upgrading must not
           // rewrite firms, cash, ownership or historical pre-1910 events.
@@ -152,6 +174,7 @@ def main():
             &&check(upgraded).length===0;
           return {
             ...out,compositeClosed,compositeOpen,compositeLaw,portugalRepublic,upgradePreservesLedger,
+            euroShared,euroFollowsMarket,euroTamperRejected,legacyEuroPreserved,distanceRefs,distanceNotInvented,
             belgiumBeforeUpgrade,
             belgiumAfterUpgrade:worldCityLocation(upgraded,'CITY-08-03').marketOpen
               &&upgraded.world.BE?.code==='BE'&&upgraded.world.NL?.code==='NL'

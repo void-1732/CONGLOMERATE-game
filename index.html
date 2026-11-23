@@ -9666,6 +9666,26 @@ function worldMapFreightLeg(r,t){
  if(t.transfer.arrivedAt!==null)return [r.via];
  return [r.from,r.via];
 }
+// SPEC-148: distinguish a documented distance from the commodity/operation evidence.
+const WORLD_ROUTE_DISTANCE_REFERENCES=Object.freeze({
+ 'JP-SHIMBASHI-YOKOHAMA':Object.freeze({km:29,roundTo:1,kind:'HISTORICAL_ROUTE',source:'https://www.archives.go.jp/owning/mini_img/4-1.html'}),
+ 'JP-TOMEI-TOKYO-KOMAKI':Object.freeze({km:346.7,roundTo:1,kind:'ROAD_ROUTE',source:'https://www.atis.co.jp/route/result/274-242/'}),
+ 'AL-IT-DURRES-BARI-TIMBER':Object.freeze({km:217,roundTo:10,kind:'MODERN_SEA_REFERENCE',source:'https://oeamtc-faehren.at/en/ferry-routes/bari-durres'})
+});
+function worldRouteDistanceReference(id){
+ const p=WORLD_DOMESTIC_CORRIDORS[id]??WORLD_INTERNATIONAL_CORRIDORS[id],ref=WORLD_ROUTE_DISTANCE_REFERENCES[id];
+ if(!p)throw Error('未登録の経路ID');
+ const km=p.km??p.distanceKm;
+ return {km,reference:ref??null,matched:!!ref&&Math.round(ref.km/ref.roundTo)*ref.roundTo===km};
+}
+function worldMapDistanceNotice(id){
+ const d=worldRouteDistanceReference(id),ref=d.reference;
+ if(!d.matched)return '<p class="hint" data-world-distance-status="PROVISIONAL">距離の独立した根拠未確認（モデル値）。</p>';
+ const kind=ref.kind==='MODERN_SEA_REFERENCE'?'現代の直接航路参考値（歴史航程は未確認）':'実路線の公表距離';
+ return '<p class="hint" data-world-distance-status="'+esc(ref.kind)+'">'+esc(kind)+' '+nfmt(ref.km)
+  +' km / ゲーム内 '+nfmt(d.km)+' km（'+ref.roundTo+' km単位）'
+  +' <a href="'+esc(ref.source)+'" target="_blank" rel="noopener noreferrer">距離の根拠</a></p>';
+}
 function worldMapRouteDetail(s,r,shipments){
  if(!r)return '';
  shipments??=worldMapRouteShipments(s,r);
@@ -9709,6 +9729,7 @@ function worldMapRouteDetail(s,r,shipments){
   +esc(r.to.name)+' / '+nfmt(r.distanceKm)
   +' km / マスター積載上限 '+nfmt(r.capacityKg)+' kg。'
   +'受注には設備枠に加えて、運航・倉庫・燃料の条件を満たす必要があります。</p>'
+  +worldMapDistanceNotice(r.id)
   +'<p class="hint">運用条件 '+esc(worldMapRouteStatus(r,ym(s.year,s.month)))
   +' / 稼働登録設備 '+r.installed+' / 輸送中件数 '+r.shipments
   +(source?' / <a href="'+esc(source)+'" target="_blank" rel="noopener noreferrer">路線・品目の史料</a>':'')+'</p>'
@@ -12108,6 +12129,11 @@ function worldHistoryThrough(month,registryVersion){
  return WORLD_EVENTS.filter(event=>event.month<=month&&(event.registryVersion??0)<=registryVersion);
 }
 function worldMatchLedgerCurrencyRates(s){
+ if(s.worldExpansion?.euroFxUnified&&s.world.FR){
+  for(const code of ['FR','DE','IE','LU'])if(s.world[code]){
+   s.world[code].currency='EUR';s.world[code].fx=s.world.FR.fx;
+  }
+ }
  for(const [code,{ledgerFxReference,pegFxReference,pegFxScale}] of Object.entries(WORLD_MARKET_ONBOARDING)){
   const reference=ledgerFxReference??pegFxReference;
   if(reference&&s.world[code]&&s.world[reference])
@@ -12218,6 +12244,8 @@ function newWorldGame(setup){
  state.worldExpansion=makeWorldExpansion();
  state.worldExpansion.uniformDutyFromSeq=1;
  state.worldExpansion.freightRateFromSeq=1;
+ // Existing saves keep their booked exchange-rate histories. New games share the EUR rate.
+ state.worldExpansion.euroFxUnified=true;
  applyWorldHistory(state);syncWorldIdentities(state);validateWorldExpansion(state);
  return state;
 }
@@ -12337,6 +12365,9 @@ function validateWorldExpansion(s){
   ||world.uniformDutyFromSeq<1||world.uniformDutyFromSeq>s.seq))throw Error('国別一律関税の適用開始が不正');
  if(Object.hasOwn(world,'freightRateFromSeq')&&(!Number.isSafeInteger(world.freightRateFromSeq)
   ||world.freightRateFromSeq<1||world.freightRateFromSeq>s.seq))throw Error('方式別運賃の適用開始が不正');
+ if(Object.hasOwn(world,'euroFxUnified')&&world.euroFxUnified!==true)throw Error('EUR為替制度の識別が不正');
+ if(world.euroFxUnified&&['FR','DE','IE','LU'].some(code=>s.world[code]&&
+  (s.world[code].currency!=='EUR'||s.world[code].fx!==s.world.FR?.fx)))throw Error('共通EURの帳簿為替が一致しません');
  const expected=makeWorldExpansion(registryVersion);
  for(const event of worldHistoryThrough(ym(s.year,s.month),registryVersion))recordWorldEvent(expected,event);
  if(JSON.stringify(world.territoryJurisdictions)!==JSON.stringify(expected.territoryJurisdictions)
