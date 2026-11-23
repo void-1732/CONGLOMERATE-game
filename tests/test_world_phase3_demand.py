@@ -57,7 +57,11 @@ def main():
           return {markets:WORLD_MARKETS.length===40&&opened.some(m=>m.id==='MKT-27')
                     &&opened.some(m=>m.id==='MKT-28')&&opened.some(m=>m.id==='MKT-29')
                     &&opened.some(m=>m.id==='MKT-30')&&opened.some(m=>m.id==='MKT-31')
-                    &&opened.some(m=>m.id==='MKT-32')&&opened.length===11,
+                    &&opened.some(m=>m.id==='MKT-32')
+                    &&opened.length===worldInitialEngineCountries(WORLD_MARKET_REGISTRY_VERSION).length
+                    &&opened.every(m=>Object.entries(WORLD_ENGINE_TERRITORY).some(([code,territoryId])=>
+                      WORLD_TERRITORIES.get(territoryId)?.marketId===m.id
+                      &&worldInitialEngineCountries(WORLD_MARKET_REGISTRY_VERSION).includes(code))),
             products:consumer.length===30,fixed,conserved,stable,
             available:japan.nationalQuantity>0&&japan.referencePrice>0,
             era:!years.available&&years.nationalQuantity===0&&years.referencePrice===0,
