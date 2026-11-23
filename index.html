@@ -9385,7 +9385,7 @@ function worldSelectedCode(){return Object.hasOwn(S.world,VIEW_COUNTRY)?VIEW_COU
 // All gameplay capacity, distances, schedules and money stay in the existing ledgers.
 const WORLD_MAP_CITY_COORDS=Object.freeze({"MKT-01":[51.51,-0.13,53.48,-2.24,52.49,-1.89,53.35,-6.26],"MKT-02":[48.86,2.35,45.76,4.84,43.3,5.37,50.63,3.06],"MKT-03":[52.52,13.4,53.55,10,51.45,7,48.14,11.58],"MKT-04":[41.9,12.5,45.46,9.19,45.07,7.69,40.85,14.27],"MKT-05":[40.42,-3.7,41.39,2.17,38.72,-9.14,41.15,-8.61],"MKT-06":[55.76,37.62,59.94,30.31,55.03,82.92,43.12,131.89],"MKT-07":[52.23,21,50.06,19.94,51.76,19.46,54.35,18.65],"MKT-08":[52.37,4.9,51.92,4.48,50.85,4.35,49.61,6.13],"MKT-09":[46.95,7.45,47.37,8.54,46.2,6.14,47.56,7.59],"MKT-10":[59.33,18.06,57.71,11.97,55.61,13],"MKT-11":[59.91,10.75,60.39,5.32,63.43,10.4],"MKT-12":[48.21,16.37,47.07,15.44,48.31,14.29],"MKT-13":[44.79,20.45,37.98,23.73,45.81,15.98,41.33,19.82,43.85,18.41],"MKT-14":[35.68,139.76,34.69,135.5,35.18,136.9,34.69,135.2],"MKT-15":[39.9,116.4,31.23,121.47,23.13,113.26,30.6,114.3],"MKT-16":[28.61,77.21,19.08,72.88,22.57,88.36,13.08,80.27],"MKT-17":[37.57,126.98,35.18,129.07,37.46,126.7,35.87,128.6],"MKT-18":[-6.21,106.85,-7.26,112.75,-6.91,107.61,3.59,98.67],"MKT-19":[21.03,105.85,10.82,106.63,20.85,106.68,16.05,108.2],"MKT-20":[13.76,100.5,18.79,98.99,14.98,102.1],"MKT-21":[3.14,101.69,5.41,100.33,1.46,103.76],"MKT-22":[1.35,103.82,1.33,103.7,1.44,103.79],"MKT-23":[14.6,120.98,10.32,123.89,7.07,125.61,10.72,122.56],"MKT-24":[-33.87,151.21,-37.81,144.96,-27.47,153.03,-31.95,115.86],"MKT-25":[-36.85,174.76,-41.29,174.78,-43.53,172.63],"MKT-26":[38.91,-77.04,40.71,-74.01,41.88,-87.63,34.05,-118.24,29.76,-95.37],"MKT-27":[45.42,-75.7,43.65,-79.38,45.5,-73.57,49.28,-123.12],"MKT-28":[19.43,-99.13,25.69,-100.31,20.67,-103.35,19.17,-96.14],"MKT-29":[-22.91,-43.2,-23.55,-46.63,-12.98,-38.5,-30.03,-51.23],"MKT-30":[-34.6,-58.38,-31.42,-64.18,-32.95,-60.65,-32.89,-68.84],"MKT-31":[-33.45,-70.67,-33.05,-71.62,-36.82,-73.05,-23.65,-70.4],"MKT-32":[4.71,-74.07,6.24,-75.58,3.45,-76.53,10.4,-75.5],"MKT-33":[-25.75,28.19,-26.2,28.05,-33.92,18.42,-29.86,31.03],"MKT-34":[30.04,31.24,31.2,29.92,29.97,32.55,31.27,32.31],"MKT-35":[6.52,3.38,12,8.52,7.38,3.93,6.34,5.63],"MKT-36":[-1.29,36.82,-4.05,39.67,-0.09,34.76,-0.3,36.08],"MKT-37":[34.02,-6.84,33.57,-7.59,34.06,-4.98,35.78,-5.81],"MKT-38":[41.01,28.98,39.93,32.85,38.42,27.14,40.19,29.06],"MKT-39":[24.71,46.67,21.49,39.19,26.42,50.09,21.39,39.86],"MKT-40":[35.69,51.42,32.65,51.68,38.08,46.29,36.26,59.6]});
 const WORLD_MAP_EXTRA_SITES=Object.freeze({"DE-FRE":[48,7.85],"ES-BIL":[43.26,-2.93],"IR-BND":[27.19,56.28],"IT-GEN":[44.41,8.93],"JP-YOK":[35.45,139.64],"PL-GDY":[54.52,18.54],"UK-CDF":[51.48,-3.18],"UK-HULL":[53.74,-0.34],"UK-LIV":[53.4,-2.98],"UK-NORTHSHIELDS":[55.01,-1.45],"US-NEWORLEANS":[29.95,-90.07],"US-PHL":[39.95,-75.17],"US-SEA":[47.61,-122.33],"US-SFO":[37.77,-122.42]});
-let WORLD_MAP_TRANSPORT_MODE='all';
+let WORLD_MAP_TRANSPORT_MODE='all',WORLD_MAP_FOCUS='global';
 const WORLD_MAP_WIDTH=1152,WORLD_MAP_HEIGHT=594;
 function worldMapProject(lat,lon){
  if(!Number.isFinite(lat)||!Number.isFinite(lon)||lat>90||lat< -90||lon>180||lon< -180)
@@ -9475,8 +9475,11 @@ function worldMapSvg(nodes,routes){
 }
 function worldMapTransportPanel(s){
  const network=worldMapNetwork(),options=[['all','すべて'],['sea','海運'],['rail','鉄道'],
-  ['road','道路'],['air','航空'],['rail+sea','複合輸送']];
- const filtered=network.routes.filter(r=>WORLD_MAP_TRANSPORT_MODE==='all'||r.mode===WORLD_MAP_TRANSPORT_MODE);
+  ['road','道路'],['air','航空'],['rail+sea','鉄道＋海運'],['road+rail-shuttle','道路＋鉄道']];
+ const selectedCode=worldSelectedCode();
+ const filtered=network.routes.filter(r=>
+  (WORLD_MAP_TRANSPORT_MODE==='all'||r.mode===WORLD_MAP_TRANSPORT_MODE)
+  &&(WORLD_MAP_FOCUS==='global'||r.from.country===selectedCode||r.to.country===selectedCode));
  const routes=filtered.map(r=>'<tr data-world-map-route-row="'+esc(r.id)+'"><td><code>'+esc(r.id)
   +'</code></td><td>'+esc(r.from.name)+' → '+esc(r.to.name)+'</td><td>'+esc(r.mode)
   +'</td><td>'+Math.floor(r.opensAt/12)+'年</td><td class="num">'+nfmt(r.distanceKm)
@@ -9489,6 +9492,9 @@ function worldMapTransportPanel(s){
   +'<div class="row" role="group" aria-label="輸送手段の表示切替">'
   +options.map(([id,label])=>'<button type="button" class="btn sm" data-world-map-mode="'+id
     +'" aria-pressed="'+(WORLD_MAP_TRANSPORT_MODE===id?'true':'false')+'">'+label+'</button>').join('')
+  +'</div><div class="row" role="group" aria-label="地図の範囲">'
+  +'<button class="btn sm" type="button" data-world-map-focus="global" aria-pressed="'+(WORLD_MAP_FOCUS==='global')+'">世界全体</button>'
+  +'<button class="btn sm" type="button" data-world-map-focus="country" aria-pressed="'+(WORLD_MAP_FOCUS==='country')+'">'+esc(NAMES[selectedCode]??selectedCode)+'に接続する路線</button>'
   +'</div><div class="phase5-map-frame">'+worldMapSvg(network.cities,filtered)+'</div>'
   +'<p class="hint">水色は海運、黄は鉄道、赤は道路、紫は航空、緑は複合輸送。'
   +'実線は現時点で使用条件を満たす路線、点線は将来または条件待ち。'
@@ -9501,16 +9507,74 @@ function worldMapTransportPanel(s){
   +'<th>方式</th><th>開始年（参考）</th><th class="num">マスター距離</th>'
   +'<th>状態</th><th class="num">設備 / 輸送中</th></tr></thead><tbody>'+routes
   +'</tbody></table></div>'
+  +worldMapWarehousePanel(s)
   +'<div class="row"><button type="button" class="btn" data-page="transportNetwork">輸送網管理</button>'
   +'<button type="button" class="btn" data-page="logisticsHubs">物流拠点管理</button></div></section>';
 }
 document.addEventListener('click',event=>{
- const btn=event.target.closest('[data-world-map-mode]');
+ const btn=event.target.closest('[data-world-map-mode],[data-world-map-focus]');
  if(!btn||!S||PAGE!=='worldMap')return;
- const mode=btn.dataset.worldMapMode;
- if(!['all','sea','rail','road','air','rail+sea'].includes(mode))return;
- WORLD_MAP_TRANSPORT_MODE=mode;render();
+ if(btn.dataset.worldMapFocus){
+  if(!['global','country'].includes(btn.dataset.worldMapFocus))return;
+  WORLD_MAP_FOCUS=btn.dataset.worldMapFocus;
+ }else{
+  const mode=btn.dataset.worldMapMode;
+  if(!['all','sea','rail','road','air','rail+sea','road+rail-shuttle'].includes(mode))return;
+  WORLD_MAP_TRANSPORT_MODE=mode;
+ }
+ render();
 });
+
+
+function worldMapWarehousePanel(s){
+ const w=s.worldExpansion;if(!w)return '';
+ const list=[
+  ...Object.values(w.domesticWarehouses??{}).map(x=>({
+   id:x.id,kind:'国内',owner:x.ownerCompanyId,installedAt:x.installedAt,
+   siteId:WORLD_DOMESTIC_WAREHOUSE_PROFILES[x.profileId]?.site??null,
+   capacity:WORLD_DOMESTIC_WAREHOUSE_PROFILES[x.profileId]?.capacity??0,
+   mode:'road / rail',profileId:x.profileId,retiredAt:x.retiredAt
+  })),
+  ...Object.values(w.internationalWarehouses??{}).map(x=>{
+   const profile=WORLD_INTERNATIONAL_CORRIDORS[x.profileId];
+   return {id:x.id,kind:'国際',owner:x.ownerCompanyId,installedAt:x.installedAt,
+    siteId:profile?.to??null,capacity:profile?.warehouseCapacityKg??0,
+    mode:profile?.mode??'sea',profileId:x.profileId,retiredAt:x.retiredAt};
+  })
+ ];
+ const rows=list.map(a=>{
+  const site=SITE_CATALOG.find(x=>x.id===a.siteId);
+  const owner=s.firms.find(f=>f.id===a.owner);
+  return '<tr data-world-hub-id="'+esc(a.id)+'"><td><code>'+esc(a.id)+'</code></td>'
+   +'<td>'+esc(a.kind)+'</td><td>'+esc(site?.name??a.siteId??'所在地未登録')+'</td>'
+   +'<td>'+esc(owner?.name??a.owner)+'</td><td>'+esc(a.profileId)+'</td>'
+   +'<td class="num">'+nfmt(a.capacity)+' kg</td><td>'
+   +(a.retiredAt!=null?'廃止済み':'稼働設備')+'</td></tr>';
+ }).join('');
+ return '<section class="panel span12" aria-label="Phase 5 現物物流拠点">'
+  +'<h2>現物輸送設備・入荷倉庫の登録台帳</h2>'
+  +'<p class="hint">全社共通の現物台帳を参照します。所有者、立地ID、受入能力は実際の経済処理と同じ値です。'
+  +'新設・発注は既存の権限・現物資金・研究・輸送条件の審査を通して実行してください。</p>'
+  +'<div class="scroll"><table><thead><tr><th>倉庫ID</th><th>用途</th><th>所在地</th><th>所有者</th>'
+  +'<th>経路・施設プロファイル</th><th class="num">最大重量</th><th>状態</th></tr></thead><tbody>'
+  +(rows||'<tr><td colspan="7">登録済みの実物倉庫はありません。</td></tr>')
+  +'</tbody></table></div>'
+  +'<div class="row"><button type="button" class="btn" data-page="factory">製造・物流操作へ</button>'
+  +'<button type="button" class="btn" data-page="worldMap">実物拠点を地図で確認</button></div>'
+  +'</section>';
+}
+// Existing asset and purchase controls live in worldDomesticLogisticsPanel.
+// Expose those real actions on the logistics-hub page rather than a placeholder.
+const phase5BaseLogisticsHubsPage=logisticsHubsPage;
+logisticsHubsPage=function(){
+ const base=phase5BaseLogisticsHubsPage();
+ if(!S?.worldExpansion)return base;
+ return base.replace('専用物流倉庫は未実装','現物倉庫台帳は次のセクションで確認')
+  +'<div class="grid">'+worldMapWarehousePanel(S)+'</div>'
+  +'<div class="grid"><section class="panel span12"><h2>国内・国際物流の登録・発注操作</h2>'
+  +'<p class="hint">既存の検証済み物流台帳と操作フォームを使用します。</p>'
+  +worldDomesticLogisticsPanel(current(),canEdit(current()))+'</section></div>';
+};
 
 function worldMapPage(){
  const c=worldSelectedCode(),w=S.world[c];
