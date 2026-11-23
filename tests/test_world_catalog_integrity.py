@@ -64,9 +64,14 @@ def main():
             &&worldHistoricalMonetaryReference('TER-05-02',ym(1911,6)).currencyId==='CUR-PTE'
             &&worldHistoricalMonetaryReference('TER-08-02',ym(1900,1)).currencyId==='CUR-BEF'
             &&worldHistoricalMonetaryReference('TER-08-03',ym(1900,1)).currencyId==='CUR-LUF'
+            &&worldHistoricalMonetaryReference('TER-24-01',ym(1900,1)).currencyId==='CUR-GBP'
+            &&worldHistoricalMonetaryReference('TER-24-01',ym(1910,1)).currencyId==='CUR-AUP'
             &&worldHistoricalMonetaryReference('TER-24-01',ym(1966,3)).currencyId==='CUR-AUD'
             &&worldHistoricalMonetaryReference('TER-25-01',ym(1967,8)).currencyId==='CUR-NZD'
+            &&worldHistoricalMonetaryReference('TER-33-01',ym(1900,1)).currencyId==='CUR-GBP'
+            &&worldHistoricalMonetaryReference('TER-33-01',ym(1922,5)).currencyId==='CUR-ZAP'
             &&worldHistoricalMonetaryReference('TER-33-01',ym(1961,3)).currencyId==='CUR-ZAR'
+            &&worldHistoricalMonetaryReference('TER-03-01',ym(1960,1)).kind==='PARTIAL_TERRITORY_REFERENCE'
             &&worldHistoricalMonetaryReference('TER-13-01',ym(1900,1))===null
           );
           // This is a sourced historical reference only. Do not retroactively
