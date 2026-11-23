@@ -702,7 +702,7 @@ const COUNTRIES={
  // Provisional game coefficients, independent of the sourced opening event.
  NO:{currency:'NOK',fx:14,pop:2.24,wealth:.94,wage:136,demand:13,steel:449,rubber:311,steelSupply:90,rubberSupply:80}
 };
-const ACCTYPE={cash:'asset',materials:'asset',materialsTransit:'asset',componentStock:'asset',componentTransit:'asset',wip:'asset',goods:'asset',goodsTransit:'asset',constructionAssets:'asset',ppe:'asset',accdep:'contra',investment:'asset',ar:'asset',loanrec:'asset',resourceRights:'asset',worldShipmentStock:'asset',worldStoredStock:'asset',worldInsuranceReserve:'asset',worldInsurancePrepaid:'asset',worldTravelAdvance:'asset',worldBankDeposits:'asset',worldBankReserve:'asset',worldSupplierAdvances:'asset',partReceivable:'asset',partPayable:'liability',worldCustomerAdvances:'liability',worldInsuranceUnearned:'liability',worldDemandDeposits:'liability',payable:'liability',wagesDue:'liability',debt:'liability',interestDue:'liability',taxDue:'liability',capital:'equity',treasuryStock:'contraEquity',sales:'revenue',serviceRevenue:'revenue',otherRevenue:'revenue',cogs:'expense',labor:'expense',rndExpense:'expense',advert:'expense',maintenance:'expense',interestExpense:'expense',depreciation:'expense',taxExpense:'expense',fxLoss:'expense',otherExpense:'expense'};
+const ACCTYPE={cash:'asset',materials:'asset',materialsTransit:'asset',componentStock:'asset',componentTransit:'asset',wip:'asset',goods:'asset',goodsTransit:'asset',constructionAssets:'asset',ppe:'asset',accdep:'contra',investment:'asset',ar:'asset',loanrec:'asset',resourceRights:'asset',worldShipmentStock:'asset',worldImportDutyPrepaid:'asset',worldStoredStock:'asset',worldInsuranceReserve:'asset',worldInsurancePrepaid:'asset',worldTravelAdvance:'asset',worldBankDeposits:'asset',worldBankReserve:'asset',worldSupplierAdvances:'asset',partReceivable:'asset',partPayable:'liability',worldCustomerAdvances:'liability',worldInsuranceUnearned:'liability',worldDemandDeposits:'liability',payable:'liability',wagesDue:'liability',debt:'liability',interestDue:'liability',taxDue:'liability',capital:'equity',treasuryStock:'contraEquity',sales:'revenue',serviceRevenue:'revenue',otherRevenue:'revenue',cogs:'expense',labor:'expense',rndExpense:'expense',advert:'expense',maintenance:'expense',interestExpense:'expense',depreciation:'expense',taxExpense:'expense',fxLoss:'expense',otherExpense:'expense'};
 const PAGES={dashboard:'経営概況',marketOwn:'自社グループ市場分析',market:'世界市場分析',product:'製品・開発',factory:'工場・調達',people:'研究・人事',finance:'財務・資金',group:'企業グループ',consolidated:'連結財務三表',reports:'月次レポート',save:'保存・設定'};
 /* STEP 2: navigation only. Every tab points to a current, fully functional PAGE.
    New specialized pages are created in STEP 3+, not silently replaced with placeholders.
@@ -13503,7 +13503,7 @@ function worldInternationalResolveOrders(s,events=[]){
     '国際貨物の所有権留保・輸送中在庫','operating',s);
    post(seller,{otherExpense:quote.fuelCost},{materials:quote.fuelCost},
     '国際実貨物・車両燃料消費','operating',s);
-   post(buyer,{worldSupplierAdvances:quote.prepaidBuyer,...(quote.dutyBuyer?{worldShipmentStock:quote.dutyBuyer}:{})},
+   post(buyer,{worldSupplierAdvances:quote.prepaidBuyer,...(quote.dutyBuyer?{worldImportDutyPrepaid:quote.dutyBuyer}:{})},
     {cash:quote.totalBuyer},'国際貨物の外貨換算前払・輸入関税','operating',s);
    post(seller,{cash:quote.prepaidSeller},{worldCustomerAdvances:quote.prepaidSeller},
     '国際貨物の検収前前受金','operating',s);
@@ -13544,7 +13544,7 @@ function worldInternationalReceiveShipments(s,events=[]){
   post(seller,{cogs:t.bookCost},{worldShipmentStock:t.bookCost},
    '国際貨物の検収済売上原価','operating',s);
   post(buyer,{materials:t.totalBuyer??t.prepaidBuyer},
-   {worldSupplierAdvances:t.prepaidBuyer,...(t.dutyBuyer?{worldShipmentStock:t.dutyBuyer}:{})},
+   {worldSupplierAdvances:t.prepaidBuyer,...(t.dutyBuyer?{worldImportDutyPrepaid:t.dutyBuyer}:{})},
    '国際貨物の換算取得原価・実物検収','operating',s);
   const stock=buyer.stock[t.productId]??={q:0,v:0};
   stock.q+=t.quantity;stock.v+=t.totalBuyer??t.prepaidBuyer;
@@ -13566,7 +13566,7 @@ function worldInternationalRefundShipment(s,shipmentId){
  post(seller,{worldCustomerAdvances:t.prepaidSeller},{cash:t.prepaidSeller},
   '国際未納貨物の輸出者返金','operating',s);
  post(buyer,{cash:t.prepaidBuyer,...(t.dutyBuyer?{otherExpense:t.dutyBuyer}:{})},
-  {worldSupplierAdvances:t.prepaidBuyer,...(t.dutyBuyer?{worldShipmentStock:t.dutyBuyer}:{})},
+  {worldSupplierAdvances:t.prepaidBuyer,...(t.dutyBuyer?{worldImportDutyPrepaid:t.dutyBuyer}:{})},
   '国際未納貨物の輸入者返金・関税損失','operating',s);
  post(seller,{otherExpense:t.bookCost},{worldShipmentStock:t.bookCost},
   '国際未配達貨物の現物損失','operating',s);
@@ -13739,18 +13739,18 @@ function worldValidateInternationalLogistics(s){
   match(seller,d,t.dispatchedAt,{worldShipmentStock:t.bookCost},{materials:t.bookCost});
   match(seller,d+1,t.dispatchedAt,{otherExpense:t.fuelCost},{materials:t.fuelCost});
   match(buyer,d+2,t.dispatchedAt,{worldSupplierAdvances:t.prepaidBuyer,
-    ...(t.dutyBuyer?{worldShipmentStock:t.dutyBuyer}:{})},{cash:t.totalBuyer??t.prepaidBuyer});
+    ...(t.dutyBuyer?{worldImportDutyPrepaid:t.dutyBuyer}:{})},{cash:t.totalBuyer??t.prepaidBuyer});
   match(seller,d+3,t.dispatchedAt,{cash:t.prepaidSeller},{worldCustomerAdvances:t.prepaidSeller});
   if(t.status==='DELIVERED'){
    match(seller,c,t.receivedAt,{worldCustomerAdvances:t.prepaidSeller},
     {sales:t.goodsSeller,otherExpense:t.fuelCost});
    match(seller,c+1,t.receivedAt,{cogs:t.bookCost},{worldShipmentStock:t.bookCost});
    match(buyer,c+2,t.receivedAt,{materials:t.totalBuyer??t.prepaidBuyer},
-    {worldSupplierAdvances:t.prepaidBuyer,...(t.dutyBuyer?{worldShipmentStock:t.dutyBuyer}:{})});
+    {worldSupplierAdvances:t.prepaidBuyer,...(t.dutyBuyer?{worldImportDutyPrepaid:t.dutyBuyer}:{})});
   }else if(t.status==='REFUNDED'){
    match(seller,c,t.refundedAt,{worldCustomerAdvances:t.prepaidSeller},{cash:t.prepaidSeller});
    match(buyer,c+1,t.refundedAt,{cash:t.prepaidBuyer,...(t.dutyBuyer?{otherExpense:t.dutyBuyer}:{})},
-    {worldSupplierAdvances:t.prepaidBuyer,...(t.dutyBuyer?{worldShipmentStock:t.dutyBuyer}:{})});
+    {worldSupplierAdvances:t.prepaidBuyer,...(t.dutyBuyer?{worldImportDutyPrepaid:t.dutyBuyer}:{})});
    match(seller,c+2,t.refundedAt,{otherExpense:t.bookCost},{worldShipmentStock:t.bookCost});
   }
  }
@@ -14615,7 +14615,19 @@ function worldValidateDomesticLogistics(s){
    advanceIn.set(seller.id,(advanceIn.get(seller.id)??0)+t.prepaid);
   }
  }
+ // International freight uses the same shared title/advance accounts as
+ // domestic trade; include its outstanding balances before auditing each firm.
+ const internationalDuty=new Map();
+ for(const t of w.internationalShipments??[]){
+  if(t.status!=='IN_TRANSIT')continue;
+  outstanding.set(t.sellerId,(outstanding.get(t.sellerId)??0)+t.bookCost);
+  advanceOut.set(t.buyerId,(advanceOut.get(t.buyerId)??0)+t.prepaidBuyer);
+  advanceIn.set(t.sellerId,(advanceIn.get(t.sellerId)??0)+t.prepaidSeller);
+  internationalDuty.set(t.buyerId,(internationalDuty.get(t.buyerId)??0)+(t.dutyBuyer??0));
+ }
  for(const f of s.firms){
+  if(acc(f,'worldImportDutyPrepaid')!==(internationalDuty.get(f.id)??0))
+   throw Error('国際輸入関税の前払・貨物台帳が不一致：'+f.id);
   if(acc(f,'worldShipmentStock')!==(outstanding.get(f.id)??0)
    ||acc(f,'worldSupplierAdvances')!==(advanceOut.get(f.id)??0)
    ||-acc(f,'worldCustomerAdvances')!==(advanceIn.get(f.id)??0))
