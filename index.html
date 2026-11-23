@@ -13550,6 +13550,71 @@ function worldInternationalRefundShipment(s,shipmentId){
  t.status='REFUNDED';t.refundedAt=ym(s.year,s.month);t.journals.terminal=start;
  return t;
 }
+// Each provenance value is an unsold margin in the original exporting firm's
+// currency; foreign/domestic onward cargo retains the complete shipment path.
+function worldInternationalCostHoldings(s){
+ const w=s.worldExpansion,out=[];
+ for(const f of s.firms)for(const item of Object.values(f.stock??{}))
+  if(item.internationalCostLayers)out.push({owner:f.id,layers:item.internationalCostLayers,quantity:item.q});
+ for(const t of [...(w?.domesticShipments??[]),...(w?.internationalShipments??[])])
+  if(t.status==='IN_TRANSIT'&&t.internationalCostLayers)
+   out.push({owner:t.sellerId,layers:t.internationalCostLayers,quantity:t.quantity});
+ return out;
+}
+function worldValidateInternationalCostLayers(s){
+ const w=s.worldExpansion;
+ if(!(w?.internationalShipments??[]).some(t=>t.status==='DELIVERED'))return;
+ const shipped=new Map((w.internationalShipments??[]).map(t=>[t.id,t]));
+ const domestic=new Set((w.domesticShipments??[]).map(t=>t.id)),totals=new Map();
+ for(const h of worldInternationalCostHoldings(s)){
+  if(!Number.isSafeInteger(h.quantity)||h.quantity<1||!h.layers
+   ||typeof h.layers!=='object'||Array.isArray(h.layers))
+   throw Error('国際取得原価・保有数量の形式が不正');
+  for(const [path,value] of Object.entries(h.layers)){
+   const links=path.split('|'),origin=shipped.get(links[0]),margin=origin?.goodsSeller-origin?.bookCost;
+   if(origin?.status!=='DELIVERED'||!Number.isSafeInteger(value)||value<=0
+    ||!Number.isSafeInteger(margin)||margin<=0||value>margin)
+    throw Error('国際貨物の利益来歴が不正：'+path);
+   let prev=0;
+   for(const id of links){
+    const n=Number(id.split('-')[1]);
+    if(!(shipped.has(id)||domestic.has(id))||!Number.isSafeInteger(n)||n<=prev)
+     throw Error('国際貨物の再販経路に存在しない取引：'+path);
+    prev=n;
+   }
+   const used=(totals.get(origin.id)??0)+value;
+   if(used>margin)throw Error('国際貨物の未実現利益を重複保有：'+origin.id);
+   totals.set(origin.id,used);
+  }
+ }
+}
+function worldInternationalConsolidationAdjustments(s,ids,insidePeriod,shares){
+ const w=s.worldExpansion,shipments=w?.internationalShipments??[];
+ const eligible=new Map(shipments.filter(t=>t.status==='DELIVERED'
+  &&ids.has(t.sellerId)&&ids.has(t.buyerId)&&insidePeriod({
+   seller:t.sellerId,buyer:t.buyerId,kind:'domesticTradeCash',yearMonth:t.receivedAt,
+   fromJournal:t.journals.terminal,toJournal:t.journals.terminal+2
+  })).map(t=>[t.id,t]));
+ let sales=0,retained=0,spotRetained=0,nci=0;
+ for(const t of eligible.values())sales+=baseFromLocal(t.goodsSeller,company(t.sellerId,s).country);
+ if(!eligible.size)return {sales,retained,spotRetained,nci,eligible};
+ const domestic=new Map((w?.domesticShipments??[]).map(t=>[t.id,t]));
+ for(const h of worldInternationalCostHoldings(s)){
+  if(!ids.has(h.owner))continue;
+  for(const [path,value] of Object.entries(h.layers)){
+   const chain=path.split('|'),origin=eligible.get(chain[0]);
+   if(!origin||!chain.every(id=>{
+    if(eligible.has(id))return true;
+    const shipment=domestic.get(id);
+    return !!shipment&&ids.has(shipment.sellerId)&&ids.has(shipment.buyerId);
+   }))continue;
+   const seller=company(origin.sellerId,s),base=baseFromLocal(value,seller.country);
+   retained+=base;spotRetained+=Math.round(value*balanceFxRate(s,seller));
+   nci+=base*(1-(shares[origin.sellerId]??0));
+  }
+ }
+ return {sales,retained,spotRetained,nci,eligible};
+}
 function worldValidateInternationalLogistics(s){
  const w=s.worldExpansion;if(!w)return true;
  const routes=w.internationalRoutes??{},warehouses=w.internationalWarehouses??{},
@@ -13666,6 +13731,7 @@ function worldValidateInternationalLogistics(s){
    match(seller,c+2,t.refundedAt,{otherExpense:t.bookCost},{worldShipmentStock:t.bookCost});
   }
  }
+ worldValidateInternationalCostLayers(s);
  return true;
 }
 function worldInternationalTradePanel(firm,editable){
