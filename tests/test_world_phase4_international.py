@@ -150,8 +150,18 @@ def main():
           put(seller,'PRD-R19',24,1200);
           put(buyer,'PRD-E20',1,200);
           put(buyer,'PRD-E21',1,300);
+          const startsAfterEvidence=worldInternationalRouteAvailable(S,'US-UK-SEA-1900')
+            &&!worldInternationalRouteAvailable(S,'FR-UK-SEA-1900');
           S.year=2000;S.month=1;S.monthCommitted=ym(2000,1)-1;
           applyWorldHistory(S);syncWorldIdentities(S);
+          let unsupportedWarehouse=false;
+          try{worldInternationalInstallWarehouse(S,buyer.id,bp.id,'DE-UK-SEA-1900');}
+          catch{unsupportedWarehouse=true;}
+          const publicProfileIds=profiles.filter(([id])=>worldInternationalRouteAvailable(S,id)).map(([id])=>id);
+          const sourceGate=startsAfterEvidence&&unsupportedWarehouse&&publicProfileIds.length===5
+            &&publicProfileIds.every(id=>WORLD_INTERNATIONAL_ROUTE_EVIDENCE[id].source.startsWith('https://'))
+            &&!worldInternationalTradePanel(seller,true).includes('FR-UK-AIR-1950')
+            &&!worldInternationalTradePanel(buyer,true).includes('DE-UK-SEA-1900');
           const route=worldInternationalRegisterRoute(S,seller.id,'FR-UK-SEA-1900');
           const wh=worldInternationalInstallWarehouse(S,buyer.id,bp.id,'FR-UK-SEA-1900');
           const equipment=route.assetValue===4500&&wh.assetValue===500
@@ -192,6 +202,16 @@ def main():
           const changed=structuredClone(S);
           changed.worldExpansion.internationalShipments.at(-1).tariffBps++;
           const tamper=(()=>{try{parsePayload(savePayload(changed));return false}catch{return true}})();
+          const rejectsSave=(mutate)=>{
+            const modified=structuredClone(S),w=modified.worldExpansion,t=w.internationalShipments[0];
+            mutate(w,t);
+            try{parsePayload(savePayload(modified));return false;}catch{return true;}
+          };
+          const blocksChangedFx=rejectsSave((w,t)=>{t.sellerRate*=2;t.buyerRate*=2;});
+          const blocksChangedFuel=rejectsSave((w,t)=>{t.fuelRequired++;});
+          const blocksMissingShipment=rejectsSave(w=>{w.internationalShipments=[];});
+          const blocksWrongCloseMonth=rejectsSave(w=>{w.internationalOrders[0].closedAt++;});
+          const blocksFutureEquipment=rejectsSave(w=>{w.internationalRoutes[route.id].installedAt=ym(2001,1);});
           const coalBefore=seller.stock['PRD-R04'].q;
           const sharedFuelDenied=Boolean(worldInternationalQuote(
             S,route,'PRD-R04',coalBefore,100,buyer.id).problem);
@@ -210,7 +230,8 @@ def main():
             &&seller.stock['PRD-R04'].q===coalBefore-1-coal.fuelRequired
             &&acc(seller,'materials')>=0
             &&worldValidateInternationalLogistics(S)&&!check(S).length;
-          return {paths,equipment,customs,retain,delivered,retained,provenance,tamper,
+          return {paths,sourceGate,equipment,customs,retain,delivered,retained,provenance,tamper,
+            blocksChangedFx,blocksChangedFuel,blocksMissingShipment,blocksWrongCloseMonth,blocksFutureEquipment,
             sharedFuelDenied,sharedFuelQuoted,sharedFuelDispatched};
         }""")
         assert all(multimodal.values()),multimodal

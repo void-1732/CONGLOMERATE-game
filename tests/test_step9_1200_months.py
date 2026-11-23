@@ -8,6 +8,7 @@ are exercised at 300, 600, 900, and 1,200 months.
 
 Usage: python tests/test_step9_1200_months.py --era 1900
        python tests/test_step9_1200_months.py --era 2020
+       python tests/test_step9_1200_months.py --era 1900 --world
 """
 import argparse
 import json
@@ -27,7 +28,45 @@ CHECKPOINT = 100
 SAVE_CHECKPOINT = 300
 
 
-def run(era, scenario='baseline'):
+WORLD_FREIGHT_FIXTURE = """() => {
+  const buyer=company(S.playerId),plant=buyer.plants[0];
+  plant.siteId='UK-LIV';
+  const capital=Math.min(acc(buyer,'cash')-50000,3000000);
+  if(capital<500000)throw Error('Insufficient fixture formation budget');
+  const payer=S.seq;
+  post(buyer,{investment:capital},{cash:capital},'長期回帰用・米国法人設立','investing',S);
+  const seedBase=Math.round(baseFromLocal(capital,'UK')/100);
+  const seller=initFirm(S,{name:'New Orleans freight fixture',country:'US',seedBase,publicOwnership:false});
+  seller.owners=[{id:buyer.id,econ:1,vote:1}];
+  registerEquityLink(S,{parentId:buyer.id,childId:seller.id,ratio:1,kind:'foundation',
+    considerationLocal:capital,buyerJournal:payer,childJournal:seller.journals.find(j=>j.text==='創業資本').id,
+    bookEquityBase:baseFromLocal(financials(seller).equity,'US'),
+    cashAcquiredBase:baseFromLocal(acc(seller,'cash'),'US')});
+  buyer.auto=false;seller.auto=false;
+  // This fixture exercises the same asset, purchase, dispatch and accounting entry
+  // points as the UI, isolating the long run from random AI stock availability.
+  seller.plants[0].siteId='US-NEWORLEANS';
+  for(const firm of [buyer,seller]){
+    firm.research.tree.done=[...new Set([...firm.research.tree.done,'production-1'])];
+    for(const model of firm.models)firm.plans[model.id]=0;
+  }
+  for(const [f,id,q,value] of [[seller,'PRD-E18',1,2500],[seller,'PRD-R04',10,200],
+     [seller,'PRD-R20',5,200],[buyer,'PRD-E20',1,700],[buyer,'PRD-E21',1,900]]){
+    post(f,{materials:value},{cash:value},'長期回帰用の有償現物調達','operating',S);
+    f.stock[id]={q,v:value};
+  }
+  syncWorldIdentities(S);
+  const profileId='US-UK-SEA-1900';
+  const route=worldInternationalRegisterRoute(S,seller.id,profileId);
+  const warehouse=worldInternationalInstallWarehouse(S,buyer.id,plant.id,profileId);
+  const order=worldInternationalPlaceOrder(S,buyer.id,{routeId:route.id,warehouseId:warehouse.id,
+    productId:'PRD-R20',quantity:5,unitPriceSeller:150,maxPaymentBuyer:100000});
+  worldInternationalActOrder(S,seller.id,order.id,'approve');
+  return {order:order.id,profileId,issues:check(S)};
+}"""
+
+
+def run(era, scenario='baseline', world=False, months=MONTHS):
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(
             headless=True,
@@ -40,15 +79,14 @@ def run(era, scenario='baseline'):
         page.set_content(HTML, wait_until="domcontentloaded")
         started = time.monotonic()
         initial = page.evaluate(
-            """({era, scenario}) => {
+            """({era, scenario, world}) => {
               // Do not replace runMonth(), its CHECK_BEFORE/CHECK_AFTER, or
               // its CONSOLIDATION stage. Avoid DOM and IDB work only.
               saveAuto = async () => true;
               render = () => {};
-              S = newGame({
-                era, country: 'JP', difficulty: 'normal',
-                history: 'historical', name: 'STEP9_1200_' + era
-              });
+              const setup={era,country:world?'UK':'JP',difficulty:'normal',
+                history:'historical',name:'STEP9_1200_'+era};
+              S=world?newWorldGame(setup):newGame(setup);
               VIEW_FIRM = S.playerId;
               PAGE = 'dashboard';
               if (scenario === 'specialists') {
@@ -70,6 +108,7 @@ def run(era, scenario='baseline'):
               }
               return {
                 year: S.year, month: S.month, committed: S.monthCommitted,
+                worldMarkets:S.worldExpansion?WORLD_MARKETS.length:null,
                 firms: S.firms.length, technologies: TECH_NODES.length,
                 departments: STEP4_CATALOG.length,
                 notifications: S.step7LinksV1?.entries.length,
@@ -77,17 +116,18 @@ def run(era, scenario='baseline'):
                 checks: check(S)
               };
             }""",
-            {"era": era, "scenario": scenario},
+            {"era": era, "scenario": scenario, "world":world},
         )
         assert initial["year"] == era and initial["month"] == 1, initial
         assert initial["technologies"] == 800 and initial["departments"] == 22, initial
         assert initial["notifications"] == 0 and not initial["checks"], initial
+        assert initial["worldMarkets"] == (40 if world else None), initial
         expected_departments = (2 if era >= 1990 else 1) if scenario == 'specialists' else 0
         assert initial["activeDepartments"] == expected_departments, initial
         print("START", json.dumps({"era": era, **initial}, ensure_ascii=False), flush=True)
         count = 0
         try:
-            for _ in range(MONTHS // CHUNK):
+            for _ in range(months // CHUNK):
                 batch = page.evaluate(
                     """async batchSize => {
                       const first = S.monthCommitted;
@@ -117,7 +157,11 @@ def run(era, scenario='baseline'):
                     "era": era, "completed_total": count, **batch
                 }
                 count += CHUNK
-                if count % CHECKPOINT != 0:
+                if world and count == 120:
+                    freight = page.evaluate(WORLD_FREIGHT_FIXTURE)
+                    assert not freight["issues"], freight
+                    print("FREIGHT", json.dumps(freight, ensure_ascii=False), flush=True)
+                if count % CHECKPOINT != 0 and count != months and (not world or count != 130):
                     continue
                 checkpoint = page.evaluate(
                     """saveCheck => {
@@ -139,7 +183,13 @@ def run(era, scenario='baseline'):
                         playerDepartments: company(S.playerId,S).step4OrgV1?.departments.map(
                           d => ({id:d.id,level:d.level,actual:d.actualHeadcount,
                                  state:d.state,skill:d.skill})),
-                        saveChecked: false
+                        saveChecked: false,
+                        worldMarkets:S.worldExpansion?Object.values(S.worldExpansion.openMarkets)
+                          .filter(m=>m!==null).length:null,
+                        international:S.worldExpansion?.internationalShipments.map(t=>({
+                          id:t.id,status:t.status,orderId:t.orderId,dutyBuyer:t.dutyBuyer,
+                          quantity:t.quantity,profileId:S.worldExpansion.internationalRoutes[t.routeId].profileId
+                        }))??[]
                       };
                       if (saveCheck) {
                         const raw = savePayload(S);
@@ -153,6 +203,8 @@ def run(era, scenario='baseline'):
                           JSON.stringify(accounting.cf) === JSON.stringify(restored.cf) &&
                           JSON.stringify(loaded.step7LinksV1) ===
                             JSON.stringify(S.step7LinksV1) &&
+                          JSON.stringify(loaded.worldExpansion?.internationalShipments) ===
+                            JSON.stringify(S.worldExpansion?.internationalShipments) &&
                           check(loaded).length === 0;
                         out.saveBytes = raw.length;
                         out.saveChecked = true;
@@ -162,7 +214,7 @@ def run(era, scenario='baseline'):
                       }
                       return out;
                     }""",
-                    count % SAVE_CHECKPOINT == 0,
+                    count % SAVE_CHECKPOINT == 0 or count == months,
                 )
                 assert len(checkpoint["playerDepartments"]) == expected_departments, {
                     "era": era, "scenario": scenario, "month": count, **checkpoint
@@ -175,6 +227,11 @@ def run(era, scenario='baseline'):
                 assert checkpoint["cfReconciled"], {"era": era, "month": count, **checkpoint}
                 assert checkpoint["year"] == era + count // 12, checkpoint
                 assert checkpoint["month"] == 1 + count % 12, checkpoint
+                if world and count >= 130:
+                    assert any(t["orderId"] == freight["order"] and t["status"] == "DELIVERED"
+                               and t["quantity"] == 5 and t["dutyBuyer"] > 0
+                               and t["profileId"] == freight["profileId"]
+                               for t in checkpoint["international"]), checkpoint
                 if checkpoint["saveChecked"]:
                     assert checkpoint["saveConsistent"], {"era": era, "month": count, **checkpoint}
                 assert not errors, {"era": era, "month": count, "page_errors": errors}
@@ -188,11 +245,11 @@ def run(era, scenario='baseline'):
                     }, ensure_ascii=False),
                     flush=True,
                 )
-            assert count == MONTHS, {"era": era, "count": count}
+            assert count == months, {"era": era, "count": count}
             assert not errors, errors
             print("PASS", json.dumps({
                 "era": era, "scenario": scenario, "months": count,
-                "endYear": era + 100, "endMonth": 1,
+                "endYear": era + count // 12, "endMonth": 1 + count % 12, "world": world,
                 "elapsedSeconds": round(time.monotonic() - started, 1)
             }, ensure_ascii=False), flush=True)
         finally:
@@ -204,5 +261,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--era", type=int, choices=(1900, 2020), required=True)
     parser.add_argument("--scenario", choices=("baseline", "specialists"), default="baseline")
+    parser.add_argument("--world", action="store_true")
+    parser.add_argument("--months", type=int, default=MONTHS, help="Shorter local smoke trials")
     opts = parser.parse_args()
-    run(opts.era, opts.scenario)
+    if opts.months < 10 or opts.months > MONTHS or opts.months % CHUNK:
+        parser.error("months must be a multiple of ten between 10 and 1200")
+    if opts.world and (opts.era != 1900 or opts.months < 130):
+        parser.error("the world freight scenario starts in 1900 and needs at least 130 months")
+    run(opts.era, opts.scenario, opts.world, opts.months)
