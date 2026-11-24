@@ -14649,10 +14649,25 @@ function worldPlanAiInfrastructure(s,events=[]){
  if(!machines.length)return [];
  const contracts=w.constructionContracts??[],byBuyer=new Map();
  // Only recorded, delivered freight can establish a route's investment case.
- for(const [kind,shipments,routes] of [['DR',w.domesticShipments,w.domesticRoutes],['IR',w.internationalShipments,w.internationalRoutes]]){
+ for(const [kind,shipments,routes,orders] of [['DR',w.domesticShipments,w.domesticRoutes,w.domesticOrders],['IR',w.internationalShipments,w.internationalRoutes,w.internationalOrders]]){
+  // Specification 069: do not expand solely because a route was profitable.
+  // Require a recorded unfilled order in a month with saturated nominal capacity.
+  const loads=new Map(),saturated=new Set();
+  for(const t of shipments??[]){
+   if(t.dispatchedAt<month-12||t.dispatchedAt>=month)continue;
+   const key=t.routeId+'|'+t.dispatchedAt;
+   loads.set(key,(loads.get(key)??0)+(kind==='IR'?(t.loadKg??t.quantity):t.quantity));
+  }
+  for(const o of orders??[]){
+   const r=routes?.[o.routeId],nominal=kind==='IR'?r?.capacityKg:r?.capacityQty;
+   if(!r?.profileId||!nominal||o.closedAt<month-12||o.closedAt>=month
+    ||!(o.status==='PARTIAL'||o.result==='NO_ALLOCATION'))continue;
+   if((loads.get(o.routeId+'|'+o.closedAt)??0)>=nominal)saturated.add(o.sellerId+'|'+r.profileId);
+  }
   for(const t of shipments??[]){
    const r=routes?.[t.routeId];
-   if(t.status!=='DELIVERED'||t.receivedAt<month-12||t.receivedAt>=month||!r?.profileId)continue;
+   if(t.status!=='DELIVERED'||t.receivedAt<month-12||t.receivedAt>=month||!r?.profileId
+    ||!saturated.has(t.sellerId+'|'+r.profileId))continue;
    const profiles=byBuyer.get(t.sellerId)??new Map();profiles.set(kind+'|'+r.profileId,{kind,profileId:r.profileId});byBuyer.set(t.sellerId,profiles);
   }
  }
