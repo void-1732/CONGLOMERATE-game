@@ -1647,12 +1647,6 @@ const SITE_CATALOG=[
   ['UK-HOUNSLOW-HEATH','UK','ハウンズロー・ヒース飛行場',1919],
   ['FR-LE-BOURGET','FR','ル・ブルジェ飛行場',1919],
   ['CA-MTL','CA','モントリオール港'],['AU-SYD','AU','シドニー港'],['NZ-WLG','NZ','ウェリントン港'],
-  ['ES-TRIANO','ES','ビスカヤ・トリアーノ鉱山地区'],['US-MESABI','US','ミネソタ・メサビ鉄鉱帯'],
-  ['US-SPINDLETOP','US','テキサス・スピンドルトップ油田',1901],
-  ['US-PANHANDLE','US','テキサス・パンハンドルガス田',1918],
-  ['CL-CHUQUICAMATA','CL','チュキカマタ銅鉱山',1915],
-  ['CA-SUDBURY','CA','サドベリー鉱山地区'],['AU-BROKENHILL','AU','ブロークンヒル鉱山地区'],
-  ['ZA-WITWATERSRAND','ZA','ウィットウォーターズランド金鉱帯'],
   ['MX-VER','MX','ベラクルス港'],['BR-RIO','BR','リオデジャネイロ港'],
   ['AR-BUE','AR','ブエノスアイレス港'],['CL-VAP','CL','バルパライソ港'],
   ['CO-CTG','CO','カルタヘナ港'],
@@ -1684,7 +1678,13 @@ const SITE_CATALOG=[
   ['PL-GDY','PL','グディニャ港'],['GR-PIR','GR','ピレウス港'],
   ['VN-SGN','VN','サイゴン港（現ホーチミン市）'],
   ['IR-BND','IR','バンダル・アッバース港'],
-  ['SA-JED','SA','ジッダ港']].map(([id,country,name,firstYear])=>(
+  ['SA-JED','SA','ジッダ港'],
+  ['ES-TRIANO','ES','ビスカヤ・トリアーノ鉱山地区'],['US-MESABI','US','ミネソタ・メサビ鉄鉱帯'],
+  ['US-SPINDLETOP','US','テキサス・スピンドルトップ油田',1901],
+  ['US-PANHANDLE','US','テキサス・パンハンドルガス田',1918],
+  ['CL-CHUQUICAMATA','CL','チュキカマタ銅鉱山',1915],
+  ['CA-SUDBURY','CA','サドベリー鉱山地区'],['AU-BROKENHILL','AU','ブロークンヒル鉱山地区'],
+  ['ZA-WITWATERSRAND','ZA','ウィットウォーターズランド金鉱帯']].map(([id,country,name,firstYear])=>(
   {id,country,name,land:1,wage:1,infra:1,labor:1,freight:1,worldOnly:true,firstYear}))
 ];
 const findSite=id=>SITE_CATALOG.find(x=>x.id===id);
@@ -14790,7 +14790,7 @@ function worldQuoteConstructionFunding(s,c,buyer,month){
  if(!wanted)return null;
  const {bankId,loanBase,grantRequested}=wanted;
  const bank=company(bankId,s),loan=loanBase?localFromBase(loanBase,buyer.country,s):0;
- if(loan&&(loan>Math.floor(c.fee*.6)||!worldInfrastructureBankReady(s,bank,buyer,loan)))
+ if(loanBase&&(loan<1||loan>Math.floor(c.fee*.6)||!worldInfrastructureBankReady(s,bank,buyer,loan)))
   throw Error('インフラ融資の銀行資金・担保余力または上限を確認してください');
  const grant=grantRequested&&policy?Math.min(Math.floor(c.fee*policy.grantBps/10000),
   worldConstructionGrantAvailable(s,c,buyer.country,month)):0;
@@ -14913,7 +14913,7 @@ function worldValidateConstructionFunding(s,c,buyer,match,expenses){
  if(!accepted)return;
  const policy=worldInfrastructurePolicy(buyer.country,c.acceptedAt);
  if(!Number.isSafeInteger(a.grant)||a.grant<0||(o.grantRequested?(!policy||a.grant<1||a.grant>Math.floor(c.fee*policy.grantBps/10000)):a.grant!==0)
-  ||!Number.isSafeInteger(a.loan)||a.loan<0||a.loan>Math.floor(c.fee*.6)
+  ||!Number.isSafeInteger(a.loan)||a.loan<(o.loanBase?1:0)||a.loan>Math.floor(c.fee*.6)
   ||a.loan!==localFromBase(o.loanBase,buyer.country,s)||!Number.isFinite(a.rate)||(a.loan?a.rate<.02||a.rate>1:a.rate!==0)
   ||a.own!==c.fee-a.grant-a.loan||(c.status==='COMPLETE'?!p:p!==null))
   throw Error('補助金・融資・自己資金の条件が不正：'+c.id);
@@ -14980,7 +14980,8 @@ function worldConstructionPayback(s,c){
  const routes=t.domestic?w.domesticRoutes:w.internationalRoutes;
  const warehouses=t.domestic?w.domesticWarehouses:w.internationalWarehouses;
  const history=t.route?(receipts??[]).filter(x=>x.sellerId===buyer.id&&routes?.[x.routeId]?.profileId===c.profileId
-  &&x.status==='DELIVERED'&&recent(x.receivedAt)&&(t.domestic||worldInternationalAdvanceFunded(x))):(w.storageServices??[]).filter(x=>
+  &&x.status==='DELIVERED'&&(t.domestic?recent(x.receivedAt)
+   :worldInternationalAdvanceFunded(x)&&recent(Math.max(x.receivedAt,x.credit?.paidAt??x.receivedAt)))):(w.storageServices??[]).filter(x=>
    x.providerId===buyer.id&&warehouses?.[x.warehouseId]?.profileId===c.profileId&&recent(x.closedAt));
  if(!history.length)return null;
  const gross=history.reduce((n,x)=>n+(t.route?x.freightSeller??x.freightCost??0:x.quantity*x.months*x.unitFee),0)/12;
