@@ -747,7 +747,7 @@ def test_south_africa_union(page):
 
 
 def test_nigeria_colonial_cocoa(page):
-    """1914 colonial amalgamation gate, WACB peg, 1922 Lagos-Liverpool cargo."""
+    """1914 colonial amalgamation gate, fixed modern NGN ledger, 1922 Lagos-Liverpool cargo."""
     result = page.evaluate("""() => {
       const rejects=fn=>{try{fn();return false;}catch{return true;}};
       S=newWorldGame({country:'UK',name:'Liverpool cocoa importer'});
@@ -813,9 +813,14 @@ def test_nigeria_colonial_cocoa(page):
         &&buyer.stock['PRD-R28'].v===cargo.totalBuyer
         &&!acc(seller,'worldShipmentStock')
         &&!check(restored).length&&!consolidate(restored).errors.length;
-      const pegged=structuredClone(restored);pegged.world.NG.fx+=1;
-      const pegProtected=rejects(()=>parsePayload(savePayload(pegged)));
-      return {initiallyClosed,preUnion,opened,jurisdiction,shipped,tamper,prepaid,delivered,pegProtected};
+      const floating=structuredClone(restored);floating.world.NG.fx*=1.01;
+      const independentRate=floating.world.NG.fx;
+      floating.world.UK.fx*=1.05;worldMatchLedgerCurrencyRates(floating);
+      const roundtrip=parsePayload(savePayload(floating));
+      const independentFx=independentRate!==restored.world.NG.fx
+        &&roundtrip.world.NG.fx===independentRate&&roundtrip.world.NG.currency==='NGN'
+        &&JSON.stringify(roundtrip.firms)===JSON.stringify(restored.firms);
+      return {initiallyClosed,preUnion,opened,jurisdiction,shipped,tamper,prepaid,delivered,independentFx};
     }""")
     assert all(result.values()), result
 
@@ -887,15 +892,20 @@ def test_philippines_sugar_customs(page):
         &&cargo.customs.releasedAt===ym(1911,8)
         &&!acc(seller,'worldShipmentStock')&&!check(saved).length
         &&!consolidate(saved).errors.length;
-      const fakePeg=structuredClone(saved);fakePeg.world.PH.fx+=.01;
-      return {before,prePeso,opened,peg,freeQuota,shipped,paid,held,tamper,settled,
-        pegAudit:reject(()=>parsePayload(savePayload(fakePeg)))};
+      const floating=structuredClone(saved);floating.world.PH.fx*=1.01;
+      const independentRate=floating.world.PH.fx;
+      floating.world.US.fx*=1.05;worldMatchLedgerCurrencyRates(floating);
+      const roundtrip=parsePayload(savePayload(floating));
+      const independentFx=independentRate!==saved.world.PH.fx
+        &&roundtrip.world.PH.fx===independentRate&&roundtrip.world.PH.currency==='PHP'
+        &&JSON.stringify(roundtrip.firms)===JSON.stringify(saved.firms);
+      return {before,prePeso,opened,peg,freeQuota,shipped,paid,held,tamper,settled,independentFx};
     }""")
     assert all(result.values()),result
 
 
 def test_korean_colonial_rice(page):
-    """1910 annexation, colonial yen parity, 1914 Busan rice shipment."""
+    """1910 annexation, fixed modern KRW ledger, 1914 Busan rice shipment."""
     result=page.evaluate("""() => {
       const rejects=fn=>{try{fn();return false;}catch{return true;}};
       S=newWorldGame({country:'JP',name:'Osaka rice importer'});
@@ -956,9 +966,14 @@ def test_korean_colonial_rice(page):
         &&buyer.stock['PRD-R23'].v===cargo.totalBuyer
         &&!acc(seller,'worldShipmentStock')&&!check(restored).length
         &&!consolidate(restored).errors.length;
-      const incorrectFx=structuredClone(restored);incorrectFx.world.KR.fx+=.1;
-      const pegRejected=rejects(()=>parsePayload(savePayload(incorrectFx)));
-      return {initiallyClosed,beforeAnnexation,opened,parity,shipped,tamper,paid,delivered,pegRejected};
+      const floating=structuredClone(restored);floating.world.KR.fx*=1.01;
+      const independentRate=floating.world.KR.fx;
+      worldMatchLedgerCurrencyRates(floating);
+      const roundtrip=parsePayload(savePayload(floating));
+      const independentFx=independentRate!==restored.world.KR.fx
+        &&roundtrip.world.KR.fx===independentRate&&roundtrip.world.KR.currency==='KRW'
+        &&JSON.stringify(roundtrip.firms)===JSON.stringify(restored.firms);
+      return {initiallyClosed,beforeAnnexation,opened,parity,shipped,tamper,paid,delivered,independentFx};
     }""")
     assert all(result.values()),result
 
