@@ -147,7 +147,9 @@ def test_antwerp_and_brussels(page):
       const plant=firm.plants.find(p=>p.name==='ブリュッセル施設');
       const registration=reopened.worldExpansion.companies[firm.id];
       return plant?.siteId==='BE-BRU'&&plant.construction?.monthsLeft>0
-        &&registration.territoryId==='TER-08-02'&&registration.currencyId==='CUR-BEF'
+        &&registration.territoryId==='TER-08-02'&&registration.currencyId==='CUR-EUR'
+        &&firmCurrency(firm,reopened)==='EUR'&&reopened.world.BE.fx===reopened.world.FR.fx
+        &&worldCityLocation(reopened,'CITY-08-03').historicalMoney.currencyId==='CUR-BEF'
         &&reopened.worldExpansion.facilities['FAC-'+plant.id]?.locationId==='LOC-BE-BRU'
         &&!check(reopened).length&&!consolidate(reopened).errors.length;
     }""")
