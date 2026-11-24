@@ -14517,10 +14517,10 @@ function worldConstructionEstimate(s,c){
  }
  return materials+t.months*worldConstructionWage(s,f,t.workers);
 }
-function worldPlaceConstructionContract(s,buyerId,{kind,profileId,buyerPlantId,sellerId,sellerPlantId,feeBase}){
+function worldPlaceConstructionContract(s,buyerId,{kind,profileId,buyerPlantId,sellerId,sellerPlantId,feeBase},ai=false){
  const w=s.worldExpansion,buyer=company(buyerId,s),t=worldConstructionTerms(s,kind,profileId);
  const c={kind,profileId,buyerId,buyerPlantId,sellerId,sellerPlantId};
- if(!w||!controller(s,buyerId)||!worldConstructionTargetReady(s,c)
+ if(!w||(!controller(s,buyerId)&&!(ai&&buyer?.auto&&!buyer.player))||!worldConstructionTargetReady(s,c)
   ||!Number.isSafeInteger(feeBase)||feeBase<1||feeBase>20000000)
   throw Error('工事発注の権限・所在地・設備・固定価格を確認してください');
  const referenceFx=worldReferenceFx(buyer.country,s),fee=localFromBase(feeBase,buyer.country,s);
@@ -14582,6 +14582,7 @@ function worldCompleteConstruction(s,c,t,events){
 }
 function worldAdvanceConstructionContracts(s,events=[]){
  const w=s.worldExpansion;if(!w)return;
+ worldPlanAiInfrastructure(s,events);
  const rows=w.constructionContracts??[],month=ym(s.year,s.month),assigned=new Map();
  for(const c of rows)if(c.status==='OFFERED'&&!controller(s,c.sellerId)&&company(c.sellerId,s)?.auto){
   try{worldAcceptConstructionContract(s,c.sellerId,c.id,true)}catch{}
@@ -14633,6 +14634,65 @@ function worldConstructionPayback(s,c){
  const fuel=history.reduce((n,x)=>n+(x.fuelBookCost??x.fuelCost??x.freightCost??0),0)/12;
  const maintenance=localFromBase(t.maintenanceBase,buyer.country,s),net=gross-fuel-maintenance;
  return {gross,fuel,maintenance,net,months:net>0?Math.ceil(c.fee/net):null};
+}
+// Specification 162: compare real trailing freight margin against acquisition
+// and recurring maintenance, not simply the cheapest construction quotation.
+function worldRankInfrastructureInvestments(s,proposals){
+ return proposals.map(c=>({c,payback:worldConstructionPayback(s,c)}))
+  .filter(x=>x.payback?.months>0&&x.payback.net>0)
+  .sort((a,b)=>a.payback.months-b.payback.months||b.payback.net-a.payback.net
+    ||a.c.fee-b.c.fee||[a.c.profileId,a.c.sellerId,a.c.sellerPlantId].join('|').localeCompare([b.c.profileId,b.c.sellerId,b.c.sellerPlantId].join('|')));
+}
+function worldPlanAiInfrastructure(s,events=[]){
+ const w=s.worldExpansion,month=ym(s.year,s.month);
+ const machines=Object.values(w?.constructionMachines??{}).filter(m=>m.retiredAt==null);
+ if(!machines.length)return [];
+ const contracts=w.constructionContracts??[],byBuyer=new Map();
+ // Only recorded, delivered freight can establish a route's investment case.
+ for(const [kind,shipments,routes] of [['DR',w.domesticShipments,w.domesticRoutes],['IR',w.internationalShipments,w.internationalRoutes]]){
+  for(const t of shipments??[]){
+   const r=routes?.[t.routeId];
+   if(t.status!=='DELIVERED'||t.receivedAt<month-12||t.receivedAt>=month||!r?.profileId)continue;
+   const profiles=byBuyer.get(t.sellerId)??new Map();profiles.set(kind+'|'+r.profileId,{kind,profileId:r.profileId});byBuyer.set(t.sellerId,profiles);
+  }
+ }
+ const created=[];
+ for(const [buyerId,profiles] of byBuyer){
+  const buyer=company(buyerId,s);
+  if(!buyer?.auto||buyer.player||controller(s,buyerId)||!isActiveCorporateFirm(buyer))continue;
+  // One pending investment per buyer; use a year's observed revenue before
+  // reinvesting in the same profile after a completed project.
+  if(contracts.some(c=>c.buyerId===buyerId&&['OFFERED','ACTIVE'].includes(c.status)))continue;
+  const proposals=[];
+  for(const {kind,profileId} of profiles.values()){
+   if(contracts.some(c=>c.buyerId===buyerId&&c.kind===kind&&c.profileId===profileId&&c.finishedAt!=null&&c.finishedAt>month-12))continue;
+   const terms=worldConstructionTerms(s,kind,profileId);
+   if(!worldConstructionOpen(s,kind,profileId,terms))continue;
+   for(const bp of buyer.plants.filter(p=>worldDomesticSiteActive(p,terms.site)))for(const m of machines){
+    const seller=company(m.ownerCompanyId,s);
+    if(!seller?.auto||seller.player||controller(s,seller.id)||seller.staff.production<terms.workers
+     ||contracts.some(c=>c.sellerPlantId===m.plantId&&['OFFERED','ACTIVE'].includes(c.status)))continue;
+    const c={kind,profileId,buyerId,buyerPlantId:bp.id,sellerId:seller.id,sellerPlantId:m.plantId};
+    if(!worldConstructionTargetReady(s,c))continue;
+    const cost=worldConstructionEstimate(s,c);
+    if(cost===null||cost<=0)continue;
+    // The same 10% minimum contractor margin as existing AI acceptance.
+    const feeBase=Math.ceil(Math.ceil(cost*1.1)*worldReferenceFx(buyer.country,s)/100);
+    const fee=localFromBase(feeBase,buyer.country,s);
+    if(feeBase<1||feeBase>20000000||fee<Math.ceil(cost*1.1)||fee>acc(buyer,'cash'))continue;
+    proposals.push({...c,feeBase,fee});
+   }
+  }
+  const best=worldRankInfrastructureInvestments(s,proposals)[0];
+  if(!best)continue;
+  // Both parties are autonomous, never spend or accept on a controlled firm's behalf.
+  try{
+   const c=worldPlaceConstructionContract(s,buyerId,best.c,true);
+   worldAcceptConstructionContract(s,c.sellerId,c.id,true);
+   created.push(c);events.push('AI物流投資採算優先：'+c.profileId+' 回収'+best.payback.months+'月');
+  }catch(e){events.push('AI物流投資見送り：'+buyer.name+' '+e.message);}
+ }
+ return created;
 }
 function worldValidateConstruction(s){
  const w=s.worldExpansion,machines=w.constructionMachines??{},rows=w.constructionContracts??[],receipts=w.constructionReceipts??[];
@@ -18498,7 +18558,7 @@ function worldConstructionPanel(s,f,edit){
   const cancel=edit&&c.status==='OFFERED'?'<button class="btn" data-world-build-contract="cancel" data-contract-id="'+esc(c.id)+'">取消</button>':'';
   return '<tr><td>'+esc(c.id+' '+kinds[c.kind]+' '+c.profileId)+'</td><td>'+esc(company(c.buyerId,s)?.name)+' → '+esc(company(c.sellerId,s)?.name)+'</td><td>'+esc(c.status)+' '+c.work.length+'/'+c.duration+'月</td><td>'+nfmt(c.feeBase)+'円相当</td><td>'+nfmt(c.bookCost/100)+'</td><td>'+(receipt?esc(receipt.assetId):'未竣工')+'</td><td>'+(pb?(pb.months==null?'採算不足':pb.months+'月（実績推計）'):'実績不足')+'</td><td>'+accept+cancel+'</td></tr>';
  }).join('');
- return '<section class="panel span12"><h2>物流インフラ建設請負・投資</h2><p class="hint">実在庫の建設機械、鋼板・セメント、輸送機材と給与原価を使用する民間請負。固定工期2か月、竣工時のみ決済・輸送能力登録。固定維持費は規模比例（ゲーム用暫定係数）。回収期間は直近12月の実収入・燃料費・維持費による推計です。</p>'
+ return '<section class="panel span12"><h2>物流インフラ建設請負・投資</h2><p class="hint">実在庫の建設機械、鋼板・セメント、輸送機材と給与原価を使用する民間請負。固定工期2か月、竣工時のみ決済・輸送能力登録。固定維持費は規模比例（ゲーム用暫定係数）。回収期間は直近12月の実収入・燃料費・維持費による推計です。非支配AIは実績のある輸送経路のうち採算正・最短回収の候補を優先し、資金と請負会社の実資材を確認して発注します。</p>'
  +(edit&&plants.length?'<div class="formgrid"><label>建設会社の所有施設<select id="worldConstructionMachinePlant">'+plants.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>').join('')+'</select></label><button class="btn" data-world-build-contract="machine">建設機械を設備化</button></div>':'')
  +(edit&&opts.length?'<div class="formgrid"><label>対象設備・請負先<select id="worldConstructionTarget">'+opts.join('')+'</select></label><label>固定請負代金（円相当）<input id="worldConstructionFee" type="number" min="1" max="20000000" step="1" value="40000"></label><button class="btn primary" data-world-build-contract="offer">建設発注</button></div>':'<p class="hint">発注可能な設備がない場合、開放済みの経路端点に発注者と建設会社の稼働施設・現物建設機械を準備してください。</p>')
  +'<p>建設仕掛品（現地通貨）：'+nfmt(acc(f,'worldConstructionWip')/100)+'</p><div class="scroll"><table><thead><tr><th>契約・設備</th><th>発注者 → 請負会社</th><th>進捗</th><th>代金</th><th>累計原価（現地通貨）</th><th>竣工設備</th><th>回収期間</th><th>操作</th></tr></thead><tbody>'+(rows||'<tr><td colspan="8">建設契約なし</td></tr>')+'</tbody></table></div></section>';
