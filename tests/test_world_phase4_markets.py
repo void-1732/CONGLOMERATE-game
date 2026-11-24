@@ -300,7 +300,9 @@ def test_italy_coal_import(page):
       const italyOpen=S.world.IT?.code==='IT'
         &&worldCityLocation(S,'CITY-04-01').jurisdictionId==='JUR-IT'
         &&worldCityLocation(S,'CITY-04-01').marketOpen
-        &&firmCurrency(buyer,S)==='ITL'
+        &&firmCurrency(buyer,S)==='EUR'
+        &&S.world.IT.fx===S.world.FR.fx
+        &&S.worldExpansion.companies[buyer.id].currencyId==='CUR-EUR'
         &&depot.siteId==='IT-GEN'
         &&!worldInternationalRouteAvailable(S,'UK-IT-CARDIFF-GENOA-COAL');
       S.year=1907;S.month=7;S.monthCommitted=ym(1907,7)-1;
