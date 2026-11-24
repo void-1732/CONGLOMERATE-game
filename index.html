@@ -3213,7 +3213,7 @@ function laborAndPlant(s,events,industry=null){for(const f of s.firms){if(indust
  let produced=0,steelUsed=0,rubberUsed=0,componentsUsed=0,extraUsed={},byModel={},modelWeights={},moduleUsed={},internalLaborBase=0,internallyAssembled=0,bomBatches={};
  if(['auto','manufacturing'].includes(f.industry))({produced,steelUsed,rubberUsed,componentsUsed,extraUsed,byModel,modelWeights,moduleUsed={},internalLaborBase=0,internallyAssembled=0,bomBatches={}}=combinedFactoryOutput(f,prodPossible,s));
  if(internallyAssembled&&controller(s,f.id))events.push(f.name+'：総合完成車工場で'+internallyAssembled+'台分のエンジン・車体・電子部品を内製し、当月の車両組立に投入');
- else if(f.industry==='resource')produced=(s.worldExpansion&&f.plants.some(p=>p.worldMiningPlan?.quantity>0))?0:Math.min(prodPossible,f.reserveUnits);
+ else if(f.industry==='resource')produced=(s.worldExpansion&&(f.plants.some(p=>p.worldMiningPlan?.quantity>0)||Object.values(s.worldExpansion.resourceDeposits??{}).some(d=>d.ownerCompanyId===f.id&&d.status==='MODEL_DISCOVERED')))?0:Math.min(prodPossible,f.reserveUnits);
  const usedRatio=prodPossible?produced/prodPossible:0;
  const baseWagesProd=Math.max(0,Math.round(f.staff.production*salary*sitePayrollFactor(f,s))),internalWages=localFromBase(Math.round(internalLaborBase*eraCostFactor(s.year)),f.country,s),wagesProd=baseWagesProd+internalWages,wagesResearch=Math.max(0,Math.round(f.staff.research*salary)),wagesSales=Math.max(0,Math.round(f.staff.sales*salary));const capWage=Math.round(baseWagesProd*usedRatio)+internalWages,idleWage=wagesProd-capWage;
  const wagesEngineering=engineers(f)*salary;
@@ -13080,7 +13080,105 @@ function validateWorldRecipeGraph(){
 
 // Phase 2-B: resource deposit operations are disabled until actual deposit
 // records are supplied. Never synthesize reserves from the product catalog.
-const WORLD_RESOURCE_DEPOSIT_STATUS=new Set(['PROVISIONAL','VERIFIED','TEST_FIXTURE']);
+const WORLD_RESOURCE_DEPOSIT_STATUS=new Set(['PROVISIONAL','VERIFIED','TEST_FIXTURE','MODEL_DISCOVERED']);
+
+/* Phase 6: source-supported regional geology; reserve sizes, discovery odds
+   and survey precision are explicitly provisional GAME MODEL coefficients. */
+const WORLD_EXPLORATION_FIELDS=Object.freeze({
+ 'DE-RUH':Object.freeze({productId:'PRD-R04',country:'DE',cityId:'CITY-03-03',
+  availableFromYear:1900,reserves:Object.freeze([120,180,240]),
+  source:'https://zeche-zollern.lwl.org/en/history/',model:true})
+});
+function worldExplorationTerms(budgetBase){
+ if(!Number.isSafeInteger(budgetBase)||budgetBase<1000||budgetBase>1000000)
+  throw Error('探鉱投資は1,000～1,000,000円相当の整数で指定してください');
+ return {chanceBps:1000+Math.floor(8000*budgetBase/(budgetBase+20000)),
+  precisionBps:2000+Math.floor(7000*budgetBase/(budgetBase+20000))};
+}
+function worldExplorationEstimate(reserve,precisionBps,roll){
+ const error=Math.floor(reserve*(10000-precisionBps)/10000);
+ return Math.max(1,reserve+(roll%2?error:-error));
+}
+function worldExploreDeposit(s,firmId,plantId,budgetBase){
+ const w=s.worldExpansion,firm=company(firmId,s),plant=firm?.plants.find(p=>p.id===plantId);
+ const field=plant&&WORLD_EXPLORATION_FIELDS[plant.siteId],month=ym(s.year,s.month);
+ const terms=worldExplorationTerms(budgetBase);
+ if(!w||!field||!isActiveCorporateFirm(firm)||!controller(s,firmId)||firm.industry!=='resource'
+  ||firm.country!==field.country||!worldDomesticSiteActive(plant,plant.siteId)
+  ||s.year<field.availableFromYear||!worldCityLocation(s,field.cityId).marketOpen)
+  throw Error('史料付き探鉱地域の稼働中の所有採掘施設が必要です');
+ validateWorldResourceDeposits(s);
+ worldValidateExploration(s);
+ const rows=w.explorationAttempts??[];
+ if(rows.some(t=>t.firmId===firmId&&t.plantId===plantId&&t.month===month))
+  throw Error('同一施設の探鉱は月1回までです');
+ if(Object.values(w.resourceDeposits??{}).some(d=>d.plantId===plantId&&d.remaining>0))
+  throw Error('既存鉱床の埋蔵量が残っています');
+ const index=rows.filter(t=>t.siteId===plant.siteId&&t.depositId!==null).length;
+ if(index>=field.reserves.length)throw Error('この地域の有限探鉱区画はすべて発見済みです');
+ const referenceFx=worldReferenceFx(firm.country,s),amount=localFromBase(budgetBase,firm.country,s);
+ if(!Number.isSafeInteger(amount)||amount<1||acc(firm,'cash')<amount)
+  throw Error('探鉱費用を支払える現預金が不足しています');
+ const journal=s.seq;
+ post(firm,{rndExpense:amount},{cash:amount},'鉱床探鉱・'+plant.siteId,'operating',s);
+ const roll=Math.floor(random(s)*10000),discovered=roll<terms.chanceBps;
+ const depositId=discovered?'DEP-RUH-COAL-'+(index+1):null;
+ const estimate=discovered?worldExplorationEstimate(field.reserves[index],terms.precisionBps,roll):null;
+ const attempt={id:'EXP-'+s.seq++,firmId,plantId,siteId:plant.siteId,month,budgetBase,referenceFx,amount,
+  journal,chanceBps:terms.chanceBps,precisionBps:terms.precisionBps,roll,depositId,estimate};
+ (w.explorationAttempts??=[]).push(attempt);
+ if(discovered){
+  const reserve=field.reserves[index];
+  (w.resourceDeposits??={})[depositId]={id:depositId,productId:field.productId,status:'MODEL_DISCOVERED',
+   ownerCompanyId:firmId,plantId,locationId:'LOC-'+plant.siteId,initialReserve:reserve,
+   remaining:reserve,extracted:0,availableFromYear:field.availableFromYear,requiredTech:null,
+   lastExtractedAt:null,explorationId:attempt.id};
+ }
+ return attempt;
+}
+function worldValidateExploration(s){
+ const w=s.worldExpansion,rows=w.explorationAttempts??[],deposits=w.resourceDeposits??{};
+ if(!Array.isArray(rows))throw Error('探鉱台帳の形式が不正です');
+ const match=worldServiceJournalMatcher(s),claimed=new Set(),months=new Set(),counts=new Map();
+ let seq=0;
+ for(const t of rows){
+  const f=company(t?.firmId,s),field=WORLD_EXPLORATION_FIELDS[t?.siteId];
+  const id=Number(t?.id?.split('-')[1]),key=t?.firmId+'|'+t?.plantId+'|'+t?.month;
+  const terms=worldExplorationTerms(t?.budgetBase);
+  if(!field||!f||f.country!==field.country||f.industry!=='resource'||typeof t.plantId!=='string'
+   ||!/^EXP-\d+$/.test(t.id)||!Number.isSafeInteger(id)||id<=seq||id>=s.seq||t.journal!==id-1
+   ||months.has(key)||!Number.isSafeInteger(t.month)||t.month<ym(field.availableFromYear,1)||t.month>ym(s.year,s.month)
+   ||!Number.isFinite(t.referenceFx)||t.referenceFx<=0||t.referenceFx!==worldReferenceFx(f.country,s)
+   ||!Number.isSafeInteger(t.amount)||t.amount<1||t.amount!==cents(t.budgetBase/t.referenceFx)
+   ||t.chanceBps!==terms.chanceBps||t.precisionBps!==terms.precisionBps
+   ||!Number.isSafeInteger(t.roll)||t.roll<0||t.roll>=10000
+   ||!match(f,t.journal,t.month,t.amount,'rndExpense','cash'))
+   throw Error('探鉱投資・確率・支払仕訳の整合性が不正です：'+t?.id);
+  seq=id;months.add(key);
+  const index=counts.get(t.siteId)??0;
+  if(index>=field.reserves.length)throw Error('有限探鉱区画を超過しています');
+  if(t.roll>=terms.chanceBps){
+   if(t.depositId!==null||t.estimate!==null)throw Error('失敗した探鉱に鉱床が存在します');
+   continue;
+  }
+  const expected='DEP-RUH-COAL-'+(index+1),d=deposits[expected];
+  if(t.depositId!==expected||claimed.has(expected)||!d||d.status!=='MODEL_DISCOVERED'
+   ||d.explorationId!==t.id||d.ownerCompanyId!==t.firmId||d.plantId!==t.plantId
+   ||d.locationId!=='LOC-'+t.siteId||d.productId!==field.productId
+   ||d.initialReserve!==field.reserves[index]||d.availableFromYear!==field.availableFromYear
+   ||d.requiredTech!==null||t.estimate!==worldExplorationEstimate(d.initialReserve,terms.precisionBps,t.roll))
+   throw Error('探鉱結果と有限鉱床の参照が不正です：'+t.id);
+  claimed.add(expected);counts.set(t.siteId,index+1);
+ }
+ for(const d of Object.values(deposits))if(d.status==='MODEL_DISCOVERED'&&!claimed.has(d.id))
+  throw Error('有償探鉱の証拠がない鉱床です：'+d.id);
+ return true;
+}
+function worldDepositUnitCost(d,base){
+ // Increasing marginal extraction cost as the finite model reserve is depleted.
+ return d.status==='MODEL_DISCOVERED'?base+Math.ceil(base*d.extracted/d.initialReserve):base;
+}
+
 const WORLD_SERVICE_EXECUTION_CLASS=Object.freeze(Object.fromEntries(
  WORLD_PRODUCTS.filter(p=>p.category==='service').map(p=>[
   p.id,
@@ -13211,9 +13309,10 @@ function worldExtractFromDeposit(s,firmId,plantId,depositId,wanted,unitCost,even
   ||d.lastExtractedAt===month||d.remaining<=0)return 0;
  const workforce=factoryLaborPlanV026(f).byId[plantId]?.assigned??0;
  const capacity=Math.floor(p.capacity*p.condition/100);
- const quantity=Math.min(wanted,d.remaining,capacity,workforce,Math.floor(acc(f,'cash')/unitCost));
+ const effectiveUnitCost=worldDepositUnitCost(d,unitCost);
+ const quantity=Math.min(wanted,d.remaining,capacity,workforce,Math.floor(acc(f,'cash')/effectiveUnitCost));
  if(quantity<=0)return 0;
- const cost=quantity*unitCost;
+ const cost=quantity*effectiveUnitCost;
  if(!Number.isSafeInteger(cost))throw Error('採掘原価の整数上限を超えました');
  post(f,{materials:cost},{cash:cost},'有限鉱床からの採掘 '+d.id,'operating',s);
  const stock=f.stock[d.productId]??={q:0,v:0};
@@ -16551,7 +16650,8 @@ function worldDomesticAssetBasis(s,ownerId){
  },{gross:0,dep:0});
 }
 function worldDomesticBlocksReorganization(s,ownerId,plant=null){
- return worldDomesticOwnedAssets(s,ownerId).some(asset=>
+ return Object.values(s.worldExpansion?.resourceDeposits??{}).some(d=>d.status==='MODEL_DISCOVERED'&&d.ownerCompanyId===ownerId&&(!plant||d.plantId===plant.id))
+  ||worldDomesticOwnedAssets(s,ownerId).some(asset=>
   !plant||asset.plantId===plant.id||asset.fromSiteId===plant.siteId)
   ||(s.worldExpansion?.medicalRequests??[]).some(r=>['OPEN','PARTIAL'].includes(r.status)
    &&((r.clientId===ownerId&&(!plant||r.plantId===plant.id))
@@ -17268,6 +17368,7 @@ function validateWorldSupplemental(state){
  validateWorldPhysicalDeliveries(state);
  validateWorldProductCatalog();
  validateWorldResourceDeposits(state);
+ worldValidateExploration(state);
  validateWorldRecipeGraph();
  for(const recipe of WORLD_SUPPLEMENTAL_RECIPES){
   if(!WORLD_PRODUCT_BY_ID.has(recipe.id)||!TECH_BY_ID[recipe.tech]
@@ -17682,6 +17783,14 @@ function worldResourceAndPowerPanel(firm,editable){
   const dep=Object.values(world.resourceDeposits||{}).filter(d=>
    d.ownerCompanyId===firm.id&&d.plantId===p.id&&d.status!=='PROVISIONAL');
   const plan=p.worldMiningPlan;
+  const field=WORLD_EXPLORATION_FIELDS[p.siteId], attempts=(world.explorationAttempts??[]).filter(t=>t.plantId===p.id);
+  const explored=(world.explorationAttempts??[]).filter(t=>t.siteId===p.siteId&&t.depositId!==null).length;
+  const last=attempts.at(-1);
+  const exploration=field?'<div class="row"><small>ルール地方・石炭探鉱（史料参照、埋蔵量・確率はモデル値） / 残り区画 '+(field.reserves.length-explored)
+   +'</small><label>探鉱投資（円相当）<input type="number" id="world-explore-budget-'+i+'" min="1000" max="1000000" value="20000"></label>'
+   +'<button class="btn sm" data-world-explore="'+esc(p.id)+'" data-world-explore-budget="world-explore-budget-'+i+'" '
+   +(editable&&explored<field.reserves.length&&!dep.some(d=>d.remaining>0)&&last?.month!==ym(S.year,S.month)?'':'disabled')+'>有償探鉱を実行</button>'
+   +(last?'<small>前回：'+(last.depositId?'発見・推定 '+nfmt(last.estimate):'未発見')+' / 成功率 '+nfmt(last.chanceBps/100)+'%・調査精度 '+nfmt(last.precisionBps/100)+'%</small>':'')+'</div>':'';
   const opts=dep.map(d=>'<option value="'+esc(d.id)+'" '+(plan?.depositId===d.id?'selected':'')+'>'
    +esc(WORLD_PRODUCT_BY_ID.get(d.productId).name)+' '+nfmt(d.remaining)+'</option>').join('');
   return '<div class="row between"><label>'+esc(p.name)+'の有限鉱床</label><select id="world-dep-'+i+'">'+opts+'</select>'
@@ -17689,7 +17798,7 @@ function worldResourceAndPowerPanel(firm,editable){
    +'<label>単位加工費<input type="number" id="world-mcost-'+i+'" min="1" value="'+(plan?.unitCost??17)+'"></label>'
    +'<button class="btn sm" data-world-mine-save="'+esc(p.id)+'" data-world-mine-dep="world-dep-'+i+'"' 
    +' data-world-mine-qty="world-mine-'+i+'" data-world-mine-cost="world-mcost-'+i+'" '
-   +(editable&&dep.length?'':'disabled')+'>有限鉱床の計画を保存</button></div>';
+   +(editable&&dep.length?'':'disabled')+'>有限鉱床の計画を保存</button></div>'+exploration;
  }).join(''):'';
  const genRows=facilities.filter(canPlanWireProduction).map((p,i)=>{
   const g=world.powerGenerators?.[p.id],remaining=worldPowerAvailable(S,p.id);
@@ -17710,22 +17819,26 @@ function worldResourceAndPowerPanel(firm,editable){
    +'<button class="btn sm" data-world-power-transfer="'+esc(p.id)+'" data-world-transfer-source="world-source-'+i+'" data-world-transfer-value="world-power-send-'+i+'" '
    +(editable&&line?'':'disabled')+'>有限電力を送る</button></div>';
  }).join('');
- return '<section class="panel"><h3>有限資源採掘・実燃料発電・有線送電（Phase 2-E）</h3>'
-  +'<p>鉱床は自動作成せず、登録された有限埋蔵量だけ採掘します。発電は設備在庫と石炭在庫を消費し、10%送電損失を記録。'
+ return '<section class="panel"><h3>有限資源採掘・探鉱・実燃料発電・有線送電</h3>'
+  +'<p>鉱床は登録された有限埋蔵量だけ採掘します。対応地域は有償探鉱が可能です。発電は設備在庫と石炭在庫を消費し、10%送電損失を記録。'
   +'燃料/kWhと送電容量・損失は暫定。実使用電力の燃料原価だけを製品原価へ配賦します。遠隔電力網・B2B一般物流・サービス契約は未実装です。</p>'
   +(mineRows||'<p>この企業の稼働可能な有限鉱床は登録されていません。</p>')
   +genRows+'</section>';
 }
 document.addEventListener('click',event=>{
  const mine=event.target.closest('[data-world-mine-save]');
+ const explore=event.target.closest('[data-world-explore]');
  const install=event.target.closest('[data-world-generator-install]');
  const generate=event.target.closest('[data-world-generate]');
  const lineInstall=event.target.closest('[data-world-line-install]');
  const transfer=event.target.closest('[data-world-power-transfer]');
- if(!mine&&!install&&!generate&&!lineInstall&&!transfer||!S?.worldExpansion||MONTH_RUNNING||!canEdit(current()))return;
+ if(!mine&&!explore&&!install&&!generate&&!lineInstall&&!transfer||!S?.worldExpansion||MONTH_RUNNING||!canEdit(current()))return;
  try{
   const firm=current();
-  if(mine){
+  if(explore){
+   const budget=Number(document.getElementById(explore.dataset.worldExploreBudget)?.value);
+   worldExploreDeposit(S,firm.id,explore.dataset.worldExplore,budget);
+  }else if(mine){
    const p=firm.plants.find(p=>p.id===mine.dataset.worldMineSave);
    const depositId=document.getElementById(mine.dataset.worldMineDep)?.value;
    const quantity=Number(document.getElementById(mine.dataset.worldMineQty)?.value);
