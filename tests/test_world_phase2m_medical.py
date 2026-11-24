@@ -49,6 +49,10 @@ def main():
           clinicFirm.plants[0].paused=true;
           const paused=rejects(()=>worldInstallMedicalClinic(S,clinicFirm.id,clinicFirm.plants[0].id,2),'稼働中');
           clinicFirm.plants[0].paused=false;
+          if(!clinicFirm.research.tree.done.includes('energy-1'))clinicFirm.research.tree.done.push('energy-1');
+          post(clinicFirm,{materials:390},{cash:390},'検証用発電機・燃料の有償取得','operating',S);
+          clinicFirm.stock['PRD-E04']={q:1,v:300};clinicFirm.stock['PRD-R04']={q:1,v:90};
+          worldInstallGenerator(S,clinicFirm.id,clinicFirm.plants[0].id);
           window.medicalFixture={providerId:clinicFirm.id,providerCash:acc(clinicFirm,'cash'),
             clientCash:acc(parent,'cash'),ppe:acc(clinicFirm,'ppe'),rejected:[pre,overstaff,paused,noPhantom]};
           VIEW_FIRM=clinicFirm.id;PAGE='facilityProduction';render();
@@ -64,7 +68,10 @@ def main():
           const clinic=Object.values(S.worldExpansion.medicalClinics)[0];
           if(!clinic)return false;
           window.medicalFixture.clinicId=clinic.id;
-          const actual=clinic.workers===2&&provider.stock['PRD-E27'].q===0
+          const blackout=clinic.powerRequired===true&&worldMedicalOpenSlots(S,clinic)===0
+            &&(()=>{try{worldRequestMedicalService(S,parent.id,clinic.id,parent.plants[0].id,1);return false;}catch(e){return e.message.includes('診療枠');}})();
+          const generation=worldGeneratePower(S,provider.id,clinic.plantId,1);
+          const actual=blackout&&generation.deliveredKwh===9&&clinic.workers===2&&provider.stock['PRD-E27'].q===0
             &&acc(provider,'ppe')===f.ppe+1500
             &&acc(provider,'serviceRevenue')===0&&worldMedicalOpenSlots(S,clinic)===8;
           VIEW_FIRM=parent.id;PAGE='facilityProduction';render();
@@ -115,6 +122,12 @@ def main():
           const ledger=!check(S).length&&report.errors.length===0
             &&report.adjustments.internalSales===total;
           const saved=parsePayload(savePayload(S));
+          const power=saved.worldExpansion.powerAllocations[saved.worldExpansion.medicalClinics[f.clinicId].plantId];
+          const receipts=saved.worldExpansion.medicalTreatments;
+          const metered=power.usedKwh===8&&power.expensedFuelCost===80&&receipts[0].powerKwh===2
+            &&receipts[1].powerUseAt===2&&receipts[1].powerCost===60;
+          const doubleUse=structuredClone(saved);doubleUse.worldExpansion.medicalTreatments[1].powerUseAt=1;
+          const powerTamper=(()=>{try{parsePayload(savePayload(doubleUse));return false;}catch(e){return e.message.includes('電力');}})();
           const tampered=structuredClone(saved);
           tampered.worldExpansion.medicalRequests[0].performedQuantity++;
           const rejects=(fn,term)=>{try{fn();return false;}catch(e){return e.message.includes(term);}};
@@ -123,7 +136,7 @@ def main():
           damaged.worldExpansion.medicalTreatments[0].quantity++;
           const rejectsInflation=rejects(()=>worldValidateMedicalServices(damaged),'実施件数');
           window.medicalFixture.total=total;
-          return {ok,noExtra,again,full,over,ledger,tamper,rejectsInflation,
+          return {ok,noExtra,again,full,over,ledger,tamper,rejectsInflation,metered,powerTamper,
             restored:!check(saved).length&&worldServiceActivity(saved,'PRD-S08').length===2
               &&worldServiceActivity(saved,'PRD-S08').reduce((n,t)=>n+t.quantity,0)===8};
         }""")
