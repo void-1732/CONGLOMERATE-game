@@ -113,10 +113,133 @@ def main():
             results[kind]=row.status==='COMPLETE'&&!!asset&&asset.ownerCompanyId===bid&&asset.profileId===profile;
           }
           const g=consolidate(S);results.clean=check(S).length===0&&g.errors.length===0&&g.cf.reconciled;
-          results.restore=parsePayload(savePayload(S)).worldExpansion.constructionReceipts.length===3;return results;
+          results.restore=parsePayload(savePayload(S)).worldExpansion.constructionReceipts.length===3;
+          const inbound=Object.values(S.worldExpansion.internationalWarehouses)[0];
+          const cargo=WORLD_INTERNATIONAL_ROUTE_EVIDENCE[inbound.profileId].products?.[0]??'PRD-R22',client=company(sid,S);
+          add(client,cargo,6,300);
+          const storage=worldStartStorageService(S,sid,sp,inbound.id,cargo,6,1,80000);
+          const inCustody=parsePayload(savePayload(S));
+          results.custody=worldInternationalWarehouseReservations(inCustody.worldExpansion,inbound.id)===6
+            &&acc(company(sid,inCustody),'worldStoredStock')===1800;
+          await close();await close();
+          const stored=S.worldExpansion.storageServices.find(x=>x.id===storage.id);
+          const provider=company(bid,S),payback=worldConstructionPayback(S,S.worldExpansion.constructionContracts.find(x=>x.kind==='IW'));
+          results.storage=stored.closedAt!==null&&worldInternationalWarehouseReservations(S.worldExpansion,inbound.id)===0
+            &&acc(company(sid,S),'worldStoredStock')===0&&provider.journals.some(j=>j.id===stored.closeJournal+2&&j.amount===480000);
+          results.warehousePayback=payback.gross===40000&&payback.fuel===0&&payback.months!==null&&consolidate(S).cf.reconciled;
+          return results;
         }""")
-        assert len(port)==5 and all(port.values()),port
-        print("PASS Phase 6 construction: 5 additional checks for domestic warehouse, international route and international warehouse")
+        assert len(port)==8 and all(port.values()),port
+        print("PASS Phase 6 construction: 8 checks for warehouse custody and fees, domestic warehouse and international logistics")
+        funded=page.evaluate("""async()=>{
+          S=newWorldGame({country:'JP',name:'Infrastructure sponsor'});saveAuto=async()=>true;
+          const bid=S.playerId;
+          const addSub=name=>{
+            VIEW_FIRM=bid;VIEW_COUNTRY='JP';PAGE='corporateSubsidiaries';render();
+            document.querySelector('#subName').value=name;
+            document.querySelector('#subCountry').value='JP';
+            document.querySelector('#subIndustry').value='service';
+            document.querySelector('#subCapital').value='650000';
+            createSub();
+            return S.firms.find(f=>f.name===name).id;
+          };
+          const bankId=addSub('Infrastructure lender'),sid=addSub('Infrastructure contractor');
+          S.year=2001;S.month=1;S.monthCommitted=ym(S.year,S.month)-1;applyWorldHistory(S);syncWorldIdentities(S);
+          const sponsor=company(bid,S),partner=company(bankId,S),seller=company(sid,S);
+          for(const f of [sponsor,partner,seller]){
+            post(f,{cash:1000000000},{capital:1000000000},'試験用資金拠出','financing',S);
+            f.auto=false;f.delegate.mode='manual';f.rnd.budgetBase=0;
+          }
+          const a0=acc(sponsor,'cash'),b0=acc(partner,'cash');
+          const capitalBase=Math.max(650000,Math.round(450000*eraCostFactor(S.year)));
+          const p=worldFormInfrastructureJointVenture(S,bid,bankId,'Rail infrastructure JV','JP-TOK',capitalBase);
+          const pid=p.id,j=S.worldExpansion.infrastructureJvs[0];
+          const shares=p.owners.map(o=>o.vote).join('|')==='0.6|0.4'
+            &&a0-acc(sponsor,'cash')===j.capital*.6&&b0-acc(partner,'cash')===j.capital*.4
+            &&-acc(p,'capital')===capitalBase*100&&j.projectId===pid;
+          const history=!worldInfrastructurePolicy('JP',ym(1999,6))&&!!worldInfrastructurePolicy('JP',ym(1999,7))
+            &&!!worldInfrastructurePolicy('UK',ym(1995,1))&&!worldInfrastructurePolicy('FR',ym(1995,1));
+          const close=async()=>{const m=S.monthCommitted;await runMonth();if(S.monthCommitted!==m+1)throw Error(JSON.stringify(LAST_MONTH_DIAGNOSTIC))};
+          const tax=20000000;
+          post(sponsor,{taxExpense:tax},{taxDue:tax},'試験用法人税債務','operating',S);
+          sponsor.payables.push({amount:tax,due:ym(S.year,S.month),account:'taxDue',note:'法人税'});
+          await close();
+          const buyer=company(pid,S),contractor=company(sid,S),sp=contractor.plants[0].id,bp=buyer.plants[0].id;
+          for(const f of [buyer,contractor])if(!f.research.tree.done.includes('production-1'))f.research.tree.done.push('production-1');
+          contractor.staff.production=15;contractor.staffTarget.production=15;
+          const add=(key,q,unit)=>{const amount=q*unit;post(contractor,{materials:amount},{cash:amount},'試験用有償調達','operating',S);contractor.stock[key]={q,v:amount}};
+          add('PRD-E14',1,300);add('PRD-E16',1,400);add('PRD-E17',1,120);add('PRD-M03',4,20);add('PRD-M09',4,10);
+          worldInstallConstructionMachine(S,sid,sp);
+          const ui=worldConstructionPanel(S,buyer,true).includes('worldConstructionGrant')
+            &&worldConstructionPanel(S,buyer,true).includes('worldConstructionBank');
+          const params={kind:'DR',profileId:'JP-SHIMBASHI-YOKOHAMA',buyerPlantId:bp,sellerId:sid,sellerPlantId:sp,feeBase:40000,grantRequested:true,bankId,loanBase:10000};
+          const reject=fn=>{try{fn();return false}catch{return true}};
+          const forbidden=reject(()=>worldPlaceConstructionContract(S,pid,{...params,bankId:sid}));
+          const c=worldPlaceConstructionContract(S,pid,params);worldAcceptConstructionContract(S,sid,c.id);
+          const reserved=c.funding.approval.grant===1000000&&c.funding.approval.loan===1000000&&c.funding.approval.own===2000000;
+          await close();
+          const current=()=>S.worldExpansion.constructionContracts.find(x=>x.id===c.id);
+          const noPremature=current().status==='ACTIVE'&&current().funding.payment===null
+            &&!company(pid,S).loans.length&&acc(company(bankId,S),'loanrec')===0
+            &&parsePayload(savePayload(S)).worldExpansion.constructionContracts[0].status==='ACTIVE';
+          await close();
+          const done=current(),rec=S.worldExpansion.constructionReceipts[0],l=company(pid,S).loans.find(x=>x.id===rec.funding.loanId);
+          const debit=company(pid,S),credit=company(bankId,S),g=consolidate(S);
+          const grant=done.status==='COMPLETE'&&rec.funding.grant===1000000&&acc(debit,'otherRevenue')<=-1000000;
+          const loan=l.outstanding===1000000&&l.parent===bankId&&l.due===done.finishedAt+36
+            &&acc(credit,'loanrec')===1000000&&-acc(debit,'debt')===1000000;
+          const lock=reject(()=>worldRetireDomesticAsset(S,pid,'route',rec.assetId))
+            &&S.worldExpansion.domesticRoutes[rec.assetId].ownerCompanyId===pid;
+          const restored=parsePayload(savePayload(S));
+          const forged=structuredClone(restored);forged.worldExpansion.constructionContracts[0].funding.approval.grant++;
+          const clean=!check(restored).length&&!g.errors.length&&g.cf.reconciled&&reject(()=>parsePayload(savePayload(forged)));
+          return {history,shares,ui,forbidden,reserved,noPremature,grant,loan,lock,clean};
+        }""")
+        assert len(funded)==10 and all(funded.values()),funded
+        print("PASS Phase 6 funded infrastructure: 10 checks, JV capital, public grant, lender principal and custody")
+        autonomous=page.evaluate("""async()=>{
+          S=newWorldGame({country:'JP',name:'Domestic freight customer'});saveAuto=async()=>true;
+          S.year=1980;S.month=1;S.monthCommitted=ym(S.year,S.month)-1;applyWorldHistory(S);
+          const buyer=company(S.playerId,S),bid=buyer.id,plant=buyer.plants[0],bp=plant.id;
+          plant.siteId='JP-NGO';
+          const carrier=initFirm(S,{name:'Autonomous road operator',country:'JP',industry:'service',seedBase:10000000});
+          const builder=initFirm(S,{name:'Autonomous contractor',country:'JP',industry:'service',seedBase:10000000});
+          const cid=carrier.id,sid=builder.id,sp=builder.plants[0].id;
+          for(const f of [buyer,carrier,builder])if(!f.research.tree.done.includes('production-1'))f.research.tree.done.push('production-1');
+          for(const f of [carrier,builder]){f.staff.production=20;f.staffTarget.production=20;}
+          syncWorldIdentities(S);
+          const add=(f,id,q,unit)=>{
+            const amount=q*unit;post(f,{materials:amount},{cash:amount},'試験用有償調達','operating',S);f.stock[id]={q,v:amount};
+          };
+          add(buyer,'PRD-E20',1,400);add(carrier,'PRD-E15',1,800);
+          add(carrier,'PRD-R22',100,100);add(carrier,'PRD-M16',50,20);
+          add(builder,'PRD-E14',1,300);add(builder,'PRD-E15',1,800);
+          add(builder,'PRD-M03',4,20);add(builder,'PRD-M09',4,10);
+          const corridor='JP-TOMEI-TOKYO-KOMAKI';
+          const route=worldRegisterDomesticRoute(S,cid,'JP-TOK','JP-NGO',347,'VERIFIED',corridor);
+          const warehouse=worldInstallDomesticWarehouse(S,bid,bp,'JP-NAGOYA-SILO'),wid=warehouse.id;
+          const order=(routeId,quantity)=>worldPlaceDomesticOrder(S,bid,{routeId,warehouseId:wid,
+            productId:'PRD-R22',quantity,unitPrice:300,maxFreight:1000000});
+          const close=async()=>{const m=S.monthCommitted;await runMonth();if(S.monthCommitted!==m+1)throw Error(JSON.stringify(LAST_MONTH_DIAGNOSTIC))};
+          order(route.id,6);await close();
+          order(route.id,6);for(let i=0;i<6;i++)await close();
+          const w=S.worldExpansion,job=(w.constructionContracts??[]).find(x=>x.buyerId===cid&&x.sellerId===sid&&x.profileId===corridor);
+          const historic=w.domesticOrders.filter(x=>x.routeId===route.id);
+          const realDemand=historic.length===2&&historic.every(x=>x.status==='PARTIAL'&&x.acceptedQty<6)
+            &&w.domesticShipments.filter(x=>x.routeId===route.id&&x.status==='DELIVERED').length===2;
+          if(!job)return {realDemand,orders:historic.map(x=>[x.status,x.acceptedQty]),shipments:w.domesticShipments,
+            payback:worldConstructionPayback(S,{buyerId:cid,kind:'DR',profileId:corridor,fee:100000}),events:S.lastReport.events};
+          const receipt=w.constructionReceipts.find(x=>x.id===job.receiptId),newRoute=w.domesticRoutes[receipt?.assetId];
+          const autoBuild=job.status==='COMPLETE'&&job.work.length===2&&newRoute?.ownerCompanyId===cid
+            &&w.constructionMachines[sp].ownerCompanyId===sid&&company(sid,S).stock['PRD-E14'].q===0;
+          const accepted=order(newRoute.id,1);
+          await close();await close();await close();
+          const used=S.worldExpansion.domesticShipments.some(t=>t.orderId===accepted.id&&t.routeId===newRoute.id&&t.status==='DELIVERED');
+          const clean=!check(parsePayload(savePayload(S))).length&&consolidate(S).cf.reconciled;
+          return {realDemand,autoBuild,used,clean};
+        }""")
+        assert len(autonomous)==4 and all(autonomous.values()),autonomous
+        print("PASS Phase 6 autonomous infrastructure: prior partial orders, actual freight receipts, AI construction and operation")
         assert not errors,errors
         print("PASS Phase 6 construction: 11 checks, UI, real monthly work, completion, failed contract, fixed upkeep, accounting and restore")
         browser.close()

@@ -846,3 +846,18 @@ python -B tests/test_step13_120_months.py --era 1900 --world
 - 仕様069・162を確定仕様原本で再照合。コード `dbb4376555246b475487a45634789478c5e04f7e`、回帰 `f8ea05af9c981c2f85aba3d7a94fa7960c5e607d`、容量不足条件 `1d317b378398c6f9ee9333c2c76d10a39dd96bc6`。直近12月の検収済み運賃・燃料原価・維持費から正の月次収益と回収期間を計算。未充足注文の月に名目容量が飽和した経路のみ、既存資材・建設機械・人員・現金・所在地条件で自律AIの発注候補を作り、最短回収期間を優先。請負側は既存10%採算条件。プレイヤー支配法人は自動発注・承諾の対象外。同一法人の同時発注は1件、同一プロファイル再投資は12月の間隔（モデル判断）。新規需要の推計、国際経路重複制限、倉庫採算、補助金・融資・JVは残件。
 - 既存建設Playwrightに隔離された採算フィクスチャ4判定を追加。実収益式、短期回収優先、プレイヤー保護、未検収・赤字拒否。試験用履歴はゲームの現物履歴ではない。AI自動竣工の実月次試験は未実施。
 - 指定CI #45391660901 はジョブ結果なし、9c3bb10の開発CI #45391696316 はPhase 5工程まで進行後cancelled。医療電力の正式受入は未確認。最新CI、IndexedDB、120/1200か月の確定合否が必要。公的電力需要、官民共同投資、融資・補助金・JV、鉱床拡張は未完成。Phase 6未受入、Phase 7未着手。main/PR #29 Draft維持。
+
+### Phase 6 — 公共配電・建設資金・自律増設・鉱床の拡張（2026-11-24）
+
+開始時の開発HEADは `f478b161f3d621f3918de5d9bf60a4d19e99d4c7`。開発CI #45393243764と実IndexedDB #45393243810は合格。同SHAの1,200か月 #45393243637 は確認時に待機中。先行SHA `1354ec177134081e7b1c7d172bc5513a57eba2a2` の #45388175643 は5条件すべて合格。医療電力の初回 #45391660901 はキャンセル。最新の受入結果とは区別する。 [開発CI](https://github.com/void-1732/CONGLOMERATE-game/actions/runs/45393243764) [IndexedDB](https://github.com/void-1732/CONGLOMERATE-game/actions/runs/45393243810) [1,200か月](https://github.com/void-1732/CONGLOMERATE-game/actions/runs/45393243637) [先行1,200か月](https://github.com/void-1732/CONGLOMERATE-game/actions/runs/45388175643)
+
+| 仕様 | 実装と検証 |
+|---|---|
+| 016・032・047・078・094 | 生活基盤に地域別公共配電を追加。銅線・広域時の変圧器を現物取得し、有限燃料、設備容量、送電損失、受電量、原価、仕訳を照合する。優先順位は医療、公共生活基盤、通信、基幹産業、その他。公共料金は当該法域の前月納付法人税の5%以内で支払う。従来の設備で設定された製造・診療・通話の計量条件と旧保存を維持。実Chromiumで公私の20判定と既存医療を確認。 |
+| 012・024・034・045・059・062・154 | 日本・英国・米国・フランスで年代に応じる官民事業を実装。補助金は前月納付法人税から確保し、竣工で支給。支援設備は36か月の供用条件を持つ。同一国内の貸手は現金を支出し、借手は元本・利息を負担する。物流JVは2法人が現金を払い込み、60%/40%の持分と議決権を取得する。竣工原価、仕訳、契約、実設備所有と保存を同時に検証。制度の参考年代を除き、補助上限、予算配分、供用期間と融資条件はゲームモデル値。 |
+| 037・038・048・049・059・069・073・154・162 | 国内・国際の輸送と倉庫に物理設備の追加を接続。国際倉庫の保管在庫と受入引当を共有し、現物返却で利用料を精算する。AIは未充足注文と設備容量、検収済み運賃・燃料費または精算済み倉庫料、維持費、資金調達費用を比較し、資金・請負要件を満たす最短回収の案件を選ぶ。自律法人の実際の受注・運賃から同じ路線を自動増設し、竣工設備で次の貨物を検収した。 |
+| 036・041・046・076・081・153・158・163 | 史料付き鉱床を25地域・資源プロファイル、18資源、10か国に拡張。石油・天然ガス、鉄、石灰石、珪砂・粘土、複数国の実鉱業地域を追加。既知有限区画と有償探鉱、建設済み採掘立地への権利、枯渇に伴う原価と地域価格、保存を同じ台帳で処理する。埋蔵量・価格・探鉱係数はゲームモデル値。 |
+
+地域と制度の参考資料は、[トリアーノ鉱山地区](https://rialia.eus/en/museum/permanent-exhibition/iron/the-mining-area/)、[テキサス州立図書館の油田史](https://www.tsl.texas.gov/lobbyexhibits/extraextra/spindletop)、[米国連邦運輸省のインフラ融資](https://www.fhwa.dot.gov/ipd/tifia/)、[内閣府のPFI沿革](https://www8.cao.go.jp/pfi/en/history/history.html)、[英国会計検査院のPFI報告](https://www.nao.org.uk/reports/pfi-and-pf2/)、[フランスの2004年官民契約](https://www.legifrance.gouv.fr/jorf/id/JORFTEXT000000438720)。
+
+実装は `index.html` の `worldDispatchGrid`、`worldInstallPublicPowerLine`、`worldPlaceConstructionContract`、`worldPayConstructionFunding`、`worldFormInfrastructureJointVenture`、`worldConstructionPayback`、`worldPlanAiInfrastructure`、`worldStartStorageService`、`WORLD_EXPLORATION_FIELDS`。ローカル実Chromiumで `test_world_phase6_construction.py` の37判定、`test_world_phase6_power_contracts.py` の20判定、`test_world_phase6_known_deposits.py` の13判定、`test_world_phase6_resources_grid.py` の26判定、既存医療、探鉱、地図を確認。正式受入にはこの実装を含む最新SHAのCIと長期試験、および確定仕様台帳・詳細設計原本との全項目照合が残る。PR #29はDraftで `main` は基準 `61ac0f640d9e99a6d6f93aa49f95048070b76fc5`。

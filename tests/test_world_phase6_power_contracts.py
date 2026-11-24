@@ -39,10 +39,32 @@ const tampered=structuredClone(sav);tampered.worldExpansion.powerTransfers.at(-1
 const tamper=reject(()=>parsePayload(savePayload(tampered)));
 const clean=!check(sav).length&&!co.errors.length;
 const n=S.worldExpansion.powerTransfers.length;await close();const shortage=S.worldExpansion.powerTransfers.length===n&&S.lastReport.events.some(x=>x.includes('停電'));
-return {ui:panel.includes(sid+'|'+g.id+'|'+pid),pending,unauthorized,installed,limits,metered,product,journal,tamper,clean,shortage,persistent:sav.worldExpansion.powerSupplyContracts[0].status==='ACTIVE'};}""")
-        assert len(result)==12 and all(result.values()),result
+const supplier=company(sid,S),taxpayer=company(bid,S),tax=120000;
+add(supplier,'PRD-M06',2,20);
+const publicPanel=worldPublicPowerPanel(supplier,true).includes(g.id+'|JP-TOK');
+const foreign=reject(()=>worldInstallPublicPowerLine(S,sid,g.id,'US-CHI'));
+const publicLine=worldInstallPublicPowerLine(S,sid,g.id,'JP-TOK');
+const publicAsset=publicLine.assetValue===40&&supplier.stock['PRD-M06'].q===0
+ &&reject(()=>worldInstallPublicPowerLine(S,sid,g.id,'JP-TOK'));
+post(taxpayer,{taxExpense:tax},{taxDue:tax},'試験用法人税債務','operating',S);
+taxpayer.payables.push({amount:tax,due:ym(S.year,S.month),account:'taxDue',note:'法人税'});
+await close();
+const publicOutage=!S.worldExpansion.publicPowerSales?.length&&S.lastReport.events.some(x=>x.includes('公共電力不足'));
+const publicBudget=worldFiscalTaxWindow(S,'JP',S.monthCommitted)>=tax;
+add(company(sid,S),'PRD-R04',5,19);
+await close();
+const pub=S.worldExpansion.publicPowerSales.at(-1),privateReceipt=S.worldExpansion.powerTransfers.at(-1);
+const powerBalanced=pub.sentKwh===18&&pub.deliveredKwh===17&&pub.lossKwh===1&&pub.amount===5100
+ &&privateReceipt.sentKwh===27&&privateReceipt.month===pub.month&&S.worldExpansion.powerAllocations[g.id].usedKwh===45;
+const withPublic=parsePayload(savePayload(S)),cc=consolidate(withPublic);
+const funded=withPublic.worldExpansion.publicPowerSales[0].amount===5100&&cc.cf.reconciled&&!cc.errors.length&&!check(withPublic).length;
+const falsified=structuredClone(withPublic);falsified.worldExpansion.publicPowerSales[0].lossKwh++;
+const publicTamper=reject(()=>parsePayload(savePayload(falsified)));
+return {ui:panel.includes(sid+'|'+g.id+'|'+pid),pending,unauthorized,installed,limits,metered,product,journal,tamper,clean,shortage,persistent:sav.worldExpansion.powerSupplyContracts[0].status==='ACTIVE',
+ publicPanel,foreign,publicAsset,publicOutage,publicBudget,powerBalanced,funded,publicTamper};}""")
+        assert len(result)==20 and all(result.values()),result
         assert not errors,errors
-        print("PASS Phase 6 inter-company power: 12 checks, paid metered supply, product cost, conservation, outage, save")
+        print("PASS Phase 6 private and public power: 20 checks, tax-funded priority, metering, product cost, outage and save")
         browser.close()
 if __name__=="__main__":
     main()

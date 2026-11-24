@@ -33,7 +33,7 @@ def main():
           const p=f.plants.find(p=>p.name==='Ashio Mine'),pid=p.id;
           const reject=fn=>{try{fn();return false}catch{return true}};
           const pending=!!p.construction&&reject(()=>worldExploreDeposit(S,id,pid,20000,'JP-ASHIO'));
-          const fields=Object.keys(WORLD_EXPLORATION_FIELDS).length===12&&worldExplorationFieldsAt('JP-KAMIOKA').length===2;
+          const fields=Object.keys(WORLD_EXPLORATION_FIELDS).length===25&&worldExplorationFieldsAt('JP-KAMIOKA').length===2;
           const catalog=Object.keys(WORLD_EXPLORATION_FIELDS).every(key=>{const x=worldExplorationField(key);
             return !!findSite(x.siteId)&&!!WORLD_PRODUCT_BY_ID.get(x.productId)&&x.reserves.length===3&&!!x.source});
           const eraLock=!worldExplorationFieldOpen(S,worldExplorationField('US-MOUNTAINPASS'));

@@ -36,7 +36,18 @@ def main():
         result=page.evaluate("""async({id,pid,start,cash,stock,unavailable})=>{
           const close=async()=>{const m=S.monthCommitted;await runMonth();if(S.monthCommitted!==m+1)throw Error(JSON.stringify(LAST_MONTH_DIAGNOSTIC))};
           const reject=fn=>{try{fn();return false}catch{return true}};
-          const catalog=Object.keys(WORLD_EXPLORATION_FIELDS).every(key=>{const x=worldKnownDeposit(key);return x?.initialReserve>0&&!!x.field.source&&x.id.endsWith('-KNOWN')});
+          const known=Object.keys(WORLD_EXPLORATION_FIELDS).map(worldKnownDeposit);
+          const catalog=known.every(x=>x?.initialReserve>0&&!!x.field.source&&x.id.endsWith('-KNOWN'));
+          const minerals=new Set(known.map(x=>x.field.productId));
+          const regions=new Set(known.map(x=>x.field.country));
+          const coverage=minerals.size===18&&regions.size===10&&new Set(known.map(x=>x.id)).size===known.length;
+          const oil=worldExplorationField('US-SPINDLETOP'),gas=worldExplorationField('US-PANHANDLE');
+          const historicalOpening=!worldExplorationFieldOpen({...S,year:1900},oil)
+            &&worldExplorationFieldOpen({...S,year:1901},oil)
+            &&!worldExplorationFieldOpen({...S,year:1917},gas)
+            &&worldExplorationFieldOpen({...S,year:1918},gas);
+          const brokenHill=worldExplorationFieldsAt('AU-BROKENHILL').map(worldKnownDeposit);
+          const colocated=brokenHill.length===3&&new Set(brokenHill.map(x=>x.field.productId)).size===3;
           const mf=company(id,S),did=worldKnownDeposit('JP-ASHIO').id,d=S.worldExpansion.resourceDeposits[did];
           const claim=d.status==='MODEL_KNOWN'&&d.remaining===180&&(mf.stock['PRD-R02']?.q??0)===stock&&acc(mf,'cash')===cash;
           const duplicate=reject(()=>worldClaimKnownDeposit(S,id,pid,'JP-ASHIO'))&&reject(()=>worldExploreDeposit(S,id,pid,20000,'JP-ASHIO'));
@@ -48,10 +59,10 @@ def main():
           const price=worldResourceScarcityBps(S,'JP','PRD-R02')>0&&worldDepositUnitCost(a,190)>190;
           const saved=parsePayload(savePayload(S)),restore=saved.worldExpansion.knownDepositClaims.length===1&&saved.worldExpansion.resourceDeposits[did].remaining===a.remaining;
           const clean=check(S).length===0&&consolidate(S).errors.length===0;
-          return {catalog,unavailable,claim,duplicate,tamper,extraction,price,restore,clean,months:S.monthCommitted===start+3};
+          return {catalog,coverage,historicalOpening,colocated,unavailable,claim,duplicate,tamper,extraction,price,restore,clean,months:S.monthCommitted===start+3};
         }""",ids)
-        assert len(result)==10 and all(result.values()),result
+        assert len(result)==13 and all(result.values()),result
         assert not errors,errors
-        print("PASS Phase 6 known deposits: 10 checks, UI, 3 real months, scarcity, accounting and restore")
+        print("PASS Phase 6 known deposits: 13 checks, 18 minerals, 10 countries, historic opening, UI, extraction and restore")
         browser.close()
 if __name__=="__main__":main()
