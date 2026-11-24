@@ -14958,12 +14958,20 @@ function worldInstallMedicalClinic(s,providerId,plantId,workers){
   throw Error('稼働中の東京施設・現物医療機器E27・研究・医療従事者割当枠が不足しています');
  const journal=s.seq,asset=worldCapitalizeDomesticEquipment(s,provider,[WORLD_MEDICAL_PROFILE.equipment],
   '医療機器E27の現物設置');
- const clinic={...asset,id:'WMC-'+s.seq++,ownerCompanyId:providerId,plantId,workers,journal};
+ const clinic={...asset,id:'WMC-'+s.seq++,ownerCompanyId:providerId,plantId,workers,journal,powerRequired:true};
  (s.worldExpansion.medicalClinics??={})[clinic.id]=clinic;
  return clinic;
 }
 function worldMedicalFee(s){
  return Math.max(1,localFromBase(WORLD_MEDICAL_PROFILE.feeBase*eraCostFactor(s.year),'JP',s));
+}
+function worldMedicalNeedsPower(s,clinic){
+ const w=s.worldExpansion;
+ return clinic.powerRequired===true||!!w.powerGenerators?.[clinic.plantId]||!!w.powerLines?.[clinic.plantId];
+}
+function worldMedicalPower(s,clinic){
+ const b=s.worldExpansion.powerAllocations?.[clinic.plantId];
+ return b&&b.source!=='TEST_FIXTURE'&&worldPowerAvailable(s,clinic.plantId)>0?b:null;
 }
 function worldMedicalOpenSlots(s,clinic,includeReservations=false){
  const provider=company(clinic?.ownerCompanyId,s),month=ym(s.year,s.month),
@@ -14979,7 +14987,10 @@ function worldMedicalOpenSlots(s,clinic,includeReservations=false){
  const reserved=includeReservations?(s.worldExpansion.medicalRequests??[])
   .filter(r=>r.clinicId===clinic.id&&r.month===month&&['OPEN','PARTIAL'].includes(r.status))
   .reduce((n,r)=>n+r.quantity-r.performedQuantity,0):0;
- return Math.max(0,capacity-used-reserved);
+ const remaining=worldMedicalNeedsPower(s,clinic)
+  ?Math.min(capacity-used,worldMedicalPower(s,clinic)?worldPowerAvailable(s,clinic.plantId):0)
+  :capacity-used;
+ return Math.max(0,remaining-reserved);
 }
 function worldRequestMedicalService(s,clientId,clinicId,plantId,quantity){
  const clinic=s.worldExpansion?.medicalClinics?.[clinicId],provider=company(clinic?.ownerCompanyId,s),
@@ -15014,11 +15025,16 @@ function worldPerformMedicalService(s,providerId,requestId,quantity){
  const fee=quantity*request.unitFee;
  if(!Number.isSafeInteger(fee)||acc(client,'cash')<fee)
   throw Error('医療の実施費用を支払う現金が不足しています');
+ const power=worldMedicalNeedsPower(s,clinic)?worldMedicalPower(s,clinic):null;
+ if(worldMedicalNeedsPower(s,clinic)&&(!power||worldPowerAvailable(s,clinic.plantId)<quantity))
+  throw Error('診療の実電力が不足しています');
+ const meter=power?{powerReceiptId:power.receiptId,powerUseAt:power.usedKwh,
+  powerKwh:quantity,powerCost:worldConsumePower(s,clinic.plantId,quantity,null,true)}:{};
  const journal=s.seq;
  post(client,{otherExpense:fee},{cash:fee},'実施済み医療サービスの利用料','operating',s);
  post(provider,{cash:fee},{serviceRevenue:fee},'実施済み医療サービスの提供料','operating',s);
  const treatment={id:'WMT-'+s.seq++,requestId,clinicId:clinic.id,clientId:client.id,
-  providerId,month,quantity,fee,journal,workersAt:clinic.workers};
+  providerId,month,quantity,fee,journal,workersAt:clinic.workers,...meter};
  (s.worldExpansion.medicalTreatments??=[]).push(treatment);
  request.performedQuantity+=quantity;
  request.status=request.performedQuantity===request.quantity?'COMPLETE':'PARTIAL';
@@ -15045,11 +15061,12 @@ function worldValidateMedicalServices(s){
   ||!Array.isArray(requests)||!Array.isArray(treatments))
   throw Error('医療施設・依頼・実施台帳が不正です');
  const matches=worldServiceJournalMatcher(s),installed=new Set(),requestsById=new Map(),totals=new Map(),slots=new Map();
+ const powers=new Map(treatments.length?[...(w.energyReceipts??[]),...(w.powerTransfers??[])].map(t=>[t.id,t]):[]);
  for(const [id,c] of Object.entries(clinics)){
   const owner=company(c?.ownerCompanyId,s),number=Number(id.split('-')[1]);
   if(!c||c.id!==id||!/^WMC-\d+$/.test(id)||!Number.isSafeInteger(number)||number>=s.seq
    ||c.journal!==number-1||!owner||owner.country!==profile.country||owner.industry!=='service'
-   ||!Number.isSafeInteger(c.workers)||c.workers<1||c.installedAt<profile.opensAt||c.installedAt>now
+   ||!Number.isSafeInteger(c.workers)||c.workers<1||(c.powerRequired!==undefined&&c.powerRequired!==true)||c.installedAt<profile.opensAt||c.installedAt>now
    ||!owner.plants.some(p=>p.id===c.plantId&&p.siteId===profile.siteId)
    ||(c.retiredAt===null&&installed.has(c.plantId))
    ||!matches(owner,c.journal,c.installedAt,c.assetValue,'ppe','materials','investing'))
@@ -15090,6 +15107,14 @@ function worldValidateMedicalServices(s){
    ||!matches(client,t.journal,t.month,t.fee,'otherExpense','cash')
    ||!matches(provider,t.journal+1,t.month,t.fee,'cash','serviceRevenue'))
    throw Error('医療の実施件数・売上仕訳が不正：'+t?.id);
+  if(clinic.powerRequired===true||['powerReceiptId','powerUseAt','powerKwh','powerCost'].some(k=>t[k]!==undefined)){
+   const power=powers.get(t.powerReceiptId),cost=power?.amount??power?.fuelBookCost,budget=w.powerAllocations?.[clinic.plantId];
+   if(!power||power.ownerCompanyId!==provider.id||(power.targetPlantId??power.plantId)!==clinic.plantId||power.month!==t.month
+    ||!Number.isSafeInteger(t.powerUseAt)||t.powerUseAt<0||t.powerKwh!==t.quantity||t.powerUseAt+t.powerKwh>power.deliveredKwh
+    ||!Number.isSafeInteger(t.powerCost)||t.powerCost!==Math.floor((t.powerUseAt+t.powerKwh)*cost/power.deliveredKwh)-Math.floor(t.powerUseAt*cost/power.deliveredKwh)
+    ||(budget?.receiptId===power.id&&budget.usedKwh<t.powerUseAt+t.powerKwh))
+    throw Error('診療の実電力・燃料原価が不正：'+t.id);
+  }
   const key=t.clinicId+'|'+t.month;
   const quantity=(slots.get(key)??0)+t.quantity;
   if(quantity>Math.min(t.workersAt*profile.patientsPerWorker,profile.patientsPerDevice))
@@ -17541,9 +17566,23 @@ function worldValidateTelephoneCalls(s){
   counts.set(key,count);previous.set(power.id,t.powerUseAt+1);sequence=id;
   fuelCostByReceipt.set(power.id,(fuelCostByReceipt.get(power.id)??0)+t.fuelCost);
  }
+ const ranges=new Map();
+ for(const t of calls){const a=ranges.get(t.powerReceiptId)??[];a.push([t.powerUseAt,t.powerUseAt+1]);ranges.set(t.powerReceiptId,a);}
+ for(const t of w.medicalTreatments??[]){
+  if(t.powerReceiptId===undefined)continue;
+  if(typeof t.powerReceiptId!=='string'||!Number.isSafeInteger(t.powerUseAt)||t.powerUseAt<0
+   ||!Number.isSafeInteger(t.powerKwh)||t.powerKwh<1||!Number.isSafeInteger(t.powerCost)||t.powerCost<0)
+   throw Error('診療の電力消費明細が不正です');
+  const a=ranges.get(t.powerReceiptId)??[];a.push([t.powerUseAt,t.powerUseAt+t.powerKwh]);ranges.set(t.powerReceiptId,a);
+  fuelCostByReceipt.set(t.powerReceiptId,(fuelCostByReceipt.get(t.powerReceiptId)??0)+t.powerCost);
+ }
+ for(const a of ranges.values()){
+  a.sort((x,y)=>x[0]-y[0]);
+  for(let i=1;i<a.length;i++)if(a[i][0]<a[i-1][1])throw Error('診療・通話の電力消費が重複しています');
+ }
  for(const budget of Object.values(w.powerAllocations??{})){
   if((budget.expensedFuelCost??0)!==(fuelCostByReceipt.get(budget.receiptId)??0))
-   throw Error('通話の燃料消費額と電力台帳が一致しません');
+   throw Error('通話・診療の燃料消費額と電力台帳が一致しません');
  }
 }
 function worldValidatePassengerTrips(s){
@@ -18136,7 +18175,7 @@ function worldDomesticControls(firm,routes,warehouses,shipments,orders){
  if(firm.country==='JP'&&firm.staff.sales>0&&medicalOptions)actions.push(
   form('medical-request','診療を依頼（未実施は請求なし）',select('request','医療提供施設・利用拠点',medicalOptions)
   +number('quantity','診療人数',Math.min(medical.patientsPerDevice,firm.staff.sales))
-  +'<small>1診療 '+fnum(firm,worldMedicalFee(S))+'、係数と職種資格は暫定モデル</small>'));
+  +'<small>1診療 '+fnum(firm,worldMedicalFee(S))+'、新設施設は実電力1kWh/件、係数と職種資格は暫定モデル</small>'));
  const ownMedicalRequests=(w.medicalRequests??[]).filter(r=>r.clientId===firm.id&&['OPEN','PARTIAL'].includes(r.status));
  if(ownMedicalRequests.length)actions.push(form('medical-cancel','未実施の診療依頼を取消',
   select('request','依頼',ownMedicalRequests.map(r=>option(r.id,r.id+' / 未実施'+(r.quantity-r.performedQuantity)+'件')).join(''))));
