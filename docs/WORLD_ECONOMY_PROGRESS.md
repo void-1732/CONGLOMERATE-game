@@ -861,3 +861,37 @@ python -B tests/test_step13_120_months.py --era 1900 --world
 地域と制度の参考資料は、[トリアーノ鉱山地区](https://rialia.eus/en/museum/permanent-exhibition/iron/the-mining-area/)、[テキサス州立図書館の油田史](https://www.tsl.texas.gov/lobbyexhibits/extraextra/spindletop)、[米国連邦運輸省のインフラ融資](https://www.fhwa.dot.gov/ipd/tifia/)、[内閣府のPFI沿革](https://www8.cao.go.jp/pfi/en/history/history.html)、[英国会計検査院のPFI報告](https://www.nao.org.uk/reports/pfi-and-pf2/)、[フランスの2004年官民契約](https://www.legifrance.gouv.fr/jorf/id/JORFTEXT000000438720)。
 
 実装は `index.html` の `worldDispatchGrid`、`worldInstallPublicPowerLine`、`worldPlaceConstructionContract`、`worldPayConstructionFunding`、`worldFormInfrastructureJointVenture`、`worldConstructionPayback`、`worldPlanAiInfrastructure`、`worldStartStorageService`、`WORLD_EXPLORATION_FIELDS`。ローカル実Chromiumで `test_world_phase6_construction.py` の37判定、`test_world_phase6_power_contracts.py` の20判定、`test_world_phase6_known_deposits.py` の13判定、`test_world_phase6_resources_grid.py` の26判定、既存医療、探鉱、地図を確認。正式受入にはこの実装を含む最新SHAのCIと長期試験、および確定仕様台帳・詳細設計原本との全項目照合が残る。PR #29はDraftで `main` は基準 `61ac0f640d9e99a6d6f93aa49f95048070b76fc5`。
+
+### Phase 6 — 検証記録と引継ぎ（2026-11-24）
+
+- 対象は `void-1732/CONGLOMERATE-game` の `codex/world-economy-full`、実装・試験の固定SHAは `6a278f68a5ac3beda67c65b856c02ffef43f75e9`。実装は `4c80808506a5be257e1180176b3cf79b3b752aa7`、既存初期拠点の修正は `6a278f68a5ac3beda67c65b856c02ffef43f75e9`。最新ブランチHEADはGitHubのブランチ先端を取得する。PR #29はOpenかつDraft、`main` は `61ac0f640d9e99a6d6f93aa49f95048070b76fc5`。 [PR #29](https://github.com/void-1732/CONGLOMERATE-game/pull/29)
+- 確定仕様台帳174項目と実装用詳細設計の原本は、前回の照合記録とリポジトリの要約を確認した。今回の参照会話プレビュー、利用可能な添付、対象リポジトリとその履歴、連携済みページから原本を取得できなかった。Figma接続は確認できたが対象ファイルキーは取得できなかった。Phase 6全対象番号の原本照合と正式受入は保留。Phase 7は承認待ち。
+
+#### 実装と検証
+
+- 016・032・047・078・094の電力。公共需要の有線配電、実資材の設備取得、有限燃料・容量・送電損失、実受電決済と停電を実装。20判定の実Chromium試験で、生活基盤を一般工場より優先する配分、工場への残余供給、公共支払と月次電力原価を確認。既存医療・通信・製造回帰も合格。
+- 012・024・034・045・059・062・154の官民資金とJV。4法域の開始年代、税収の裏付けがある補助金、貸手現金と両法人の債権債務、二者現金出資と60%/40%議決権、竣工時の決済・設備所有を確認。36か月の実月次で元本返済、公共供用期限、連結CFとJSON保存を再検証。制度の対象外では民間建設・融資を利用できる。助成額、配電単価、運営・融資係数はゲームモデル。
+- 037・038・048・049・059・069・073・154・162の建設とAI。竣工と不履行、仕掛原価、実際の建設機械・資材・給与、維持費と減価償却を回帰。国内・国際の両輸送と両倉庫で、料金・容量の実績から自律発注した増設、竣工、増設後の輸送検収または有償保管を確認。建設専用試験は37判定、4種の自律運用と返済は追加Chromium確認。
+- 036・041・046・076・081・153・158・163の鉱業。25鉱床プロファイル、18資源、10か国。鉱床の年代・所在地・権利、有償探鉱、有限採掘、枯渇による停止・追加区画と採掘費・地域価格、保存を確認。埋蔵量はモデル値。
+
+#### 受入の証拠
+
+PRのテスト用マージツリーと実装SHAのツリーは一致する（`0572e79c0f90494835bcb60b638a39647f372b81`）。
+
+| 検証 | 固定SHAの結果 |
+|---|---|
+| 開発CI | #45399058949と#45399044766が合格。ローカルでもワークフローと同じ36コマンドが合格。 [PR側](https://github.com/void-1732/CONGLOMERATE-game/actions/runs/45399058949) [push側](https://github.com/void-1732/CONGLOMERATE-game/actions/runs/45399044766) |
+| Phase 1〜5回帰 | 開発CIと追加試験で37画面・権限、800技術・150品目・40市場・46法域・155都市、53/53国際経路の実検収、国内物流、120か月、単体・連結・CFとJSON保存を確認。 |
+| 実IndexedDB | #45399058656が合格。ローカル再実行で300か月、62,662,962バイト、再読込と前世代復旧が合格。公共配電と官民資金の有効台帳でも実際に両世代へ保存し、再読込と破損時の前世代復旧をChromiumで確認。 [IndexedDB](https://github.com/void-1732/CONGLOMERATE-game/actions/runs/45399058656) |
+| 1,200か月 | 5条件すべて合格。1900年標準・1900年専門部門・2020年標準・2020年専門部門・1900年世界経済と国際貨物。ローカルでも1900年世界経済と国際貨物の1,200か月を完走。 [1,200か月の5条件](https://github.com/void-1732/CONGLOMERATE-game/actions/runs/45399058732) |
+
+- 失敗と修正。旧 `4c80808` の開発CI #45398357869 は `test_world_catalog_integrity.py:261` で `legacyHomeSites: False`。追加した鉱山がスペイン、チリ、南アフリカの既存初期拠点より先に並び、`homeSite` の先頭選択を変えていた。既存拠点の後に鉱山を置き、同じ回帰を再実行して合格。 [失敗ログ](https://github.com/void-1732/CONGLOMERATE-game/actions/runs/45398357869)
+- ローカル並列実行ではChromiumが `Page.evaluate: Target crashed` で停止し、コンテナの `oom_kill` が増加した。ローカル長期試験の並列数を減らし、実IndexedDBは最初から再実行して合格。旧医療電力 #45391660901 はキャンセルされたため、合格の根拠は固定SHAの開発CI。
+- 変更ファイルは `index.html`、`tests/test_world_phase6_construction.py`、`tests/test_world_phase6_known_deposits.py`、`tests/test_world_phase6_power_contracts.py`、`tests/test_world_phase6_resources_grid.py`、`docs/WORLD_ECONOMY_PROGRESS.md`。主なコードは `worldDispatchGrid`、`worldInstallPublicPowerLine`、`worldValidatePublicPower`、`worldQuoteConstructionFunding`、`worldPayConstructionFunding`、`worldFormInfrastructureJointVenture`、`worldConstructionPayback`、`worldPlanAiInfrastructure`、`worldStartStorageService` と `WORLD_EXPLORATION_FIELDS`。
+
+#### 未照合の範囲と継続指示
+
+- 原本で、上記仕様番号とPhase 6に属するその他の番号を照合する。現行の公共配電先は実拠点と都市IDが接続された地域、官民制度は日本・英国・米国・フランス。公共需要の地域範囲、制度の法域と年代、鉱床配置の必要範囲、製造・医療の電力適用条件に原本との差分があれば、差分の仕様番号・現象・対象コードを確定する。既に合格した機能を重複実装しない。
+- 固定SHAの1,200か月5条件の実結果と原本照合を確認し、未実装または未合格が確定した場合は根本原因だけ修正する。現行の開発CI、実IndexedDB、37画面、120/1,200か月、輸送・会計・保存の受入条件を維持する。Phase 6の正式受入は、最新の対象SHAで実際の全結果が揃った時点で判定する。
+
+> CONGLOMERATEのPhase 6を継続してください。まず `void-1732/CONGLOMERATE-game` の `codex/world-economy-full` の最新HEADを取得し、この引継ぎを読み、実装SHA `6a278f68a5ac3beda67c65b856c02ffef43f75e9` の開発CI #45399058949、実IndexedDB #45399058656、1,200か月 #45399058732 の結果を確認してください。ユーザー保管の確定仕様台帳174項目と詳細設計原本を取得し、Phase 6対象番号を全件照合してください。特定した差分のみ実装・試験・修正し、正式受入対象SHAの全条件を確認してください。`main` は `61ac0f640d9e99a6d6f93aa49f95048070b76fc5` のまま、PR #29はDraftで維持してください。正式受入が完了したときだけ実装、試験回、SHA、Phase 7へ移行できる根拠を報告し、Phase 7はユーザーの指示を待ってください。
