@@ -63,6 +63,26 @@ def main():
           return {accepted,wip,savedPartial,complete,account,service,tamper,failed,upkeep,clean,months:S.monthCommitted===first+4};
         }""",ids)
         assert len(result)==11 and all(result.values()),result
+        investment=page.evaluate("""()=>{
+          // Isolated ranking fixture; not a live save or fabricated economic event.
+          const trial=structuredClone(S),w=trial.worldExpansion,month=ym(trial.year,trial.month);
+          const c=w.constructionContracts[0],route=Object.values(w.domesticRoutes)[0];
+          const buyer=company(c.buyerId,trial),terms=worldConstructionTerms(trial,c.kind,c.profileId);
+          const maintenance=localFromBase(terms.maintenanceBase,buyer.country,trial);
+          const gross=12*(maintenance+10000),fuel=12*1000;
+          w.domesticShipments=[{sellerId:buyer.id,routeId:route.id,status:'DELIVERED',receivedAt:month-1,freightCost:gross,fuelBookCost:fuel}];
+          const low={...c,fee:18000},high={...c,fee:36000};
+          const ranked=worldRankInfrastructureInvestments(trial,[high,low]);
+          const actual=ranked.length===2&&ranked[0].c===low&&ranked[0].payback.net===9000&&ranked[0].payback.months===2&&ranked[1].payback.months===4;
+          const protectedBuyer=worldPlanAiInfrastructure(trial).length===0;
+          w.domesticShipments[0].status='DISPATCHED';
+          const noDelivery=worldRankInfrastructureInvestments(trial,[low]).length===0;
+          w.domesticShipments[0].status='DELIVERED';w.domesticShipments[0].freightCost=fuel;
+          const loss=worldRankInfrastructureInvestments(trial,[low]).length===0;
+          return {actual,protectedBuyer,noDelivery,loss};
+        }""")
+        assert len(investment)==4 and all(investment.values()),investment
+        print("PASS Phase 6 infrastructure investment ranking: actual margin, shortest payback, controlled buyer, non-delivery and loss rejection")
         port=page.evaluate("""async()=>{
           saveAuto=async()=>true;S=newWorldGame({country:'JP',name:'Port customer'});
           VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';PAGE='corporateSubsidiaries';render();
