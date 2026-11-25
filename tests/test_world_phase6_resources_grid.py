@@ -86,6 +86,12 @@ def main():
           const add=(key,q,price)=>{const amount=q*price;post(f,{materials:amount},{cash:amount},'試験用実物購入','operating',S);
             const st=f.stock[key]??={q:0,v:0};st.q+=q;st.v+=amount};
           add('PRD-E04',1,300);add('PRD-M06',12,20);add('PRD-E29',2,150);add('PRD-R04',5,19);add('PRD-R30',4,5);
+          const guardState=structuredClone(S),gf=company(id,guardState),gp=gf.plants.find(p=>p.id===aid);
+          const ready=worldGeneratorSiteReady(guardState,gf,gp);
+          gp.renovation={monthsLeft:1};const renovationDenied=!worldGeneratorSiteReady(guardState,gf,gp);delete gp.renovation;
+          gf.lifecycle.phase='withdrawn';const withdrawnDenied=!worldGeneratorSiteReady(guardState,gf,gp);gf.lifecycle.phase='active';
+          const originalSite=gp.siteId;gp.siteId='INVALID-SITE';const invalidSiteDenied=!worldGeneratorSiteReady(guardState,gf,gp);gp.siteId=originalSite;
+          if(!ready||!renovationDenied||!withdrawnDenied||!invalidSiteDenied)throw Error('generator site guards failed');
           const ppe=acc(f,'ppe'),materials=acc(f,'materials');
           worldInstallGenerator(S,id,aid);const l1=worldInstallPowerLine(S,id,aid,lid),l2=worldInstallPowerLine(S,id,aid,hid);
           const assets=l1.gridMode==='REGIONAL'&&l2.gridMode==='REGIONAL'&&l1.capacityKwh===60&&l2.lossBps===1000

@@ -8184,6 +8184,24 @@ function phase7ValidateFundingArchive(s){
   }
  }
 }
+// SPEC-128: reserve a fixed number of issued voting shares, not just a rounded
+// monetary quote. A capital change invalidates the proposal even at equal price.
+function phase7MAQuantitySnapshot(target,percent){
+ const issued=target.sharesOutstanding??1000000,treasury=target.treasuryShares??0;
+ return {issued,treasury,quantity:phase7WholeShareQuantity(target,Math.round(percent*10000))};
+}
+function phase7MAQuantityValid(q,percent){
+ if(!q||!Number.isSafeInteger(q.quantity)||q.quantity<1)return false;
+ try{
+  return q.quantity===phase7WholeShareQuantity({sharesOutstanding:q.issued,treasuryShares:q.treasury},Math.round(percent*10000))
+   &&Number.isSafeInteger(q.issued)&&Number.isSafeInteger(q.treasury);
+ }catch{return false}
+}
+function phase7MAQuantityUnchanged(r,target){
+ if(!phase7MAQuantityValid(r.shareSnapshot,r.percent)||!target)return false;
+ const q=r.shareSnapshot;
+ return q.issued===(target.sharesOutstanding??1000000)&&q.treasury===(target.treasuryShares??0);
+}
 function phase7ValidateMAReservations(s){
  const rows=s.worldExpansion?.maReservations??[];
  if(!Array.isArray(rows))throw Error('買収資金予約台帳が不正');
@@ -8196,6 +8214,7 @@ function phase7ValidateMAReservations(s){
    ||!Number.isSafeInteger(r.month)||r.month!==month||!Number.isSafeInteger(r.amountLocal)||r.amountLocal<1
    ||!Number.isSafeInteger(r.totalBase)||r.totalBase<1||r.amountLocal!==localFromBase(r.totalBase,buyer.country,s)
    ||!Number.isFinite(r.percent)||r.percent<.0001||r.percent>100||Math.abs(r.percent*10000-Math.round(r.percent*10000))>1e-6
+   ||(r.shareSnapshot!==undefined&&!phase7MAQuantityValid(r.shareSnapshot,r.percent))
    ||!Number.isFinite(r.multiplier)||r.multiplier<limits[1]||r.multiplier>limits[2]
    ||(corporate!==undefined&&(!rule||!seller||seller===buyer||seller===target
     ||!Number.isSafeInteger(corporate.receiveLocal)||corporate.receiveLocal<1
@@ -8210,7 +8229,8 @@ function phase7ValidateMAReservations(s){
 }
 function phase7MAReservationKey(row){return [row?.buyerId,row?.targetId,row?.corporate?.sellerId??'PUBLIC'].join('|');}
 function phase7ReserveMAQuote(s,buyerId,targetId,percent,multiplier,totalBase,amountLocal,corporate){
- const row={buyerId,targetId,percent,multiplier,totalBase,amountLocal,month:ym(s.year,s.month)};
+ const row={buyerId,targetId,percent,multiplier,totalBase,amountLocal,month:ym(s.year,s.month),
+  shareSnapshot:phase7MAQuantitySnapshot(company(targetId,s),percent)};
  if(corporate)row.corporate=corporate;
  const rows=s.worldExpansion.maReservations??=[];
  if(rows.some(r=>phase7MAReservationKey(r)===phase7MAReservationKey(row)))throw Error('この買収提案は予約済みです');
@@ -8240,6 +8260,7 @@ function phase7SettleMA(s,buyerId,id,actor='player'){
  const r=phase7CancelMA(s,buyerId,id),buyer=company(buyerId,s),target=company(r.targetId,s);
  // A changed price, rejected offer, or insufficient unreserved funds releases the proposal.
  if(r.month!==ym(s.year,s.month))throw Error('買収提案の期限が切れています');
+ if(!phase7MAQuantityUnchanged(r,target))throw Error('買収対象の株数が変更されたか旧予約の株数を確認できません。予約を解除しました');
  if(r.corporate){
   const {sellerId,mode,receiveLocal}=r.corporate,q=corporateShareQuote(s,buyerId,r.targetId,sellerId,r.percent,mode,r.multiplier);
   if(q.total!==r.totalBase||q.buyerPay!==r.amountLocal||q.sellerReceive!==receiveLocal)throw Error('買収価格が変わりました。予約を解除しました');
@@ -14368,7 +14389,9 @@ function validateWorldPhysicalDeliveries(s){
 /* Physically funded onsite generators. Model coefficients are 10 gross kWh
    per unit of coal and 10% generation loss. Equipment becomes PPE. */
 function worldGeneratorSiteReady(s,firm,plant){
- return !!firm&&!!plant&&!plant.construction&&!plant.paused&&s.year>=1915
+ const site=findSite(plant?.siteId);
+ return !!s.worldExpansion&&isActiveCorporateFirm(firm)&&!!site&&!!s.world[site.country]&&siteVisibleInGame(site,s)
+  &&worldDomesticSiteActive(plant,site.id)&&s.year>=1915
   &&firm.research?.tree?.done.includes('energy-1')&&!s.worldExpansion.powerGenerators?.[plant.id];
 }
 function worldGeneratorRecord(firmId,plantId){
@@ -14630,8 +14653,8 @@ function worldPublicPowerLineTerms(plant,siteId){
 function worldInstallPublicPowerLine(s,firmId,plantId,siteId){
  const w=s.worldExpansion,f=company(firmId,s),p=f?.plants.find(x=>x.id===plantId);
  const region=worldPublicPowerSite(siteId),terms=worldPublicPowerLineTerms(p,siteId),g=w?.powerGenerators?.[plantId];
- if(!w||!terms||!worldPublicPowerDemand(s,siteId)||!controller(s,firmId)||!isActiveCorporateFirm(f)
-  ||f.country!==region.site.country||!worldDomesticSiteActive(p,p.siteId)||g?.ownerCompanyId!==firmId||g.retiredAt!=null
+ if(!w||!p||!terms||!worldPublicPowerDemand(s,siteId)||!controller(s,firmId)||!isActiveCorporateFirm(f)
+  ||!siteVisibleInGame(region.site,s)||f.country!==region.site.country||!worldDomesticSiteActive(p,p.siteId)||g?.ownerCompanyId!==firmId||g.retiredAt!=null
   ||Object.values(w.publicPowerLines??{}).some(l=>l.cityId===region.city.id&&l.retiredAt==null))
   throw Error('稼働中の所有発電機と、未接続の国内公共需要地区を選択してください');
  const journal=s.seq,asset=worldCapitalizePowerLine(s,f,terms,'公共配電線の現物設備取得');
@@ -15444,7 +15467,7 @@ function worldConstructionTerms(s,kind,profileId){
 }
 function worldConstructionOpen(s,kind,profileId,terms){
  if(!terms||!s.world[findSite(terms.site)?.country])return false;
- if(kind==='PG')return s.year>=1915;
+ if(kind==='PG')return s.year>=1915&&siteVisibleInGame(findSite(terms.site),s);
  if(terms.domestic)return ym(s.year,s.month)>=terms.p.opensAt;
  const p=worldDomesticProfile(WORLD_INTERNATIONAL_CORRIDORS,profileId),e=worldDomesticProfile(WORLD_INTERNATIONAL_ROUTE_EVIDENCE,profileId),month=ym(s.year,s.month);
  return !!p&&!!e&&month>=worldInternationalOpeningMonth(p,e)&&(e.untilMonth==null||month<e.untilMonth)

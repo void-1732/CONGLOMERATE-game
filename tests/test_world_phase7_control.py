@@ -218,6 +218,28 @@ def main():
 }""")
         assert len(reserve)==10 and all(reserve.values()),reserve
         print("PASS Phase 7 SPEC-128: ten reservation, settlement, release and integrity checks")
+        reservation_quantity=page.evaluate("""()=>{
+ const s=newWorldGame({country:'JP',name:'Reservation quantity audit'}),buyer=company(s.playerId,s);
+ const target=s.firms.find(f=>f.id!==buyer.id&&f.country==='JP'&&f.owners.every(o=>o.id==='PUBLIC'));
+ post(buyer,{cash:1000000000},{capital:1000000000},'検証用資本','financing',s);
+ const r=phase7ProposeMA(s,buyer.id,target.id,30,2.5),cash=acc(buyer,'cash');
+ const loaded=parsePayload(savePayload(s)),saved=loaded.worldExpansion.maReservations[0];
+ const snapshot=saved.shareSnapshot.issued===1000000&&saved.shareSnapshot.treasury===0&&saved.shareSnapshot.quantity===300000;
+ const forged=structuredClone(loaded);forged.worldExpansion.maReservations[0].shareSnapshot.quantity++;
+ let tamper=false;try{parsePayload(savePayload(forged))}catch(e){tamper=e.message.includes('買収資金予約')}
+ // Isolate a share-count change with constant valuation so monetary re-quote alone cannot detect it.
+ target.sharesOutstanding=1100000;
+ const samePrice=maQuote(s,buyer,target,30,2.5).total===r.totalBase;
+ let stale=false;try{phase7SettleMA(s,buyer.id,r.id)}catch(e){stale=e.message.includes('株数')}
+ const released=phase7ReservedCash(s,buyer.id)===0&&acc(buyer,'cash')===cash&&target.owners.every(o=>o.id==='PUBLIC');
+ const fresh=phase7ProposeMA(s,buyer.id,target.id,30,2.5);
+ delete fresh.shareSnapshot;
+ const old=parsePayload(savePayload(s));let legacy=false;
+ try{phase7SettleMA(old,buyer.id,fresh.id)}catch(e){legacy=e.message.includes('旧予約')}
+ return {snapshot,tamper,samePrice,stale,released,legacy,oldReleased:phase7ReservedCash(old,buyer.id)===0,clean:!check(old).length};
+}""")
+        assert len(reservation_quantity)==8 and all(reservation_quantity.values()),reservation_quantity
+        print("PASS Phase 7 SPEC-128: fixed share quantity, stale and legacy proposal release, restore audit")
         repayment=page.evaluate("""async()=>{
  S=newWorldGame({country:'JP',name:'Monthly external loan'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';saveAuto=async()=>true;PAGE='financeFunding';render();
  const root=company(S.playerId,S),id=root.id;
