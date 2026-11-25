@@ -27,21 +27,22 @@ CATEGORIES = {
 }
 
 
-def test_browser_era(browser, era):
-    page = browser.new_page(viewport={"width": 1440, "height": 900})
+def test_browser_era(browser, era, world=False):
+    page = browser.new_page(viewport={"width": 1440, "height": 900}, offline=world)
     page.set_default_timeout(12000)
     errors = []
     page.on("pageerror", lambda e: errors.append(str(e)))
     page.set_content(HTML, wait_until="domcontentloaded")
     page.evaluate(
-        """era => {
+        """([era, world]) => {
             saveAuto=async()=>true;
-            S=newGame({era,country:'JP',difficulty:'normal',
-                history:'historical',name:'STEP10テスト'});
+            const config={era,country:'JP',difficulty:'normal',
+                history:'historical',name:'STEP10テスト'};
+            S=world?newWorldGame(config):newGame(config);
             VIEW_FIRM=S.playerId; VIEW_COUNTRY='JP'; PAGE='dashboard';
             render();
         }""",
-        era,
+        [era, world],
     )
     assert page.evaluate("check(S)") == []
     sections = page.evaluate("SECTIONS")
@@ -138,7 +139,7 @@ def test_browser_era(browser, era):
     )
     assert result["months"] == 12 and result["bytes"] > 1000, result
     assert not errors, errors
-    print(f"PASS real-browser {era}: 37 pages, subsidiary/export/logistics, "
+    print(f"PASS real-browser {era}{' world' if world else ''}: 37 pages, subsidiary/export/logistics, "
           f"12 months, consolidation, serialization: {result}")
     page.close()
 
@@ -205,6 +206,7 @@ if __name__ == "__main__":
         try:
             for start_year in (1900, 2020):
                 test_browser_era(browser, start_year)
+            test_browser_era(browser, 1900, world=True)
             test_real_reload(browser)
         finally:
             browser.close()

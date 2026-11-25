@@ -47,6 +47,7 @@ on:
       - tests/test_world_phase8_competitive_bids.py
       - tests/test_world_phase9_replay.py
       - docs/WORLD_ECONOMY_ACCEPTANCE.json
+      - tests/test_step10_37_pages.py
       - tests/test_step13_120_months.py
       - tests/test_fx_book_and_period_pl.py
       - tests/test_vehicle_discontinuation.py
