@@ -2450,6 +2450,13 @@ function establishSalesCorporation(){let prior=null;try{const f=current(),code=i
  }catch(e){if(prior)S=prior;render();toast(e.message)}}
 function recordExportDelivery(s,f,shipment,events){const unitPrice=shipment.unitPriceBase,gross=localFromBase(unitPrice*shipment.qty,f.country,s),cashPart=Math.round(gross*.82),ar=gross-cashPart;
  post(f,{...(cashPart?{cash:cashPart}:{}),...(ar?{ar}:{})},{sales:gross},'輸出品到着・顧客引渡し：'+NAMES[shipment.country]+' '+shipment.qty+'台','operating',s);
+ if(s.worldExpansion&&gross>0&&shipment.country!==f.country){
+  const journal=f.journals.at(-1);
+  (s.worldExpansion.vehicleExportReceipts??=[]).push({
+   firmId:f.id,country:shipment.country,month:journal.when,quantity:shipment.qty,
+   goodsSeller:gross,sellerRate:Math.round(journal.fxAtPost*100000),journal:journal.id
+  });
+ }
  postFinishedCost(s,f,shipment.bookCost,'goodsTransit','輸出製品の売上原価：'+shipment.qty+'台',shipment.bomSources);
  if(ar)f.receivables.push({amount:ar,due:ym(s.year,s.month)+1,note:'輸出売上'});
  f._salesNow+=gross;f._unitsNow+=shipment.qty;recordVehicleProfit(f,shipment.key,shipment.country,shipment.qty,gross,shipment.bookCost,s);registerMarketSale(f,shipment.country,shipment.key,shipment.qty,gross,s,shipment.segment);recordQualitySold(f,shipment.key,shipment.country,shipment.qty,s);
@@ -4123,7 +4130,8 @@ const MONTHLY_STAGES={
  AI_PREPARE:'AI企業・生産計画', PEOPLE:'人事・労務管理', PROCUREMENT:'材料調達・納入', LEGACY_RECEIPTS:'従来部品の工場間入荷',
  MODULE_RECEIPTS:'専門部品の工場間入荷', LEGACY_PARTS:'従来部品セットの製造', MODULE_PRODUCTION:'エンジン・車体・電子モジュール製造',
  AUTO_LOGISTICS:'専門部品の自動輸送', VEHICLE_PRODUCTION:'完成車組立・工場経費・研究', EXPORTS:'完成車の輸出・配送',
- WARRANTIES:'保証修理・リコール', SALES:'市場販売・競争', GROUP_ADMIN:'企業グループ運営', MA:'M&A・企業統合', EQUITY:'新株発行',
+ WARRANTIES:'保証修理・リコール', SALES:'市場販売・競争', PROPERTY_SERVICES:'不動産賃貸・宿泊の精算',
+ GROUP_ADMIN:'企業グループ運営', MA:'M&A・企業統合', EQUITY:'新株発行',
  FINANCE:'税金・負債・財務', AI_EVOLUTION:'AI企業の成長', MARKET_STATS:'市場統計の集計', CLOSE:'帳票生成と翌月への更新',
  CHECK_AFTER:'月末仕訳・在庫の整合性検算', CONSOLIDATION:'連結財務三表の検算', COMMIT:'月次確定', AUTOSAVE:'自動保存'
 };
@@ -4224,6 +4232,7 @@ async function runMonth(){
   step('EXPORTS',()=>deliverExports(trial,events));
   step('WARRANTIES',()=>{for(const f of trial.firms)processWarrantyMonth(trial,f,events)});
   step('SALES',()=>{sellMonthly(trial,events);settleRegionalSalesAgentsV035(trial,events)});
+  step('PROPERTY_SERVICES',()=>worldSettlePropertyServices(trial,events));
   step('GROUP_ADMIN',()=>chargeGroupAdministration(trial,events));
   step('MA',()=>processMAMonth(trial,events));
   step('EQUITY',()=>aiCapitalIssuance(trial,events));
@@ -6820,6 +6829,7 @@ function flushSafetySnapshotV037(){
 function parsePayload(raw){if(typeof raw!=='string')throw Error('保存データが存在しません');const obj=JSON.parse(raw);if(obj.format!=='CONGLOMERATE'||obj.version!==SAVE_FORMAT_VERSION)throw Error('対応しない保存形式です');if(hash(obj.payload)!==obj.checksum)throw Error('チェックサム不一致');const s=JSON.parse(obj.payload);
  validateWorldExpansion(s);
  if(s.config?.scenario==='world'){
+  worldValidateVehicleExportReceipts(s);
   phase7ValidateTaxAssessments(s);
   phase7ValidateFundingLoanPostings(s);
   phase7RecoverOpenLoanFunding(s);
@@ -7379,7 +7389,8 @@ function consolidate(s,rootId=s.playerId){
  })).filter(t=>ids.has(t.seller)&&ids.has(t.buyer)&&insidePeriod(t));
  const phoneCash=worldTelephoneCashPairs(s).filter(t=>ids.has(t.seller)&&ids.has(t.buyer)&&insidePeriod(t));
  const medicalCash=worldMedicalCashPairs(s).filter(t=>ids.has(t.seller)&&ids.has(t.buyer)&&insidePeriod(t));
- const serviceFees=[...storageCash,...phoneCash,...medicalCash].reduce((sum,t)=>sum+baseFromLocal(t.fee,company(t.seller,s).country,s),0);
+ const propertyCash=worldPropertyCashPairs(s).filter(t=>ids.has(t.seller)&&ids.has(t.buyer)&&insidePeriod(t));
+ const serviceFees=[...storageCash,...phoneCash,...medicalCash,...propertyCash].reduce((sum,t)=>sum+baseFromLocal(t.fee,company(t.seller,s).country,s),0);
  let insuranceInternalFees=0;
  const insuranceCash=[];
  for(const p of domestic?.cargoInsurance??[]){
@@ -7404,7 +7415,7 @@ function consolidate(s,rootId=s.playerId){
  }
  const dividends=phase7DividendCashPairs(s).filter(t=>ids.has(t.seller)&&ids.has(t.buyer)&&insidePeriod(t));
  const dividendIncome=dividends.reduce((n,t)=>n+baseFromLocal(t.received,company(t.buyer,s).country,s),0);
- const cashTx=[...dividends,...(s.intercompanyTx||[]),...developmentCashPairs(s),...partCashPairs(s),...worldPowerCashPairs(s),...worldConstructionCashPairs(s),...worldMiningLandCashPairs(s),...assetCash,...tradeCash,...storageCash,...phoneCash,...medicalCash,...insuranceCash].filter(t=>ids.has(t.seller)&&ids.has(t.buyer)&&insidePeriod(t));
+ const cashTx=[...dividends,...(s.intercompanyTx||[]),...developmentCashPairs(s),...partCashPairs(s),...worldPowerCashPairs(s),...worldConstructionCashPairs(s),...worldMiningLandCashPairs(s),...assetCash,...tradeCash,...storageCash,...phoneCash,...medicalCash,...propertyCash,...insuranceCash].filter(t=>ids.has(t.seller)&&ids.has(t.buyer)&&insidePeriod(t));
  const cashJournals=new Set();for(const t of cashTx)if(['dividendCash','loan','loanCash','interestCash','goods','developmentCash','partTradeCash','equityCash','domesticAssetCash','domesticTradeCash'].includes(t.kind))for(const id of [t.fromJournal,t.toJournal])if(id!==undefined)cashJournals.add(id);
  for(const l of activeLinks)if(l.kind==='foundation')for(const id of [l.buyerJournal,l.childJournal])if(id!==undefined)cashJournals.add(id);
  // Group assets minus group debts determine consolidated net equity. Subsidiary net
@@ -7509,7 +7520,7 @@ function computePeriodCF(s,rootId,g,bridge){
  const scope=consolidationScope(s,scopeHistory,members,rootId),opens=scope.months;
  const linksEntering=new Map(Object.entries(scope.entries).filter(([id])=>id!==rootId));
  const ignored=new Set(),internationalLegs=new Map();let loanPairs=0;
- for(const t of [...phase7DividendCashPairs(s),...(s.intercompanyTx||[]),...developmentCashPairs(s),...partCashPairs(s),...worldTelephoneCashPairs(s),...worldMedicalCashPairs(s),...worldPowerCashPairs(s),...worldConstructionCashPairs(s),...worldMiningLandCashPairs(s),...worldInternationalCashPairs(s)]){
+ for(const t of [...phase7DividendCashPairs(s),...(s.intercompanyTx||[]),...developmentCashPairs(s),...partCashPairs(s),...worldTelephoneCashPairs(s),...worldMedicalCashPairs(s),...worldPropertyCashPairs(s),...worldPowerCashPairs(s),...worldConstructionCashPairs(s),...worldMiningLandCashPairs(s),...worldInternationalCashPairs(s)]){
   if(!memberIds.has(t.seller)||!memberIds.has(t.buyer))continue;
   if(t.yearMonth<Math.max(opens[t.seller]??0,opens[t.buyer]??0))continue;
   if(s.worldExpansion&&!phase7TransactionInScope(scope,t))continue;
@@ -8699,7 +8710,17 @@ function phase8ControlPurchaseQuantity(registry,group){
  while(lo<hi){const mid=lo+Math.floor((hi-lo)/2);if(votes(mid)>=required)hi=mid;else lo=mid+1;}
  return lo;
 }
-function phase8ReviewIndependentBids(s,events,pool,month){
+function phase8ControlledCompanies(s){
+ const shareholders=new Set(s.firms.flatMap(f=>f.owners.filter(o=>o.id!=='PUBLIC'&&o.vote>0).map(o=>o.id)));
+ const members=new Set();
+ for(const id of shareholders){
+  for(const member of controlSet(s,id)){
+   if(member!==id)members.add(member);
+  }
+ }
+ return members;
+}
+function phase8ReviewIndependentBids(s,events,pool,month,controlledCompanies){
  const proposals=[],peers=new Map();
  for(const f of s.firms.filter(isActiveCorporateFirm)){
   const key=f.country+'|'+f.industry;
@@ -8708,7 +8729,8 @@ function phase8ReviewIndependentBids(s,events,pool,month){
  for(const buyer of pool.slice(0,7)){
   const buyerVal=maValuation(s,buyer);
   if(random(s)>.45)continue;
-  const candidates=s.firms.filter(t=>t.id!==buyer.id&&t.lifecycle?.phase==='active'&&t.reorgStatus!=='integrated'&&!controller(s,t.id)&&!controller(s,buyer.id,t.id)&&(t.maCooldown||-200)<month-12)
+  const candidates=s.firms.filter(t=>t.id!==buyer.id&&!t.player&&isActiveCorporateFirm(t)
+    &&!controlledCompanies.has(t.id)&&!controller(s,buyer.id,t.id)&&(t.maCooldown||-200)<month-12)
    .map(t=>({t,score:phase8StrategicScore(phase8StrategicInputs(s,buyer,t,buyerVal,peers))}))
    .sort((a,b)=>b.score-a.score).slice(0,6);
   for(const {t:target,score} of candidates){
@@ -8759,8 +8781,13 @@ function processMAMonth(s,events){
  // At most one independent-company acquisition per review window; existing
  // buyer-specific cooldown remains in force.
  if(!phase7MAReviewDue(s)||s.firms.length<3)return;
- const pool=s.firms.filter(f=>!f.player&&!controller(s,f.id)&&f.lifecycle?.phase==='active'&&f.reorgStatus!=='integrated'&&month-(f.maCooldown||-200)>18&&financials(f).cash>localFromBase(250000,f.country,s)&&financials(f).equity>0).sort((a,b)=>financials(b).cash/worldReferenceFx(b.country,s)-financials(a).cash/worldReferenceFx(a.country,s));
- if(s.worldExpansion)return phase8ReviewIndependentBids(s,events,pool,month);
+ const controlledCompanies=s.worldExpansion?phase8ControlledCompanies(s):controlSet(s);
+ const cashForRanking=f=>s.worldExpansion?baseFromLocal(acc(f,'cash'),f.country,s):acc(f,'cash')/worldReferenceFx(f.country,s);
+ const pool=s.firms.filter(f=>!f.player&&!controlledCompanies.has(f.id)&&f.lifecycle?.phase==='active'
+  &&f.reorgStatus!=='integrated'&&month-(f.maCooldown||-200)>18
+  &&acc(f,'cash')>localFromBase(250000,f.country,s)&&financials(f).equity>0)
+  .sort((a,b)=>cashForRanking(b)-cashForRanking(a));
+ if(s.worldExpansion)return phase8ReviewIndependentBids(s,events,pool,month,controlledCompanies);
  let completed=0;
  for(const buyer of pool.slice(0,7)){
   if(completed>=1)break;
@@ -13790,21 +13817,54 @@ function phase8AggregateTrade(rows){
 function phase8TradeByJurisdiction(s,fromMonth,toMonth){
  const w=s.worldExpansion;if(!w)return [];
  const history=new Map(),rows=[];
+ function jurisdictionAt(territoryId,month){
+  if(!history.has(month)){
+   const snapshot=makeWorldExpansion(w.marketRegistryVersion??0);
+   for(const event of worldHistoryThrough(month,w.marketRegistryVersion??0))recordWorldEvent(snapshot,event);
+   history.set(month,snapshot.territoryJurisdictions);
+  }
+  return history.get(month)[territoryId];
+ }
  for(const t of w.internationalShipments??[]){
   if(t.status!=='DELIVERED'||t.receivedAt<fromMonth||t.receivedAt>toMonth)continue;
   const profile=WORLD_INTERNATIONAL_CORRIDORS[w.internationalRoutes?.[t.routeId]?.profileId];
   if(!profile)throw Error('貿易統計の輸送経路が不明：'+t.id);
   const a=WORLD_LOCATIONS.get('LOC-'+profile.from),b=WORLD_LOCATIONS.get('LOC-'+profile.to);
-  let jurisdictions=history.get(t.receivedAt);
-  if(!jurisdictions){
-   const snapshot=makeWorldExpansion(w.marketRegistryVersion??0);
-   for(const event of worldHistoryThrough(t.receivedAt,w.marketRegistryVersion??0))recordWorldEvent(snapshot,event);
-   jurisdictions=snapshot.territoryJurisdictions;history.set(t.receivedAt,jurisdictions);
-  }
-  rows.push({id:t.id,status:t.status,month:t.receivedAt,from:jurisdictions[a?.territoryId],to:jurisdictions[b?.territoryId],
+  rows.push({id:t.id,status:t.status,month:t.receivedAt,from:jurisdictionAt(a?.territoryId,t.receivedAt),
+   to:jurisdictionAt(b?.territoryId,t.receivedAt),
    goodsSeller:t.goodsSeller,sellerRate:t.sellerRate});
  }
+ for(const t of w.vehicleExportReceipts??[]){
+  if(t.month<fromMonth||t.month>toMonth)continue;
+  const seller=company(t.firmId,s);
+  rows.push({id:'EV-'+t.journal,status:'DELIVERED',month:t.month,
+   from:jurisdictionAt(WORLD_ENGINE_TERRITORY[seller?.country],t.month),
+   to:jurisdictionAt(WORLD_ENGINE_TERRITORY[t.country],t.month),goodsSeller:t.goodsSeller,sellerRate:t.sellerRate});
+ }
  return phase8AggregateTrade(rows);
+}
+function worldValidateVehicleExportReceipts(s){
+ const rows=s.worldExpansion.vehicleExportReceipts??[],indexes=new Map();
+ if(!Array.isArray(rows))throw Error('完成車の輸出検収台帳が不正です');
+ let previous=0;
+ for(const t of rows){
+  const firm=company(t?.firmId,s);
+  if(!firm||t.country===firm.country||!Object.hasOwn(s.world,t.country)
+   ||!Number.isSafeInteger(t.month)||t.month<WORLD_START_MONTH||t.month>s.monthCommitted
+   ||!Number.isSafeInteger(t.quantity)||t.quantity<1||!Number.isSafeInteger(t.goodsSeller)||t.goodsSeller<1
+   ||!Number.isSafeInteger(t.sellerRate)||t.sellerRate<1
+   ||!Number.isSafeInteger(t.journal)||t.journal<=previous||t.journal>=s.seq)
+   throw Error('完成車の輸出検収記録が不正です：'+t?.journal);
+  previous=t.journal;
+  if(!indexes.has(firm.id))indexes.set(firm.id,new Map(firm.journals.map(j=>[j.id,j])));
+  const j=indexes.get(firm.id).get(t.journal);
+  if(!j&&firm.journals.length===10000&&t.journal<firm.journals[0].id)continue;
+  const memo='輸出品到着・顧客引渡し：'+NAMES[t.country]+' '+t.quantity+'台';
+  if(j?.when!==t.month||j.text!==memo||j.kind!=='operating'||j.amount!==t.goodsSeller
+   ||j.cr.length!==1||j.cr[0][0]!=='sales'||j.cr[0][1]!==t.goodsSeller
+   ||Math.round(j.fxAtPost*100000)!==t.sellerRate)
+   throw Error('完成車の輸出検収と売上仕訳が一致しません：'+t.journal);
+ }
 }
 // SPEC-070/075: monthly macro observations from the actual world engine.
 // Output index is a population/income proxy; it is NOT historical GDP.
@@ -13873,7 +13933,7 @@ function phase8TradePanel(s){
  }
  const body=[...summary].sort((a,b)=>a[0].localeCompare(b[0])).map(([id,r])=>
   '<tr><td>'+esc(WORLD_JURISDICTIONS.get(id)?.name??id)+'</td><td class="num">'+baseMoney(r.exports)+'</td><td class="num">'+baseMoney(r.imports)+'</td><td class="num">'+baseMoney(r.exports-r.imports)+'</td><td class="num">'+baseMoney(r.yearExports)+'</td><td class="num">'+baseMoney(r.yearImports)+'</td></tr>').join('');
- return '<section class="panel span12"><h2>国別商品貿易統計（実検収分）</h2><div class="scroll"><table><thead><tr><th>管轄国</th><th>前月輸出総額</th><th>前月輸入総額</th><th>前月貿易収支</th><th>直近12か月輸出</th><th>直近12か月輸入</th></tr></thead><tbody>'+(body||'<tr><td colspan="6">検収済みの国際貨物実績なし</td></tr>')+'</tbody></table></div><p class="hint">商品代金のみを検収月・当時の管轄国・出荷時の固定為替で集計。未納・返金・運賃・関税を含めません。ゲームで記録された国際実貨物のみで、全国家経済の貿易推計ではありません。</p></section>';
+ return '<section class="panel span12"><h2>国別商品貿易統計（実検収分）</h2><div class="scroll"><table><thead><tr><th>管轄国</th><th>前月輸出総額</th><th>前月輸入総額</th><th>前月貿易収支</th><th>直近12か月輸出</th><th>直近12か月輸入</th></tr></thead><tbody>'+(body||'<tr><td colspan="6">検収済みの国際貨物実績なし</td></tr>')+'</tbody></table></div><p class="hint">検収月と当時の管轄国で商品代金を集計します。国際貨物の換算は出荷時、完成車は顧客引渡時の記録レートを使います。</p></section>';
 }
 function worldMarketPanel(s){
  const rows=WORLD_MARKETS.map(m=>{
@@ -14625,7 +14685,7 @@ const WORLD_SERVICE_EXECUTION_CLASS=Object.freeze(Object.fromEntries(
   :['PRD-S01','PRD-S02','PRD-S03','PRD-S04'].includes(p.id)?'TRANSPORT_AND_STORAGE'
   :p.id==='PRD-S10'?'NETWORK'
   :p.id==='PRD-S11'?'CONSTRUCTION'
-  :p.id==='PRD-S12'?'PROPERTY':'LABOR'
+  :['PRD-S12','PRD-S14'].includes(p.id)?'PROPERTY':'LABOR'
  ])
 ));
 const WORLD_VERIFIED_SERVICE_PATHS=Object.freeze({
@@ -14640,7 +14700,9 @@ const WORLD_VERIFIED_SERVICE_PATHS=Object.freeze({
  'PRD-S09':Object.freeze({revenueState:'EXTERNAL_EXPENSE',settlementState:'AFTER_SKILL_TRAINING',unit:'人'}),
  'PRD-S10':Object.freeze({revenueState:'EARNED_FEE',settlementState:'ON_CONNECTION',unit:'通話'}),
  'PRD-S11':Object.freeze({revenueState:'EXTERNAL_EXPENSE',settlementState:'AFTER_SITE_COMPLETION',unit:'件'}),
+ 'PRD-S12':Object.freeze({revenueState:'EARNED_FEE',settlementState:'ON_MONTHLY_USE',unit:'区画・月'}),
  'PRD-S13':Object.freeze({revenueState:'EARNED_FEE',settlementState:'AFTER_ACTUAL_SALES',unit:'台'}),
+ 'PRD-S14':Object.freeze({revenueState:'EARNED_FEE',settlementState:'AFTER_STAY',unit:'室泊'}),
  'PRD-S15':Object.freeze({revenueState:'COST_SHARING',settlementState:'APPROVED_DEVELOPMENT',unit:'件'})
 });
 function worldServiceTerms(productId){
@@ -14686,6 +14748,10 @@ function worldServiceActivity(s,productId){
   ref:t.id,providerId:null,customerId:t.firmId,month:t.month,quantity:t.trainees,amount:t.amount
  }));
  if(productId==='PRD-S13')return (w.agencyServiceReceipts??[]).map(t=>({...t,ref:t.id,amount:t.fee}));
+ if(productId==='PRD-S12'||productId==='PRD-S14')return (w.propertyContracts??[])
+  .filter(t=>t.productId===productId&&t.status==='FULFILLED').map(t=>({
+   ref:t.id,providerId:t.providerId,customerId:t.clientId,month:t.month,quantity:t.quantity,amount:t.amount
+  }));
  if(productId==='PRD-S15')return (s.partEconomy?.developmentAgreements??[]).flatMap(a=>{
   const project=company(a.rightOwnerFirmId,s)?.partOperations?.engineering.projects.find(p=>p.id===a.projectId);
   if(a.approvedAt===null||project?.status!=='COMPLETED')return [];
@@ -14705,6 +14771,130 @@ function worldPhase2ExecutableCoverage(){
   if(status==='DATA_CANDIDATE')pending.push(product.id);
  }
  return {counts,pending};
+}
+const WORLD_PROPERTY_SERVICE_IDS=new Set(['PRD-S12','PRD-S14']);
+function worldPropertyCapacity(s,provider,plant){
+ const site=plant&&findSite(plant.siteId);
+ if(!isActiveCorporateFirm(provider)||provider.industry!=='service'||!site||site.country!==provider.country
+  ||!siteVisibleInGame(site,s)||!worldDomesticSiteActive(plant,site.id))return 0;
+ const days=worldPropertyDays(ym(s.year,s.month));
+ const places=Math.floor(plant.capacity*plant.condition/100);
+ return Math.max(0,Math.min(places,provider.staff.sales))*days;
+}
+function worldPropertyDays(month){
+ return new Date(Date.UTC(Math.floor(month/12),month%12+1,0)).getUTCDate();
+}
+function worldPropertyUsage(contract){
+ return contract.quantity*(contract.productId==='PRD-S12'?worldPropertyDays(contract.month):1);
+}
+function worldPropertyJournalMemo(t){
+ return WORLD_PRODUCT_BY_ID.get(t.productId).name+' '+t.id+' '+t.plantId+' '+t.siteId+' '+t.quantity+' × '+t.unitFee;
+}
+function worldOfferPropertyService(s,clientId,providerId,plantId,productId,quantity,unitFee){
+ const ledger=s.worldExpansion,client=company(clientId,s),provider=company(providerId,s);
+ const plant=provider?.plants.find(p=>p.id===plantId),month=ym(s.year,s.month);
+ if(!ledger||!isActiveCorporateFirm(client)||!controller(s,clientId)||!isActiveCorporateFirm(provider)
+  ||client===provider||client.country!==provider.country)
+  throw Error('同じ法域の別法人に申し込んでください');
+ if(!WORLD_PROPERTY_SERVICE_IDS.has(productId)||!Number.isSafeInteger(quantity)||quantity<1
+  ||!Number.isSafeInteger(unitFee)||unitFee<1||!Number.isSafeInteger(quantity*unitFee))
+  throw Error('賃貸・宿泊の数量または単価が不正です');
+ const terms={clientId,providerId,plantId,siteId:plant?.siteId,productId,quantity,unitFee,month};
+ if(worldPropertyUsage(terms)>worldPropertyCapacity(s,provider,plant))
+  throw Error('稼働施設の賃貸・宿泊容量を超えています');
+ const contract={...terms,id:'WPS-'+s.seq++,status:'OFFERED',accepted:null,journal:null,amount:0};
+ (ledger.propertyContracts??=[]).push(contract);
+ return contract;
+}
+function worldActOnPropertyService(s,actorId,id,action){
+ const contracts=s.worldExpansion?.propertyContracts??[],contract=contracts.find(t=>t.id===id);
+ const month=ym(s.year,s.month);
+ if(!contract||contract.month!==month||!controller(s,actorId)||!isActiveCorporateFirm(company(actorId,s)))
+  throw Error('現在の契約を操作する権限がありません');
+ if(action==='cancel'&&contract.clientId===actorId&&contract.status==='OFFERED'){
+  contract.status='CANCELLED';
+  return;
+ }
+ if(action!=='accept'||contract.providerId!==actorId||contract.status!=='OFFERED')
+  throw Error('提供会社だけが未承諾の申込を承諾できます');
+ const provider=company(actorId,s),plant=provider.plants.find(p=>p.id===contract.plantId);
+ const held=contracts.filter(t=>t.month===month&&t.providerId===actorId&&t.status==='ACCEPTED');
+ const plantUsed=held.filter(t=>t.plantId===contract.plantId).reduce((sum,t)=>sum+worldPropertyUsage(t),0);
+ const staffUsed=held.reduce((sum,t)=>sum+worldPropertyUsage(t),0);
+ const requested=worldPropertyUsage(contract);
+ if(plant?.siteId!==contract.siteId||plantUsed+requested>worldPropertyCapacity(s,provider,plant)
+  ||staffUsed+requested>provider.staff.sales*worldPropertyDays(month))
+  throw Error('予約できる賃貸・宿泊容量が不足しています');
+ contract.accepted=s.seq++;
+ contract.status='ACCEPTED';
+}
+function worldSettlePropertyServices(s,events){
+ const month=ym(s.year,s.month),contracts=s.worldExpansion?.propertyContracts??[];
+ const usage=new Map(),staffUsage=new Map();
+ for(const t of contracts.filter(t=>t.status==='OFFERED'&&t.month===month))t.status='EXPIRED';
+ for(const t of contracts.filter(t=>t.status==='ACCEPTED'&&t.month===month).sort((a,b)=>a.accepted-b.accepted)){
+  const provider=company(t.providerId,s),client=company(t.clientId,s),plant=provider?.plants.find(p=>p.id===t.plantId);
+  const needed=worldPropertyUsage(t),amount=t.quantity*t.unitFee;
+  const next=(usage.get(t.plantId)??0)+needed,staffNext=(staffUsage.get(t.providerId)??0)+needed;
+  if(!isActiveCorporateFirm(client)||plant?.siteId!==t.siteId||next>worldPropertyCapacity(s,provider,plant)
+   ||staffNext>provider.staff.sales*worldPropertyDays(month)
+   ||phase7AvailableCash(s,client)<amount){
+   t.status='UNFULFILLED';
+   events.push('賃貸・宿泊サービス '+t.id+'：未履行・請求なし');
+   continue;
+  }
+  const journal=s.seq;
+  const memo=worldPropertyJournalMemo(t);
+  post(client,{otherExpense:amount},{cash:amount},memo,'operating',s);
+  post(provider,{cash:amount},{serviceRevenue:amount},memo,'operating',s);
+  Object.assign(t,{status:'FULFILLED',amount,journal});
+  provider._salesNow=(provider._salesNow??0)+amount;
+  provider._unitsNow=(provider._unitsNow??0)+t.quantity;
+  usage.set(t.plantId,next);
+  staffUsage.set(t.providerId,staffNext);
+  events.push(WORLD_PRODUCT_BY_ID.get(t.productId).name+' '+t.id+'：履行・精算');
+ }
+}
+function worldPropertyCashPairs(s){
+ return (s.worldExpansion?.propertyContracts??[]).filter(t=>t.status==='FULFILLED').map(t=>({
+  kind:'domesticTradeCash',seller:t.providerId,buyer:t.clientId,yearMonth:t.month,
+  fromJournal:t.journal+1,toJournal:t.journal,fee:t.amount
+ }));
+}
+function worldValidatePropertyServices(s){
+ const contracts=s.worldExpansion.propertyContracts??[];
+ if(!Array.isArray(contracts))throw Error('賃貸・宿泊契約台帳が不正です');
+ const now=ym(s.year,s.month),acceptances=new Set(),matches=worldServiceJournalMatcher(s);
+ let previous=0;
+ for(const t of contracts){
+  const seq=Number(t?.id?.split('-')[1]),provider=company(t?.providerId,s),client=company(t?.clientId,s);
+  if(!/^WPS-\d+$/.test(t?.id)||!Number.isSafeInteger(seq)||seq<=previous||seq>=s.seq
+   ||!WORLD_PROPERTY_SERVICE_IDS.has(t.productId)||!provider||!client||provider===client||provider.industry!=='service'
+   ||client.country!==provider.country||findSite(t.siteId)?.country!==provider.country
+   ||typeof t.plantId!=='string'||!t.plantId
+   ||!Number.isSafeInteger(t.month)||t.month<WORLD_START_MONTH||t.month>now
+   ||!Number.isSafeInteger(t.quantity)||t.quantity<1||!Number.isSafeInteger(t.unitFee)||t.unitFee<1
+   ||!Number.isSafeInteger(t.quantity*t.unitFee)
+   ||!['OFFERED','ACCEPTED','CANCELLED','EXPIRED','UNFULFILLED','FULFILLED'].includes(t.status)
+   ||(['OFFERED','ACCEPTED'].includes(t.status)&&t.month!==now)
+   ||(['EXPIRED','UNFULFILLED','FULFILLED'].includes(t.status)&&t.month>s.monthCommitted))
+   throw Error('賃貸・宿泊契約の条件が不正です：'+t?.id);
+  previous=seq;
+  if(['ACCEPTED','UNFULFILLED','FULFILLED'].includes(t.status)){
+   if(!Number.isSafeInteger(t.accepted)||t.accepted<=seq||t.accepted>=s.seq||acceptances.has(t.accepted))
+    throw Error('賃貸・宿泊契約の承諾が不正です：'+t.id);
+   acceptances.add(t.accepted);
+  }else if(t.accepted!==null)throw Error('未承諾の賃貸・宿泊契約に承諾記録があります：'+t.id);
+  if(t.status!=='FULFILLED'){
+   if(t.journal!==null||t.amount!==0)throw Error('未履行の賃貸・宿泊契約に請求があります：'+t.id);
+   continue;
+  }
+  const memo=worldPropertyJournalMemo(t);
+  if(t.amount!==t.quantity*t.unitFee||!Number.isSafeInteger(t.journal)||t.journal<=t.accepted
+   ||!matches(client,t.journal,t.month,t.amount,'otherExpense','cash','operating',memo)
+   ||!matches(provider,t.journal+1,t.month,t.amount,'cash','serviceRevenue','operating',memo))
+   throw Error('賃貸・宿泊サービスの精算仕訳が不正です：'+t.id);
+ }
 }
 function validateWorldResourceDeposits(s){
  const rows=s.worldExpansion?.resourceDeposits;
@@ -19616,13 +19806,13 @@ function worldValidateStorageServices(s,transferByAsset){
 }
 function worldServiceJournalMatcher(s){
  const journalIndexes=new Map(),used=new Set();
- return (f,id,when,amount,debit,credit,kind='operating')=>{
+ return (f,id,when,amount,debit,credit,kind='operating',memo)=>{
   if(used.has(id)||!Number.isSafeInteger(id)||id<1||id>=s.seq)return false;
   used.add(id);
   if(!journalIndexes.has(f.id))journalIndexes.set(f.id,new Map(f.journals.map(j=>[j.id,j])));
   const j=journalIndexes.get(f.id).get(id);
   if(!j&&f.journals.length===10000&&id<f.journals[0].id)return true;
-  return j?.when===when&&j.kind===kind&&j.dr.length===1&&j.cr.length===1
+  return j?.when===when&&j.kind===kind&&(memo===undefined||j.text===memo)&&j.dr.length===1&&j.cr.length===1
    &&j.dr[0][0]===debit&&j.dr[0][1]===amount&&j.cr[0][0]===credit&&j.cr[0][1]===amount;
  };
 }
@@ -19960,6 +20150,7 @@ function worldValidateDomesticLogistics(s){
  phase7ValidateBankLoans(s);
  worldValidateTelephoneCalls(s);
  worldValidateMedicalServices(s);
+ worldValidatePropertyServices(s);
  worldValidateDomesticOrders(s,transferByAsset);
  worldValidateDomesticShipmentPostings(s,shipments);
  worldValidateDomesticCosts(s);
@@ -20320,6 +20511,28 @@ function worldDomesticControls(firm,routes,warehouses,shipments,orders){
  const ownMedicalRequests=(w.medicalRequests??[]).filter(r=>r.clientId===firm.id&&['OPEN','PARTIAL'].includes(r.status));
  if(ownMedicalRequests.length)actions.push(form('medical-cancel','未実施の診療依頼を取消',
   select('request','依頼',ownMedicalRequests.map(r=>option(r.id,r.id+' / 未実施'+(r.quantity-r.performedQuantity)+'件')).join(''))));
+ const propertySites=S.firms.filter(f=>f!==firm&&f.country===firm.country&&canEdit(f)).flatMap(f=>
+  f.plants.filter(p=>worldPropertyCapacity(S,f,p)>0).map(p=>option(f.id+'|'+p.id,f.name+' / '+p.name))).join('');
+ if(propertySites)actions.push('<h4>不動産賃貸・宿泊</h4>'
+  +form('property-offer','利用を申し込む',select('facility','提供施設',propertySites)
+   +select('product','サービス',[...WORLD_PROPERTY_SERVICE_IDS].map(id=>
+    option(id,WORLD_PRODUCT_BY_ID.get(id).name+'（'+WORLD_VERIFIED_SERVICE_PATHS[id].unit+'）')).join(''))
+   +number('quantity','数量',100000)
+   +'<label>単価（'+esc(firmCurrency(firm,S))+'） <input name="unitFee" type="number" min="0.01" step="0.01" required></label>')
+  +'<p class="hint">提供会社が承諾した当月分を、月次確定時に容量と支払可能額を確認して精算します。</p>');
+ const propertyStatuses={OFFERED:'承諾待ち',ACCEPTED:'予約済み',CANCELLED:'取消',EXPIRED:'期限切れ',
+  UNFULFILLED:'未履行・請求なし',FULFILLED:'履行・精算済み'};
+ const propertyContracts=(w.propertyContracts??[]).filter(t=>t.providerId===firm.id||t.clientId===firm.id);
+ const propertyRows=propertyContracts.slice(-12).reverse().map(t=>{
+  const other=company(t.providerId===firm.id?t.clientId:t.providerId);
+  const label=esc(WORLD_PRODUCT_BY_ID.get(t.productId).name)+' / '+esc(other.name)+' / '
+   +nfmt(t.quantity)+' '+WORLD_VERIFIED_SERVICE_PATHS[t.productId].unit+' / '+fnum(firm,t.unitFee)+' / '+propertyStatuses[t.status];
+  if(t.status!=='OFFERED')return '<p>'+label+'</p>';
+  const action=t.providerId===firm.id?'accept':'cancel';
+  return form('property-'+action,action==='accept'?'申込を承諾':'申込を取り消す',
+   '<span>'+label+'</span><input type="hidden" name="contract" value="'+esc(t.id)+'">');
+ });
+ if(propertyRows.length)actions.push('<h4>賃貸・宿泊の契約履歴</h4>'+propertyRows.join(''));
  const phone=WORLD_TELEPHONE_PROFILE;
  const phoneOptions=exchanges.filter(t=>{
   const provider=company(t.ownerCompanyId);
@@ -20403,6 +20616,16 @@ document.addEventListener('submit',event=>{
     break;
    case 'medical-cancel':
     worldCancelMedicalRequest(S,firm.id,values.get('request'));
+    break;
+   case 'property-offer':{
+    const [providerId,plantId]=values.get('facility').split('|');
+    if(!canEdit(company(providerId)))throw Error('提供会社の操作権限が必要です');
+    worldOfferPropertyService(S,firm.id,providerId,plantId,values.get('product'),
+     Number(values.get('quantity')),cents(Number(values.get('unitFee'))));
+    break;
+   }
+   case 'property-accept':case 'property-cancel':
+    worldActOnPropertyService(S,firm.id,values.get('contract'),form.dataset.worldDomestic.slice('property-'.length));
     break;
    case 'phone-call':{
     const [exchangeId,from,to]=values.get('call').split('|');

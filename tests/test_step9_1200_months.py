@@ -164,10 +164,14 @@ def run(era, scenario='baseline', world=False, months=MONTHS):
         assert initial["worldMarkets"] == (40 if world else None), initial
         expected_departments = (2 if era >= 1990 else 1) if scenario == 'specialists' else 0
         assert initial["activeDepartments"] == expected_departments, initial
-        print("START", json.dumps({"era": era, **initial}, ensure_ascii=False), flush=True)
+        cdp = page.context.new_cdp_session(page)
+        peak_sampled_heap = cdp.send("Runtime.getHeapUsage")["usedSize"]
+        print("START", json.dumps({"era": era, **initial, "jsHeapUsedBytes": peak_sampled_heap}, ensure_ascii=False), flush=True)
         count = 0
+        max_batch_seconds = 0
         try:
             for _ in range(months // CHUNK):
+                batch_started = time.monotonic()
                 batch = page.evaluate(
                     """async batchSize => {
                       const first = S.monthCommitted;
@@ -199,6 +203,7 @@ def run(era, scenario='baseline', world=False, months=MONTHS):
                     }""",
                     CHUNK,
                 )
+                max_batch_seconds = max(max_batch_seconds, time.monotonic() - batch_started)
                 assert batch.get("completed") == CHUNK and batch.get("advanced") == CHUNK, {
                     "era": era, "completed_total": count, **batch
                 }
@@ -264,8 +269,14 @@ def run(era, scenario='baseline', world=False, months=MONTHS):
                             JSON.stringify(S.step7LinksV1) &&
                           JSON.stringify(loaded.worldExpansion?.internationalShipments) ===
                             JSON.stringify(S.worldExpansion?.internationalShipments) &&
+                          JSON.stringify(loaded.worldExpansion?.vehicleExportReceipts) ===
+                            JSON.stringify(S.worldExpansion?.vehicleExportReceipts) &&
+                          JSON.stringify(loaded.worldExpansion?.propertyContracts) ===
+                            JSON.stringify(S.worldExpansion?.propertyContracts) &&
+                          JSON.stringify(loaded.worldExpansion?.macroHistory) ===
+                            JSON.stringify(S.worldExpansion?.macroHistory) &&
                           check(loaded).length === 0;
-                        out.saveBytes = raw.length;
+                        out.saveBytes = new Blob([raw]).size;
                         out.saveChecked = true;
                         out.saveConsistent = same;
                         // Continue from deserialized state, verifying it is runnable.
@@ -306,12 +317,17 @@ def run(era, scenario='baseline', world=False, months=MONTHS):
                 if checkpoint["saveChecked"]:
                     assert checkpoint["saveConsistent"], {"era": era, "month": count, **checkpoint}
                 assert not errors, {"era": era, "month": count, "page_errors": errors}
+                heap = cdp.send("Runtime.getHeapUsage")
+                peak_sampled_heap = max(peak_sampled_heap, heap["usedSize"])
                 print(
                     "CHECKPOINT",
                     json.dumps({
                         "era": era, "scenario": scenario,
                         "months": count,
                         "elapsedSeconds": round(time.monotonic() - started, 1),
+                        "max10MonthBatchSeconds": round(max_batch_seconds, 2),
+                        "jsHeapUsedBytes": heap["usedSize"],
+                        "jsHeapAllocatedBytes": heap["totalSize"],
                         **checkpoint,
                     }, ensure_ascii=False),
                     flush=True,
@@ -321,6 +337,8 @@ def run(era, scenario='baseline', world=False, months=MONTHS):
             print("PASS", json.dumps({
                 "era": era, "scenario": scenario, "months": count,
                 "endYear": era + count // 12, "endMonth": 1 + count % 12, "world": world,
+                "max10MonthBatchSeconds": round(max_batch_seconds, 2),
+                "peakSampledJsHeapBytes": peak_sampled_heap,
                 "elapsedSeconds": round(time.monotonic() - started, 1)
             }, ensure_ascii=False), flush=True)
         finally:

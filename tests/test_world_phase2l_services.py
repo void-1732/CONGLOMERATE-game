@@ -167,8 +167,8 @@ def main():
 
           const stored=parsePayload(savePayload(S));
           const coverage=worldPhase2ExecutableCoverage();
-          const unknown=coverage.pending.join(',')==='PRD-S12,PRD-S14'
-            &&coverage.counts.SERVICE_PROTOTYPE===13&&allServicesNonphysical(stored);
+          const coverageComplete=coverage.pending.length===0
+            &&coverage.counts.SERVICE_PROTOTYPE===15&&allServicesNonphysical(stored);
           function allServicesNonphysical(s){
             return s.firms.every(f=>[...WORLD_PRODUCT_SERVICE_IDS].every(id=>!f.stock[id]&&!f.goods[id]));
           }
@@ -182,12 +182,12 @@ def main():
           bad.worldExpansion.storageServices[0].unitFee++;
           let rejectsSpoof=false;
           try{worldValidateDomesticLogistics(bad);}catch(e){rejectsSpoof=e.message.includes('精算仕訳');}
-          return {hasCustody,capacity,noEarly,custodySettled,actualSales,realTraining,realResearch,realConstruction,realLoan,noEarlyPremium,noClaim,lossClaim,unknown,persisted,rejectsSpoof};
+          return {hasCustody,capacity,noEarly,custodySettled,actualSales,realTraining,realResearch,realConstruction,realLoan,noEarlyPremium,noClaim,lossClaim,coverageComplete,persisted,rejectsSpoof};
         }""")
         assert all(result.values()), result
         assert not errors, errors
         browser.close()
-    print("PASS Phase 2-L services: actual eight fulfillment pathways, cash/inventory proof, save, and pending gate")
+    print("PASS Phase 2-L services: actual eight fulfillment pathways, cash/inventory proof, save, and coverage")
 
 
 if __name__ == "__main__":

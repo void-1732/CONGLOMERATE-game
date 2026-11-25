@@ -37,15 +37,17 @@ def main():
           const percent=phase7SharePercent(target,quantity),quote=maQuote(s,buyer,target,percent,2.5),cash=acc(buyer,'cash');
           const deal=executeMADeal(s,buyer.id,target.id,percent,2.5,'ai');
           const restored=parsePayload(savePayload(s));
+          const group=phase8ControlledCompanies(restored);
           return {quantity:quantity===400000,control:controller(s,target.id,buyer.id),
             exact:target.shareRegistry.owners.find(o=>o.id===buyer.id).count===700000,
             payment:cash-acc(buyer,'cash')===localFromBase(quote.total,buyer.country,s),
             deal:deal.actor==='ai'&&deal.control===true,
+            independence:group.has(target.id)&&!group.has(buyer.id)&&!group.has(root.id),
             restored:controller(restored,target.id,buyer.id)&&!check(restored).length,
             clean:!check(s).length};
         }""")
-        assert len(staged)==7 and all(staged.values()),staged
-        print("Phase 8 staged AI acquisition, settlement and save: 7/7 passed")
+        assert len(staged)==8 and all(staged.values()),staged
+        print("Phase 8 staged AI acquisition, independent bidder scope, settlement and save: 8/8 passed")
         for market, expected in json.loads("[[{},1],[{\"cycle\":-0.12},0.61],[{\"unemployment\":0.18},0.675],[{\"rate\":0.18},0.675],[{\"war\":true},0.5775],[{\"cycle\":-1},0.35],[{\"cycle\":0.12,\"unemployment\":0.03,\"rate\":0.04},1]]"):
             actual = page.evaluate("(w) => phase8CrisisFactor(w)", market)
             assert abs(actual - expected) < 1e-9, (market, actual, expected)
@@ -64,6 +66,32 @@ def main():
         }""")
         assert actual == [{"month":22801,"jurisdictionId":"JUR-UK","exports":0,"imports":200},{"month":22801,"jurisdictionId":"JUR-US","exports":200,"imports":0}], actual
         print("Phase 8 delivered international trade aggregation: 3/3 passed")
+        vehicles = page.evaluate("""async () => {
+          S=newWorldGame({country:'JP',name:'Completed vehicle trade evidence'});
+          VIEW_FIRM=S.playerId;render=()=>{};saveAuto=async()=>true;
+          const firm=company(S.playerId),model=firm.models[0],from=S.monthCommitted+1;
+          post(firm,{goods:1200},{cash:1200},'検証用輸出完成車','operating',S);
+          firm.goods[model.id]={q:3,v:1200};
+          exportShipment(S,firm,model.id,3,200,'UK',[]);
+          const noDispatchTrade=phase8TradeByJurisdiction(S,from,from+1).length===0;
+          await runMonth();
+          const noEarlyReceipt=!(S.worldExpansion.vehicleExportReceipts??[]).length;
+          await runMonth();
+          if(S.monthCommitted!==from+1||LAST_MONTH_DIAGNOSTIC)throw Error(JSON.stringify(LAST_MONTH_DIAGNOSTIC));
+          const restored=parsePayload(savePayload(S)),receipt=restored.worldExpansion.vehicleExportReceipts
+            .find(t=>t.firmId===firm.id&&t.country==='UK');
+          const trade=phase8TradeByJurisdiction(restored,from+1,from+1);
+          const value=Math.round(receipt.goodsSeller*receipt.sellerRate/100000);
+          const posted=receipt.quantity===3&&receipt.month===from+1
+            &&company(firm.id,restored).journals.find(j=>j.id===receipt.journal).amount===receipt.goodsSeller;
+          const balance=trade.find(t=>t.jurisdictionId==='JUR-JP')?.exports===value
+            &&trade.find(t=>t.jurisdictionId==='JUR-UK')?.imports===value;
+          receipt.sellerRate++;
+          let rejects=false;try{parsePayload(savePayload(restored));}catch(e){rejects=e.message.includes('輸出検収');}
+          return {noDispatchTrade,noEarlyReceipt,posted,balance,rejects};
+        }""")
+        assert len(vehicles) == 5 and all(vehicles.values()), vehicles
+        print("Phase 8 finished vehicle trade: dispatch exclusion, real delivery, saved accounting and tamper rejection")
         browser.close()
     print(f"Phase 8 competitive quotes: {len(CASES)}/{len(CASES)} passed")
 

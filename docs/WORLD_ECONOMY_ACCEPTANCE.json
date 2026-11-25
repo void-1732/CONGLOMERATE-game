@@ -29,7 +29,8 @@
       "id": 4,
       "status": "OPEN_SCOPE",
       "evidence": [
-        "tests/test_world_phase2l_services.py"
+        "tests/test_world_phase2l_services.py",
+        "tests/test_world_phase2_property_services.py"
       ]
     },
     {
@@ -126,6 +127,7 @@
       "status": "CANDIDATE_EVIDENCE",
       "evidence": [
         "tests/test_world_phase2l_products.py",
+        "tests/test_world_phase2_property_services.py",
         "tests/test_world_phase9_replay.py"
       ]
     },
@@ -1180,6 +1182,7 @@
       "status": "CANDIDATE_EVIDENCE",
       "evidence": [
         "tests/test_world_phase2l_products.py",
+        "tests/test_world_phase2_property_services.py",
         "tests/test_world_phase9_replay.py"
       ]
     },
