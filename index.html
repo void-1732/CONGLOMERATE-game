@@ -6818,12 +6818,37 @@ function legacyLinks(s){
  return {links,warnings};
 }
 function ownedGroup(s,rootId){const ids=controlSet(s,rootId),issues=[];if(!ids.size)return {members:[],shares:{},issues:['親会社なし']};
- // Any legal shareholding cycle is flagged instead of extrapolating a false equity fraction.
- const visited=new Set(),visiting=new Set();function visit(id){if(visiting.has(id)){issues.push('循環持合い：'+company(id,s)?.name);return;}if(visited.has(id))return;visiting.add(id);for(const f of s.firms){if(f.id!==id&&f.owners.some(o=>o.id===id&&ids.has(f.id)))visit(f.id);}visiting.delete(id);visited.add(id);}
+ // The world rules retain legal cross-holdings (SPEC-132). Control remains
+ // the root-anchored voting closure; economic interests solve x=b+Ax.
+ const members=s.firms.filter(f=>ids.has(f.id));
+ const visited=new Set(),visiting=new Set();let cyclic=false;
+ function visit(id){if(visiting.has(id)){cyclic=true;if(!s.worldExpansion)issues.push('循環持合い：'+company(id,s)?.name);return;}if(visited.has(id))return;visiting.add(id);for(const f of members){if(f.id!==id&&f.owners.some(o=>o.id===id&&o.econ>0))visit(f.id);}visiting.delete(id);visited.add(id);}
  [...ids].forEach(visit);
- const memo={[rootId]:1},busy=new Set();function share(id){if(memo[id]!==undefined)return memo[id];if(busy.has(id))return 0;busy.add(id);const f=company(id,s);const result=f.owners.filter(o=>ids.has(o.id)).reduce((a,o)=>a+o.econ*share(o.id),0);busy.delete(id);memo[id]=result;return result;}
+ const memo={[rootId]:1},busy=new Set();
+ function share(id){if(memo[id]!==undefined)return memo[id];if(busy.has(id))return 0;busy.add(id);const f=company(id,s);const result=f.owners.filter(o=>ids.has(o.id)).reduce((a,o)=>a+o.econ*share(o.id),0);busy.delete(id);memo[id]=result;return result;}
+ if(s.worldExpansion&&cyclic){
+  const nodes=members.filter(f=>f.id!==rootId),index=new Map(nodes.map((f,i)=>[f.id,i])),n=nodes.length;
+  const matrix=nodes.map((f,i)=>{
+   const row=Array(n+1).fill(0);row[i]=1;
+   for(const o of f.owners){if(o.id===rootId)row[n]+=o.econ;else if(index.has(o.id))row[index.get(o.id)]-=o.econ;}
+   return row;
+  });
+  let valid=true;
+  for(let k=0;k<n;k++){
+   let pivot=k;for(let i=k+1;i<n;i++)if(Math.abs(matrix[i][k])>Math.abs(matrix[pivot][k]))pivot=i;
+   if(Math.abs(matrix[pivot][k])<1e-12){valid=false;break;}
+   [matrix[k],matrix[pivot]]=[matrix[pivot],matrix[k]];
+   const divisor=matrix[k][k];for(let j=k;j<=n;j++)matrix[k][j]/=divisor;
+   for(let i=0;i<n;i++){if(i===k)continue;const factor=matrix[i][k];if(!factor)continue;for(let j=k;j<=n;j++)matrix[i][j]-=factor*matrix[k][j];}
+  }
+  if(valid){
+   for(let i=0;i<n;i++){const v=matrix[i][n];if(!Number.isFinite(v)||v< -1e-9||v>1+1e-9){valid=false;break;}memo[nodes[i].id]=Math.max(0,Math.min(1,v));}
+  }
+  if(valid)for(const f of nodes){const expected=f.owners.reduce((a,o)=>a+o.econ*(memo[o.id]??0),0);if(Math.abs(memo[f.id]-expected)>1e-9){valid=false;break;}}
+  if(!valid){issues.push('循環持合いの経済持分を一意に算定できません');for(const f of nodes)delete memo[f.id];}
+ }
  for(const id of ids)share(id);
- return {members:s.firms.filter(f=>ids.has(f.id)),shares:memo,issues};
+ return {members,shares:memo,issues};
 }
 const ACCOUNT_ASSETS=Object.keys(ACCTYPE).filter(k=>ACCTYPE[k]==='asset'||ACCTYPE[k]==='contra');
 const ACCOUNT_LIAB=Object.keys(ACCTYPE).filter(k=>ACCTYPE[k]==='liability');
@@ -7789,7 +7814,7 @@ function maValuation(s,f){
 }
 function maQuote(s,buyer,target,percent,multiplier){
  if(!buyer||!target||buyer.id===target.id)throw Error('買い手と対象企業を別々に指定してください');
- if(controller(s,buyer.id,target.id))throw Error('対象企業が買い手を支配しているため循環保有になります');
+ if(controller(s,buyer.id,target.id)&&!(s.worldExpansion&&target.id!==s.playerId&&controller(s,buyer.id)&&controller(s,target.id)))throw Error('対象企業が買い手を支配しています');
  if(target.reorgStatus==='integrated'||target.lifecycle?.phase==='withdrawn')throw Error('統合済み・市場退出法人の買収には対応していません');
  // Ownership is stored to six decimal places as a fraction, equal to 0.0001% steps.
  // Compare integer share-units to avoid losing the final fractional public holding.
@@ -7867,7 +7892,7 @@ function corporateShareQuote(s,buyerId,targetId,sellerId,percent,mode,offerFacto
  const buyer=company(buyerId,s),target=company(targetId,s),seller=company(sellerId,s),rule=CORP_SHARE_RULES[mode];
  if(!buyer||!target||!seller||!rule)throw Error('対象・売り手・買い手・買収方式が不正です');
  if(buyer.id===seller.id||buyer.id===target.id||seller.id===target.id)throw Error('売り手・買い手・対象は別法人を選んでください');
- if(!controller(s,buyer.id)||controller(s,buyer.id,target.id))throw Error('管理権限がないか、循環持分を生じる取引です');
+ if(!controller(s,buyer.id)||(controller(s,buyer.id,target.id)&&!(s.worldExpansion&&target.id!==s.playerId&&controller(s,target.id))))throw Error('管理権限がないか、連結親会社への逆取得です');
  if([buyer,target].some(f=>f.reorgStatus==='integrated'||f.lifecycle?.phase==='withdrawn')||seller.lifecycle?.phase==='withdrawn')throw Error('営業停止中の買い手・投資先、または倒産済みの売り手は対象外です');
  // An integrated shell can still legally own shares. Allow disposal of its actual
  // investment, but never grant the successor those shares for free.

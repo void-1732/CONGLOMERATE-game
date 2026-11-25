@@ -123,6 +123,32 @@ def main():
  };
 }""")
         assert len(registry)==8 and all(registry.values()),registry
+        circular=page.evaluate("""()=>{
+ const s=newWorldGame({country:'JP',name:'Cross ownership audit'});
+ const root=company(s.playerId,s),targets=s.firms.filter(f=>f.id!==root.id&&f.country==='JP'&&f.owners.length===1&&f.owners[0].id==='PUBLIC');
+ if(targets.length<2)throw Error('two acquisition targets required');
+ const [b,c]=targets;
+ for(const f of [root,b,c])post(f,{cash:1000000000},{capital:1000000000},'検証用資本','financing',s);
+ executeMADeal(s,root.id,b.id,70,2.5,'player');
+ executeMADeal(s,root.id,c.id,70,2.5,'player');
+ executeMADeal(s,b.id,c.id,20,2.5,'player');
+ executeMADeal(s,c.id,b.id,20,2.5,'player');
+ const g=ownedGroup(s,root.id),co=consolidate(s,root.id);
+ const restored=parsePayload(savePayload(s)),r=ownedGroup(restored,root.id);
+ const reversed=structuredClone(s);reversed.firms.reverse();const other=ownedGroup(reversed,root.id);
+ const exact=x=>Math.abs(x-.875)<1e-9;
+ return {
+  retained:b.owners.some(o=>o.id===c.id&&o.econ===.2)&&c.owners.some(o=>o.id===b.id&&o.econ===.2),
+  shares:exact(g.shares[b.id])&&exact(g.shares[c.id])&&!g.issues.length,
+  unique:g.members.length===3&&new Set(co.members).size===3&&co.members.length===3,
+  ledger:!check(s).length&&!co.errors.length&&co.bs.liabEquityDiff===0&&co.spot.checkDifference===0,
+  order:exact(other.shares[b.id])&&exact(other.shares[c.id])&&!other.issues.length,
+  restored:exact(r.shares[b.id])&&exact(r.shares[c.id])&&!check(restored).length&&!consolidate(restored).errors.length,
+  unseeded:!controlSet(s,b.id).has(c.id)&&!controlSet(s,c.id).has(b.id)
+ };
+}""")
+        assert len(circular)==7 and all(circular.values()),circular
+        print("PASS Phase 7 SPEC-132: seven paid mutual-holding and consolidation checks")
         assert not errors,errors
         print("PASS Phase 7 SPEC-126: six paid purchase boundaries, cash, ownership, 5 staged and 6 inherited-scope accounting checks")
         print("PASS Phase 7 SPEC-134: 8 live and restored shareholder registry checks")
