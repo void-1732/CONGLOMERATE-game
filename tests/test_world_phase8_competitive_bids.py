@@ -27,6 +27,25 @@ def main():
             actual = page.evaluate("([r,g]) => phase8ControlPurchaseQuantity(r,new Set(g))", [registry,group])
             assert actual == expected, (registry,group,actual,expected)
         print("Phase 8 additional whole-share control acquisition: 8/8 passed")
+        staged = page.evaluate("""()=>{
+          const s=newWorldGame({country:'JP',name:'Phase8 staged acquisition'}),root=company(s.playerId,s);
+          const [buyer,target]=s.firms.filter(f=>f.id!==root.id&&f.country==='JP'&&f.owners.every(o=>o.id==='PUBLIC'));
+          if(!buyer||!target)throw Error('Test fixture unavailable');
+          post(buyer,{cash:1000000000},{capital:1000000000},'検証用資本','financing',s);
+          executeMADeal(s,buyer.id,target.id,30,2.5,'ai');
+          const quantity=phase8ControlPurchaseQuantity(phase7ReadShareRegistry(target),controlSet(s,buyer.id));
+          const percent=phase7SharePercent(target,quantity),quote=maQuote(s,buyer,target,percent,2.5),cash=acc(buyer,'cash');
+          const deal=executeMADeal(s,buyer.id,target.id,percent,2.5,'ai');
+          const restored=parsePayload(savePayload(s));
+          return {quantity:quantity===400000,control:controller(s,target.id,buyer.id),
+            exact:target.shareRegistry.owners.find(o=>o.id===buyer.id).count===700000,
+            payment:cash-acc(buyer,'cash')===localFromBase(quote.total,buyer.country,s),
+            deal:deal.actor==='ai'&&deal.control===true,
+            restored:controller(restored,target.id,buyer.id)&&!check(restored).length,
+            clean:!check(s).length};
+        }""")
+        assert len(staged)==7 and all(staged.values()),staged
+        print("Phase 8 staged AI acquisition, settlement and save: 7/7 passed")
         for market, expected in json.loads("[[{},1],[{\"cycle\":-0.12},0.61],[{\"unemployment\":0.18},0.675],[{\"rate\":0.18},0.675],[{\"war\":true},0.5775],[{\"cycle\":-1},0.35],[{\"cycle\":0.12,\"unemployment\":0.03,\"rate\":0.04},1]]"):
             actual = page.evaluate("(w) => phase8CrisisFactor(w)", market)
             assert abs(actual - expected) < 1e-9, (market, actual, expected)

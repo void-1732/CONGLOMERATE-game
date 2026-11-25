@@ -44,6 +44,8 @@ on:
       - tests/test_world_phase6_labor.py
       - tests/test_world_phase7_control.py
       - tests/test_world_phase8_competitive_bids.py
+      - tests/test_world_phase9_replay.py
+      - docs/WORLD_ECONOMY_ACCEPTANCE.json
       - tests/test_step13_120_months.py
       - tests/test_fx_book_and_period_pl.py
       - tests/test_vehicle_discontinuation.py
@@ -129,6 +131,8 @@ jobs:
         run: python -B tests/test_world_phase7_control.py
       - name: Phase 8 highest admissible competitive offer
         run: python -B tests/test_world_phase8_competitive_bids.py
+      - name: Phase 9 traceability structure and offline world replay (not final acceptance)
+        run: python -B tests/test_world_phase9_replay.py
       - name: Existing UI, trade and save regression
         run: |
           python -B tests/test_step10_37_pages.py
