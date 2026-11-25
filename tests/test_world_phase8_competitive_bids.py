@@ -20,6 +20,13 @@ def main():
             actual = page.evaluate("(x) => phase8StrategicScore(x)", {**base, **patch})
             assert (actual > baseline) - (actual < baseline) == sign, (name, actual, baseline)
         print("Phase 8 strategic scoring: 6/6 passed")
+        # Exact additional voting shares, including group ownership and treasury.
+        control_cases = [[100,0,[["PUBLIC",100,100]],["A"],70],[100,0,[["A",30,30],["PUBLIC",70,70]],["A"],40],[100,0,[["A",20,20],["B",25,25],["PUBLIC",55,55]],["A","B"],25],[100,10,[["A",20,20],["PUBLIC",70,70]],["A"],43],[100,0,[["A",30,40],["PUBLIC",70,60]],["A"],35],[100,0,[["A",30,30],["B",40,40],["PUBLIC",30,30]],["A"],0],[100,0,[["A",70,70],["PUBLIC",30,30]],["A"],0],[3,0,[["A",1,1],["PUBLIC",2,2]],["A"],2]]
+        for issued, treasury, owners, group, expected in control_cases:
+            registry = {"issued":issued,"treasury":treasury,"owners":[{"id":i,"count":q,"votes":v} for i,q,v in owners]}
+            actual = page.evaluate("([r,g]) => phase8ControlPurchaseQuantity(r,new Set(g))", [registry,group])
+            assert actual == expected, (registry,group,actual,expected)
+        print("Phase 8 additional whole-share control acquisition: 8/8 passed")
         for market, expected in json.loads("[[{},1],[{\"cycle\":-0.12},0.61],[{\"unemployment\":0.18},0.675],[{\"rate\":0.18},0.675],[{\"war\":true},0.5775],[{\"cycle\":-1},0.35],[{\"cycle\":0.12,\"unemployment\":0.03,\"rate\":0.04},1]]"):
             actual = page.evaluate("(w) => phase8CrisisFactor(w)", market)
             assert abs(actual - expected) < 1e-9, (market, actual, expected)

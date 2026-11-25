@@ -8686,6 +8686,19 @@ function phase8StrategicInputs(s,buyer,target,buyerVal,peers){
   buyerValue:buyerVal.reference,targetValue:valuation.reference,profit:valuation.profit,sales:valuation.sales,
   novelTech,marketShare:total>0?targetRevenue/total:0,verticalMatches:vertical.size};
 }
+// SPEC-121/126: buy only the additional whole shares needed for 70% of votes.
+// Public vote transfer follows the exact same integer rounding as the registry.
+function phase8ControlPurchaseQuantity(registry,group){
+ const active=registry.issued-registry.treasury;
+ const pub=registry.owners.find(o=>o.id==='PUBLIC');
+ const held=registry.owners.filter(o=>group.has(o.id)&&o.id!=='PUBLIC').reduce((n,o)=>n+BigInt(o.votes),0n);
+ const required=(BigInt(active)*7n+9n)/10n-held;
+ if(required<=0n||!pub||pub.count<1||BigInt(pub.votes)<required)return 0;
+ const votes=q=>(BigInt(pub.votes)*BigInt(q)+BigInt(pub.count)/2n)/BigInt(pub.count);
+ let lo=1,hi=pub.count;
+ while(lo<hi){const mid=lo+Math.floor((hi-lo)/2);if(votes(mid)>=required)hi=mid;else lo=mid+1;}
+ return lo;
+}
 function phase8ReviewIndependentBids(s,events,pool,month){
  const proposals=[],peers=new Map();
  for(const f of s.firms.filter(isActiveCorporateFirm)){
@@ -8700,9 +8713,9 @@ function phase8ReviewIndependentBids(s,events,pool,month){
    .sort((a,b)=>b.score-a.score).slice(0,6);
   for(const {t:target,score} of candidates){
    try{
-    const registry=phase7ReadShareRegistry(target),active=registry.issued-registry.treasury;
-    const quantity=Number((BigInt(active)*70n+99n)/100n);
-    if(quantity<1||quantity>(registry.owners.find(o=>o.id==='PUBLIC')?.count??0))continue;
+    const registry=phase7ReadShareRegistry(target);
+    const quantity=phase8ControlPurchaseQuantity(registry,controlSet(s,buyer.id));
+    if(quantity<1)continue;
     const percent=phase7SharePercent(target,quantity);
     // PROVISIONAL: retain the existing 47% cash ceiling; strategic fit
     // permits a bounded premium above the former fixed 126% offer.
