@@ -14084,7 +14084,7 @@ function worldExploreDeposit(s,firmId,plantId,budgetBase,fieldId=null){
  const index=rows.filter(t=>(t.fieldId??t.siteId)===fieldId&&t.depositId!==null).length;
  if(index>=field.reserves.length)throw Error('この地域の有限探鉱区画はすべて発見済みです');
  const referenceFx=worldReferenceFx(firm.country,s),amount=localFromBase(budgetBase,firm.country,s);
- if(!Number.isSafeInteger(amount)||amount<1||acc(firm,'cash')<amount)
+ if(!Number.isSafeInteger(amount)||amount<1||phase7AvailableCash(s,firm)<amount)
   throw Error('探鉱費用を支払える現預金が不足しています');
  const journal=s.seq;
  post(firm,{rndExpense:amount},{cash:amount},'鉱床探鉱・'+plant.siteId,'operating',s);
@@ -14281,7 +14281,7 @@ function worldExtractFromDeposit(s,firmId,plantId,depositId,wanted,unitCost,even
  const workforce=factoryLaborPlanV026(f).byId[plantId]?.assigned??0;
  const capacity=Math.floor(p.capacity*p.condition/100);
  const effectiveUnitCost=worldDepositUnitCost(d,unitCost);
- const quantity=Math.min(wanted,d.remaining,capacity,workforce,Math.floor(acc(f,'cash')/effectiveUnitCost));
+ const quantity=Math.min(wanted,d.remaining,capacity,workforce,Math.floor(phase7AvailableCash(s,f)/effectiveUnitCost));
  if(quantity<=0)return 0;
  const cost=quantity*effectiveUnitCost;
  if(!Number.isSafeInteger(cost))throw Error('採掘原価の整数上限を超えました');
@@ -14471,7 +14471,7 @@ function worldInstallGenerator(s,firmId,plantId){
   throw Error('発電設備の所有、年代または研究条件を満たしません');
  if((s.worldExpansion.constructionContracts??[]).some(c=>c.kind==='PG'&&c.status==='ACTIVE'&&c.buyerPlantId===plantId))
   throw Error('同じ施設で発電設備の請負工事が進行中です');
- if(!f.stock[equipment]||f.stock[equipment].q<1)throw Error('物理的な発電機が在庫にありません');
+ if(!f.stock[equipment]||f.stock[equipment].q<1||Math.round(f.stock[equipment].v/f.stock[equipment].q)<1||acc(f,'materials')<Math.round(f.stock[equipment].v/f.stock[equipment].q))throw Error('取得原価を伴う物理的な発電機が在庫にありません');
  const provenance={};
  const assetValue=consume(f,equipment,1,provenance);
  if(!assetValue)throw Error('取得原価のない設備は設置できません');
@@ -14716,10 +14716,10 @@ function worldPublicPowerDemand(s,siteId,month=ym(s.year,s.month)){
 function worldPublicPowerLineTerms(plant,siteId){
  return worldPublicPowerSite(siteId)?worldGridLineTerms(plant,{id:'PUBLIC-'+siteId,siteId}):null;
 }
-function worldInstallPublicPowerLine(s,firmId,plantId,siteId){
+function worldInstallPublicPowerLine(s,firmId,plantId,siteId,ai=false){
  const w=s.worldExpansion,f=company(firmId,s),p=f?.plants.find(x=>x.id===plantId);
  const region=worldPublicPowerSite(siteId),terms=worldPublicPowerLineTerms(p,siteId),g=w?.powerGenerators?.[plantId];
- if(!w||!p||!terms||!worldPublicPowerDemand(s,siteId)||!controller(s,firmId)||!isActiveCorporateFirm(f)
+ if(!w||!p||!terms||!worldPublicPowerDemand(s,siteId)||!(ai?f?.auto&&!f.player&&!controller(s,firmId):controller(s,firmId))||!isActiveCorporateFirm(f)
   ||!siteVisibleInGame(region.site,s)||f.country!==region.site.country||!worldDomesticSiteActive(p,p.siteId)||g?.ownerCompanyId!==firmId||g.retiredAt!=null
   ||Object.values(w.publicPowerLines??{}).some(l=>l.cityId===region.city.id&&l.retiredAt==null))
   throw Error('稼働中の所有発電機と、未接続の国内公共需要地区を選択してください');
@@ -14781,6 +14781,7 @@ function worldValidatePublicPower(s,sentByReceipt,costByReceipt){
   if(!terms||line.id!==id||!/^PPL-\d+$/.test(id)||!Number.isSafeInteger(seq)||line.journal!==seq-1
    ||f.country!==region.site.country||line.cityId!==region.city.id||g?.ownerCompanyId!==f.id||line.installedAt<g.installedAt
    ||line.installedAt>ym(s.year,s.month)||!worldPublicPowerDemand(s,line.siteId,line.installedAt)
+   ||(line.aiManaged!==undefined&&line.aiManaged!==true)
    ||line.capacityKwh!==terms.capacityKwh||line.lossBps!==terms.lossBps
    ||!Number.isSafeInteger(line.wireValue)||line.wireValue<1||!Number.isSafeInteger(line.transformValue)
    ||(terms.regional?line.transformValue<1:line.transformValue!==0)||line.assetValue!==line.wireValue+line.transformValue
@@ -14835,9 +14836,91 @@ function worldSetGridPlan(s,firmId,plantId,kind,quantity){
   throw Error('電力月次計画の所有権・数量が不正です');
  if(kind==='fuel')asset.monthlyFuelQty=quantity;else asset.monthlyRequestKwh=quantity;
 }
+// Phase 6: an autonomous public-power project must be physically fundable
+// and recover its additional investment within the modeled equipment life.
+// Tariff, fuel conversion and 120-month life are existing model assumptions.
+function worldAiPublicPowerQuote(s,f,p,budget){
+ const w=s.worldExpansion,region=worldPublicPowerSite(p?.siteId),g=w?.powerGenerators?.[p?.id],t=worldPublicPowerLineTerms(p,p?.siteId);
+ if(!w||!region||!t||!f||f.player||!f.auto||controller(s,f.id)||f.industry!=='service'||!isActiveCorporateFirm(f)
+  ||p.siteId!==region.site.id||f.country!==region.site.country||!worldDomesticSiteActive(p,p.siteId)
+  ||!f.research?.tree?.done.includes('energy-1')||!worldPublicPowerDemand(s,p.siteId)
+  ||(g?g.retiredAt!=null||g.ownerCompanyId!==f.id:!worldGeneratorSiteReady(s,f,p))
+  ||(w.constructionContracts??[]).some(c=>c.kind==='PG'&&['OFFERED','ACTIVE'].includes(c.status)&&c.buyerPlantId===p.id)
+  ||Object.values(w.powerLines??{}).some(l=>l.sourcePlantId===p.id&&l.retiredAt==null)
+  ||Object.values(w.publicPowerLines??{}).some(l=>l.retiredAt==null&&(l.cityId===region.city.id||l.plantId===p.id)))return null;
+ const unit=(id,q)=>{const st=f.stock[id];return st?.q>=q&&st.v>0?Math.round(st.v*q/st.q):0};
+ const generatorCost=g?0:unit('PRD-E04',1),lineCost=unit('PRD-M06',t.quantity);
+ const fuel=f.stock['PRD-R04'];
+ if((!g&&!generatorCost)||!lineCost||!fuel?.q||!(fuel.v>0)||acc(f,'materials')<generatorCost+lineCost)return null;
+ const price=localFromBase(3,f.country,s),limit=Math.min(worldPublicPowerDemand(s,p.siteId),Math.floor(budget/price));
+ const maxFuel=Math.min(fuel.q,Math.floor(p.capacity*p.condition*(g?.condition??100)/10000));
+ const capacity=Math.floor(t.capacityKwh*p.condition/100);
+ let best=null;
+ for(let n=1;n<=Math.min(maxFuel,Math.ceil(capacity/9)+1);n++){
+  let sent=Math.min(n*9,capacity);
+  while(sent>=2&&sent-Math.ceil(sent*t.lossBps/10000)>limit)sent--;
+  if(sent<2)continue;
+  const delivered=sent-Math.ceil(sent*t.lossBps/10000),gross=delivered*price,cost=Math.round(fuel.v*n/fuel.q);
+  const maintenance=g?.constructionReceiptId?(g.constructionMaintenance??0):0,net=gross-cost-maintenance;
+  const capital=generatorCost+lineCost,months=net>0?Math.ceil(capital/net):Infinity;
+  if(months<=120&&(!best||months<best.months||(months===best.months&&net>best.net)))
+   best={firmId:f.id,plantId:p.id,siteId:p.siteId,cityId:region.city.id,fuelQty:n,capital,gross,cost,maintenance,net,months};
+ }
+ return best;
+}
+function worldPlanAiPublicPower(s,events=[]){
+ const w=s.worldExpansion;if(!w||s.year<1915)return [];
+ const month=ym(s.year,s.month),budgets=new Map(),created=[];
+ const available=country=>{
+  if(!budgets.has(country))budgets.set(country,Math.floor(worldFiscalTaxWindow(s,country,month-1)/20));
+  return budgets.get(country);
+ };
+ // Existing public lines have first claim on the finite fiscal envelope.
+ for(const l of Object.values(w.publicPowerLines??{})){
+  if(l.retiredAt!=null)continue;
+  const f=company(l.ownerCompanyId,s),p=f?.plants.find(x=>x.id===l.plantId),g=w.powerGenerators?.[l.plantId];
+  if(!f||!p||!g||g.retiredAt!=null||!isActiveCorporateFirm(f)||!worldDomesticSiteActive(p,p.siteId))continue;
+  const price=localFromBase(3,f.country,s),budget=available(f.country),fuel=f.stock['PRD-R04'];
+  if(l.aiManaged===true&&f.auto&&!f.player&&!controller(s,f.id)){
+   // Re-evaluate operation each month, never spend a player's resources.
+   const capacity=worldGridLineCapacity(l,p,p),limit=Math.min(worldPublicPowerDemand(s,l.siteId),Math.floor(budget/price));
+   const max=Math.min(fuel?.q??0,Math.floor(p.capacity*p.condition*(g.condition??100)/10000));
+   let qty=0,profit=0;
+   for(let n=1;n<=Math.min(max,Math.ceil(capacity/9)+1);n++){
+    let sent=Math.min(n*9,capacity);
+    while(sent>=2&&sent-Math.ceil(sent*l.lossBps/10000)>limit)sent--;
+    if(sent<2)continue;
+    const gain=(sent-Math.ceil(sent*l.lossBps/10000))*price-Math.round(fuel.v*n/fuel.q)-(g.constructionMaintenance??0);
+    if(gain>profit){profit=gain;qty=n;}
+   }
+   g.monthlyFuelQty=qty;
+  }
+  const demand=worldPublicPowerDemand(s,l.siteId);
+  budgets.set(f.country,Math.max(0,budget-demand*price));
+ }
+ const proposals=[];
+ for(const f of s.firms){
+  if(!f.auto||f.player||f.industry!=='service'||controller(s,f.id)||available(f.country)<=0)continue;
+  for(const p of f.plants){const q=worldAiPublicPowerQuote(s,f,p,available(f.country));if(q)proposals.push(q);}
+ }
+ proposals.sort((a,b)=>a.months-b.months||b.net-a.net||a.capital-b.capital||a.plantId.localeCompare(b.plantId));
+ const used=new Set();
+ for(const q of proposals){
+  if(used.has(q.firmId))continue;
+  const f=company(q.firmId,s),p=f?.plants.find(x=>x.id===q.plantId);
+  const fresh=worldAiPublicPowerQuote(s,f,p,available(f.country));if(!fresh)continue;
+  const g=w.powerGenerators?.[p.id]??worldInstallGenerator(s,f.id,p.id);
+  const line=worldInstallPublicPowerLine(s,f.id,p.id,p.siteId,true);
+  line.aiManaged=true;g.monthlyFuelQty=fresh.fuelQty;
+  used.add(f.id);budgets.set(f.country,Math.max(0,available(f.country)-fresh.gross));
+  created.push(line);events.push('AI公共発電投資：'+f.name+' '+p.name+' 回収'+fresh.months+'月');
+ }
+ return created;
+}
 function worldDispatchGrid(s,events=[]){
  const w=s.worldExpansion;if(!w)return;
  const month=ym(s.year,s.month);
+ worldPlanAiPublicPower(s,events);
  for(const c of w.powerSupplyContracts??[])if(c.status==='OFFERED'&&!controller(s,c.sellerId)&&worldPowerContractReady(s,c))worldAcceptPowerSupply(s,c.sellerId,c.id,true);
  for(const g of Object.values(w.powerGenerators??{})){
   if(!g.monthlyFuelQty||g.retiredAt!=null)continue;
@@ -14865,7 +14948,7 @@ function worldDispatchGrid(s,events=[]){
   if(w.powerAllocations?.[b.id]?.month===month)continue;
   let available=Math.min(line.monthlyRequestKwh,worldPowerAvailable(s,a.id),worldGridLineCapacity(line,a,b));
   if(line.sourceFirmId){const c=(w.powerSupplyContracts??[]).find(x=>x.id===line.powerContractId);if(!c||c.status!=='ACTIVE')continue;
-   while(available>=2&&(available-Math.ceil(available*line.lossBps/10000))*c.unitPrice>acc(f,'cash'))available--;}
+   while(available>=2&&(available-Math.ceil(available*line.lossBps/10000))*c.unitPrice>phase7AvailableCash(s,f))available--;}
   let sent=0;
   if(available>=2&&w.powerAllocations?.[a.id]?.source==='FUEL_GENERATED'){
    worldTransferPower(s,f.id,a.id,b.id,available,true);sent=available;
@@ -14938,7 +15021,7 @@ function worldTransferPower(s,firmId,sourceId,targetId,sentKwh,scheduled=false){
  if(delivered<1)throw Error('送電損失により有効電力がありません');
  const contract=line.sourceFirmId?(s.worldExpansion.powerSupplyContracts??[]).find(c=>c.id===line.powerContractId):null;
  const amount=contract?delivered*contract.unitPrice:null;
- if(line.sourceFirmId&&(!contract||contract.status!=='ACTIVE'||sentKwh>contract.requestKwh||!Number.isSafeInteger(amount)||amount<1||acc(f,'cash')<amount||!isActiveCorporateFirm(provider)||!isActiveCorporateFirm(f)))throw Error('法人間電力の承諾・資金条件が不足');
+ if(line.sourceFirmId&&(!contract||contract.status!=='ACTIVE'||sentKwh>contract.requestKwh||!Number.isSafeInteger(amount)||amount<1||phase7AvailableCash(s,f)<amount||!isActiveCorporateFirm(provider)||!isActiveCorporateFirm(f)))throw Error('法人間電力の承諾・資金条件が不足');
  const {fuelCost,provenance}=worldDrawGridPower(s,src,receipt,sentKwh);
  let sale=null;
  if(contract){const sj=s.seq;post(provider,{cash:amount},{serviceRevenue:amount},'法人間電力の実売上 '+contract.id,'operating',s);

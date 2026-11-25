@@ -98,6 +98,37 @@ return {ui:panel.includes(sid+'|'+g.id+'|'+pid),pending,unauthorized,installed,l
  return {noLower,priority:worldGridPriority(S,hp)===0&&worldGridPriority(S,lp)===4,metered,validBefore,order,conserved,shortage,tamper,clean:!check(saved).length&&!co.errors.length,cf:co.cf.reconciled,exact:before===27&&pub?.sentKwh===17&&transfer.sentKwh===10};
 }""")
         assert len(hospital)==11 and all(hospital.values()),hospital
+        ai_public=page.evaluate("""()=>{
+ const s=newWorldGame({country:'JP',name:'Autonomous public power'});s.year=1950;s.month=1;s.monthCommitted=ym(s.year,s.month)-1;applyWorldHistory(s);syncWorldIdentities(s);
+ const root=company(s.playerId,s),f=initFirm(s,{name:'Independent power',country:'JP',industry:'service',seedBase:650000,publicOwnership:true});
+ syncWorldIdentities(s);ensureV20(s);f.auto=true;
+ if(!f.research.tree.done.includes('energy-1'))f.research.tree.done.push('energy-1');
+ const p=f.plants[0];p.capacity=Math.max(10,p.capacity);p.condition=100;
+ const add=(id,q,unit)=>{post(f,{materials:q*unit},{cash:q*unit},'検証物品','operating',s);const st=f.stock[id]??={q:0,v:0};st.q+=q;st.v+=q*unit};
+ add('PRD-E04',1,300);add('PRD-M06',2,20);add('PRD-R04',5,19);
+ const noBudget=worldPlanAiPublicPower(s).length===0;
+ const q=worldAiPublicPowerQuote(s,f,p,120000);
+ const expensive=structuredClone(s),ef=company(f.id,expensive);ef.stock['PRD-R04'].v=100000000;
+ const noProfit=worldAiPublicPowerQuote(expensive,ef,ef.plants[0],120000)===null;
+ const controlled=structuredClone(s),cf=company(f.id,controlled);cf.owners=[{id:root.id,econ:1,vote:1}];
+ const noPlayer=worldAiPublicPowerQuote(controlled,cf,cf.plants[0],120000)===null;
+ s.year=1949;s.month=12;
+ post(root,{taxExpense:120000},{taxDue:120000},'検証用税債務','operating',s);
+ post(root,{taxDue:120000},{cash:120000},'検証用納税','operating',s);
+ s.year=1950;s.month=1;
+ const cash=acc(f,'cash'),ppe=acc(f,'ppe'),materials=acc(f,'materials');
+ const made=worldPlanAiPublicPower(s),line=made[0],g=s.worldExpansion.powerGenerators?.[p.id];
+ if(!line||!g)throw Error('AI investment failed: '+JSON.stringify(q));
+ const assets=line.ownerCompanyId===f.id&&line.aiManaged===true&&acc(f,'cash')===cash&&acc(f,'ppe')===ppe+340&&acc(f,'materials')===materials-340;
+ const duplicate=worldPlanAiPublicPower(s).length===0;
+ worldDispatchGrid(s,[]);const sale=s.worldExpansion.publicPowerSales.at(-1);
+ const paid=sale?.lineId===line.id&&sale.amount>sale.fuelBookCost&&sale.amount<=6000&&sale.deliveredKwh<=18;
+ const loaded=parsePayload(savePayload(s)),clean=!check(loaded).length&&!consolidate(loaded).errors.length;
+ const restore=loaded.worldExpansion.publicPowerLines[line.id].aiManaged===true;
+ return {noBudget,profitable:q?.net>0&&q.months<=120,noProfit,noPlayer,assets,duplicate,paid,clean,restore};
+}""")
+        assert len(ai_public)==9 and all(ai_public.values()),ai_public
+        print("PASS Phase 6 autonomous public power: funding, actual assets, profitability, dispatch and restore")
         assert not errors,errors
         print("PASS Phase 6 private and public power: 20 checks; 11 hospital, public, lower-priority, actual treatment, metering and save checks")
         browser.close()
