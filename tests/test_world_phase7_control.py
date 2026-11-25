@@ -257,6 +257,40 @@ def main():
 }""")
         assert all(deposit_funding.values()),deposit_funding
         print("PASS Phase 7 SPEC-117: deposit provenance through refunds, saves and journal archival")
+        loan_funding=page.evaluate("""()=>{
+ S=newWorldGame({country:'JP',name:'Related-party funds'});
+ VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';PAGE='corporateSubsidiaries';render();
+ document.querySelector('#subName').value='Related-party borrower';
+ document.querySelector('#subCountry').value='JP';
+ document.querySelector('#subIndustry').value='service';
+ document.querySelector('#subCapital').value='650000';
+ createSub();syncWorldIdentities(S);
+ const lender=company(S.playerId,S),borrower=S.firms.find(f=>f.name==='Related-party borrower');
+ const initial=acc(lender,'cash'),restricted=600000,own=400000;
+ post(lender,{otherExpense:initial},{cash:initial},'検証用現金支出','operating',S);
+ post(lender,{cash:restricted},{debt:restricted},'銀行借入','financing',S);
+ post(lender,{cash:own},{otherRevenue:own},'検証用営業収入','operating',S);
+ VIEW_FIRM=lender.id;render();
+ document.querySelector('#loanSubs').value=borrower.id;
+ document.querySelector('#loanAmount').value='10000';groupLoan();
+ const loan=borrower.loans.find(l=>l.parent===lender.id),id=loan.id;
+ const opened=loan.acquisitionFunding.remaining===restricted&&phase7AcquisitionCash(S,lender)===0;
+ const restored=parsePayload(savePayload(S)),f=company(lender.id,restored),debtor=company(borrower.id,restored);
+ restored.month=2;restored.monthCommitted=ym(restored.year,restored.month)-1;
+ for(const firm of restored.firms){firm._profitStart=financials(firm).profit;firm._salesNow=0;firm._unitsNow=0;}
+ financeMonthly(restored,[]);
+ const repayment=f.journals.findLast(j=>j.acquisitionLoanReturn),interest=f.journals.findLast(j=>j.text.includes('利息の回収'));
+ const repaid=cashOfJournal(repayment)===41667&&repayment.acquisitionLoanReturn.cash===41667
+   &&debtor.loans.find(l=>l.id===id).acquisitionFunding.remaining===restricted-41667;
+ const audited=phase7RestrictedCash(restored,f)===41667&&phase7AcquisitionCash(restored,f)===cashOfJournal(interest);
+ const loaded=parsePayload(savePayload(restored)),forged=structuredClone(loaded);
+ company(lender.id,forged).journals.find(j=>j.id===repayment.id).acquisitionLoanReturn.cash--;
+ let tamper=false;try{parsePayload(savePayload(forged))}catch(e){tamper=e.message.includes('貸付元本')}
+ const clean=!check(loaded).length&&!consolidate(loaded).errors.length&&phase7RestrictedCash(loaded,company(lender.id,loaded))===41667;
+ return {opened,repaid,audited,tamper,clean};
+}""")
+        assert all(loan_funding.values()),loan_funding
+        print("PASS Phase 7 SPEC-117: related-party principal repayment preserves funding sources and restores its audit")
         dividend=page.evaluate("""async()=>{
  S=newWorldGame({country:'JP',name:'Dividend audit'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';saveAuto=async()=>true;
  const root=company(S.playerId,S),target=S.firms.find(f=>f.id!==root.id&&f.country==='JP'&&f.owners.length===1&&f.owners[0].id==='PUBLIC'),rootId=root.id,targetId=target.id;
@@ -339,6 +373,7 @@ def main():
  const bank=initFirm(S,{name:'Ordinary loan bank',country:'JP',industry:'service',seedBase:650000,publicOwnership:true});const bankId=bank.id;
  syncWorldIdentities(S);post(bank,{cash:1000000000},{capital:1000000000},'検証用資本','financing',S);
  executeMADeal(S,rootId,bankId,70,2.5);
+ post(bank,{cash:10000},{debt:10000},'銀行借入','financing',S);
  const b0=acc(bank,'cash'),r0=acc(root,'cash'),principal=360000,loan=phase7IssueBankLoan(S,bankId,rootId,principal,12),loanId=loan.id;
  const actual=acc(bank,'cash')===b0-principal&&acc(root,'cash')===r0+principal&&acc(bank,'loanrec')===principal&&-acc(root,'debt')===principal;
  const restricted=phase7RestrictedCash(S,root)>=principal,service=worldServiceActivity(S,'PRD-S06').some(t=>t.ref===loanId&&t.providerId===bankId&&t.principal===principal);
@@ -347,7 +382,8 @@ def main():
  const close=async()=>{const m=S.monthCommitted;await runMonth();if(S.monthCommitted!==m+1)throw Error(JSON.stringify(LAST_MONTH_DIAGNOSTIC))};
  await close();await close();
  const r=S.worldExpansion.bankLoans.find(x=>x.id===loanId),debit=company(rootId,S),credit=company(bankId,S),active=debit.loans.find(x=>x.id===loanId);
- const paid=r.remaining===principal-principal/12&&active.outstanding===r.remaining&&r.payments.some(p=>p.kind==='principal'&&p.amount===principal/12)&&r.interestPaid>0;
+ const paid=r.remaining===principal-principal/12&&active.outstanding===r.remaining&&r.payments.some(p=>p.kind==='principal'&&p.amount===principal/12)&&r.interestPaid>0
+   &&credit.journals.some(j=>j.acquisitionLoanReturn?.loanId===loanId&&j.acquisitionLoanReturn.cash===10000);
  const ledger=acc(credit,'loanrec')===r.remaining&&-acc(debit,'debt')===r.remaining&&worldBankCreditRisk(S,credit).total===r.remaining;
  const loaded=parsePayload(savePayload(S)),forged=structuredClone(loaded);forged.worldExpansion.bankLoans[0].payments[0].amount++;
  let tamper=false;try{parsePayload(savePayload(forged))}catch(e){tamper=e.message.includes('銀行事業融資')}

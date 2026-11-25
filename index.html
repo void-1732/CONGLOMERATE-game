@@ -3883,7 +3883,9 @@ function phase7ValidateLoanSchedules(s){
     if(pay){const outstandingBefore=loan.outstanding;post(f,{debt:pay},{cash:pay},'借入元本返済','financing',s);loan.outstanding-=pay;
      if(loan.parent){const parent=company(loan.parent,s),book=pay===outstandingBefore?loan.parentRemaining:Math.min(loan.parentRemaining,Math.round(loan.parentRemaining*pay/outstandingBefore));
       const converted=Math.round(pay*s.world[f.country].fx/s.world[parent.country].fx);
-      journalizeRepayment(parent,'loanrec',book,converted,'investing','子会社貸付元本の回収・換算差額',s);registerInterco(s,{kind:'loanCash',seller:parent.id,buyer:f.id,yearMonth:ym(s.year,s.month),fromJournal:parent.journals.at(-1)?.id,toJournal:f.journals.at(-1)?.id});loan.parentRemaining-=book;phase7RecordBankPayment(s,loan,f,parent,'principal',pay);}
+      journalizeRepayment(parent,'loanrec',book,converted,'investing','子会社貸付元本の回収・換算差額',s);
+      phase7RecordFundingLoanReturn(loan,parent,book,converted);
+      registerInterco(s,{kind:'loanCash',seller:parent.id,buyer:f.id,yearMonth:ym(s.year,s.month),fromJournal:parent.journals.at(-1)?.id,toJournal:f.journals.at(-1)?.id});loan.parentRemaining-=book;phase7RecordBankPayment(s,loan,f,parent,'principal',pay);}
     }
     if(pay<principalDue)f.distress.stage=Math.max(f.distress.stage,2);
    }
@@ -6614,6 +6616,7 @@ function parsePayload(raw){if(typeof raw!=='string')throw Error('保存データ
  validateWorldExpansion(s);
  if(s.config?.scenario==='world'){
   phase7ValidateTaxAssessments(s);
+  phase7ValidateFundingLoanPostings(s);
   upgradeWorldMarketRegistry(s);
   // Preserve pre-existing shipment terms; newly dispatched cargo uses SPEC-079.
   s.worldExpansion.uniformDutyFromSeq??=s.seq;
@@ -6802,7 +6805,26 @@ function borrow(){
 function spendAd(){try{const f=current();if(!canEdit(f))throw Error('権限がありません');const base=intValue('adBase',1000,1000000),code=inputValue('adCountry');spendImmediate(f,base,'advert','市場広告宣伝費');if(!f.marketPresence.includes(code))f.marketPresence.push(code);f.brand[code]=clamp((f.brand[code]||0)+Math.sqrt(base/1000)*4,0,95);f.dealers[code]=clamp((f.dealers[code]||0)+Math.sqrt(base/1000)*3,0,95);render();toast(NAMES[code]+'市場への広告・販路投資を実行しました')}catch(e){toast(e.message)}}
 function createSub(){try{const f=current();if(!canEdit(f))throw Error('権限がありません');const name=inputValue('subName').trim().slice(0,38),code=inputValue('subCountry'),ind=inputValue('subIndustry'),minimum=Math.round(450000*eraCostFactor(S.year)),base=intValue('subCapital',minimum,20000000);if(!Object.hasOwn(S.world,code))throw Error('設立先市場は未開放です');if(!name)throw Error('会社名を入力してください');if(S.firms.some(v=>v.name===name))throw Error('同名の企業があります');if(base<minimum)throw Error('事業設備・初期在庫の必要資本金は'+nfmt(minimum)+'円相当です');worldRequireInitialLabor(S,code,.7);const amount=verifyMoney(f,base);post(f,{investment:amount},{cash:amount},'子会社への資本払込','investing');const parentJournal=f.journals.at(-1)?.id;const seedLocal=Math.round(amount*balanceFxRate(S,f)/balanceFxRate(S,{country:code}));const seedSpotBase=seedLocal*COUNTRIES[code].fx/100;const child=initFirm(S,{name,country:code,industry:ind,seedBase:seedSpotBase,size:.7,strategy:'balanced',publicOwnership:false});child.owners=[{id:f.id,econ:1,vote:1}];registerEquityLink(S,{parentId:f.id,childId:child.id,ratio:1,kind:'foundation',considerationLocal:amount,buyerJournal:parentJournal,childJournal:child.journals.find(j=>j.text==='創業資本')?.id,bookEquityBase:baseFromLocal(amount,f.country),cashAcquiredBase:baseFromLocal(acc(child,'cash'),child.country)});ensureSupplyNetwork(S);logNotice(`${f.name}が${name}を完全子会社として設立しました。`,'good');VIEW_FIRM=child.id;render();toast('子会社を設立しました。資本は親会社から実際に移転しました。')}catch(e){toast(e.message)}}
 function acquire(id){try{const buyer=current(),target=company(id);if(!canEdit(buyer)||!target||target.id===buyer.id)throw Error('買収対象が不正です');if(controller(S,target.id)||controller(S,buyer.id,target.id))throw Error('支配済み、または循環保有となる取引です');if(target.owners.some(o=>o.id!=='PUBLIC'))throw Error('この試作版では複数株主の株式取得は未対応です');const fraction=S.worldExpansion?.7:.6,external=roundShare(1-fraction);const costBase=Math.max(180000,Math.round(baseFromLocal(netWorth(target),target.country)/100*(fraction+.05)));const amount=verifyMoney(buyer,costBase);const bookEquityBase=baseFromLocal(netWorth(target),target.country),cashAcquiredBase=baseFromLocal(acc(target,'cash'),target.country),profitAtAcq=financials(target).profit;const revAtAcq=financials(target).revenue,expAtAcq=financials(target).expenses;post(buyer,{investment:amount},{cash:amount},'株式取得：'+target.name,'investing');const buyerJournal=buyer.journals.at(-1)?.id;target.owners=[{id:buyer.id,econ:fraction,vote:fraction},{id:'PUBLIC',econ:external,vote:external}];target.shareBlocks=HOLDER_TEMPLATES.map((h,i)=>({...h,holding:roundShare(external*h.weight)}));target.shareBlocks[2].holding=roundShare(external-target.shareBlocks[0].holding-target.shareBlocks[1].holding);registerEquityLink(S,{parentId:buyer.id,childId:target.id,ratio:fraction,kind:'acquisition',considerationLocal:amount,buyerJournal,bookEquityBase,cashAcquiredBase,revAtAcq,expAtAcq,profitAtAcq});logNotice(`${buyer.name}は${target.name}の株式${Math.round(fraction*100)}%を取得しました。対象会社の資産・負債は対象会社に残ります。`,'good');render();toast(target.name+'の'+Math.round(fraction*100)+'%株式を取得しました')}catch(e){toast(e.message)}}
-function groupLoan(){try{const parent=current(),id=inputValue('loanSubs'),child=company(id),base=intValue('loanAmount',10000,10000000);if(!canEdit(parent)||!child||!controller(S,child.id,parent.id)||parent.id===child.id)throw Error('支配下の別法人を指定してください');const amount=verifyMoney(parent,base);const recv=Math.round(amount*balanceFxRate(S,parent)/balanceFxRate(S,child));post(parent,{loanrec:amount},{cash:amount},'子会社への貸付','investing');const jParent=parent.journals.at(-1)?.id;post(child,{cash:recv},{debt:recv},'親会社からの借入','financing');const jChild=child.journals.at(-1)?.id;registerInterco(S,{kind:'loan',seller:parent.id,buyer:child.id,fromJournal:jParent,toJournal:jChild,yearMonth:ym(S.year,S.month),loanBase:baseFromLocal(amount,parent.country)});child.loans.push({id:'L'+S.seq++,outstanding:recv,rate:S.world[child.country].rate+.01,due:ym(S.year,S.month)+24,parent:parent.id,parentRemaining:amount,interestOutstanding:0,parentInterestRemaining:0,...(S.worldExpansion?{repayment:phase7LoanSchedule(recv,ym(S.year,S.month),24)}:{})});render();toast('会社間貸付を記録しました。単体財務に反映しました。')}catch(e){toast(e.message)}}
+function groupLoan(){
+ try{
+  const parent=current(),id=inputValue('loanSubs'),child=company(id),base=intValue('loanAmount',10000,10000000);
+  if(!canEdit(parent)||!child||!controller(S,child.id,parent.id)||parent.id===child.id)throw Error('支配下の別法人を指定してください');
+  const amount=verifyMoney(parent,base),recv=Math.round(amount*balanceFxRate(S,parent)/balanceFxRate(S,child));
+  const month=ym(S.year,S.month),restricted=phase7LendingRestrictedPrincipal(S,parent,amount);
+  if(S.worldExpansion&&(!Number.isSafeInteger(recv)||recv<1))throw Error('借入額が取引通貨の最小単位を下回ります');
+  post(parent,{loanrec:amount},{cash:amount},'子会社への貸付','investing');
+  const jParent=parent.journals.at(-1)?.id;
+  post(child,{cash:recv},{debt:recv},'親会社からの借入','financing');
+  const jChild=child.journals.at(-1)?.id;
+  registerInterco(S,{kind:'loan',seller:parent.id,buyer:child.id,fromJournal:jParent,toJournal:jChild,yearMonth:month,loanBase:baseFromLocal(amount,parent.country)});
+  const loan={id:'L'+S.seq++,outstanding:recv,rate:S.world[child.country].rate+.01,due:month+24,parent:parent.id,
+   parentRemaining:amount,interestOutstanding:0,parentInterestRemaining:0};
+  if(S.worldExpansion)loan.repayment=phase7LoanSchedule(recv,month,24);
+  phase7RecordFundingLoanOrigin(parent,loan,restricted);
+  child.loans.push(loan);
+  render();toast('会社間貸付を記録しました。単体財務に反映しました。');
+ }catch(e){toast(e.message);}
+}
 function titlePage(title,desc,right=''){return `<div class="hrow"><div><div class="eyebrow">MANAGEMENT / ${esc(PAGE.toUpperCase())}</div><h1>${esc(title)}</h1><div class="muted small">${desc}</div></div>${right}</div>`}
 function card(k,v,sub='',className='span3'){return `<section class="panel ${className}"><div class="label">${k}</div><div class="metric">${v}</div><div class="submetric">${sub}</div></section>`}
 function tag(text,type=''){return `<span class="tag ${type}">${esc(text)}</span>`}
@@ -8015,7 +8037,7 @@ function phase7FundingAfter(state,j,deposit){
   }
   const debt=j.cr.reduce((n,[a,v])=>n+(a==='debt'?v:0),0);
   const issue=j.text.startsWith('外部向け新株発行：')?j.cr.reduce((n,[a,v])=>n+(a==='capital'?v:0),0):0;
-  state.restricted+=Math.min(net,debt+issue);
+  state.restricted+=Math.min(net,debt+issue+(j.acquisitionLoanReturn?.cash??0));
  }else if(net<0&&!phase7IsSharePurchase(j.text)){
   const used=Math.min(state.restricted,-net);
   if(deposit&&j.id===deposit.journal)state.deposits.set(j.id,used);
@@ -8029,6 +8051,55 @@ function phase7ArchiveFunding(s,f,removed){
  if(state.deposits.size)f.phase7FundingArchive.depositRestricted=Object.fromEntries(state.deposits);
 }
 const phase7FundingMemo=new WeakMap();
+function phase7LendingRestrictedPrincipal(s,lender,amount){
+ return s.worldExpansion?Math.min(amount,phase7RestrictedCash(s,lender)):0;
+}
+function phase7RecordFundingLoanOrigin(lender,loan,restrictedPrincipal){
+ if(!restrictedPrincipal)return;
+ const j=lender.journals.at(-1);
+ loan.acquisitionFunding={journal:j.id,principal:restrictedPrincipal,remaining:restrictedPrincipal};
+ j.acquisitionLoanOrigin={loanId:loan.id,principal:restrictedPrincipal};
+}
+function phase7RecordFundingLoanReturn(loan,lender,book,cash){
+ const funding=loan.acquisitionFunding;
+ if(!funding?.remaining||book<=0)return;
+ const principal=Math.min(funding.remaining,book);
+ lender.journals.at(-1).acquisitionLoanReturn={loanId:loan.id,origin:funding.journal,principal,
+  cash:Math.round(cash*(principal/book))};
+ funding.remaining-=principal;
+}
+function phase7ValidateFundingLoanPostings(s){
+ const evidence=new Map();
+ for(const lender of s.firms)for(const j of lender.journals){
+  const open=j.acquisitionLoanOrigin,returned=j.acquisitionLoanReturn;
+  if(open===undefined&&returned===undefined)continue;
+  const fail=()=>Error('貸付元本の買収資金の出所が不正：'+lender.id+' '+j.id);
+  if(open!==undefined){
+   if(!open||!/^L\d+$/.test(open.loanId)||evidence.has(j.id)||returned!==undefined||j.kind!=='investing'
+    ||!Number.isSafeInteger(open.principal)||open.principal<1||open.principal>j.amount
+    ||journalAccountFlow(j,'loanrec')!==j.amount||cashOfJournal(j)!==-j.amount)throw fail();
+   evidence.set(j.id,{lenderId:lender.id,loanId:open.loanId,principal:open.principal,remaining:open.principal});
+   continue;
+  }
+  if(!returned||!Number.isSafeInteger(returned.origin)||returned.origin<1||returned.origin>=j.id
+   ||!/^L\d+$/.test(returned.loanId)||j.kind!=='investing'||j.text!=='子会社貸付元本の回収・換算差額')throw fail();
+  const origin=evidence.get(returned.origin),book=-journalAccountFlow(j,'loanrec'),cash=cashOfJournal(j);
+  if(!Number.isSafeInteger(returned.principal)||returned.principal<1||returned.principal>book||cash<0
+   ||returned.cash!==Math.round(cash*(returned.principal/book))
+   ||(origin?(origin.lenderId!==lender.id||origin.loanId!==returned.loanId||returned.principal!==Math.min(origin.remaining,book))
+     :returned.origin>(lender.phase7FundingArchive?.through??0)))throw fail();
+  if(origin)origin.remaining-=returned.principal;
+ }
+ for(const borrower of s.firms)for(const loan of borrower.loans??[]){
+  if(loan.acquisitionFunding===undefined)continue;
+  const funding=loan.acquisitionFunding,lender=company(loan.parent,s),origin=evidence.get(funding?.journal);
+  if(!funding||!lender||!Number.isSafeInteger(funding.journal)||funding.journal<1||funding.journal>=s.seq
+   ||!Number.isSafeInteger(funding.principal)||funding.principal<1||!Number.isSafeInteger(funding.remaining)
+   ||funding.remaining<0||funding.remaining>Math.min(funding.principal,loan.parentRemaining)
+   ||(origin?(origin.lenderId!==lender.id||origin.loanId!==loan.id||origin.principal!==funding.principal||origin.remaining!==funding.remaining)
+     :funding.journal>(lender.phase7FundingArchive?.through??0)))throw Error('貸付元本の買収資金の繰越が不正：'+loan.id);
+ }
+}
 function phase7RestrictedCash(s,f){
  const last=f.journals.at(-1)?.id??0,archive=f.phase7FundingArchive,previous=phase7FundingMemo.get(f);
  if(previous&&previous.last===last&&previous.archive===archive)return Math.min(Math.max(0,acc(f,'cash')),previous.value);
@@ -15429,11 +15500,12 @@ function worldPayConstructionFunding(s,c,buyer,month){
  }
  if(a.loan){
   const lender=company(c.funding.bankId,s);
+  const restricted=phase7LendingRestrictedPrincipal(s,lender,a.loan);
   record.lenderJournal=s.seq;
   post(lender,{loanrec:a.loan},{cash:a.loan},'インフラ融資の実行 '+c.id,'investing',s);
   record.borrowerJournal=s.seq;
   post(buyer,{cash:a.loan},{debt:a.loan},'インフラ融資の借入 '+c.id,'financing',s);
-  record.loanId=phase7RegisterBankLoan(s,lender,buyer,{principal:a.loan,month,months:36,rate:a.rate,
+  record.loanId=phase7RegisterBankLoan(s,lender,buyer,{principal:a.loan,month,months:36,rate:a.rate,restricted,
    fromJournal:record.lenderJournal,toJournal:record.borrowerJournal,infrastructureContractId:c.id}).id;
  }
  c.funding.payment=record;
@@ -15925,21 +15997,24 @@ function phase7IssueBankLoan(s,bankId,borrowerId,principal,months){
   ||![12,24,36].includes(months)||!worldInfrastructureBankReady(s,bank,borrower,principal))throw Error('銀行融資の操作権限・流動性・自己資本・集中リスクまたは借入上限を確認してください');
  const month=ym(s.year,s.month),rate=Math.max(.02,s.world[bank.country].rate+.02);
  if(!Number.isFinite(rate)||rate<0||!Number.isSafeInteger(acc(bank,'loanrec')+principal)||!Number.isSafeInteger(acc(borrower,'cash')+principal)||!Number.isSafeInteger(acc(borrower,'debt')-principal))throw Error('融資契約金額が不正です');
+ const restricted=phase7LendingRestrictedPrincipal(s,bank,principal);
  const fromJournal=s.seq;
  post(bank,{loanrec:principal},{cash:principal},'銀行事業の普通融資','investing',s);
  const toJournal=s.seq;
  post(borrower,{cash:principal},{debt:principal},'銀行事業からの普通借入','financing',s);
- return phase7RegisterBankLoan(s,bank,borrower,{principal,month,months,rate,fromJournal,toJournal});
+ return phase7RegisterBankLoan(s,bank,borrower,{principal,month,months,rate,restricted,fromJournal,toJournal});
 }
-function phase7RegisterBankLoan(s,bank,borrower,{principal,month,months,rate,fromJournal,toJournal,infrastructureContractId}){
+function phase7RegisterBankLoan(s,bank,borrower,{principal,month,months,rate,restricted,fromJournal,toJournal,infrastructureContractId}){
  const id='L'+s.seq++,due=month+months;
  const bankId=bank.id,borrowerId=borrower.id;
  const r={id,bankId,borrowerId,country:bank.country,month,months,due,rate,principal,fromJournal,toJournal,payments:[],remaining:principal,interestPaid:0};
  if(infrastructureContractId!==undefined)r.infrastructureContractId=infrastructureContractId;
  (s.worldExpansion.bankLoans??=[]).push(r);
- borrower.loans.push({id,parent:bankId,bankLoanId:id,outstanding:principal,parentRemaining:principal,interestOutstanding:0,
+ const loan={id,parent:bankId,bankLoanId:id,outstanding:principal,parentRemaining:principal,interestOutstanding:0,
   parentInterestRemaining:0,rate,due,repayment:phase7LoanSchedule(principal,month,months),
-  ...(infrastructureContractId===undefined?{}:{infrastructureContractId})});
+  ...(infrastructureContractId===undefined?{}:{infrastructureContractId})};
+ phase7RecordFundingLoanOrigin(bank,loan,restricted);
+ borrower.loans.push(loan);
  registerInterco(s,{kind:'loan',seller:bankId,buyer:borrowerId,fromJournal,toJournal,yearMonth:month,loanBase:baseFromLocal(principal,bank.country,s)});
  return r;
 }
