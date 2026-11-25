@@ -490,7 +490,10 @@
     {
       "id": 70,
       "status": "OPEN_SCOPE",
-      "evidence": []
+      "evidence": [
+        "tests/test_world_phase9_replay.py"
+      ],
+      "review_note": "Monthly simulated macro history and chart implemented; proxy GDP only, full original scope and CI not accepted."
     },
     {
       "id": 71,
@@ -522,7 +525,10 @@
     {
       "id": 75,
       "status": "OPEN_SCOPE",
-      "evidence": []
+      "evidence": [
+        "tests/test_world_phase9_replay.py"
+      ],
+      "review_note": "Monthly simulated macro history and chart implemented; proxy GDP only, full original scope and CI not accepted."
     },
     {
       "id": 76,

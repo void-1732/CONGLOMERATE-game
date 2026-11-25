@@ -4234,7 +4234,7 @@ async function runMonth(){
    for(const f of trial.firms)recordDelegationPerformance(trial,f);
    const totals={};for(const f of trial.firms){const t=totals[f.country]??={sales:0,prod:0,employed:0};t.sales+=f.monthly.units||0;t.prod+=f._produced||0;t.employed+=f.staff.production+f.staff.research+f.staff.sales+engineers(f);}
    updateWorld(trial,totals);
-   if(trial.worldExpansion)worldMatchLedgerCurrencyRates(trial);
+   if(trial.worldExpansion){worldMatchLedgerCurrencyRates(trial);worldRecordMacroHistory(trial);}
    evolveMaterialMarkets(trial);
    for(const f of trial.firms){f.marketHistory??=[];f.marketHistory.push({month:ym(trial.year,trial.month),markets:structuredClone(f.marketThisMonth),demand:Object.fromEntries(Object.entries(trial.world).map(([code,w])=>[code,trial.marketAllocationV031?.[code]?.demand??w.demand]))});if(f.marketHistory.length>60)f.marketHistory.shift();}
   });
@@ -7110,7 +7110,7 @@ function playerSalesPanel(){const f=current();ensureFirmGameplay(f);const last=f
 function marketPage(){const w=S.world[VIEW_COUNTRY];return titlePage('全世界の市場分析','自社グループと独立した世界全体の景気・金融・原材料・競合環境を確認します。',`${tag('短期景気＋長期成長')}`)+`<div class="grid">${card('地域市場需要',nfmt(w.demand)+' 台/月','競争力スコアで一回配分','span3')}${card('景気変動指数',nfmt((100+w.cycle*100)),'100が中立水準','span3')}${card('物価変動率',nfmt((w.inflation*100))+'%','年率相当の内部仮値','span3')}${card('政策金利',nfmt(w.rate*100)+'%','契約金利とは区別','span3')}
  <section class="panel span7"><h2>国・地域別マクロ経済</h2><div class="scroll"><table><thead><tr><th>国</th><th class="num">人口（百万人）</th><th class="num">相対所得</th><th class="num">自動車需要</th><th class="num">失業率</th><th class="num">為替（円相当）</th></tr></thead><tbody>${Object.entries(S.world).map(([c,v])=>`<tr><td><strong>${NAMES[c]}</strong></td><td class="num">${nfmt(v.pop)}</td><td class="num">${nfmt(v.wealth)}</td><td class="num">${nfmt(v.demand)}</td><td class="num">${nfmt(v.unemployment*100)}%</td><td class="num">${nfmt(v.fx)}</td></tr>`).join('')}</tbody></table></div><div class="footnote">開始時の人口は歴史人口推計の参考概数を使用。以降の人口成長、国別需要・所得・為替・価格等は試作計算であり、歴史上の実測統計を示すものではありません。</div></section>
  <section class="panel span5"><h2>${NAMES[VIEW_COUNTRY]}の原材料市場</h2>${rowstat('鋼材価格',nfmt(w.steelPrice)+'円相当 / 単位')}${rowstat('ゴム価格',nfmt(w.rubberPrice)+'円相当 / 単位')}${rowstat('鋼材供給能力',nfmt(w.steelSupply)+'単位/月')}${rowstat('ゴム供給能力',nfmt(w.rubberSupply)+'単位/月')}${rowstat('労働平均月給',nfmt(w.wage)+'円相当')}${rowstat('戦争ショック',w.war?tag('発生中','warn'):tag('なし','good'))}</section>
- <section class="panel span12"><h2>競合企業・活動地域</h2><div class="scroll"><table><thead><tr><th>企業</th><th>国</th><th>事業</th><th>経営方針</th><th class="num">完成品在庫</th><th class="num">先月販売</th><th class="num">財務純資産（円相当）</th></tr></thead><tbody>${S.firms.map(f=>`<tr><td>${esc(f.name)} ${controller(S,f.id)?tag('傘下','good'):''}</td><td>${NAMES[f.country]}</td><td>${industryName(f.industry)}</td><td>${strategyName(f.strategy)}</td><td class="num">${nfmt(totalGoods(f))}</td><td class="num">${nfmt(f.monthly.units)}</td><td class="num">${baseMoney(baseFromLocal(financials(f).equity,f.country))}</td></tr>`).join('')}</tbody></table></div></section>${phase8TradePanel(S)}${worldSegmentMarketPanel()}${competitorEcosystemPanel()}</div>`}
+ <section class="panel span12"><h2>競合企業・活動地域</h2><div class="scroll"><table><thead><tr><th>企業</th><th>国</th><th>事業</th><th>経営方針</th><th class="num">完成品在庫</th><th class="num">先月販売</th><th class="num">財務純資産（円相当）</th></tr></thead><tbody>${S.firms.map(f=>`<tr><td>${esc(f.name)} ${controller(S,f.id)?tag('傘下','good'):''}</td><td>${NAMES[f.country]}</td><td>${industryName(f.industry)}</td><td>${strategyName(f.strategy)}</td><td class="num">${nfmt(totalGoods(f))}</td><td class="num">${nfmt(f.monthly.units)}</td><td class="num">${baseMoney(baseFromLocal(financials(f).equity,f.country))}</td></tr>`).join('')}</tbody></table></div></section>${phase8TradePanel(S)}${worldMacroHistoryPanel(S,VIEW_COUNTRY)}${worldSegmentMarketPanel()}${competitorEcosystemPanel()}</div>`}
 function strategyName(x){return {growth:'成長',profit:'採算',tech:'技術',quality:'品質',balanced:'均衡'}[x]||x}
 function productSalesOverviewV023(f){const rows=f.models.filter(m=>m.status==='active'||m.status==='legacy').map(m=>{const inv=f.goods[m.id]?.q||0,now=Object.values(f.marketThisMonth||{}).reduce((sum,v)=>sum+(v.models?.[m.id]?.units||0),0);return `<tr><td><b>${esc(m.name)}</b><div class="tiny muted">${esc(designLabel('exterior',m.design?.exterior||'balanced'))}</div></td><td class="num">${nfmt(now)}</td><td class="num">${nfmt(inv)}</td><td class="num">${nfmt(m.quality)}</td><td class="num">${esc(gradeName(m))}</td></tr>`}).join('');return `<section class="panel span12"><h2>車種別 販売・在庫サマリー</h2><div class="scroll"><table><thead><tr><th>車種と外観</th><th class="num">直近販売</th><th class="num">完成車在庫</th><th class="num">品質</th><th>グレード</th></tr></thead><tbody>${rows||'<tr><td colspan="5">まだ車種がありません</td></tr>'}</tbody></table></div><p class="hint">実績は最後に確定した月の集計を使用。国別・購買層別の詳細は「自社グループ市場分析」で確認できます。</p></section>`}
 let PRODUCT_VIEW='design';
@@ -13568,6 +13568,7 @@ function validateWorldExpansion(s){
      ||!Number.isSafeInteger(s.rng)||s.rng<0||s.rng>0xffffffff){
   throw Error('世界経済セーブの版、開始年、または乱数状態が不正です');
  }
+ worldValidateMacroHistory(s);
  const registryVersion=world.marketRegistryVersion??0;
  if(!Number.isSafeInteger(registryVersion)||registryVersion<0||registryVersion>WORLD_MARKET_REGISTRY_VERSION)
   throw Error('世界市場レジストリの版が不正です');
@@ -13804,6 +13805,61 @@ function phase8TradeByJurisdiction(s,fromMonth,toMonth){
    goodsSeller:t.goodsSeller,sellerRate:t.sellerRate});
  }
  return phase8AggregateTrade(rows);
+}
+// SPEC-070/075: monthly macro observations from the actual world engine.
+// Output index is a population/income proxy; it is NOT historical GDP.
+const WORLD_MACRO_HISTORY_LIMIT=1200;
+function worldMacroObservation(code,w,jurisdiction){
+ const base=COUNTRIES[code],round=x=>Math.round(x*1000000)/1000000;
+ if(!base||!Number.isFinite(base.pop)||base.pop<=0||!Number.isFinite(base.wealth)||base.wealth<=0)throw Error('マクロ基準値が不正：'+code);
+ const values=[w.pop,w.wealth,w.inflation,w.unemployment,w.rate,w.fx,100*(w.pop/base.pop)*(w.wealth/base.wealth)];
+ if(values.some(x=>!Number.isFinite(x)))throw Error('マクロ観測値が不正：'+code);
+ return [code,jurisdiction??null,...values.map((v,i)=>i===5?v:round(v))];
+}
+function worldRecordMacroHistory(s){
+ const w=s.worldExpansion;if(!w)return;
+ const month=ym(s.year,s.month),history=w.macroHistory??={version:1,frames:[]};
+ const frames=history.frames,last=frames.at(-1);
+ if(last&&last.month>=month)throw Error('マクロ統計の重複または逆順確定');
+ const rows=Object.keys(s.world).sort().map(code=>worldMacroObservation(code,s.world[code],w.territoryJurisdictions[WORLD_ENGINE_TERRITORY[code]]));
+ frames.push({month,rows});
+ if(frames.length>WORLD_MACRO_HISTORY_LIMIT)frames.splice(0,frames.length-WORLD_MACRO_HISTORY_LIMIT);
+}
+function worldValidateMacroHistory(s){
+ const h=s.worldExpansion?.macroHistory;
+ if(h===undefined)return true;
+ if(h?.version!==1||!Array.isArray(h.frames)||h.frames.length>WORLD_MACRO_HISTORY_LIMIT)throw Error('マクロ統計台帳の形式が不正');
+ let prior=WORLD_START_MONTH-1;
+ for(const frame of h.frames){
+  if(!Number.isSafeInteger(frame?.month)||frame.month<=prior||frame.month>s.monthCommitted||!Array.isArray(frame.rows)||!frame.rows.length)throw Error('マクロ統計の確定月が不正');
+  prior=frame.month;const seen=new Set();
+  for(const row of frame.rows){
+   if(!Array.isArray(row)||row.length!==9)throw Error('マクロ統計の項目が不正');
+   const [code,jurisdiction,pop,wealth,inflation,unemployment,rate,fx,output]=row;
+   if(!Object.hasOwn(COUNTRIES,code)||seen.has(code)||(jurisdiction!==null&&!WORLD_JURISDICTIONS.has(jurisdiction))||
+    row.slice(2).some(v=>!Number.isFinite(v))||pop<=0||wealth<=0||inflation<=-1||unemployment<0||unemployment>1||rate<0||fx<=0||output<=0)throw Error('マクロ統計の数値・管轄・国IDが不正');
+   seen.add(code);
+  }
+ }
+ return true;
+}
+function worldMacroSeries(s,code,limit=120){
+ return (s.worldExpansion?.macroHistory?.frames??[]).slice(-limit).flatMap(f=>{
+  const row=f.rows.find(r=>r[0]===code);return row?[{month:f.month,row}]:[];
+ });
+}
+function worldMacroHistoryPanel(s,code){
+ if(!s.worldExpansion)return '';
+ const series=worldMacroSeries(s,code,120),recent=series.slice(-12).reverse();
+ const date=m=>Math.floor(m/12)+'/'+String(m%12+1).padStart(2,'0');
+ const percent=x=>(x*100).toFixed(2)+'%';
+ const values=series.flatMap(x=>[x.row[4],x.row[5],x.row[6]]);
+ const lo=Math.min(0,...values),hi=Math.max(.01,...values),span=hi-lo;
+ const chart=series.length?'<svg viewBox="0 0 640 200" role="img" aria-label="インフレ率・失業率・政策金利の推移" style="width:100%;max-height:220px"><path d="M40 10 V170 H620" fill="none" stroke="currentColor" opacity=".35"/>'+
+  [[4,'#d97706'],[5,'#2563eb'],[6,'#059669']].map(([idx,color])=>'<polyline fill="none" stroke="'+color+'" stroke-width="2" points="'+series.map((x,i)=>(40+580*i/Math.max(1,series.length-1)).toFixed(2)+','+(170-160*(x.row[idx]-lo)/span).toFixed(2)).join(' ')+'"/>').join('')+
+  '<text x="40" y="193" font-size="11" fill="currentColor">'+date(series[0].month)+'</text><text x="620" y="193" text-anchor="end" font-size="11" fill="currentColor">'+date(series.at(-1).month)+'</text></svg>':'<p class="hint">月次確定後に表示します。</p>';
+ const rows=recent.map(({month,row:r})=>'<tr><td>'+date(month)+'</td><td>'+esc(WORLD_JURISDICTIONS.get(r[1])?.name??r[1]??'未確定')+'</td><td class="num">'+nfmt(r[2])+'</td><td class="num">'+nfmt(r[8])+'</td><td class="num">'+percent(r[4])+'</td><td class="num">'+percent(r[5])+'</td><td class="num">'+percent(r[6])+'</td></tr>').join('');
+ return '<section class="panel span12" data-world-macro-history><h2>'+esc(NAMES[code]??code)+'：月次マクロ履歴</h2><p class="hint">最大100年保存・直近10年グラフ。オレンジ：インフレ、青：失業率、緑：政策金利。生産規模指数は人口×相対所得によるモデル値（基準100）で、実測GDPではありません。</p>'+chart+'<div class="scroll"><table><thead><tr><th>確定月</th><th>当時の管轄</th><th>人口（百万人）</th><th>生産規模指数</th><th>インフレ</th><th>失業率</th><th>政策金利</th></tr></thead><tbody>'+rows+'</tbody></table></div></section>';
 }
 function phase8TradePanel(s){
  if(!s.worldExpansion)return '';

@@ -68,14 +68,21 @@ def test_replay():
           S=parsePayload(initial);
           const b=await advance();
           const saved=parsePayload(savePayload(S));
-          return {replay:a===b,clean:check(saved).length===0,
+          const frames=saved.worldExpansion.macroHistory.frames;
+          const series=worldMacroSeries(saved,'JP',12);
+          const invalid=structuredClone(saved);invalid.worldExpansion.macroHistory.frames[0].rows[0][5]=2;
+          let tamper=false;try{parsePayload(savePayload(invalid));}catch(e){tamper=e.message.includes('マクロ統計');}
+          const macro=frames.length===12&&frames.every((f,i)=>f.month===start+i+1)
+            &&series.length===12&&series.at(-1).month===saved.monthCommitted
+            &&series.at(-1).row[4]===Math.round(saved.world.JP.inflation*1000000)/1000000;
+          return {replay:a===b,clean:check(saved).length===0,macro,tamper,
             marketCount:WORLD_MARKETS.length,productCount:WORLD_PRODUCTS.length,
             distinctProducts:new Set(WORLD_PRODUCTS.map(p=>p.id)).size,
             technologyCount:TECH_NODES.length,
             months:S.monthCommitted-start};
         }""")
         assert result == {"replay":True,"clean":True,"marketCount":40,"productCount":150,
-                          "distinctProducts":150,"technologyCount":800,"months":12},result
+                          "distinctProducts":150,"technologyCount":800,"months":12,"macro":True,"tamper":True},result
         assert not errors and not external,(errors,external)
         browser.close()
     print("PASS Phase 9 offline world replay, catalog and accounting")
