@@ -3207,7 +3207,7 @@ function reorganizationPanel(f,edit){ensureV11Firm(f);
  ${S.reorgHistory?.length?`<div class="scroll"><table><thead><tr><th>年月</th><th>取引</th><th>移管元</th><th>移管先</th><th>内容</th></tr></thead><tbody>${S.reorgHistory.slice(-7).reverse().map(r=>`<tr><td>${Math.floor(r.month/12)}年${r.month%12+1}月</td><td>${r.kind==='business-transfer'?'事業移管':'事業統合'}</td><td>${esc(company(r.source)?.name||r.source)}</td><td>${esc(company(r.target)?.name||r.target)}</td><td>${esc(r.plantName||'全事業')}（簿価処理）</td></tr>`).join('')}</tbody></table></div>`:''}</section>`;
 }
 
-function check(s=S){let errs=[];if(!s||s.schema!==VERSION)return ['保存版の互換性がありません'];if(!Array.isArray(s.firms)||!s.firms.length)return ['法人情報がありません'];if(s.worldExpansion){try{phase7ValidateOwners(s);phase7ValidateMAReservations(s);phase7ValidateLoanSchedules(s);phase7ValidateFundingArchive(s);phase7ValidateDividends(s)}catch(e){return [e.message]}}const ids=new Set();for(const f of s.firms){if(ids.has(f.id))errs.push('法人ID重複 '+f.id);ids.add(f.id);const fin=financials(f);if(Math.abs(fin.bsDiff)>1)errs.push(f.name+'：貸借不一致 '+fin.bsDiff);const glSum=Object.values(f.ledger).reduce((a,b)=>a+b,0);if(glSum!==0)errs.push(f.name+'：借貸不一致');if(!Number.isSafeInteger(glSum))errs.push(f.name+'：数値異常');const stk=Object.values(f.stock||{}).reduce((a,b)=>a+(b.v||0),0);if(Math.abs(stk-acc(f,'materials'))>2)errs.push(f.name+'：材料原価台帳不一致');const goods=Object.values(f.goods||{}).reduce((a,b)=>a+(b.v||0),0);if(Math.abs(goods-acc(f,'goods'))>2)errs.push(f.name+'：製品原価台帳不一致');if(f.distribution){const transit=f.distribution.outbound.reduce((sum,x)=>sum+x.bookCost,0);if(Math.abs(transit-acc(f,'goodsTransit'))>2)errs.push(f.name+'：輸送中製品原価不一致');if(f.distribution.outbound.some(x=>x.qty<1||x.bookCost<0))errs.push(f.name+'：輸送中製品数量異常');}if(f.supply?.inbound?.some(x=>x.qty<1||x.totalBase<0))errs.push(f.name+'：輸送中材料数量異常');if(f.industry==='resource'&&f.rawOpsV032){if(f.goods.RESOURCE?.q>0)errs.push(f.name+'：資源在庫の旧新重複');for(const type of RAW_TYPES_V032){const bin=rawBinV032(f,type);if(!Number.isSafeInteger(bin.q)||bin.q<0||!Number.isSafeInteger(bin.v)||bin.v<0)errs.push(f.name+'：資材別在庫異常 '+type);}}for(const [k,it] of Object.entries(f.stock||{}))if(it.q<0||it.v<0)errs.push(f.name+'：負材料 '+k);for(const [k,it] of Object.entries(f.goods||{}))if(it.q<0||it.v<0)errs.push(f.name+'：負製品 '+k);if(!Number.isFinite(f.plant.condition)||f.plant.condition<0||f.plant.condition>100)errs.push(f.name+'：設備状態不正');if(f.plants){const ids=new Set();for(const p of f.plants){if(ids.has(p.id)||!FACTORY_KINDS[p.kind]||!Number.isSafeInteger(p.capacity)||p.capacity<1||p.condition<0||p.condition>100)errs.push(f.name+'：工場情報不正 '+p.id);ids.add(p.id)}if(f.plant.capacity!==activeFactories(f).reduce((a,p)=>a+p.capacity,0))errs.push(f.name+'：工場能力台帳不一致');if(f.plants.some(p=>!findSite(p.siteId)))errs.push(f.name+'：工場立地が不正')}if(f.research&&!RND_DOMAINS[f.research.topic])errs.push(f.name+'：研究テーマ不正');let sum=0;for(const o of f.owners){sum+=o.econ;if(o.econ<0||o.vote<0||o.vote>1)errs.push(f.name+'：持分比率不正');if(o.id!== 'PUBLIC'&&!company(o.id,s))errs.push(f.name+'：株主参照不正');}if(Math.abs(sum-1)>0.000001)errs.push(f.name+'：持分合計不正');if(f.shareBlocks){const pool=f.owners.find(o=>o.id==='PUBLIC')?.econ||0;const out=f.shareBlocks.reduce((a,x)=>a+x.holding,0);if(Math.abs(pool-out)>0.000002||f.shareBlocks.some(x=>x.holding<-.000001))errs.push(f.name+'：外部株主台帳不一致');}if(f.sharesOutstanding!==undefined&&(!Number.isSafeInteger(f.sharesOutstanding)||f.sharesOutstanding<1))errs.push(f.name+'：発行済株式数不正');if(!Number.isSafeInteger(f.treasuryShares||0)||(f.treasuryShares||0)<0||(f.treasuryShares||0)>=f.sharesOutstanding)errs.push(f.name+'：自己株式数不正');if(!Number.isSafeInteger(f.treasuryCostLocal||0)||(f.treasuryCostLocal||0)<0||Math.abs((f.treasuryCostLocal||0)-acc(f,'treasuryStock'))>1)errs.push(f.name+'：自己株式の取得原価台帳不一致');const votes=f.owners.reduce((a,o)=>a+(o.vote||0),0);if(Math.abs(votes-1)>.000002)errs.push(f.name+'：議決権合計不正');}for(const f of s.firms){ensureV11Firm(f);const qty=Object.values(f.interplant.siteComponents).reduce((a,b)=>a+b,0);if(qty>(f.stock.components?.q||0)||qty<0)errs.push(f.name+'：工場専用部品台帳不一致');const cash=f.interplant.shipments.reduce((a,t)=>a+t.bookCost,0)+(f.factoryOps?.shipments||[]).reduce((a,t)=>a+t.bookCost,0);if(Math.abs(cash-acc(f,'materialsTransit'))>2)errs.push(f.name+'：工場輸送中在庫の簿価不一致');if(f.interplant.shipments.some(t=>!Number.isSafeInteger(t.qty)||t.qty<1||!f.plants.some(p=>p.id===t.to)))errs.push(f.name+'：工場間輸送が不正');validateFactoryV21(f,errs,s);}errs.push(...validatePartEconomyV27(s));errs.push(...validateMarketV031(s));errs.push(...validateNpcV033(s));errs.push(...validateInventoryPolicyV034(s));errs.push(...validateGroupMergerPlans(s));return errs}
+function check(s=S){let errs=[];if(!s||s.schema!==VERSION)return ['保存版の互換性がありません'];if(!Array.isArray(s.firms)||!s.firms.length)return ['法人情報がありません'];if(s.worldExpansion){try{phase7ValidateOwners(s);phase7ValidateMAReservations(s);phase7ValidateLoanSchedules(s);phase7ValidateFundingArchive(s);phase7ValidateDividends(s);phase7ValidateBankLoans(s)}catch(e){return [e.message]}}const ids=new Set();for(const f of s.firms){if(ids.has(f.id))errs.push('法人ID重複 '+f.id);ids.add(f.id);const fin=financials(f);if(Math.abs(fin.bsDiff)>1)errs.push(f.name+'：貸借不一致 '+fin.bsDiff);const glSum=Object.values(f.ledger).reduce((a,b)=>a+b,0);if(glSum!==0)errs.push(f.name+'：借貸不一致');if(!Number.isSafeInteger(glSum))errs.push(f.name+'：数値異常');const stk=Object.values(f.stock||{}).reduce((a,b)=>a+(b.v||0),0);if(Math.abs(stk-acc(f,'materials'))>2)errs.push(f.name+'：材料原価台帳不一致');const goods=Object.values(f.goods||{}).reduce((a,b)=>a+(b.v||0),0);if(Math.abs(goods-acc(f,'goods'))>2)errs.push(f.name+'：製品原価台帳不一致');if(f.distribution){const transit=f.distribution.outbound.reduce((sum,x)=>sum+x.bookCost,0);if(Math.abs(transit-acc(f,'goodsTransit'))>2)errs.push(f.name+'：輸送中製品原価不一致');if(f.distribution.outbound.some(x=>x.qty<1||x.bookCost<0))errs.push(f.name+'：輸送中製品数量異常');}if(f.supply?.inbound?.some(x=>x.qty<1||x.totalBase<0))errs.push(f.name+'：輸送中材料数量異常');if(f.industry==='resource'&&f.rawOpsV032){if(f.goods.RESOURCE?.q>0)errs.push(f.name+'：資源在庫の旧新重複');for(const type of RAW_TYPES_V032){const bin=rawBinV032(f,type);if(!Number.isSafeInteger(bin.q)||bin.q<0||!Number.isSafeInteger(bin.v)||bin.v<0)errs.push(f.name+'：資材別在庫異常 '+type);}}for(const [k,it] of Object.entries(f.stock||{}))if(it.q<0||it.v<0)errs.push(f.name+'：負材料 '+k);for(const [k,it] of Object.entries(f.goods||{}))if(it.q<0||it.v<0)errs.push(f.name+'：負製品 '+k);if(!Number.isFinite(f.plant.condition)||f.plant.condition<0||f.plant.condition>100)errs.push(f.name+'：設備状態不正');if(f.plants){const ids=new Set();for(const p of f.plants){if(ids.has(p.id)||!FACTORY_KINDS[p.kind]||!Number.isSafeInteger(p.capacity)||p.capacity<1||p.condition<0||p.condition>100)errs.push(f.name+'：工場情報不正 '+p.id);ids.add(p.id)}if(f.plant.capacity!==activeFactories(f).reduce((a,p)=>a+p.capacity,0))errs.push(f.name+'：工場能力台帳不一致');if(f.plants.some(p=>!findSite(p.siteId)))errs.push(f.name+'：工場立地が不正')}if(f.research&&!RND_DOMAINS[f.research.topic])errs.push(f.name+'：研究テーマ不正');let sum=0;for(const o of f.owners){sum+=o.econ;if(o.econ<0||o.vote<0||o.vote>1)errs.push(f.name+'：持分比率不正');if(o.id!== 'PUBLIC'&&!company(o.id,s))errs.push(f.name+'：株主参照不正');}if(Math.abs(sum-1)>0.000001)errs.push(f.name+'：持分合計不正');if(f.shareBlocks){const pool=f.owners.find(o=>o.id==='PUBLIC')?.econ||0;const out=f.shareBlocks.reduce((a,x)=>a+x.holding,0);if(Math.abs(pool-out)>0.000002||f.shareBlocks.some(x=>x.holding<-.000001))errs.push(f.name+'：外部株主台帳不一致');}if(f.sharesOutstanding!==undefined&&(!Number.isSafeInteger(f.sharesOutstanding)||f.sharesOutstanding<1))errs.push(f.name+'：発行済株式数不正');if(!Number.isSafeInteger(f.treasuryShares||0)||(f.treasuryShares||0)<0||(f.treasuryShares||0)>=f.sharesOutstanding)errs.push(f.name+'：自己株式数不正');if(!Number.isSafeInteger(f.treasuryCostLocal||0)||(f.treasuryCostLocal||0)<0||Math.abs((f.treasuryCostLocal||0)-acc(f,'treasuryStock'))>1)errs.push(f.name+'：自己株式の取得原価台帳不一致');const votes=f.owners.reduce((a,o)=>a+(o.vote||0),0);if(Math.abs(votes-1)>.000002)errs.push(f.name+'：議決権合計不正');}for(const f of s.firms){ensureV11Firm(f);const qty=Object.values(f.interplant.siteComponents).reduce((a,b)=>a+b,0);if(qty>(f.stock.components?.q||0)||qty<0)errs.push(f.name+'：工場専用部品台帳不一致');const cash=f.interplant.shipments.reduce((a,t)=>a+t.bookCost,0)+(f.factoryOps?.shipments||[]).reduce((a,t)=>a+t.bookCost,0);if(Math.abs(cash-acc(f,'materialsTransit'))>2)errs.push(f.name+'：工場輸送中在庫の簿価不一致');if(f.interplant.shipments.some(t=>!Number.isSafeInteger(t.qty)||t.qty<1||!f.plants.some(p=>p.id===t.to)))errs.push(f.name+'：工場間輸送が不正');validateFactoryV21(f,errs,s);}errs.push(...validatePartEconomyV27(s));errs.push(...validateMarketV031(s));errs.push(...validateNpcV033(s));errs.push(...validateInventoryPolicyV034(s));errs.push(...validateGroupMergerPlans(s));return errs}
 function isPastOrDue(entry,s=S){return entry.due<=ym(s.year,s.month)}
 function payUpTo(f,debitAcc,amount,desc,kind='operating',s=S){amount=Math.max(0,Math.round(amount));const paid=Math.min(amount,Math.max(0,acc(f,'cash')));const rest=amount-paid;const credit={};if(paid)credit.cash=paid;if(rest)credit[debitAcc==='wip'?'wagesDue':'payable']=rest;post(f,{[debitAcc]:amount},credit,desc,kind,s);return {paid,rest}}
 function spendExpense(f,acct,amount,desc,kind='operating',s=S){amount=Math.round(Math.max(0,amount));if(!amount)return;const paid=Math.min(amount,Math.max(0,acc(f,'cash')));const cr={};if(paid)cr.cash=paid;if(amount-paid)cr.payable=amount-paid;post(f,{[acct]:amount},cr,desc,kind,s);if(amount-paid){f.payables.push({amount:amount-paid,due:ym(s.year,s.month)+1,account:'payable',note:desc});f.distress.stage=Math.max(f.distress.stage,1)}}
@@ -3851,7 +3851,7 @@ function phase7ValidateLoanSchedules(s){
    if(paidInterest){const oldInterest=loan.interestOutstanding;post(f,{interestDue:paidInterest},{cash:paidInterest},'利息決済','operating',s);loan.interestOutstanding-=paidInterest;
     if(loan.parent){const parent=company(loan.parent,s),book=paidInterest===oldInterest?loan.parentInterestRemaining:Math.min(loan.parentInterestRemaining,Math.round(loan.parentInterestRemaining*paidInterest/oldInterest));
      const converted=Math.round(paidInterest*s.world[f.country].fx/s.world[parent.country].fx);
-     journalizeRepayment(parent,'ar',book,converted,'operating','子会社貸付利息の回収・換算差額',s);registerInterco(s,{kind:'interestCash',seller:parent.id,buyer:f.id,yearMonth:ym(s.year,s.month),fromJournal:parent.journals.at(-1)?.id,toJournal:f.journals.at(-1)?.id});loan.parentInterestRemaining-=book;}
+     journalizeRepayment(parent,'ar',book,converted,'operating','子会社貸付利息の回収・換算差額',s);registerInterco(s,{kind:'interestCash',seller:parent.id,buyer:f.id,yearMonth:ym(s.year,s.month),fromJournal:parent.journals.at(-1)?.id,toJournal:f.journals.at(-1)?.id});loan.parentInterestRemaining-=book;phase7RecordBankPayment(s,loan,f,parent,'interest',paidInterest);}
    }
    const principalDue=phase7ScheduledPrincipal(s,loan);
    if(principalDue>0){
@@ -3859,7 +3859,7 @@ function phase7ValidateLoanSchedules(s){
     if(pay){const outstandingBefore=loan.outstanding;post(f,{debt:pay},{cash:pay},'借入元本返済','financing',s);loan.outstanding-=pay;
      if(loan.parent){const parent=company(loan.parent,s),book=pay===outstandingBefore?loan.parentRemaining:Math.min(loan.parentRemaining,Math.round(loan.parentRemaining*pay/outstandingBefore));
       const converted=Math.round(pay*s.world[f.country].fx/s.world[parent.country].fx);
-      journalizeRepayment(parent,'loanrec',book,converted,'investing','子会社貸付元本の回収・換算差額',s);registerInterco(s,{kind:'loanCash',seller:parent.id,buyer:f.id,yearMonth:ym(s.year,s.month),fromJournal:parent.journals.at(-1)?.id,toJournal:f.journals.at(-1)?.id});loan.parentRemaining-=book;}
+      journalizeRepayment(parent,'loanrec',book,converted,'investing','子会社貸付元本の回収・換算差額',s);registerInterco(s,{kind:'loanCash',seller:parent.id,buyer:f.id,yearMonth:ym(s.year,s.month),fromJournal:parent.journals.at(-1)?.id,toJournal:f.journals.at(-1)?.id});loan.parentRemaining-=book;phase7RecordBankPayment(s,loan,f,parent,'principal',pay);}
     }
     if(pay<principalDue)f.distress.stage=Math.max(f.distress.stage,2);
    }
@@ -13802,9 +13802,9 @@ function worldServiceActivity(s,productId){
  if(productId==='PRD-S05')return (w.bankDeposits??[]).map(t=>({
   ref:t.id,providerId:t.bankId,customerId:t.clientId,month:t.month,quantity:1,amount:0,principal:t.principal
  }));
- if(productId==='PRD-S06')return (w.externalLoanReceipts??[]).map(t=>({
+ if(productId==='PRD-S06')return [...(w.externalLoanReceipts??[]).map(t=>({
   ref:t.id,providerId:null,customerId:t.borrowerId,month:t.month,quantity:1,amount:0,principal:t.principal
- }));
+ })),...(w.bankLoans??[]).map(t=>({ref:t.id,providerId:t.bankId,customerId:t.borrowerId,month:t.month,quantity:1,amount:t.interestPaid,principal:t.principal}))];
  if(productId==='PRD-S08')return (w.medicalTreatments??[]).map(t=>({
   ref:t.id,providerId:t.providerId,customerId:t.clientId,month:t.month,quantity:t.quantity,amount:t.fee
  }));
@@ -15782,6 +15782,62 @@ function worldBankCanReceive(s,bank){
   &&ym(s.year,s.month)>=profile.opensAt
   &&bank.plants.some(plant=>worldDomesticSiteActive(plant,profile.siteId));
 }
+// SPEC-021: ordinary bank lending, using the existing verified deposit bank site.
+function phase7IssueBankLoan(s,bankId,borrowerId,principal,months){
+ const bank=company(bankId,s),borrower=company(borrowerId,s);
+ if(!s.worldExpansion||!worldBankCanReceive(s,bank)||!isActiveCorporateFirm(borrower)||!controller(s,borrowerId)
+  ||![12,24,36].includes(months)||!worldInfrastructureBankReady(s,bank,borrower,principal))throw Error('銀行融資の操作権限・流動性・自己資本・集中リスクまたは借入上限を確認してください');
+ const month=ym(s.year,s.month),rate=Math.max(.02,s.world[bank.country].rate+.02);
+ if(!Number.isFinite(rate)||rate<0||!Number.isSafeInteger(acc(bank,'loanrec')+principal)||!Number.isSafeInteger(acc(borrower,'cash')+principal)||!Number.isSafeInteger(acc(borrower,'debt')-principal))throw Error('融資契約金額が不正です');
+ const fromJournal=s.seq;
+ post(bank,{loanrec:principal},{cash:principal},'銀行事業の普通融資','investing',s);
+ const toJournal=s.seq;
+ post(borrower,{cash:principal},{debt:principal},'銀行事業からの普通借入','financing',s);
+ const id='L'+s.seq++,due=month+months;
+ const r={id,bankId,borrowerId,country:bank.country,month,months,due,rate,principal,fromJournal,toJournal,payments:[],remaining:principal,interestPaid:0};
+ (s.worldExpansion.bankLoans??=[]).push(r);
+ borrower.loans.push({id,parent:bankId,bankLoanId:id,outstanding:principal,parentRemaining:principal,interestOutstanding:0,parentInterestRemaining:0,rate,due,repayment:phase7LoanSchedule(principal,month,months)});
+ registerInterco(s,{kind:'loan',seller:bankId,buyer:borrowerId,fromJournal,toJournal,yearMonth:month,loanBase:baseFromLocal(principal,bank.country,s)});
+ return r;
+}
+function phase7RecordBankPayment(s,loan,borrower,bank,kind,amount){
+ if(!loan.bankLoanId)return;
+ const r=(s.worldExpansion?.bankLoans??[]).find(r=>r.id===loan.bankLoanId);
+ if(!r||r.bankId!==bank.id||r.borrowerId!==borrower.id||!Number.isSafeInteger(amount)||amount<1)throw Error('銀行事業融資の返済参照が不正');
+ if(kind==='principal')r.remaining-=amount;else r.interestPaid+=amount;
+ r.payments.push({kind,amount,month:ym(s.year,s.month),borrowerJournal:borrower.journals.at(-1).id,bankJournal:bank.journals.at(-1).id});
+}
+function phase7ValidateBankLoans(s){
+ const rows=s.worldExpansion?.bankLoans??[];
+ if(!Array.isArray(rows))throw Error('銀行事業融資台帳が不正');
+ if(!rows.length){if(s.firms.some(f=>f.loans.some(l=>l.bankLoanId)))throw Error('銀行事業融資の証拠がありません');return;}
+ const match=worldServiceJournalMatcher(s),byId=new Map(),used=new Set();let prior=0;
+ for(const r of rows){
+  const bank=company(r?.bankId,s),borrower=company(r?.borrowerId,s),id=Number(r?.id?.slice(1));
+  if(!bank||!borrower||bank===borrower||bank.country!==r.country||borrower.country!==r.country||r.country!==WORLD_BANK_DEPOSIT_PROFILE.country||bank.industry!=='service'
+   ||!/^L\d+$/.test(r.id)||!Number.isSafeInteger(id)||id<=prior||id>=s.seq||r.fromJournal!==id-2||r.toJournal!==id-1
+   ||!Number.isSafeInteger(r.month)||r.month<WORLD_BANK_DEPOSIT_PROFILE.opensAt||r.month>ym(s.year,s.month)
+   ||![12,24,36].includes(r.months)||r.due!==r.month+r.months||!Number.isFinite(r.rate)||r.rate<.02
+   ||!Number.isSafeInteger(r.principal)||r.principal<1||!Array.isArray(r.payments)
+   ||!match(bank,r.fromJournal,r.month,r.principal,'loanrec','cash','investing')
+   ||!match(borrower,r.toJournal,r.month,r.principal,'cash','debt','financing'))throw Error('銀行事業融資の実行仕訳が不正：'+r?.id);
+  prior=id;byId.set(r.id,r);let remaining=r.principal,interest=0,prev=id;
+  for(const p of r.payments){
+   const isPrincipal=p.kind==='principal',isInterest=p.kind==='interest';
+   if((!isPrincipal&&!isInterest)||!Number.isSafeInteger(p.amount)||p.amount<1||!Number.isSafeInteger(p.month)||p.month<r.month||p.month>ym(s.year,s.month)
+    ||!Number.isSafeInteger(p.borrowerJournal)||!Number.isSafeInteger(p.bankJournal)||p.borrowerJournal<=prev||p.bankJournal!==p.borrowerJournal+1
+    ||used.has(p.borrowerJournal)||used.has(p.bankJournal)
+    ||!match(borrower,p.borrowerJournal,p.month,p.amount,isPrincipal?'debt':'interestDue','cash',isPrincipal?'financing':'operating')
+    ||!match(bank,p.bankJournal,p.month,p.amount,'cash',isPrincipal?'loanrec':'ar',isPrincipal?'investing':'operating'))throw Error('銀行事業融資の返済仕訳が不正：'+r.id);
+   prev=p.bankJournal;used.add(p.borrowerJournal);used.add(p.bankJournal);if(isPrincipal)remaining-=p.amount;else interest+=p.amount;
+  }
+  const active=borrower.loans.find(l=>l.id===r.id);
+  if(remaining<0||remaining!==r.remaining||interest!==r.interestPaid||(!active&&remaining!==0)
+   ||(active&&(active.bankLoanId!==r.id||active.parent!==r.bankId||active.outstanding!==remaining||active.parentRemaining!==remaining||active.rate!==r.rate||active.due!==r.due||active.repayment?.principal!==r.principal||active.repayment?.origin!==r.month||active.repayment?.months!==r.months||active.interestOutstanding!==active.parentInterestRemaining)))
+   throw Error('銀行事業融資の元利金残高が一致しません：'+r.id);
+ }
+ for(const f of s.firms)for(const l of f.loans)if(l.bankLoanId&&(!byId.has(l.bankLoanId)||byId.get(l.bankLoanId).borrowerId!==f.id))throw Error('銀行事業融資の契約参照が不正');
+}
 function worldOpenBankDeposit(s,clientId,bankId,principal){
  const w=s.worldExpansion,client=company(clientId,s),bank=company(bankId,s);
  if(!w||!isActiveCorporateFirm(client)||!worldBankCanReceive(s,bank)||client===bank||client.country!==bank.country
@@ -15835,8 +15891,9 @@ function worldBankDepositPanel(s,firm,edit){
  const banks=s.firms.filter(bank=>bank!==firm&&bank.country===firm.country
   &&worldBankCanReceive(s,bank)&&controller(s,bank.id));
  const deposits=(s.worldExpansion.bankDeposits??[]).filter(t=>t.clientId===firm.id&&t.returnedAt===null);
+ const lenders=s.firms.filter(bank=>worldBankCanReceive(s,bank)&&bank!==firm&&bank.country===firm.country);
  const risk=worldBankCreditRisk(s,firm);
- if(!banks.length&&!deposits.length&&!worldBankCanReceive(s,firm)&&!acc(firm,'worldBankReserve')&&!risk.total)return '';
+ if(!banks.length&&!lenders.length&&!deposits.length&&!worldBankCanReceive(s,firm)&&!acc(firm,'worldBankReserve')&&!risk.total)return '';
  const form=(action,fields,label)=>'<form class="row" data-world-bank="'+action+'">'+fields+
   '<button class="btn sm" type="submit">'+label+'</button></form>';
  const option=(id,label)=>'<option value="'+esc(id)+'">'+esc(label)+'</option>';
@@ -15847,7 +15904,12 @@ function worldBankDepositPanel(s,firm,edit){
  const close=edit&&deposits.length?form('withdraw',
   '<label>払戻対象 <select name="receipt" required>'+deposits.map(t=>option(t.id,
    company(t.bankId,s).name+' / '+fnum(firm,t.principal))).join('')+'</select></label>','全額を払い戻す'):'';
- return '<section class="panel span12"><h2>銀行預金</h2>'
+ const loanForm=edit&&lenders.length?form('borrow',
+  '<label>融資申込先 <select name="bank" required>'+lenders.map(bank=>option(bank.id,bank.name)).join('')+'</select></label>'
+  +'<label>元本（通貨最小単位） <input name="principal" type="number" min="1" required></label><label>返済期間 <select name="months"><option value="12">12か月</option><option value="24">24か月</option><option value="36" selected>36か月</option></select></label>',
+  '普通融資を申し込む'):'';
+ const issued=(s.worldExpansion.bankLoans??[]).filter(r=>r.bankId===firm.id).slice(-10).reverse();
+ return '<section class="panel span12"><h2>銀行預金・融資</h2>'
   +rowstat('預けた元本',fnum(firm,acc(firm,'worldBankDeposits')))
   +rowstat('分別した支払準備金',fnum(firm,acc(firm,'worldBankReserve')))
   +rowstat('預金者への払戻債務',fnum(firm,-acc(firm,'worldDemandDeposits')))
@@ -15856,7 +15918,7 @@ function worldBankDepositPanel(s,firm,edit){
   +rowstat('産業別上限（モデル）',fnum(firm,risk.sectorLimit))
   +Object.entries(risk.sector).map(([industry,n])=>rowstat('貸出集中：'+industryName(industry),fnum(firm,n))).join('')
   +'<p>預金は無利息で、元本を全額分別します。 <a href="'+esc(WORLD_BANK_DEPOSIT_PROFILE.source)
-  +'" target="_blank" rel="noopener noreferrer">日本の預金取扱史</a></p>'+open+close+'</section>';
+  +'" target="_blank" rel="noopener noreferrer">日本の預金取扱史</a></p>'+open+close+loanForm+issued.map(r=>rowstat(esc(company(r.borrowerId,s)?.name||r.borrowerId)+' 貸出残高',fnum(firm,r.remaining))).join('')+'</section>';
 }
 document.addEventListener('submit',event=>{
  const form=event.target.closest('form[data-world-bank]');
@@ -15867,7 +15929,10 @@ document.addEventListener('submit',event=>{
  try{
   if(form.dataset.worldBank==='open')worldOpenBankDeposit(S,firm.id,fields.get('bank'),Number(fields.get('principal')));
   else if(form.dataset.worldBank==='withdraw')worldWithdrawBankDeposit(S,firm.id,fields.get('receipt'));
-  else return;
+  else if(form.dataset.worldBank==='borrow'){
+   const trial=structuredClone(S);phase7IssueBankLoan(trial,fields.get('bank'),firm.id,Number(fields.get('principal')),Number(fields.get('months')));
+   const err=check(trial),g=consolidate(trial);if(err.length||g.errors.length)throw Error([...err,...g.errors][0]);S=trial;
+  }else return;
   requestOperationSaveV037();
   render();
   toast('銀行預金の元本を記帳しました');
@@ -18838,6 +18903,7 @@ function worldValidateDomesticLogistics(s){
  worldValidateCargoInsurance(s);
  worldValidatePassengerTrips(s);
  worldValidateBankDeposits(s);
+ phase7ValidateBankLoans(s);
  worldValidateTelephoneCalls(s);
  worldValidateMedicalServices(s);
  worldValidateDomesticOrders(s,transferByAsset);

@@ -264,6 +264,30 @@ def main():
 }""")
         assert len(taxation)==9 and all(taxation.values()),taxation
         print("PASS Phase 7 SPEC-082: nine country/year tax profile, accounting and restoration checks")
+        banking=page.evaluate("""async()=>{
+ S=newWorldGame({country:'JP',name:'Ordinary bank customer'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';saveAuto=async()=>true;
+ const root=company(S.playerId,S),rootId=root.id;
+ post(root,{cash:5000000000},{capital:5000000000},'検証用資本','financing',S);
+ const bank=initFirm(S,{name:'Ordinary loan bank',country:'JP',industry:'service',seedBase:650000,publicOwnership:true});const bankId=bank.id;
+ syncWorldIdentities(S);post(bank,{cash:1000000000},{capital:1000000000},'検証用資本','financing',S);
+ executeMADeal(S,rootId,bankId,70,2.5);
+ const b0=acc(bank,'cash'),r0=acc(root,'cash'),principal=360000,loan=phase7IssueBankLoan(S,bankId,rootId,principal,12),loanId=loan.id;
+ const actual=acc(bank,'cash')===b0-principal&&acc(root,'cash')===r0+principal&&acc(bank,'loanrec')===principal&&-acc(root,'debt')===principal;
+ const restricted=phase7RestrictedCash(root)>=principal,service=worldServiceActivity(S,'PRD-S06').some(t=>t.ref===loanId&&t.providerId===bankId&&t.principal===principal);
+ const snap=JSON.stringify(S);let denied=false;try{phase7IssueBankLoan(S,bankId,rootId,acc(bank,'cash')+1,12)}catch{denied=snap===JSON.stringify(S)}
+ const restored=parsePayload(savePayload(S)),saved=restored.worldExpansion.bankLoans[0].remaining===principal&&!check(restored).length;
+ const close=async()=>{const m=S.monthCommitted;await runMonth();if(S.monthCommitted!==m+1)throw Error(JSON.stringify(LAST_MONTH_DIAGNOSTIC))};
+ await close();await close();
+ const r=S.worldExpansion.bankLoans.find(x=>x.id===loanId),debit=company(rootId,S),credit=company(bankId,S),active=debit.loans.find(x=>x.id===loanId);
+ const paid=r.remaining===principal-principal/12&&active.outstanding===r.remaining&&r.payments.some(p=>p.kind==='principal'&&p.amount===principal/12)&&r.interestPaid>0;
+ const ledger=acc(credit,'loanrec')===r.remaining&&-acc(debit,'debt')===r.remaining&&worldBankCreditRisk(S,credit).total===r.remaining;
+ const loaded=parsePayload(savePayload(S)),forged=structuredClone(loaded);forged.worldExpansion.bankLoans[0].payments[0].amount++;
+ let tamper=false;try{parsePayload(savePayload(forged))}catch(e){tamper=e.message.includes('銀行事業融資')}
+ const g=consolidate(S),clean=!check(loaded).length&&!g.errors.length&&g.cf.reconciled;
+ return {actual,restricted,service,denied,saved,paid,ledger,tamper,clean};
+}""")
+        assert len(banking)==9 and all(banking.values()),banking
+        print("PASS Phase 7 SPEC-021: nine ordinary bank lending, repayment and integrity checks")
         assert not errors,errors
         print("PASS Phase 7 SPEC-126: six paid purchase boundaries, cash, ownership, 5 staged and 6 inherited-scope accounting checks")
         print("PASS Phase 7 SPEC-134: 8 live and restored shareholder registry checks")
