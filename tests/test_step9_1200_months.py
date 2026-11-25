@@ -221,7 +221,10 @@ def run(era, scenario='baseline', world=False, months=MONTHS):
                     """saveCheck => {
                       const prior = S, issues = check(S);
                       const accounting = consolidate(S);
+                      const journalIds=new Set();let duplicateJournalIds=0;
+                      for(const f of S.firms)for(const j of f.journals){if(journalIds.has(j.id))duplicateJournalIds++;journalIds.add(j.id)}
                       const out = {
+                        duplicateJournalIds,
                         committed: S.monthCommitted, year: S.year, month: S.month,
                         firmCount: S.firms.length, plantCount: S.firms.reduce(
                           (n, f) => n + (f.plants||[]).length, 0),
@@ -278,6 +281,7 @@ def run(era, scenario='baseline', world=False, months=MONTHS):
                 if scenario == 'specialists':
                     assert all(d["actual"] >= 1 and 0 <= d["skill"] <= 100
                                for d in checkpoint["playerDepartments"]), checkpoint
+                assert checkpoint["duplicateJournalIds"] == 0, checkpoint
                 assert not checkpoint["stateIssues"], {"era": era, "month": count, **checkpoint}
                 assert not checkpoint["consoIssues"], {"era": era, "month": count, **checkpoint}
                 assert checkpoint["cfReconciled"], {"era": era, "month": count, **checkpoint}

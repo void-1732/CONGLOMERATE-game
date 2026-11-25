@@ -6963,8 +6963,8 @@ function fileDownload(name,contents){const blob=new Blob([contents],{type:'appli
 function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('show'),4500)}
 function inputValue(id){return document.getElementById(id)?.value}
 function intValue(id,low,high){const v=Number(inputValue(id));if(!Number.isFinite(v))throw Error('数値を入力してください');return clamp(v,low,high)}
-function verifyMoney(f,base){const amount=localFromBase(base,f.country);if(amount<0||amount>(S?.worldExpansion?phase7AvailableCash(S,f):acc(f,'cash')))throw Error('利用可能な現金が不足しています');return amount}
-function spendImmediate(f,base,account,desc,type='operating'){const amount=verifyMoney(f,base);post(f,{[account]:amount},{cash:amount},desc,type);return amount}
+function verifyMoney(f,base,s=S){const amount=localFromBase(base,f.country,s);if(amount<0||amount>(s?.worldExpansion?phase7AvailableCash(s,f):acc(f,'cash')))throw Error('利用可能な現金が不足しています');return amount}
+function spendImmediate(f,base,account,desc,type='operating',s=S){const amount=verifyMoney(f,base,s);post(f,{[account]:amount},{cash:amount},desc,type,s);return amount}
 function setPlan(){try{const f=current();if(!canEdit(f))throw Error('この法人の変更権限がありません');for(const m of f.models.filter(m=>m.status==='active')){f.plans[m.id]=Math.round(intValue('plan_'+m.id,0,100000));m.priceBase=intValue('price_'+m.id,100,500000);}render();toast('生産計画・価格を変更しました。月末処理で反映されます。')}catch(e){toast(e.message)}}
 function changeBudget(){try{const f=current();if(!canEdit(f))throw Error('権限がありません');f.rnd.budgetBase=intValue('rndBudget',0,100000000);redrawResearchPanel();toast('次月研究予算の計画を更新しました')}catch(e){toast(e.message)}}
 function hireStaff(){try{const f=current();if(!canEdit(f))throw Error('権限がありません');const field=inputValue('hireArea');
@@ -11936,7 +11936,7 @@ function step5OpenDepartment(f,s,id){
   const minimum=def.cost.minPeople[0];const plan=step5Allocation(f);
   if(plan.remaining[def.base]<minimum)throw Error('専任配置に必要な人員が不足しています');
   // spendImmediate checks cash and posts the exact established amount.
-  spendImmediate(f,unlock.openingEstimateBase,'otherExpense',`専門部門設立：${def.name}`);
+  spendImmediate(f,unlock.openingEstimateBase,'otherExpense',`専門部門設立：${def.name}`,'operating',s);
   const dept={id,level:1,desiredHeadcount:minimum,actualHeadcount:minimum,assignment:'manual',
     skill:step5InitialSkill(f,def.base),state:'active',foundedMonth:step4Month(s),
     trainingBudgetBase:0,lastChargeMonth:null};
@@ -11962,7 +11962,7 @@ function step5UpgradeQuote(f,s,id){
 function step5UpgradeDepartment(f,s,id){
   const quote=step5UpgradeQuote(f,s,id);if(!quote.ready)throw Error('昇格条件未達：'+quote.reasons.join(' / '));
   const o=step5EnsureOrg(f),dept=o.departments.find(x=>x.id===id);
-  spendImmediate(f,quote.base,'otherExpense',`専門部門昇格：${STEP4_CATALOG_BY_ID[id].name} Lv.${quote.next}`);
+  spendImmediate(f,quote.base,'otherExpense',`専門部門昇格：${STEP4_CATALOG_BY_ID[id].name} Lv.${quote.next}`,'operating',s);
   dept.level=quote.next;step5Allocation(f,{write:true});
   step5Record(o,'upgraded',id,step4Month(s),`Lv.${quote.next}に昇格`);
   return dept;
@@ -12355,7 +12355,7 @@ function step6PerformService(f,s,id){
   const quote=step6CostQuote(f,s,id);
   if(!quote.ready)throw Error('高度専門業務は利用できません：'+quote.reasons.join(' / '));
   // Native spendImmediate already checks cash and posts ONE accounting entry.
-  spendImmediate(f,quote.feeBase,'rndExpense',`高度専門業務：${quote.name}`);
+  spendImmediate(f,quote.feeBase,'rndExpense',`高度専門業務：${quote.name}`,'operating',s);
   const snapshot=step6Evidence(f,s),state=step6EnsureState(f);
   const summary=quote.kind==='uncertainty'?
     `診断用の仮定上の不確実性幅を${(quote.uncertainty*100).toFixed(1)}%と評価`:
