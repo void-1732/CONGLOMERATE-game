@@ -8640,12 +8640,50 @@ function phase7MAReviewDue(s){return (s.worldExpansion?[1,4,7,10]:[1,7]).include
  }
  return [...winners.values()].sort((a,b)=>b.score-a.score||cmp(a,b)||(a.targetId<b.targetId?-1:a.targetId>b.targetId?1:0))[0]??null;
 }
+// SPEC-111/116: score realized operating results and actual technology/recipe
+// links; weights are PROVISIONAL, not historical market or regulatory data.
+function phase8StrategicScore({sameCountry,sameIndustry,buyerValue,targetValue,profit,sales,novelTech,marketShare,verticalMatches}){
+ const scale=Math.max(1,buyerValue);
+ const ratio=Math.max(0,targetValue)/scale;
+ const size=20*Math.min(1,ratio/.15)*Math.max(0,1-ratio/2);
+ const yieldScore=15*Math.max(-1,Math.min(1,profit/Math.max(1,targetValue)*5));
+ const salesScore=10*Math.min(1,Math.max(0,sales)/Math.max(1,targetValue));
+ return (sameCountry?8:0)+(sameIndustry?5:0)+size+yieldScore+salesScore
+  +Math.min(20,Math.max(0,novelTech)*2)+15*Math.max(0,Math.min(1,marketShare))
+  +Math.min(20,Math.max(0,verticalMatches)*10);
+}
+function phase8PlannedOutputs(s,f){
+ return new Set((f.plants??[]).filter(p=>p.worldPlan?.quantity>0&&worldDomesticSiteActive(p,p.siteId))
+  .map(p=>WORLD_SUPPLEMENTAL_BY_ID.get(p.worldPlan.productId))
+  .filter(r=>r&&worldRecipeUnlocked(f,r,s.year)).map(r=>r.id));
+}
+function phase8StrategicInputs(s,buyer,target,buyerVal,peers){
+ const valuation=maValuation(s,target);
+ const ownTech=new Set(buyer.research?.tree?.done??[]);
+ const novelTech=[...new Set(target.research?.tree?.done??[])].filter(id=>TECH_BY_ID[id]&&!ownTech.has(id)).length;
+ // Use reported same-country, same-industry company revenues as a proxy,
+ // not total national market share; no observations means zero.
+ const targetRevenue=Math.max(0,target.monthly?.sales??0);
+ const total=peers.get(target.country+'|'+target.industry)??0;
+ const vertical=new Set();
+ for(const [producer,consumer] of [[target,buyer],[buyer,target]])
+  for(const product of phase8PlannedOutputs(s,producer))
+   if(worldDomesticPlannedInput(s,consumer,product)>0)vertical.add(producer.id+'|'+product);
+ return {sameCountry:buyer.country===target.country,sameIndustry:buyer.industry===target.industry,
+  buyerValue:buyerVal.reference,targetValue:valuation.reference,profit:valuation.profit,sales:valuation.sales,
+  novelTech,marketShare:total>0?targetRevenue/total:0,verticalMatches:vertical.size};
+}
 function phase8ReviewIndependentBids(s,events,pool,month){
- const proposals=[];
+ const proposals=[],peers=new Map();
+ for(const f of s.firms.filter(isActiveCorporateFirm)){
+  const key=f.country+'|'+f.industry;
+  peers.set(key,(peers.get(key)??0)+Math.max(0,f.monthly?.sales??0));
+ }
  for(const buyer of pool.slice(0,7)){
+  const buyerVal=maValuation(s,buyer);
   if(random(s)>.45)continue;
   const candidates=s.firms.filter(t=>t.id!==buyer.id&&t.lifecycle?.phase==='active'&&t.reorgStatus!=='integrated'&&!controller(s,t.id)&&!controller(s,buyer.id,t.id)&&(t.maCooldown||-200)<month-12)
-   .map(t=>({t,score:(t.country===buyer.country?20:0)+(t.industry!==buyer.industry?9:3)+(t.distress?.stage||0)*3+Math.max(0,35-Math.abs(financials(t).equity/Math.max(1,financials(buyer).equity))*15)}))
+   .map(t=>({t,score:phase8StrategicScore(phase8StrategicInputs(s,buyer,t,buyerVal,peers))}))
    .sort((a,b)=>b.score-a.score).slice(0,6);
   for(const {t:target,score} of candidates){
    try{
