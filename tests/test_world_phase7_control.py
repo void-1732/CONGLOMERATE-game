@@ -198,6 +198,28 @@ def main():
 }""")
         assert len(repayment)==7 and all(repayment.values()),repayment
         print("PASS Phase 7 SPEC-086: seven external monthly principal, interest and save checks")
+        funding=page.evaluate("""()=>{
+ const s=newWorldGame({country:'JP',name:'Acquisition funding audit'}),buyer=company(s.playerId,s),target=s.firms.find(f=>f.id!==buyer.id&&f.country==='JP'&&f.owners.length===1&&f.owners[0].id==='PUBLIC');
+ const reject=fn=>{try{fn();return false}catch{return true}};
+ const own=acc(buyer,'cash');post(buyer,{otherExpense:own},{cash:own},'検証用現金支出','operating',s);
+ const borrowed=1000000000;post(buyer,{cash:borrowed},{debt:borrowed},'銀行借入','financing',s);
+ const debtBlocked=phase7RestrictedCash(buyer)===borrowed&&phase7AcquisitionCash(s,buyer)===0&&!maQuote(s,buyer,target,30,2.5).affordable;
+ const before=JSON.stringify(s),denied=reject(()=>phase7ProposeMA(s,buyer.id,target.id,30,2.5))&&before===JSON.stringify(s);
+ const issued=200000000;post(buyer,{cash:issued},{capital:issued},'外部向け新株発行：検証','financing',s);
+ const issueBlocked=phase7RestrictedCash(buyer)===borrowed+issued&&phase7AcquisitionCash(s,buyer)===0;
+ const raw=JSON.stringify(buyer.ledger),seq=s.seq;
+ const guard=reject(()=>post(buyer,{investment:1},{cash:1},'株式取得：検証','investing',s))&&raw===JSON.stringify(buyer.ledger)&&seq===s.seq;
+ post(buyer,{otherExpense:issued},{cash:issued},'通常事業支出','operating',s);
+ const consumed=phase7RestrictedCash(buyer)===borrowed;
+ post(buyer,{cash:500000000},{otherRevenue:500000000},'外部営業収入','operating',s);
+ const earned=phase7AcquisitionCash(s,buyer)===500000000;
+ const r=phase7ProposeMA(s,buyer.id,target.id,30,2.5),reserved=phase7AcquisitionCash(s,buyer)===500000000-r.amountLocal;
+ const loaded=parsePayload(savePayload(s)),restored=phase7RestrictedCash(company(buyer.id,loaded))===borrowed&&phase7AcquisitionCash(loaded,company(buyer.id,loaded))===500000000-r.amountLocal;
+ phase7SettleMA(s,buyer.id,r.id);const settled=phase7RestrictedCash(buyer)===borrowed&&phase7AcquisitionCash(s,buyer)===500000000-r.amountLocal;
+ return {debtBlocked,denied,issueBlocked,guard,consumed,earned,reserved,restored,settled,clean:!check(s).length&&!consolidate(s).errors.length};
+}""")
+        assert len(funding)==10 and all(funding.values()),funding
+        print("PASS Phase 7 SPEC-117: ten financing source audit and acquisition checks")
         assert not errors,errors
         print("PASS Phase 7 SPEC-126: six paid purchase boundaries, cash, ownership, 5 staged and 6 inherited-scope accounting checks")
         print("PASS Phase 7 SPEC-134: 8 live and restored shareholder registry checks")
