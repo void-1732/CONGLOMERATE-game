@@ -1701,7 +1701,7 @@ function factorySiteAvailable(f,site,s){
  if(!s.worldExpansion)return true;
  if(f.industry==='resource')return site.country===f.country&&worldMiningLandOpen(s,site.id);
  if(f.industry==='service')return site.country===f.country
-  &&(worldConstructionSiteAvailable(s,site.id)||worldPublicPowerDemand(s,site.id)>0);
+  &&(worldConstructionSiteAvailable(s,site.id)||worldPublicPowerDemand(s,site.id)>0||worldBankSiteOpen(f.country,site.id,ym(s.year,s.month)));
  return true;
 }
 function factorySiteChoice(f){return SITE_CATALOG.filter(x=>factorySiteAvailable(f,x,S)).map(x=>`<option value="${x.id}" ${x.id===homeSite(f.country).id?'selected':''}>${NAMES[x.country]}：${esc(x.name)} ／土地${nfmt(x.land*100)}%・技能/インフラ${nfmt(x.infra*100)}%</option>`).join('')}
@@ -15568,13 +15568,16 @@ function worldBankCreditRisk(s,bank){
  // as a total ceiling; a single sector may use at most 1.5x capital.
  return {total,sector,equity,liquid,allowance,netExposure:total-allowance,totalLimit:Math.floor(equity*2),sectorLimit:Math.floor(equity*1.5)};
 }
-function worldInfrastructureBankReady(s,bank,buyer,principal){
- if(!bank||!buyer||bank===buyer||!Number.isSafeInteger(principal)||principal<1||!isActiveCorporateFirm(bank)||bank.country!==buyer.country||bank.industry!=='service'
-  ||!bank.plants.some(p=>worldDomesticSiteActive(p,homeSite(bank.country).id)))return false;
+function worldBankCreditReady(s,bank,buyer,principal){
+ if(!bank||!buyer||bank===buyer||!Number.isSafeInteger(principal)||principal<1
+  ||!isActiveCorporateFirm(bank)||bank.country!==buyer.country||bank.industry!=='service')return false;
  const risk=worldBankCreditRisk(s,bank);
  return risk.liquid>=principal+localFromBase(50000,bank.country,s)
   &&risk.total+principal<=risk.totalLimit&&(risk.sector[buyer.industry]??0)+principal<=risk.sectorLimit
   &&financials(buyer).equity>=principal/2&&acc(buyer,'debt')-principal>=-2*financials(buyer).equity;
+}
+function worldInfrastructureBankReady(s,bank,buyer,principal){
+ return worldBankCreditReady(s,bank,buyer,principal)&&bank.plants.some(p=>worldDomesticSiteActive(p,homeSite(bank.country).id));
 }
 function worldConstructionGrantAvailable(s,c,country,month){
  const reserved=(s.worldExpansion.constructionContracts??[]).reduce((sum,x)=>{
@@ -16092,21 +16095,25 @@ function worldStorageTerms(w,warehouse){
 }
 // A first settlement path for demand deposits. The bank keeps the entire principal
 // in a restricted reserve outside spendable cash. Interest and lending are separate.
-const WORLD_BANK_DEPOSIT_PROFILE=Object.freeze({
- country:'JP',siteId:'JP-TOK',opensAt:ym(1900,1),
- source:'https://www.shibusawa.or.jp/english/eiichi/denki_shiryo/denki_toc04_en.html'
+const WORLD_BANK_SERVICE_PROFILES=Object.freeze({
+ JP:Object.freeze({siteId:'JP-TOK',opensAt:ym(1900,1),source:'https://www.shibusawa.or.jp/english/eiichi/denki_shiryo/denki_toc04_en.html'}),
+ UK:Object.freeze({siteId:'UK-LON',opensAt:ym(1900,1),source:'https://www.natwestgroup.com/heritage/companies/london-and-westminster-bank-ltd.html'})
 });
+function worldBankServiceProfile(country){return Object.hasOwn(WORLD_BANK_SERVICE_PROFILES,country)?WORLD_BANK_SERVICE_PROFILES[country]:null;}
+function worldBankSiteOpen(country,siteId,month){
+ const profile=worldBankServiceProfile(country);
+ return !!profile&&profile.siteId===siteId&&month>=profile.opensAt;
+}
 function worldBankCanReceive(s,bank){
- const profile=WORLD_BANK_DEPOSIT_PROFILE;
- return isActiveCorporateFirm(bank)&&bank.country===profile.country&&bank.industry==='service'
-  &&ym(s.year,s.month)>=profile.opensAt
+ const profile=worldBankServiceProfile(bank?.country);
+ return !!profile&&isActiveCorporateFirm(bank)&&bank.industry==='service'&&ym(s.year,s.month)>=profile.opensAt
   &&bank.plants.some(plant=>worldDomesticSiteActive(plant,profile.siteId));
 }
 // SPEC-021: ordinary bank lending, using the existing verified deposit bank site.
 function phase7IssueBankLoan(s,bankId,borrowerId,principal,months){
  const bank=company(bankId,s),borrower=company(borrowerId,s);
  if(!s.worldExpansion||!worldBankCanReceive(s,bank)||!isActiveCorporateFirm(borrower)||!controller(s,borrowerId)
-  ||![12,24,36].includes(months)||!worldInfrastructureBankReady(s,bank,borrower,principal))throw Error('銀行融資の操作権限・流動性・自己資本・集中リスクまたは借入上限を確認してください');
+  ||![12,24,36].includes(months)||!worldBankCreditReady(s,bank,borrower,principal))throw Error('銀行融資の操作権限・流動性・自己資本・集中リスクまたは借入上限を確認してください');
  const month=ym(s.year,s.month),rate=Math.max(.02,s.world[bank.country].rate+.02);
  if(!Number.isFinite(rate)||rate<0||!Number.isSafeInteger(acc(bank,'loanrec')+principal)||!Number.isSafeInteger(acc(borrower,'cash')+principal)||!Number.isSafeInteger(acc(borrower,'debt')-principal))throw Error('融資契約金額が不正です');
  const restricted=phase7LendingRestrictedPrincipal(s,bank,principal);
@@ -16178,8 +16185,9 @@ function phase7ValidateBankLoans(s){
  for(const r of rows){
   const bank=company(r?.bankId,s),borrower=company(r?.borrowerId,s),id=Number(r?.id?.slice(1));
   const project=projects.get(r?.infrastructureContractId),funding=project?.funding;
+  const profile=worldBankServiceProfile(r?.country);
   const validProduct=r?.infrastructureContractId===undefined
-   ?r?.country===WORLD_BANK_DEPOSIT_PROFILE.country&&r.month>=WORLD_BANK_DEPOSIT_PROFILE.opensAt
+   ?profile&&r.month>=profile.opensAt
    :project?.status==='COMPLETE'&&project.buyerId===r.borrowerId&&project.finishedAt===r.month&&r.months===36
     &&funding?.bankId===r.bankId&&funding.approval?.loan===r.principal&&funding.approval?.rate===r.rate
     &&funding.payment?.loanId===r.id&&funding.payment?.lenderJournal===r.fromJournal&&funding.payment?.borrowerJournal===r.toJournal;
@@ -16229,8 +16237,8 @@ function worldOpenBankDeposit(s,clientId,bankId,principal){
  const w=s.worldExpansion,client=company(clientId,s),bank=company(bankId,s);
  if(!w||!isActiveCorporateFirm(client)||!worldBankCanReceive(s,bank)||client===bank||client.country!==bank.country
   ||!controller(s,clientId)||!controller(s,bankId))
-  throw Error('同国内の預金者と東京で稼働するサービス法人の操作権限が必要です');
- if(!Number.isSafeInteger(principal)||principal<1||acc(client,'cash')<principal
+  throw Error('同国内の預金者と取扱地域で稼働するサービス法人の操作権限が必要です');
+ if(!Number.isSafeInteger(principal)||principal<1||phase7AvailableCash(s,client)<principal
   ||!Number.isSafeInteger(acc(bank,'worldBankReserve')+principal)
   ||!Number.isSafeInteger(acc(client,'worldBankDeposits')+principal))
   throw Error('預入金額または手元現金を確認してください');
@@ -16280,13 +16288,14 @@ function worldBankDepositPanel(s,firm,edit){
  const deposits=(s.worldExpansion.bankDeposits??[]).filter(t=>t.clientId===firm.id&&t.returnedAt===null);
  const lenders=s.firms.filter(bank=>worldBankCanReceive(s,bank)&&bank!==firm&&bank.country===firm.country);
  const risk=worldBankCreditRisk(s,firm);
+ const source=worldBankServiceProfile(firm.country)?.source,available=phase7AvailableCash(s,firm);
  if(!banks.length&&!lenders.length&&!deposits.length&&!worldBankCanReceive(s,firm)&&!acc(firm,'worldBankReserve')&&!risk.total)return '';
  const form=(action,fields,label)=>'<form class="row" data-world-bank="'+action+'">'+fields+
   '<button class="btn sm" type="submit">'+label+'</button></form>';
  const option=(id,label)=>'<option value="'+esc(id)+'">'+esc(label)+'</option>';
- const open=edit&&banks.length&&acc(firm,'cash')>0?form('open',
+ const open=edit&&banks.length&&available>0?form('open',
   '<label>預入先 <select name="bank" required>'+banks.map(bank=>option(bank.id,bank.name)).join('')+'</select></label>'
-  +'<label>預入額（通貨最小単位） <input name="principal" type="number" min="1" max="'+acc(firm,'cash')+'" required></label>',
+  +'<label>預入額（通貨最小単位） <input name="principal" type="number" min="1" max="'+available+'" required></label>',
   '銀行に預ける'):'';
  const close=edit&&deposits.length?form('withdraw',
   '<label>払戻対象 <select name="receipt" required>'+deposits.map(t=>option(t.id,
@@ -16306,8 +16315,8 @@ function worldBankDepositPanel(s,firm,edit){
   +rowstat('貸出総額上限（モデル）',fnum(firm,risk.totalLimit))
   +rowstat('産業別上限（モデル）',fnum(firm,risk.sectorLimit))
   +Object.entries(risk.sector).map(([industry,n])=>rowstat('貸出集中：'+industryName(industry),fnum(firm,n))).join('')
-  +'<p>預金は無利息で、元本を全額分別します。 <a href="'+esc(WORLD_BANK_DEPOSIT_PROFILE.source)
-  +'" target="_blank" rel="noopener noreferrer">日本の預金取扱史</a></p>'+open+close+loanForm+issued.map(r=>rowstat(esc(company(r.borrowerId,s)?.name||r.borrowerId)+' 貸出残高',fnum(firm,r.remaining))).join('')+'</section>';
+  +'<p>預金は無利息で、元本を全額分別します。 '+(source?'<a href="'+esc(source)+'" target="_blank" rel="noopener noreferrer">預金取扱史</a>':'')
+  +'</p>'+open+close+loanForm+issued.map(r=>rowstat(esc(company(r.borrowerId,s)?.name||r.borrowerId)+' 貸出残高',fnum(firm,r.remaining))).join('')+'</section>';
 }
 document.addEventListener('submit',event=>{
  const form=event.target.closest('form[data-world-bank]');
@@ -18652,7 +18661,7 @@ function worldDomesticBlocksReorganization(s,ownerId,plant=null){
    &&((r.clientId===ownerId&&(!plant||r.plantId===plant.id))
     ||(r.providerId===ownerId&&(!plant||s.worldExpansion.medicalClinics[r.clinicId]?.plantId===plant.id))))
   ||(s.worldExpansion?.bankDeposits??[]).some(t=>t.returnedAt===null&&(
-   (!plant&&t.clientId===ownerId)||(t.bankId===ownerId&&(!plant||plant.siteId===WORLD_BANK_DEPOSIT_PROFILE.siteId))))
+   (!plant&&t.clientId===ownerId)||(t.bankId===ownerId&&(!plant||plant.siteId===worldBankServiceProfile(company(ownerId,s)?.country)?.siteId))))
   ||(s.worldExpansion?.passengerTrips??[]).some(t=>t.status==='BOOKED'&&t.firmId===ownerId
    &&(!plant||t.fromPlantId===plant.id||t.toPlantId===plant.id))
   ||(!plant&&(s.worldExpansion?.cargoInsurance??[]).some(t=>t.closedAt===null&&(t.providerId===ownerId||t.clientId===ownerId)))
@@ -18966,12 +18975,13 @@ function worldServiceJournalMatcher(s){
 function worldValidateBankDeposits(s){
  const rows=s.worldExpansion.bankDeposits??[];
  if(!Array.isArray(rows))throw Error('銀行預金台帳が不正です');
- const profile=WORLD_BANK_DEPOSIT_PROFILE,month=ym(s.year,s.month);
+ const month=ym(s.year,s.month);
  const clientBalances=new Map(),bankBalances=new Map(),matches=worldServiceJournalMatcher(s);
  let sequence=0;
  for(const receipt of rows){
   const id=Number(receipt?.id?.split('-')[1]),client=company(receipt?.clientId,s),bank=company(receipt?.bankId,s);
-  if(!client||!bank||client===bank||client.country!==profile.country||bank.country!==profile.country||bank.industry!=='service'
+  const profile=worldBankServiceProfile(bank?.country);
+  if(!client||!bank||!profile||client===bank||client.country!==bank.country||bank.industry!=='service'
    ||!/^WBD-\d+$/.test(receipt.id)||!Number.isSafeInteger(id)||id<=sequence||id>=s.seq||receipt.journal!==id-2
    ||!Number.isSafeInteger(receipt.month)||receipt.month<profile.opensAt||receipt.month>month
    ||!Number.isSafeInteger(receipt.principal)||receipt.principal<1

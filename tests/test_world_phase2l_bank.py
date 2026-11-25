@@ -95,9 +95,62 @@ def main():
           };
         }""")
         assert all(closed.values()), closed
+        london = page.evaluate("""async()=>{
+          S=newWorldGame({country:'UK',name:'London banking group'});
+          VIEW_FIRM=S.playerId;VIEW_COUNTRY='UK';PAGE='corporateSubsidiaries';render();
+          document.querySelector('#subName').value='London Bank';
+          document.querySelector('#subCountry').value='UK';
+          document.querySelector('#subIndustry').value='service';
+          document.querySelector('#subCapital').value='1200000';
+          createSub();syncWorldIdentities(S);
+          const bank=S.firms.find(f=>f.name==='London Bank'),bid=bank.id;
+          const noMidlands=!worldBankCanReceive(S,bank)&&bank.plants[0].siteId==='UK-MID';
+          VIEW_FIRM=bid;PAGE='facilityExpansion';render();
+          document.querySelector('#factoryName').value='London branch';
+          document.querySelector('#factorySite').value='UK-LON';
+          factoryBuild();
+          const p=bank.plants.find(p=>p.name==='London branch');
+          if(!p?.construction||p.siteId!=='UK-LON'||worldBankCanReceive(S,bank))throw Error('London branch commissioning gate');
+          for(let n=0;n<2;n++){const m=S.monthCommitted;await runMonth();if(S.monthCommitted!==m+1)throw Error(JSON.stringify(LAST_MONTH_DIAGNOSTIC))}
+          const ready=worldBankCanReceive(S,company(bid,S));
+          VIEW_FIRM=S.playerId;PAGE='financeFunding';render();
+          return {bid,plantId:p.id,noMidlands,ready};
+        }""")
+        assert london["noMidlands"] and london["ready"], london
+        deposit_form = page.locator('form[data-world-bank="open"]')
+        deposit_form.locator('[name="bank"]').select_option(london["bid"])
+        deposit_form.locator('[name="principal"]').fill("10000")
+        deposit_form.get_by_role("button", name="銀行に預ける").click()
+        loan_form = page.locator('form[data-world-bank="borrow"]')
+        loan_form.locator('[name="bank"]').select_option(london["bid"])
+        loan_form.locator('[name="principal"]').fill("12000")
+        loan_form.locator('[name="months"]').select_option("12")
+        loan_form.get_by_role("button", name="普通融資を申し込む").click()
+        london_result = page.evaluate("""async({bid,plantId})=>{
+          const bank=company(bid,S),client=company(S.playerId,S),w=S.worldExpansion;
+          const deposit=w.bankDeposits[0],loan=w.bankLoans[0];
+          const local=firmCurrency(bank,S)==='GBP'&&firmCurrency(client,S)==='GBP'
+            &&deposit.bankId===bid&&deposit.clientId===client.id&&deposit.principal===10000
+            &&loan.country==='UK'&&loan.principal===12000&&acc(bank,'worldBankReserve')===10000;
+          const initial=parsePayload(savePayload(S)),report=consolidate(initial);
+          const consolidated=!report.errors.length&&report.cf.reconciled&&report.adjustments.bankDepositsEliminated>0;
+          const foreign=S.firms.find(f=>f.country==='JP');
+          const deny=action=>{try{action();return false}catch{return true}};
+          const crossBorder=deny(()=>worldOpenBankDeposit(S,foreign.id,bid,100))&&deny(()=>phase7IssueBankLoan(S,bid,foreign.id,100,12));
+          const branch=bank.plants.find(p=>p.id===plantId);
+          const blocked=worldDomesticBlocksReorganization(S,bid,branch)&&!worldDomesticBlocksReorganization(S,bid,bank.plants[0]);
+          branch.paused=true;syncPlant(bank);
+          for(let n=0;n<2;n++){const m=S.monthCommitted;await runMonth();if(S.monthCommitted!==m+1)throw Error(JSON.stringify(LAST_MONTH_DIAGNOSTIC))}
+          const loaded=parsePayload(savePayload(S)),creditor=company(bid,loaded);
+          const returned=loaded.worldExpansion.bankDeposits[0].returnedAt!==null&&acc(creditor,'worldBankReserve')===0;
+          const paid=loaded.worldExpansion.bankLoans[0].remaining===11000&&acc(creditor,'loanrec')===11000
+            &&loaded.worldExpansion.bankLoans[0].interestPaid>0;
+          return {local,consolidated,crossBorder,blocked,returned,paid,clean:!check(loaded).length&&!consolidate(loaded).errors.length};
+        }""", london)
+        assert all(london_result.values()), london_result
         assert not errors, errors
         browser.close()
-    print("PASS Phase 2-L demand deposit opening, full reserve, standalone/group/FX reporting, UI refund and save")
+    print("PASS demand deposits and bank loans: Tokyo regression, London GBP accounting, branch commissioning, closure and save")
 
 
 if __name__ == "__main__":
