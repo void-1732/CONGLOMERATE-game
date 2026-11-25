@@ -220,6 +220,30 @@ def main():
 }""")
         assert len(funding)==10 and all(funding.values()),funding
         print("PASS Phase 7 SPEC-117: ten financing source audit and acquisition checks")
+        dividend=page.evaluate("""async()=>{
+ S=newWorldGame({country:'JP',name:'Dividend audit'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';saveAuto=async()=>true;
+ const root=company(S.playerId,S),target=S.firms.find(f=>f.id!==root.id&&f.country==='JP'&&f.owners.length===1&&f.owners[0].id==='PUBLIC'),rootId=root.id,targetId=target.id;
+ post(root,{cash:5000000000},{capital:5000000000},'検証用資本','financing',S);
+ executeMADeal(S,rootId,targetId,70,2.5);
+ post(target,{cash:1000000},{otherRevenue:1000000},'配当原資の営業収益','operating',S);
+ const before=consolidate(S),cash=acc(target,'cash'),parentCash=acc(root,'cash'),profit=financials(target).profit;
+ const reject=fn=>{try{fn();return false}catch{return true}};
+ const snapshot=JSON.stringify(S),rejectOver=reject(()=>phase7PayDividend(S,targetId,phase7DividendLimit(S,target)+1))&&snapshot===JSON.stringify(S);
+ const r=phase7PayDividend(S,targetId,100001),p=r.allocations.find(a=>a.ownerId===rootId),ext=r.allocations.find(a=>a.ownerId==='PUBLIC');
+ const allocated=p.paid===70001&&ext.paid===30000&&p.paid+ext.paid===r.amount;
+ const balances=cash-acc(target,'cash')===r.amount&&acc(root,'cash')-parentCash===p.received&&acc(target,'dividendsPaid')===r.amount;
+ const profitPreserved=financials(target).profit===profit;
+ const after=consolidate(S),eliminated=after.pl.profit===before.pl.profit&&before.bs.cash-after.bs.cash===ext.paid&&after.bs.liabEquityDiff===0&&after.spot.checkDifference===0;
+ const loaded=parsePayload(savePayload(S)),restore=loaded.worldExpansion.dividends[0].amount===r.amount&&!check(loaded).length;
+ const forged=structuredClone(loaded);forged.worldExpansion.dividends[0].allocations[0].paid++;
+ const tamper=reject(()=>parsePayload(savePayload(forged)));
+ const close=async()=>{const m=S.monthCommitted;await runMonth();if(S.monthCommitted!==m+1)throw Error(JSON.stringify(LAST_MONTH_DIAGNOSTIC))};
+ await close();
+ const g=consolidate(S),monthly=g.cf.reconciled&&!g.errors.length&&!check(S).length;
+ return {rejectOver,allocated,balances,profitPreserved,eliminated,restore,tamper,monthly};
+}""")
+        assert len(dividend)==8 and all(dividend.values()),dividend
+        print("PASS Phase 7 SPEC-056/080/100: eight discretionary distribution and consolidation checks")
         assert not errors,errors
         print("PASS Phase 7 SPEC-126: six paid purchase boundaries, cash, ownership, 5 staged and 6 inherited-scope accounting checks")
         print("PASS Phase 7 SPEC-134: 8 live and restored shareholder registry checks")

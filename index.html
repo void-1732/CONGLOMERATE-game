@@ -867,7 +867,7 @@ const COUNTRIES={
  SA:{currency:'SAR',fx:49,pop:anchorPopulation('SA',1932),wealth:.72,wage:123,demand:14,
   steel:482,rubber:329,steelSupply:105,rubberSupply:85}
 };
-const ACCTYPE={cash:'asset',materials:'asset',materialsTransit:'asset',componentStock:'asset',componentTransit:'asset',wip:'asset',goods:'asset',goodsTransit:'asset',constructionAssets:'asset',ppe:'asset',accdep:'contra',investment:'asset',ar:'asset',loanrec:'asset',resourceRights:'asset',worldShipmentStock:'asset',worldImportDutyPrepaid:'asset',worldInternationalReceivable:'asset',worldStoredStock:'asset',worldConstructionWip:'asset',worldInsuranceReserve:'asset',worldInsurancePrepaid:'asset',worldTravelAdvance:'asset',worldBankDeposits:'asset',worldBankRemittance:'asset',worldBankReserve:'asset',worldSupplierAdvances:'asset',partReceivable:'asset',partPayable:'liability',worldCustomerAdvances:'liability',worldInternationalPayable:'liability',worldInternationalDutyPayable:'liability',worldInsuranceUnearned:'liability',worldDemandDeposits:'liability',payable:'liability',wagesDue:'liability',debt:'liability',interestDue:'liability',taxDue:'liability',capital:'equity',treasuryStock:'contraEquity',sales:'revenue',serviceRevenue:'revenue',otherRevenue:'revenue',cogs:'expense',labor:'expense',rndExpense:'expense',advert:'expense',maintenance:'expense',interestExpense:'expense',depreciation:'expense',taxExpense:'expense',fxLoss:'expense',otherExpense:'expense'};
+const ACCTYPE={cash:'asset',materials:'asset',materialsTransit:'asset',componentStock:'asset',componentTransit:'asset',wip:'asset',goods:'asset',goodsTransit:'asset',constructionAssets:'asset',ppe:'asset',accdep:'contra',investment:'asset',ar:'asset',loanrec:'asset',resourceRights:'asset',worldShipmentStock:'asset',worldImportDutyPrepaid:'asset',worldInternationalReceivable:'asset',worldStoredStock:'asset',worldConstructionWip:'asset',worldInsuranceReserve:'asset',worldInsurancePrepaid:'asset',worldTravelAdvance:'asset',worldBankDeposits:'asset',worldBankRemittance:'asset',worldBankReserve:'asset',worldSupplierAdvances:'asset',partReceivable:'asset',partPayable:'liability',worldCustomerAdvances:'liability',worldInternationalPayable:'liability',worldInternationalDutyPayable:'liability',worldInsuranceUnearned:'liability',worldDemandDeposits:'liability',payable:'liability',wagesDue:'liability',debt:'liability',interestDue:'liability',taxDue:'liability',capital:'equity',treasuryStock:'contraEquity',dividendsPaid:'contraEquity',sales:'revenue',serviceRevenue:'revenue',otherRevenue:'revenue',cogs:'expense',labor:'expense',rndExpense:'expense',advert:'expense',maintenance:'expense',interestExpense:'expense',depreciation:'expense',taxExpense:'expense',fxLoss:'expense',otherExpense:'expense'};
 const PAGES={dashboard:'経営概況',marketOwn:'自社グループ市場分析',market:'世界市場分析',product:'製品・開発',factory:'工場・調達',people:'研究・人事',finance:'財務・資金',group:'企業グループ',consolidated:'連結財務三表',reports:'月次レポート',save:'保存・設定'};
 /* STEP 2: navigation only. Every tab points to a current, fully functional PAGE.
    New specialized pages are created in STEP 3+, not silently replaced with placeholders.
@@ -3207,7 +3207,7 @@ function reorganizationPanel(f,edit){ensureV11Firm(f);
  ${S.reorgHistory?.length?`<div class="scroll"><table><thead><tr><th>年月</th><th>取引</th><th>移管元</th><th>移管先</th><th>内容</th></tr></thead><tbody>${S.reorgHistory.slice(-7).reverse().map(r=>`<tr><td>${Math.floor(r.month/12)}年${r.month%12+1}月</td><td>${r.kind==='business-transfer'?'事業移管':'事業統合'}</td><td>${esc(company(r.source)?.name||r.source)}</td><td>${esc(company(r.target)?.name||r.target)}</td><td>${esc(r.plantName||'全事業')}（簿価処理）</td></tr>`).join('')}</tbody></table></div>`:''}</section>`;
 }
 
-function check(s=S){let errs=[];if(!s||s.schema!==VERSION)return ['保存版の互換性がありません'];if(!Array.isArray(s.firms)||!s.firms.length)return ['法人情報がありません'];if(s.worldExpansion){try{phase7ValidateOwners(s);phase7ValidateMAReservations(s);phase7ValidateLoanSchedules(s);phase7ValidateFundingArchive(s)}catch(e){return [e.message]}}const ids=new Set();for(const f of s.firms){if(ids.has(f.id))errs.push('法人ID重複 '+f.id);ids.add(f.id);const fin=financials(f);if(Math.abs(fin.bsDiff)>1)errs.push(f.name+'：貸借不一致 '+fin.bsDiff);const glSum=Object.values(f.ledger).reduce((a,b)=>a+b,0);if(glSum!==0)errs.push(f.name+'：借貸不一致');if(!Number.isSafeInteger(glSum))errs.push(f.name+'：数値異常');const stk=Object.values(f.stock||{}).reduce((a,b)=>a+(b.v||0),0);if(Math.abs(stk-acc(f,'materials'))>2)errs.push(f.name+'：材料原価台帳不一致');const goods=Object.values(f.goods||{}).reduce((a,b)=>a+(b.v||0),0);if(Math.abs(goods-acc(f,'goods'))>2)errs.push(f.name+'：製品原価台帳不一致');if(f.distribution){const transit=f.distribution.outbound.reduce((sum,x)=>sum+x.bookCost,0);if(Math.abs(transit-acc(f,'goodsTransit'))>2)errs.push(f.name+'：輸送中製品原価不一致');if(f.distribution.outbound.some(x=>x.qty<1||x.bookCost<0))errs.push(f.name+'：輸送中製品数量異常');}if(f.supply?.inbound?.some(x=>x.qty<1||x.totalBase<0))errs.push(f.name+'：輸送中材料数量異常');if(f.industry==='resource'&&f.rawOpsV032){if(f.goods.RESOURCE?.q>0)errs.push(f.name+'：資源在庫の旧新重複');for(const type of RAW_TYPES_V032){const bin=rawBinV032(f,type);if(!Number.isSafeInteger(bin.q)||bin.q<0||!Number.isSafeInteger(bin.v)||bin.v<0)errs.push(f.name+'：資材別在庫異常 '+type);}}for(const [k,it] of Object.entries(f.stock||{}))if(it.q<0||it.v<0)errs.push(f.name+'：負材料 '+k);for(const [k,it] of Object.entries(f.goods||{}))if(it.q<0||it.v<0)errs.push(f.name+'：負製品 '+k);if(!Number.isFinite(f.plant.condition)||f.plant.condition<0||f.plant.condition>100)errs.push(f.name+'：設備状態不正');if(f.plants){const ids=new Set();for(const p of f.plants){if(ids.has(p.id)||!FACTORY_KINDS[p.kind]||!Number.isSafeInteger(p.capacity)||p.capacity<1||p.condition<0||p.condition>100)errs.push(f.name+'：工場情報不正 '+p.id);ids.add(p.id)}if(f.plant.capacity!==activeFactories(f).reduce((a,p)=>a+p.capacity,0))errs.push(f.name+'：工場能力台帳不一致');if(f.plants.some(p=>!findSite(p.siteId)))errs.push(f.name+'：工場立地が不正')}if(f.research&&!RND_DOMAINS[f.research.topic])errs.push(f.name+'：研究テーマ不正');let sum=0;for(const o of f.owners){sum+=o.econ;if(o.econ<0||o.vote<0||o.vote>1)errs.push(f.name+'：持分比率不正');if(o.id!== 'PUBLIC'&&!company(o.id,s))errs.push(f.name+'：株主参照不正');}if(Math.abs(sum-1)>0.000001)errs.push(f.name+'：持分合計不正');if(f.shareBlocks){const pool=f.owners.find(o=>o.id==='PUBLIC')?.econ||0;const out=f.shareBlocks.reduce((a,x)=>a+x.holding,0);if(Math.abs(pool-out)>0.000002||f.shareBlocks.some(x=>x.holding<-.000001))errs.push(f.name+'：外部株主台帳不一致');}if(f.sharesOutstanding!==undefined&&(!Number.isSafeInteger(f.sharesOutstanding)||f.sharesOutstanding<1))errs.push(f.name+'：発行済株式数不正');if(!Number.isSafeInteger(f.treasuryShares||0)||(f.treasuryShares||0)<0||(f.treasuryShares||0)>=f.sharesOutstanding)errs.push(f.name+'：自己株式数不正');if(!Number.isSafeInteger(f.treasuryCostLocal||0)||(f.treasuryCostLocal||0)<0||Math.abs((f.treasuryCostLocal||0)-acc(f,'treasuryStock'))>1)errs.push(f.name+'：自己株式の取得原価台帳不一致');const votes=f.owners.reduce((a,o)=>a+(o.vote||0),0);if(Math.abs(votes-1)>.000002)errs.push(f.name+'：議決権合計不正');}for(const f of s.firms){ensureV11Firm(f);const qty=Object.values(f.interplant.siteComponents).reduce((a,b)=>a+b,0);if(qty>(f.stock.components?.q||0)||qty<0)errs.push(f.name+'：工場専用部品台帳不一致');const cash=f.interplant.shipments.reduce((a,t)=>a+t.bookCost,0)+(f.factoryOps?.shipments||[]).reduce((a,t)=>a+t.bookCost,0);if(Math.abs(cash-acc(f,'materialsTransit'))>2)errs.push(f.name+'：工場輸送中在庫の簿価不一致');if(f.interplant.shipments.some(t=>!Number.isSafeInteger(t.qty)||t.qty<1||!f.plants.some(p=>p.id===t.to)))errs.push(f.name+'：工場間輸送が不正');validateFactoryV21(f,errs,s);}errs.push(...validatePartEconomyV27(s));errs.push(...validateMarketV031(s));errs.push(...validateNpcV033(s));errs.push(...validateInventoryPolicyV034(s));errs.push(...validateGroupMergerPlans(s));return errs}
+function check(s=S){let errs=[];if(!s||s.schema!==VERSION)return ['保存版の互換性がありません'];if(!Array.isArray(s.firms)||!s.firms.length)return ['法人情報がありません'];if(s.worldExpansion){try{phase7ValidateOwners(s);phase7ValidateMAReservations(s);phase7ValidateLoanSchedules(s);phase7ValidateFundingArchive(s);phase7ValidateDividends(s)}catch(e){return [e.message]}}const ids=new Set();for(const f of s.firms){if(ids.has(f.id))errs.push('法人ID重複 '+f.id);ids.add(f.id);const fin=financials(f);if(Math.abs(fin.bsDiff)>1)errs.push(f.name+'：貸借不一致 '+fin.bsDiff);const glSum=Object.values(f.ledger).reduce((a,b)=>a+b,0);if(glSum!==0)errs.push(f.name+'：借貸不一致');if(!Number.isSafeInteger(glSum))errs.push(f.name+'：数値異常');const stk=Object.values(f.stock||{}).reduce((a,b)=>a+(b.v||0),0);if(Math.abs(stk-acc(f,'materials'))>2)errs.push(f.name+'：材料原価台帳不一致');const goods=Object.values(f.goods||{}).reduce((a,b)=>a+(b.v||0),0);if(Math.abs(goods-acc(f,'goods'))>2)errs.push(f.name+'：製品原価台帳不一致');if(f.distribution){const transit=f.distribution.outbound.reduce((sum,x)=>sum+x.bookCost,0);if(Math.abs(transit-acc(f,'goodsTransit'))>2)errs.push(f.name+'：輸送中製品原価不一致');if(f.distribution.outbound.some(x=>x.qty<1||x.bookCost<0))errs.push(f.name+'：輸送中製品数量異常');}if(f.supply?.inbound?.some(x=>x.qty<1||x.totalBase<0))errs.push(f.name+'：輸送中材料数量異常');if(f.industry==='resource'&&f.rawOpsV032){if(f.goods.RESOURCE?.q>0)errs.push(f.name+'：資源在庫の旧新重複');for(const type of RAW_TYPES_V032){const bin=rawBinV032(f,type);if(!Number.isSafeInteger(bin.q)||bin.q<0||!Number.isSafeInteger(bin.v)||bin.v<0)errs.push(f.name+'：資材別在庫異常 '+type);}}for(const [k,it] of Object.entries(f.stock||{}))if(it.q<0||it.v<0)errs.push(f.name+'：負材料 '+k);for(const [k,it] of Object.entries(f.goods||{}))if(it.q<0||it.v<0)errs.push(f.name+'：負製品 '+k);if(!Number.isFinite(f.plant.condition)||f.plant.condition<0||f.plant.condition>100)errs.push(f.name+'：設備状態不正');if(f.plants){const ids=new Set();for(const p of f.plants){if(ids.has(p.id)||!FACTORY_KINDS[p.kind]||!Number.isSafeInteger(p.capacity)||p.capacity<1||p.condition<0||p.condition>100)errs.push(f.name+'：工場情報不正 '+p.id);ids.add(p.id)}if(f.plant.capacity!==activeFactories(f).reduce((a,p)=>a+p.capacity,0))errs.push(f.name+'：工場能力台帳不一致');if(f.plants.some(p=>!findSite(p.siteId)))errs.push(f.name+'：工場立地が不正')}if(f.research&&!RND_DOMAINS[f.research.topic])errs.push(f.name+'：研究テーマ不正');let sum=0;for(const o of f.owners){sum+=o.econ;if(o.econ<0||o.vote<0||o.vote>1)errs.push(f.name+'：持分比率不正');if(o.id!== 'PUBLIC'&&!company(o.id,s))errs.push(f.name+'：株主参照不正');}if(Math.abs(sum-1)>0.000001)errs.push(f.name+'：持分合計不正');if(f.shareBlocks){const pool=f.owners.find(o=>o.id==='PUBLIC')?.econ||0;const out=f.shareBlocks.reduce((a,x)=>a+x.holding,0);if(Math.abs(pool-out)>0.000002||f.shareBlocks.some(x=>x.holding<-.000001))errs.push(f.name+'：外部株主台帳不一致');}if(f.sharesOutstanding!==undefined&&(!Number.isSafeInteger(f.sharesOutstanding)||f.sharesOutstanding<1))errs.push(f.name+'：発行済株式数不正');if(!Number.isSafeInteger(f.treasuryShares||0)||(f.treasuryShares||0)<0||(f.treasuryShares||0)>=f.sharesOutstanding)errs.push(f.name+'：自己株式数不正');if(!Number.isSafeInteger(f.treasuryCostLocal||0)||(f.treasuryCostLocal||0)<0||Math.abs((f.treasuryCostLocal||0)-acc(f,'treasuryStock'))>1)errs.push(f.name+'：自己株式の取得原価台帳不一致');const votes=f.owners.reduce((a,o)=>a+(o.vote||0),0);if(Math.abs(votes-1)>.000002)errs.push(f.name+'：議決権合計不正');}for(const f of s.firms){ensureV11Firm(f);const qty=Object.values(f.interplant.siteComponents).reduce((a,b)=>a+b,0);if(qty>(f.stock.components?.q||0)||qty<0)errs.push(f.name+'：工場専用部品台帳不一致');const cash=f.interplant.shipments.reduce((a,t)=>a+t.bookCost,0)+(f.factoryOps?.shipments||[]).reduce((a,t)=>a+t.bookCost,0);if(Math.abs(cash-acc(f,'materialsTransit'))>2)errs.push(f.name+'：工場輸送中在庫の簿価不一致');if(f.interplant.shipments.some(t=>!Number.isSafeInteger(t.qty)||t.qty<1||!f.plants.some(p=>p.id===t.to)))errs.push(f.name+'：工場間輸送が不正');validateFactoryV21(f,errs,s);}errs.push(...validatePartEconomyV27(s));errs.push(...validateMarketV031(s));errs.push(...validateNpcV033(s));errs.push(...validateInventoryPolicyV034(s));errs.push(...validateGroupMergerPlans(s));return errs}
 function isPastOrDue(entry,s=S){return entry.due<=ym(s.year,s.month)}
 function payUpTo(f,debitAcc,amount,desc,kind='operating',s=S){amount=Math.max(0,Math.round(amount));const paid=Math.min(amount,Math.max(0,acc(f,'cash')));const rest=amount-paid;const credit={};if(paid)credit.cash=paid;if(rest)credit[debitAcc==='wip'?'wagesDue':'payable']=rest;post(f,{[debitAcc]:amount},credit,desc,kind,s);return {paid,rest}}
 function spendExpense(f,acct,amount,desc,kind='operating',s=S){amount=Math.round(Math.max(0,amount));if(!amount)return;const paid=Math.min(amount,Math.max(0,acc(f,'cash')));const cr={};if(paid)cr.cash=paid;if(amount-paid)cr.payable=amount-paid;post(f,{[acct]:amount},cr,desc,kind,s);if(amount-paid){f.payables.push({amount:amount-paid,due:ym(s.year,s.month)+1,account:'payable',note:desc});f.distress.stage=Math.max(f.distress.stage,1)}}
@@ -7066,8 +7066,10 @@ function consolidate(s,rootId=s.playerId){
   internationalLegs.set(t.fromJournal,t.fromCash);
   internationalLegs.set(t.toJournal,t.toCash);
  }
- const cashTx=[...(s.intercompanyTx||[]),...developmentCashPairs(s),...partCashPairs(s),...worldPowerCashPairs(s),...worldConstructionCashPairs(s),...assetCash,...tradeCash,...storageCash,...phoneCash,...medicalCash,...insuranceCash].filter(t=>ids.has(t.seller)&&ids.has(t.buyer)&&insidePeriod(t));
- const cashJournals=new Set();for(const t of cashTx)if(['loan','loanCash','interestCash','goods','developmentCash','partTradeCash','equityCash','domesticAssetCash','domesticTradeCash'].includes(t.kind))for(const id of [t.fromJournal,t.toJournal])if(id!==undefined)cashJournals.add(id);
+ const dividends=phase7DividendCashPairs(s).filter(t=>ids.has(t.seller)&&ids.has(t.buyer)&&insidePeriod(t));
+ const dividendIncome=dividends.reduce((n,t)=>n+baseFromLocal(t.received,company(t.buyer,s).country,s),0);
+ const cashTx=[...dividends,...(s.intercompanyTx||[]),...developmentCashPairs(s),...partCashPairs(s),...worldPowerCashPairs(s),...worldConstructionCashPairs(s),...assetCash,...tradeCash,...storageCash,...phoneCash,...medicalCash,...insuranceCash].filter(t=>ids.has(t.seller)&&ids.has(t.buyer)&&insidePeriod(t));
+ const cashJournals=new Set();for(const t of cashTx)if(['dividendCash','loan','loanCash','interestCash','goods','developmentCash','partTradeCash','equityCash','domesticAssetCash','domesticTradeCash'].includes(t.kind))for(const id of [t.fromJournal,t.toJournal])if(id!==undefined)cashJournals.add(id);
  for(const l of activeLinks)if(l.kind==='foundation')for(const id of [l.buyerJournal,l.childJournal])if(id!==undefined)cashJournals.add(id);
  // Group assets minus group debts determine consolidated net equity. Subsidiary net
  // assets (not gross balance sheet items) are allocated to NCI by effective ownership.
@@ -7094,7 +7096,7 @@ function consolidate(s,rootId=s.playerId){
  const equityRevenueEliminated=internalEquity.reduce((n,t)=>n+Math.max(0,t.gainBase||0),0),equityExpenseEliminated=internalEquity.reduce((n,t)=>n+Math.max(0,-(t.gainBase||0)),0);
  const netElimination=internalSales-internalSellerCost-internalCostSold;
  // For a period with internal stock still in inventory: netElimination=remaining markup.
- rev-=internalSales+interestRev+parts.sales+equityRevenueEliminated+domesticCost.sales+internationalCost.sales+serviceFees+insuranceInternalFees;exp-=internalSellerCost+internalCostSold+interestExp+parts.sales-parts.deferred+equityExpenseEliminated+domesticCost.sales-domesticCost.retained+internationalCost.sales-internationalCost.retained+serviceFees+insuranceInternalFees;
+ rev-=dividendIncome+internalSales+interestRev+parts.sales+equityRevenueEliminated+domesticCost.sales+internationalCost.sales+serviceFees+insuranceInternalFees;exp-=internalSellerCost+internalCostSold+interestExp+parts.sales-parts.deferred+equityExpenseEliminated+domesticCost.sales-domesticCost.retained+internationalCost.sales-internationalCost.retained+serviceFees+insuranceInternalFees;
  const rawProfit=rev-exp;
  const pl={revenue:Math.round(rev),expenses:Math.round(exp),profit:Math.round(rawProfit+bargain),bargainGain:Math.round(bargain),intercompanySales:internalSales+parts.sales+domesticCost.sales+internationalCost.sales+serviceFees+insuranceInternalFees,internalInterest:interestRev,unrealizedProfit:inventoryProfit+parts.deferred+domesticCost.retained+internationalCost.retained,nciProfit:0,parentProfit:0};
  let minorProfit=0;
@@ -7104,6 +7106,7 @@ function consolidate(s,rootId=s.playerId){
  minorProfit-=stockTx.reduce((a,t)=>{const it=company(t.buyer,s).goods[t.stockKey],ratio=t.q?Math.min(1,(it?.q||0)/t.q):0;return a+t.marginBase*ratio*(1-(ownership.shares[t.seller]||0));},0);
  minorProfit-=accrued.reduce((a,t)=>a+(1-(ownership.shares[t.seller]||0))*t.revenueBase-(1-(ownership.shares[t.buyer]||0))*t.expenseBase,0);
  minorProfit-=internalEquity.reduce((n,t)=>n+(t.gainBase||0)*(1-(ownership.shares[t.seller]||0)),0);
+ minorProfit-=dividends.reduce((n,t)=>n+baseFromLocal(t.received,company(t.buyer,s).country,s)*(1-(ownership.shares[t.buyer]||0)),0);
  pl.nciProfit=Math.round(minorProfit-parts.nci-domesticCost.nci-internationalCost.nci);pl.parentProfit=pl.profit-pl.nciProfit;
  // Cash-flow classification for most recently committed month. Each legal entity's
  // cash journal is summed once, then linked internal cash legs are removed by ID.
@@ -7170,7 +7173,7 @@ function computePeriodCF(s,rootId,g,bridge){
  const scope=consolidationScope(s,scopeHistory,members,rootId),opens=scope.months;
  const linksEntering=new Map(Object.entries(scope.entries).filter(([id])=>id!==rootId));
  const ignored=new Set(),internationalLegs=new Map();let loanPairs=0;
- for(const t of [...(s.intercompanyTx||[]),...developmentCashPairs(s),...partCashPairs(s),...worldTelephoneCashPairs(s),...worldMedicalCashPairs(s),...worldPowerCashPairs(s),...worldConstructionCashPairs(s),...worldInternationalCashPairs(s)]){
+ for(const t of [...phase7DividendCashPairs(s),...(s.intercompanyTx||[]),...developmentCashPairs(s),...partCashPairs(s),...worldTelephoneCashPairs(s),...worldMedicalCashPairs(s),...worldPowerCashPairs(s),...worldConstructionCashPairs(s),...worldInternationalCashPairs(s)]){
   if(!memberIds.has(t.seller)||!memberIds.has(t.buyer))continue;
   if(t.yearMonth<Math.max(opens[t.seller]??0,opens[t.buyer]??0))continue;
   if(s.worldExpansion&&!phase7TransactionInScope(scope,t))continue;
@@ -7436,7 +7439,10 @@ function accountingFxReview(s,rootId,g){
   const provider=company(call.providerId,s),journal=relatedJournal(provider,legs[1]);
   internalSalesPeriod+=Math.round(call.fee*Number(journal?.fxAtPost??worldReferenceFx(provider.country,s)));
  }
- rev-=internalSalesPeriod+interestRevenuePeriod+parts.periodSales+internationalPeriodSales;
+ const dividendPeriod=phase7DividendCashPairs(s).filter(t=>t.yearMonth===period&&ids.has(t.seller)&&ids.has(t.buyer)&&within(t));
+ const dividendEliminated=dividendPeriod.reduce((n,t)=>n+Math.round(t.received*t.toRate),0);
+ rev-=dividendEliminated+internalSalesPeriod+interestRevenuePeriod+parts.periodSales+internationalPeriodSales;
+ nciProfit-=Math.round(dividendPeriod.reduce((n,t)=>n+Math.round(t.received*t.toRate)*(1-(g.shares[t.buyer]??0)),0));
  exp-=internalSalesPeriod+interestExpensePeriod+parts.periodSales+internationalPeriodSales;
  exp+=deltaDeferred;
  const insideEquity=(s.equityTransfers||[]).filter(t=>t.month===period&&ids.has(t.seller)&&ids.has(t.buyer));
@@ -8552,6 +8558,92 @@ function aiCapitalIssuance(s,events){
  }
 }
 function capitalQuotePreview(){const el=document.getElementById('capitalQuotePreview');if(!el||!S)return;try{const f=current(),percent=Number(inputValue('capitalIssuePct')),factor=Number(inputValue('capitalIssueFactor'))/100;const q=capitalQuote(S,f,percent,factor);el.textContent='試算：新株 '+nfmt(q.newShares)+'株、予想調達額 '+fnum(f,q.proceedsLocal)+'、発行後 '+nfmt(q.postShares)+'株。既存株主持分は従来の '+nfmt((1-q.dilution)*100)+'%に減少。発行会社への現金入金と資本金増加を行います。';}catch(e){el.textContent=e.message}}
+// SPEC-056/080/100: dividends are a discretionary distribution of retained profits,
+// not an expense or a free transfer of subsidiary cash.
+function phase7DividendLimit(s,f){
+ const a=financials(f);
+ return Math.max(0,Math.floor(Math.min(a.profit-acc(f,'dividendsPaid'),a.equity,phase7AcquisitionCash(s,f))));
+}
+function phase7DividendAllocation(amount,owners){
+ const rows=owners.filter(o=>o.econ>0).map(o=>({ownerId:o.id,units:Math.round(o.econ*1000000)}));
+ const units=rows.reduce((n,o)=>n+o.units,0);
+ if(!Number.isSafeInteger(amount)||amount<1||!units||Math.abs(units-1000000)>1)throw Error('配当の株主名簿または金額が不正');
+ const denominator=BigInt(units);
+ for(const o of rows){const num=BigInt(amount)*BigInt(o.units);o.paid=Number(num/denominator);o.remainder=Number(num%denominator);}
+ let extra=amount-rows.reduce((n,o)=>n+o.paid,0);
+ for(const o of [...rows].sort((a,b)=>b.remainder-a.remainder||a.ownerId.localeCompare(b.ownerId)))if(extra-->0)o.paid++;
+ return rows.map(({ownerId,units,paid})=>({ownerId,units,paid}));
+}
+function phase7PayDividend(s,payerId,amount){
+ const payer=company(payerId,s);
+ if(!s.worldExpansion||!isActiveCorporateFirm(payer)||!controller(s,payerId))throw Error('操作権限のある稼働法人を選択してください');
+ phase7ValidateOwners(s);
+ if(!Number.isSafeInteger(amount)||amount<1||amount>phase7DividendLimit(s,payer))throw Error('配当可能利益または自己資金が不足しています');
+ const allocations=phase7DividendAllocation(amount,payer.owners),fromRate=balanceFxRate(s,payer);
+ for(const leg of allocations){
+  const recipient=leg.ownerId==='PUBLIC'?null:company(leg.ownerId,s);
+  leg.fromRate=fromRate;leg.toRate=recipient?balanceFxRate(s,recipient):null;
+  leg.received=recipient?Math.round(leg.paid*fromRate/leg.toRate):0;
+  if(!Number.isFinite(fromRate)||fromRate<=0||(recipient&&(!Number.isFinite(leg.toRate)||leg.toRate<=0||!Number.isSafeInteger(leg.received)||!Number.isSafeInteger(acc(recipient,'cash')+leg.received)||(leg.paid>0&&leg.received<1))))throw Error('配当の通貨換算額が不正です');
+  leg.fromJournal=null;leg.toJournal=null;
+ }
+ const r={id:'DIV-'+s.seq++,payerId,month:ym(s.year,s.month),amount,allocations};
+ for(const leg of allocations){
+  if(!leg.paid)continue;
+  leg.fromJournal=s.seq;post(payer,{dividendsPaid:leg.paid},{cash:leg.paid},'利益配当 '+r.id,'financing',s);
+  if(leg.ownerId!=='PUBLIC'){
+   const recipient=company(leg.ownerId,s);leg.toJournal=s.seq;post(recipient,{cash:leg.received},{otherRevenue:leg.received},'受取配当 '+r.id,'financing',s);
+  }
+ }
+ (s.worldExpansion.dividends??=[]).push(r);return r;
+}
+function phase7DividendCashPairs(s){
+ return (s.worldExpansion?.dividends??[]).flatMap(r=>r.allocations.filter(x=>x.ownerId!=='PUBLIC'&&x.paid>0).map(x=>({
+  kind:'dividendCash',seller:r.payerId,buyer:x.ownerId,yearMonth:r.month,fromJournal:x.fromJournal,toJournal:x.toJournal,
+  fromCash:-x.paid,toCash:x.received,received:x.received,toRate:x.toRate
+ })));
+}
+function phase7ValidateDividends(s){
+ const rows=s.worldExpansion?.dividends??[];
+ if(!Array.isArray(rows))throw Error('配当台帳が不正');
+ if(!rows.length){if(s.firms.some(f=>acc(f,'dividendsPaid')!==0))throw Error('配当証拠がありません');return;}
+ const totals=new Map(),ids=new Set(),match=worldServiceJournalMatcher(s);let prior=0;
+ for(const r of rows){
+  const payer=company(r?.payerId,s),id=Number(r?.id?.slice(4));
+  if(!payer||!/^DIV-\d+$/.test(r.id)||!Number.isSafeInteger(id)||id<=prior||id>=s.seq||!Number.isSafeInteger(r.month)||r.month>ym(s.year,s.month)||r.month<WORLD_START_MONTH||!Number.isSafeInteger(r.amount)||r.amount<1||!Array.isArray(r.allocations)||!r.allocations.length)throw Error('配当の参照・金額が不正');
+  prior=id;
+  const owners=new Set();let last=id,paid=0;
+  for(const a of r.allocations){
+   const recipient=a.ownerId==='PUBLIC'?null:company(a.ownerId,s);
+   if(owners.has(a.ownerId)||a.ownerId===payer.id||(a.ownerId!=='PUBLIC'&&!recipient)||!Number.isSafeInteger(a.units)||a.units<1||!Number.isSafeInteger(a.paid)||a.paid<0||!Number.isFinite(a.fromRate)||a.fromRate<=0)throw Error('配当の株主配分が不正');
+   owners.add(a.ownerId);paid+=a.paid;
+   if(!a.paid){if(a.fromJournal!==null||a.toJournal!==null||a.received!==0)throw Error('配当のゼロ配分が不正');continue;}
+   if(a.fromJournal!==last+1||ids.has(a.fromJournal)||!match(payer,a.fromJournal,r.month,a.paid,'dividendsPaid','cash','financing'))throw Error('配当の支払仕訳が不正');
+   ids.add(a.fromJournal);last=a.fromJournal;
+   if(recipient){
+    if(!Number.isFinite(a.toRate)||a.toRate<=0||!Number.isSafeInteger(a.received)||a.received<1||a.received!==Math.round(a.paid*a.fromRate/a.toRate)||a.toJournal!==last+1||ids.has(a.toJournal)||!match(recipient,a.toJournal,r.month,a.received,'cash','otherRevenue','financing'))throw Error('配当の受取仕訳が不正');
+    ids.add(a.toJournal);last=a.toJournal;
+   }else if(a.received!==0||a.toJournal!==null||a.toRate!==null)throw Error('外部株主への配当が不正');
+  }
+  const expected=phase7DividendAllocation(r.amount,r.allocations.map(a=>({id:a.ownerId,econ:a.units/1000000})));
+  if(paid!==r.amount||expected.some((x,i)=>x.paid!==r.allocations[i].paid))throw Error('配当の株主別配分が一致しません');
+  totals.set(payer.id,(totals.get(payer.id)??0)+paid);
+ }
+ for(const f of s.firms)if(acc(f,'dividendsPaid')!==(totals.get(f.id)??0))throw Error('配当の帳簿残高が一致しません');
+}
+document.addEventListener('click',event=>{
+ const button=event.target.closest('[data-phase7-dividend]');
+ if(!button||MONTH_RUNNING||!S?.worldExpansion||!canEdit(current()))return;
+ try{const f=current(),trial=structuredClone(S),amount=Number(inputValue('phase7DividendAmount'));
+  phase7PayDividend(trial,f.id,amount);const errors=check(trial),g=consolidate(trial);if(errors.length||g.errors.length)throw Error([...errors,...g.errors][0]);
+  S=trial;requestOperationSaveV037();render();toast('配当を実行しました');
+ }catch(e){toast(e.message);}
+});
+function phase7DividendPanel(s,f,edit){
+ if(!s.worldExpansion)return '';
+ const limit=phase7DividendLimit(s,f),rows=(s.worldExpansion.dividends??[]).filter(r=>r.payerId===f.id).slice(-10).reverse();
+ return '<section class="panel span12"><h2>利益配当</h2>'+rowstat('配当可能額',fnum(f,limit))+rowstat('累計支払配当',fnum(f,acc(f,'dividendsPaid')))+(edit&&limit>0?'<label>配当額（通貨最小単位） <input id="phase7DividendAmount" type="number" min="1" max="'+limit+'" value="'+Math.min(limit,10000)+'"></label><button class="btn primary" data-phase7-dividend>配当実行</button>':'')+'<p class="hint">配当しない場合は操作不要です。自己株式を除く株主へ持分に応じて支払い、外部株主の分も現金から控除します。</p>'+rows.map(r=>rowstat(Math.floor(r.month/12)+'年'+(r.month%12+1)+'月',fnum(f,r.amount))).join('')+'</section>';
+}
 function capitalPage(){
  const f=current(),edit=canEdit(f);ensureV20(S);ensureMAState(S);
  const x=maOwnership(f),now=ym(S.year,S.month),cool=Math.max(0,12-(now-f.capitalPolicy.lastIssueMonth));
@@ -8559,7 +8651,7 @@ function capitalPage(){
  const list=f.owners.map(o=>`<tr><td>${o.id==='PUBLIC'?'外部株主（合計）':esc(company(o.id)?.name||o.id)}</td><td>${o.id==='PUBLIC'?'銀行・機関投資家・政府・個人など':'ゲーム内企業株主'}</td><td>${nfmt(o.econ*100)}%</td><td>${nfmt(o.vote*100)}%</td></tr>`).join('');
  return titlePage('株主・資本政策','企業への新規出資で資金を増やします。既存株式売買と異なり、発行済株式数が増えるため従来の株主持分は希薄化します。',tag('新株発行・持分再計算'))+(!edit?noaccess():'')+`<div class="grid">
  ${card('発行済株式数',nfmt(f.sharesOutstanding)+'株','うち金庫株 '+nfmt(f.treasuryShares||0)+'株','span3')}${card('自己資本',fnum(f,fin.equity),'発行資金は現金・資本金へ','span3')}${card('外部株主持分',nfmt(x.public*100)+'%','外部株主の合計','span3')}${card('次回発行まで',cool?cool+'か月':'発行可能','1社につき12か月に1回','span3')}
- <section class="panel span7"><h2>新株発行（プライマリー）</h2><p class="hint">既存株式の5〜35%に相当する新株を発行します。外部投資家が引き受け、発行会社の現金と資本金が増加します。発行価格は参考企業価値から試算。</p>
+ ${phase7DividendPanel(S,f,edit)}<section class="panel span7"><h2>新株発行（プライマリー）</h2><p class="hint">既存株式の5〜35%に相当する新株を発行します。外部投資家が引き受け、発行会社の現金と資本金が増加します。発行価格は参考企業価値から試算。</p>
  <div class="formgrid"><div class="field"><label>新株数（現在の株式数に対する%）</label><select id="capitalIssuePct" ${edit&&!cool?'':'disabled'}>${[5,10,15,20,25,30,35].map(n=>`<option value="${n}" ${n===20?'selected':''}>${n}%</option>`).join('')}</select></div>
  <div class="field"><label>発行価格倍率（企業価値基準）</label><select id="capitalIssueFactor" ${edit&&!cool?'':'disabled'}>${[80,90,100,110,120].map(n=>`<option value="${n}" ${n===100?'selected':''}>${n}%</option>`).join('')}</select></div>
  <div class="field"><label>外部引受人</label><select id="capitalInvestor" ${edit&&!cool?'':'disabled'}>${Object.entries(CAPITAL_INVESTORS).map(([id,label])=>`<option value="${id}">${label}</option>`).join('')}</select></div>
@@ -12846,6 +12938,7 @@ function validateWorldExpansion(s){
  phase7ValidateMAReservations(s);
  phase7ValidateLoanSchedules(s);
  phase7ValidateFundingArchive(s);
+ phase7ValidateDividends(s);
  validateWorldProduction(s);
  const month=ym(s.year,s.month);
  const playableCodes=Object.entries(WORLD_ENGINE_TERRITORY).filter(([code,territoryId])=>{
