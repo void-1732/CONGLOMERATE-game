@@ -1991,8 +1991,54 @@ function delegatePlanning(f,s){
 function negotiationPanel(f,edit){return `<section class="panel span5"><h2>M&A候補の分析と交渉</h2><p>企業価値、株主別の売却可能持分、買収資金、国・業態・経営状態を比較してから取得します。</p><p class="hint">外部株主には銀行・政府系・機関投資家・個人などを含みます。企業グループ保有株式は別表示です。従来の純資産のみを使った概算から、業績とリスクを反映した企業価値試算に更新しました。</p><button class="btn primary" data-page="ma">M&A分析・交渉へ進む ▸</button></section>`;}
 function delegationPanel(f,edit){ensureGameplayV07(f);const d=f.delegate,rows=(d.reports||[]).slice(0,6);return `<section class="panel span12"><h2>経営委任・予算・目標</h2><p class="hint">現在選択中の法人「${esc(f.name)}」の月次の生産・研究予算を自動計画できます。買収・借入・増設・雇用は承認なしに委任AIが実行しません。</p><div class="setting-split"><label><input type="checkbox" id="delegateProductionAuto" ${d.productionAuto!==false?'checked':''} ${edit?'':'disabled'}> 生産量を自動計画</label><label><input type="checkbox" id="delegateResearchAuto" ${d.researchAuto!==false?'checked':''} ${edit?'':'disabled'}> 研究予算を自動設定</label></div><p class="hint">どちらか一方だけ自動化できます。どちらもOFFの場合は手動計画が優先されます。</p><div class="formgrid"><div class="field"><label>操作方式</label><select id="delegateMode" ${edit?'':'disabled'}><option value="manual" ${d.mode==='manual'?'selected':''}>手動経営</option><option value="delegated" ${d.mode==='delegated'?'selected':''}>予算限定の経営委任</option></select></div><div class="field"><label>優先方針</label><select id="delegatePriority" ${edit?'':'disabled'}>${[['balanced','均衡'],['growth','成長・生産'],['profit','利益・手元資金'],['quality','品質'],['tech','研究開発']].map(([v,n])=>`<option value="${v}" ${d.priority===v?'selected':''}>${n}</option>`).join('')}</select></div><div class="field"><label>月次販売目標（台・件、0は自動）</label><input id="delegateTarget" type="number" min="0" max="100000" value="${d.salesTarget}" ${edit?'':'disabled'}></div><div class="field"><label>最低現金目標（円相当）</label><input id="delegateReserve" type="number" min="0" max="100000000" value="${d.minCashBase}" ${edit?'':'disabled'}></div><div class="field"><label>月次研究費の上限（円相当）</label><input id="delegateRndCap" type="number" min="0" max="50000000" value="${d.researchMaxBase}" ${edit?'':'disabled'}></div><button class="btn primary" data-action="saveDelegate" ${edit?'':'disabled'}>委任方針を保存</button></div><h3>委任AIの実績報告</h3>${rows.length?`<div class="scroll"><table><thead><tr><th>確定月</th><th class="num">販売目標</th><th class="num">実績</th><th class="num">当月利益（円相当）</th><th class="num">期末現金（円相当）</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${Math.floor(r.month/12)}年${r.month%12+1}月</td><td class="num">${r.target||'自動'}</td><td class="num">${nfmt(r.units)}</td><td class="num">${baseMoney(r.profitBase)}</td><td class="num">${baseMoney(r.cashBase)}</td></tr>`).join('')}</tbody></table></div>`:'<div class="hint">委任後に月末処理を実行すると、目標と実績を記録します。</div>'}${automationSettingsPanel(f)}</section>`;}
 
+// SPEC-165 Phase 6: one finite hiring market for each national accounting area.
+// PROVISIONAL game coefficient: 1% of the fixed baseline population belongs to
+// the simulated employer pool. This is not historical labor-force data.
+// Phase 8 may extend the model with demographic flows. Existing employees are
+// not rehired on transfer, and departures free capacity immediately.
+function worldInitialStaff(size){
+ return {production:Math.max(7,Math.round(38*size)),research:Math.max(2,Math.round(5*size)),sales:Math.max(3,Math.round(10*size))};
+}
+function worldLaborCapacity(s,code){
+ if(!s.worldExpansion)return Infinity;
+ const pop=anchorPopulation(code,1900)??COUNTRIES[code]?.pop;
+ if(!Object.hasOwn(s.world,code)||!Number.isFinite(pop)||pop<=0)throw Error('労働市場の国・基準人口が不正：'+code);
+ return Math.floor(pop*10000);
+}
+function worldLaborHeadcount(f){
+ let total=0;
+ for(const field of ['production','research','sales','designEngineers']){
+  const n=field==='designEngineers'?(f.staff?.[field]??0):f.staff?.[field];
+  if(!Number.isSafeInteger(n)||n<0)throw Error('労働市場の人員数が不正：'+f.id);
+  total+=n;
+ }
+ if(!Number.isSafeInteger(total))throw Error('労働市場の人員合計が不正：'+f.id);
+ return total;
+}
+function worldLaborEmployed(s,code){
+ return s.firms.reduce((n,f)=>n+(f.country===code?worldLaborHeadcount(f):0),0);
+}
+function worldLaborAvailable(s,code){
+ return s.worldExpansion?Math.max(0,worldLaborCapacity(s,code)-worldLaborEmployed(s,code)):Infinity;
+}
+function worldInitialLaborRequired(size){
+ return Object.values(worldInitialStaff(size)).reduce((n,q)=>n+q,0);
+}
+function worldRequireInitialLabor(s,code,size){
+ if(worldLaborAvailable(s,code)<worldInitialLaborRequired(size))throw Error('設立先の労働力が不足しています');
+}
+function worldValidateLabor(s){
+ const employed=new Map();
+ for(const f of s.firms){
+  const total=(employed.get(f.country)??0)+worldLaborHeadcount(f);
+  if(!Number.isSafeInteger(total))throw Error('労働市場の人員合計が不正：'+f.country);
+  employed.set(f.country,total);
+ }
+ for(const [code,total] of employed)if(total>worldLaborCapacity(s,code))throw Error('労働市場の供給上限超過：'+code);
+}
 function initFirm(s,{name,country,industry='auto',player=false,strategy='growth',seedBase=1900000,size=1,publicOwnership=true}){
- const id='F'+s.seq++,fx=worldReferenceFx(country,s), f={id,name,country,industry,player,strategy,owners:publicOwnership?[{id:'PUBLIC',econ:1,vote:1}]:[],ledger:{},journals:[],payables:[],receivables:[],loans:[],stock:{steel:{q:0,v:0},rubber:{q:0,v:0}},goods:{},models:[],projects:[],rnd:{progress:0,target:'engine',budgetBase:12000},tech:1,plant:{capacity:Math.max(5,Math.round(45*size)),condition:92,assetCost:localFromBase(420000*size*eraCostFactor(s.year),country,s),construction:null},staff:{production:Math.max(7,Math.round(38*size)),research:Math.max(2,Math.round(5*size)),sales:Math.max(3,Math.round(10*size))},staffTarget:{},brand:{},dealers:{},adBudgets:{},plans:{},researchRights:['basic-engine'],distress:{stage:0,months:0},reserveUnits:4000,resourceStock:0,marketPresence:[country],monthly:{sales:0,cogs:0,profit:0,units:0,spent:0},history:[],auto:!player,contractPriority:'standard'};
+ worldRequireInitialLabor(s,country,size);
+ const id='F'+s.seq++,fx=worldReferenceFx(country,s), f={id,name,country,industry,player,strategy,owners:publicOwnership?[{id:'PUBLIC',econ:1,vote:1}]:[],ledger:{},journals:[],payables:[],receivables:[],loans:[],stock:{steel:{q:0,v:0},rubber:{q:0,v:0}},goods:{},models:[],projects:[],rnd:{progress:0,target:'engine',budgetBase:12000},tech:1,plant:{capacity:Math.max(5,Math.round(45*size)),condition:92,assetCost:localFromBase(420000*size*eraCostFactor(s.year),country,s),construction:null},staff:worldInitialStaff(size),staffTarget:{},brand:{},dealers:{},adBudgets:{},plans:{},researchRights:['basic-engine'],distress:{stage:0,months:0},reserveUnits:4000,resourceStock:0,marketPresence:[country],monthly:{sales:0,cogs:0,profit:0,units:0,spent:0},history:[],auto:!player,contractPriority:'standard'};
  s.firms.push(f);post(f,{cash:localFromBase(seedBase,country,s)},{capital:localFromBase(seedBase,country,s)},'創業資本','financing',s);const factoryCost=f.plant.assetCost;post(f,{ppe:factoryCost},{cash:factoryCost},'事業設備・施設の取得','investing',s);f.brand[country]=35;f.dealers[country]=45;
  if(industry==='auto'||industry==='manufacturing'){
  const modelId='M'+s.seq++;f.models.push({id:modelId,name:industry==='auto'?'ツーリング 01':'標準製品',priceBase:Math.round(7500*eraCostFactor(s.year)),performance:58,quality:61,segment:'標準',status:'active',months:0});f.goods[modelId]={q:0,v:0};f.plans[modelId]=Math.round(f.plant.capacity*0.86);const steel= Math.round(95*size),rubber=Math.round(95*size),initialMat=eraCostFactor(s.year),val=localFromBase((steel*COUNTRIES[country].steel+rubber*COUNTRIES[country].rubber)*initialMat,country,s);post(f,{materials:val},{cash:val},'創業時の実材料仕入','operating',s);f.stock.steel={q:steel,v:localFromBase(steel*COUNTRIES[country].steel*initialMat,country,s)};f.stock.rubber={q:rubber,v:val-f.stock.steel.v};
@@ -2367,7 +2413,7 @@ function saveDistribution(){let before=null;try{
  }
  render();toast('販売網契約を更新しました。契約・能力増設費用：'+baseMoney(cents(setupCost)));
  }catch(e){if(before)S=before;render();toast(e.message)}}
-function establishSalesCorporation(){let prior=null;try{const f=current(),code=inputValue('salesCorpCountry');if(!canEdit(f)||!code||code===f.country)throw Error('設立対象国を確認してください');ensureNetwork(f);if(f.distribution.salesCorporations[code])throw Error('この国にはすでに販売法人があります');const amount=verifyMoney(f,450000);prior=structuredClone(S);
+function establishSalesCorporation(){let prior=null;try{const f=current(),code=inputValue('salesCorpCountry');if(!canEdit(f)||!code||code===f.country)throw Error('設立対象国を確認してください');ensureNetwork(f);if(f.distribution.salesCorporations[code])throw Error('この国にはすでに販売法人があります');worldRequireInitialLabor(S,code,.12);const amount=verifyMoney(f,450000);prior=structuredClone(S);
  post(f,{investment:amount},{cash:amount},'海外地域販売法人への資本払込','investing');const buyerJournal=f.journals.at(-1)?.id;
  const seedSpotBase=baseFromLocal(amount,f.country)/100; // parent local cents -> yen-equivalent base units
  const child=initFirm(S,{name:f.name+' '+NAMES[code]+'販売',country:code,industry:'sales',seedBase:seedSpotBase,size:.12,strategy:'balanced',publicOwnership:false});
@@ -2533,7 +2579,7 @@ function competitorEvolution(s,events){
    if(capitalBudgetAvailable(s,f,indexedCapex)&&acc(f,'cash')>capex+localFromBase(Math.round(140000*eraCostFactor(s.year)),f.country,s)&&f.plants?.length){
     post(f,{ppe:capex},{cash:capex},'競合企業の設備投資・能力拡大','investing',s);
     const plant=f.plants.find(p=>!p.construction&&['integrated','assembly'].includes(p.kind));
-    if(plant){plant.capacity+=8;f.staff.production+=5;syncPlant(f);h.investmentMonth=month;h.lastAction='設備能力を増強';f.competitive.spentThisYearBase+=indexedCapex;recordRivalAction(s,f,'capex','設備投資で月産能力を8増強');
+    if(plant){plant.capacity+=8;f.staff.production+=Math.min(5,worldLaborAvailable(s,f.country));syncPlant(f);h.investmentMonth=month;h.lastAction='設備能力を増強';f.competitive.spentThisYearBase+=indexedCapex;recordRivalAction(s,f,'capex','設備投資で月産能力を8増強');
       events.push(`${f.name}：利益を再投資し月産能力を8増強`);s.competition.history.push({month,company:f.id,type:'growth',text:f.name+'が工場増強'});}
    }
   }
@@ -2543,6 +2589,7 @@ function competitorEvolution(s,events){
  // Annual entry rate only; no undefined debt, cash or market demand from extinct firms.
  const countryRanking=Object.keys(s.world).sort((a,b)=>(s.world[b].demand/(1+s.firms.filter(f=>f.country===b&&f.lifecycle?.phase!=='withdrawn').length))-(s.world[a].demand/(1+s.firms.filter(f=>f.country===a&&f.lifecycle?.phase!=='withdrawn').length)));const code=countryRanking[Math.floor(random(s)*Math.min(3,countryRanking.length))];
  const industry=V09_INDUSTRIES[Math.floor(random(s)*V09_INDUSTRIES.length)];
+ if(worldLaborAvailable(s,code)<worldInitialLaborRequired(.65))return;
  const entryNo=(s.competition.entryCount||0)+1;s.competition.entryCount=entryNo;
  const name=`${NAMES[code]} 新興${{auto:'自動車',manufacturing:'製造',trade:'商社',resource:'資源',service:'技術サービス'}[industry]} ${entryNo}`;
  const seed=industry==='auto'||industry==='manufacturing'?1800000:520000;
@@ -6565,7 +6612,8 @@ function hireStaff(){try{const f=current();if(!canEdit(f))throw Error('権限が
  if(!['production','research','sales','designEngineers'].includes(field))throw Error('採用部門を確認してください');
  const q=field==='designEngineers'?aiNumber('hireCount',1,1000):Math.round(intValue('hireCount',1,1000));
  if(field==='designEngineers'&&(!engineeringEligible(f)||engineers(f)+q>ENGINEERING_MAX_STAFF))throw Error('設計技術者を追加採用できません');
- const price=localFromBase(q*S.world[f.country].wage*.4*eraCostFactor(S.year),f.country);if(price>acc(f,'cash'))throw Error('採用関連費用を賄う現金が不足しています');post(f,{labor:price},{cash:price},'人員採用・教育費','operating');f.staff[field]=(f.staff[field]??0)+q;renderKeepingResearchPosition();toast(`${q}人を${{production:'製造',research:'研究',sales:'営業・管理',designEngineers:'製品設計'}[field]}部門に採用しました`)}catch(e){toast(e.message)}}
+ const accepted=Math.min(q,worldLaborAvailable(S,f.country));if(!accepted)throw Error('国別の利用可能労働力が不足しています');
+ const price=localFromBase(accepted*S.world[f.country].wage*.4*eraCostFactor(S.year),f.country);if(price>acc(f,'cash'))throw Error('採用関連費用を賄う現金が不足しています');post(f,{labor:price},{cash:price},'人員採用・教育費','operating');f.staff[field]=(f.staff[field]??0)+accepted;renderKeepingResearchPosition();toast(`${accepted}人を${{production:'製造',research:'研究',sales:'営業・管理',designEngineers:'製品設計'}[field]}部門に採用しました${accepted<q?'（労働力不足による部分採用）':''}`)}catch(e){toast(e.message)}}
 function maintain(){try{const f=current();if(!canEdit(f))throw Error('権限がありません');const base=Math.round((5000+f.plant.capacity*160)*eraCostFactor(S.year));spendImmediate(f,base,'maintenance','予防保全の実施');f.plant.condition=clamp(f.plant.condition+12,0,100);render();toast('設備保守を実施しました')}catch(e){toast(e.message)}}
 function expand(){try{const f=current();if(!canEdit(f))throw Error('権限がありません');if(f.plant.construction)throw Error('既に設備拡張中です');const q=Math.round(intValue('expandSize',5,1000)),cost=Math.round(q*12000*eraCostFactor(S.year));spendImmediate(f,cost,'ppe','設備増設工事','investing');f.plant.construction={add:q,monthsLeft:3};render();toast('設備増設の工事を開始しました（3か月後に完成）')}catch(e){toast(e.message)}}
 function develop(){try{const f=current();if(!canEdit(f))throw Error('権限がありません');if(f.industry!=='auto'&&f.industry!=='manufacturing')throw Error('製品設計の対象外です');const name=inputValue('modelName').trim().slice(0,30);if(!name)throw Error('製品名を入力してください');if(f.models.some(m=>m.name===name)||f.projects.some(p=>p.name===name))throw Error('同名の製品があります');const price=intValue('modelPrice',1000,900000),design=plannedDesign();for(const d of DESIGN_FIELDS)if(!allowedOption(d.id,design[d.id]))throw Error(d.name+'：開始年代または前提研究が不足しています');const a=designAnalysis(design,f.tech,f.research.levels,techBenefits(f));spendImmediate(f,Math.round(70000*eraCostFactor(S.year)),'rndExpense','10項目設計・新製品開発プロジェクト開始');f.projects.push({name,priceBase:price,left:5,status:'developing',design});render();toast('「'+name+'」を設計しました（性能'+a.performance+'／品質'+a.quality+'）。5か月後に発売予定。')}catch(e){toast(e.message)}}
@@ -6590,7 +6638,7 @@ function borrow(){
  }catch(e){toast(e.message)}
 }
 function spendAd(){try{const f=current();if(!canEdit(f))throw Error('権限がありません');const base=intValue('adBase',1000,1000000),code=inputValue('adCountry');spendImmediate(f,base,'advert','市場広告宣伝費');if(!f.marketPresence.includes(code))f.marketPresence.push(code);f.brand[code]=clamp((f.brand[code]||0)+Math.sqrt(base/1000)*4,0,95);f.dealers[code]=clamp((f.dealers[code]||0)+Math.sqrt(base/1000)*3,0,95);render();toast(NAMES[code]+'市場への広告・販路投資を実行しました')}catch(e){toast(e.message)}}
-function createSub(){try{const f=current();if(!canEdit(f))throw Error('権限がありません');const name=inputValue('subName').trim().slice(0,38),code=inputValue('subCountry'),ind=inputValue('subIndustry'),minimum=Math.round(450000*eraCostFactor(S.year)),base=intValue('subCapital',minimum,20000000);if(!Object.hasOwn(S.world,code))throw Error('設立先市場は未開放です');if(!name)throw Error('会社名を入力してください');if(S.firms.some(v=>v.name===name))throw Error('同名の企業があります');if(base<minimum)throw Error('事業設備・初期在庫の必要資本金は'+nfmt(minimum)+'円相当です');const amount=verifyMoney(f,base);post(f,{investment:amount},{cash:amount},'子会社への資本払込','investing');const parentJournal=f.journals.at(-1)?.id;const seedLocal=Math.round(amount*balanceFxRate(S,f)/balanceFxRate(S,{country:code}));const seedSpotBase=seedLocal*COUNTRIES[code].fx/100;const child=initFirm(S,{name,country:code,industry:ind,seedBase:seedSpotBase,size:.7,strategy:'balanced',publicOwnership:false});child.owners=[{id:f.id,econ:1,vote:1}];registerEquityLink(S,{parentId:f.id,childId:child.id,ratio:1,kind:'foundation',considerationLocal:amount,buyerJournal:parentJournal,childJournal:child.journals.find(j=>j.text==='創業資本')?.id,bookEquityBase:baseFromLocal(amount,f.country),cashAcquiredBase:baseFromLocal(acc(child,'cash'),child.country)});ensureSupplyNetwork(S);logNotice(`${f.name}が${name}を完全子会社として設立しました。`,'good');VIEW_FIRM=child.id;render();toast('子会社を設立しました。資本は親会社から実際に移転しました。')}catch(e){toast(e.message)}}
+function createSub(){try{const f=current();if(!canEdit(f))throw Error('権限がありません');const name=inputValue('subName').trim().slice(0,38),code=inputValue('subCountry'),ind=inputValue('subIndustry'),minimum=Math.round(450000*eraCostFactor(S.year)),base=intValue('subCapital',minimum,20000000);if(!Object.hasOwn(S.world,code))throw Error('設立先市場は未開放です');if(!name)throw Error('会社名を入力してください');if(S.firms.some(v=>v.name===name))throw Error('同名の企業があります');if(base<minimum)throw Error('事業設備・初期在庫の必要資本金は'+nfmt(minimum)+'円相当です');worldRequireInitialLabor(S,code,.7);const amount=verifyMoney(f,base);post(f,{investment:amount},{cash:amount},'子会社への資本払込','investing');const parentJournal=f.journals.at(-1)?.id;const seedLocal=Math.round(amount*balanceFxRate(S,f)/balanceFxRate(S,{country:code}));const seedSpotBase=seedLocal*COUNTRIES[code].fx/100;const child=initFirm(S,{name,country:code,industry:ind,seedBase:seedSpotBase,size:.7,strategy:'balanced',publicOwnership:false});child.owners=[{id:f.id,econ:1,vote:1}];registerEquityLink(S,{parentId:f.id,childId:child.id,ratio:1,kind:'foundation',considerationLocal:amount,buyerJournal:parentJournal,childJournal:child.journals.find(j=>j.text==='創業資本')?.id,bookEquityBase:baseFromLocal(amount,f.country),cashAcquiredBase:baseFromLocal(acc(child,'cash'),child.country)});ensureSupplyNetwork(S);logNotice(`${f.name}が${name}を完全子会社として設立しました。`,'good');VIEW_FIRM=child.id;render();toast('子会社を設立しました。資本は親会社から実際に移転しました。')}catch(e){toast(e.message)}}
 function acquire(id){try{const buyer=current(),target=company(id);if(!canEdit(buyer)||!target||target.id===buyer.id)throw Error('買収対象が不正です');if(controller(S,target.id)||controller(S,buyer.id,target.id))throw Error('支配済み、または循環保有となる取引です');if(target.owners.some(o=>o.id!=='PUBLIC'))throw Error('この試作版では複数株主の株式取得は未対応です');const costBase=Math.max(180000,Math.round(baseFromLocal(netWorth(target),target.country)/100*.65));const amount=verifyMoney(buyer,costBase);const bookEquityBase=baseFromLocal(netWorth(target),target.country),cashAcquiredBase=baseFromLocal(acc(target,'cash'),target.country),profitAtAcq=financials(target).profit;const revAtAcq=financials(target).revenue,expAtAcq=financials(target).expenses;post(buyer,{investment:amount},{cash:amount},'株式取得：'+target.name,'investing');const buyerJournal=buyer.journals.at(-1)?.id;target.owners=[{id:buyer.id,econ:.6,vote:.6},{id:'PUBLIC',econ:.4,vote:.4}];target.shareBlocks=HOLDER_TEMPLATES.map((h,i)=>({...h,holding:i===2?.14:roundShare(.4*h.weight)}));target.shareBlocks[2].holding=roundShare(.4-target.shareBlocks[0].holding-target.shareBlocks[1].holding);registerEquityLink(S,{parentId:buyer.id,childId:target.id,ratio:.6,kind:'acquisition',considerationLocal:amount,buyerJournal,bookEquityBase,cashAcquiredBase,revAtAcq,expAtAcq,profitAtAcq});logNotice(`${buyer.name}は${target.name}の株式60%を取得しました。対象会社の資産・負債は対象会社に残ります。`,'good');render();toast(target.name+'の60%株式を取得しました')}catch(e){toast(e.message)}}
 function groupLoan(){try{const parent=current(),id=inputValue('loanSubs'),child=company(id),base=intValue('loanAmount',10000,10000000);if(!canEdit(parent)||!child||!controller(S,child.id,parent.id)||parent.id===child.id)throw Error('支配下の別法人を指定してください');const amount=verifyMoney(parent,base);const recv=Math.round(amount*balanceFxRate(S,parent)/balanceFxRate(S,child));post(parent,{loanrec:amount},{cash:amount},'子会社への貸付','investing');const jParent=parent.journals.at(-1)?.id;post(child,{cash:recv},{debt:recv},'親会社からの借入','financing');const jChild=child.journals.at(-1)?.id;registerInterco(S,{kind:'loan',seller:parent.id,buyer:child.id,fromJournal:jParent,toJournal:jChild,yearMonth:ym(S.year,S.month),loanBase:baseFromLocal(amount,parent.country)});child.loans.push({id:'L'+S.seq++,outstanding:recv,rate:S.world[child.country].rate+.01,due:ym(S.year,S.month)+24,parent:parent.id,parentRemaining:amount,interestOutstanding:0,parentInterestRemaining:0});render();toast('会社間貸付を記録しました。単体財務に反映しました。')}catch(e){toast(e.message)}}
 function titlePage(title,desc,right=''){return `<div class="hrow"><div><div class="eyebrow">MANAGEMENT / ${esc(PAGE.toUpperCase())}</div><h1>${esc(title)}</h1><div class="muted small">${desc}</div></div>${right}</div>`}
@@ -10348,7 +10396,7 @@ function step2HRStaff(f,edit) {
      ${engineeringEligible(f)?'<option value="designEngineers">製品設計</option>':''}</select></div>
      <div class="field"><label for="hireCount">採用人数</label><input id="hireCount" type="number" min="1" max="1000" value="5" ${edit?'':'disabled'}></div>
      <button class="btn primary" data-action="hireStaff" ${edit?'':'disabled'}>採用を実行</button></div>
-     <p class="hint">国別標準賃金：${nfmt(w.wage*eraCostFactor(S.year))}円相当／月。工場固定配置は引き続き工場画面の設定を優先します。</p></section>
+     <p class="hint">国別標準賃金：${nfmt(w.wage*eraCostFactor(S.year))}円相当／月。工場固定配置は引き続き工場画面の設定を優先します。</p>${S.worldExpansion?`<p class="hint">国別利用可能労働力：${nfmt(worldLaborAvailable(S,f.country))}人。先着順、部分採用。基準人口の1%をゲーム内雇用枠とする暫定モデル値（史実の労働力ではない）。</p>`:''}</section>
      ${engineeringStaffPanel(f,edit)}
      <section class="panel span12"><h2>専門部門への専任配置</h2><p class="hint">希望人数・実配置人数・自動配分の詳細はSTEP 5で追加します。</p></section></div>`;
 }
@@ -12550,6 +12598,7 @@ function validateWorldExpansion(s){
  if(Object.keys(world.companies).length!==s.firms.length||Object.keys(world.facilities).length!==count){
   throw Error('存在しない法人または施設を参照しています');
  }
+ worldValidateLabor(s);
  validateWorldProduction(s);
  const month=ym(s.year,s.month);
  const playableCodes=Object.entries(WORLD_ENGINE_TERRITORY).filter(([code,territoryId])=>{
@@ -14730,6 +14779,7 @@ function worldFormInfrastructureJointVenture(s,sponsorId,partnerId,name,siteId,c
  const sponsorAmount=Math.round(capital*.6),partnerAmount=capital-sponsorAmount;
  if(sponsorAmount>acc(sponsor,'cash')||partnerAmount>acc(partner,'cash')||partnerAmount<1)
   throw Error('JV設立には両法人の現金による出資が必要です');
+ worldRequireInitialLabor(s,site.country,.7);
  const sponsorJournal=s.seq;
  post(sponsor,{investment:sponsorAmount},{cash:sponsorAmount},'物流JVへの資本払込 '+name,'investing',s);
  const partnerJournal=s.seq;
