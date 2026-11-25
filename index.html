@@ -7110,7 +7110,7 @@ function playerSalesPanel(){const f=current();ensureFirmGameplay(f);const last=f
 function marketPage(){const w=S.world[VIEW_COUNTRY];return titlePage('全世界の市場分析','自社グループと独立した世界全体の景気・金融・原材料・競合環境を確認します。',`${tag('短期景気＋長期成長')}`)+`<div class="grid">${card('地域市場需要',nfmt(w.demand)+' 台/月','競争力スコアで一回配分','span3')}${card('景気変動指数',nfmt((100+w.cycle*100)),'100が中立水準','span3')}${card('物価変動率',nfmt((w.inflation*100))+'%','年率相当の内部仮値','span3')}${card('政策金利',nfmt(w.rate*100)+'%','契約金利とは区別','span3')}
  <section class="panel span7"><h2>国・地域別マクロ経済</h2><div class="scroll"><table><thead><tr><th>国</th><th class="num">人口（百万人）</th><th class="num">相対所得</th><th class="num">自動車需要</th><th class="num">失業率</th><th class="num">為替（円相当）</th></tr></thead><tbody>${Object.entries(S.world).map(([c,v])=>`<tr><td><strong>${NAMES[c]}</strong></td><td class="num">${nfmt(v.pop)}</td><td class="num">${nfmt(v.wealth)}</td><td class="num">${nfmt(v.demand)}</td><td class="num">${nfmt(v.unemployment*100)}%</td><td class="num">${nfmt(v.fx)}</td></tr>`).join('')}</tbody></table></div><div class="footnote">開始時の人口は歴史人口推計の参考概数を使用。以降の人口成長、国別需要・所得・為替・価格等は試作計算であり、歴史上の実測統計を示すものではありません。</div></section>
  <section class="panel span5"><h2>${NAMES[VIEW_COUNTRY]}の原材料市場</h2>${rowstat('鋼材価格',nfmt(w.steelPrice)+'円相当 / 単位')}${rowstat('ゴム価格',nfmt(w.rubberPrice)+'円相当 / 単位')}${rowstat('鋼材供給能力',nfmt(w.steelSupply)+'単位/月')}${rowstat('ゴム供給能力',nfmt(w.rubberSupply)+'単位/月')}${rowstat('労働平均月給',nfmt(w.wage)+'円相当')}${rowstat('戦争ショック',w.war?tag('発生中','warn'):tag('なし','good'))}</section>
- <section class="panel span12"><h2>競合企業・活動地域</h2><div class="scroll"><table><thead><tr><th>企業</th><th>国</th><th>事業</th><th>経営方針</th><th class="num">完成品在庫</th><th class="num">先月販売</th><th class="num">財務純資産（円相当）</th></tr></thead><tbody>${S.firms.map(f=>`<tr><td>${esc(f.name)} ${controller(S,f.id)?tag('傘下','good'):''}</td><td>${NAMES[f.country]}</td><td>${industryName(f.industry)}</td><td>${strategyName(f.strategy)}</td><td class="num">${nfmt(totalGoods(f))}</td><td class="num">${nfmt(f.monthly.units)}</td><td class="num">${baseMoney(baseFromLocal(financials(f).equity,f.country))}</td></tr>`).join('')}</tbody></table></div></section>${worldSegmentMarketPanel()}${competitorEcosystemPanel()}</div>`}
+ <section class="panel span12"><h2>競合企業・活動地域</h2><div class="scroll"><table><thead><tr><th>企業</th><th>国</th><th>事業</th><th>経営方針</th><th class="num">完成品在庫</th><th class="num">先月販売</th><th class="num">財務純資産（円相当）</th></tr></thead><tbody>${S.firms.map(f=>`<tr><td>${esc(f.name)} ${controller(S,f.id)?tag('傘下','good'):''}</td><td>${NAMES[f.country]}</td><td>${industryName(f.industry)}</td><td>${strategyName(f.strategy)}</td><td class="num">${nfmt(totalGoods(f))}</td><td class="num">${nfmt(f.monthly.units)}</td><td class="num">${baseMoney(baseFromLocal(financials(f).equity,f.country))}</td></tr>`).join('')}</tbody></table></div></section>${phase8TradePanel(S)}${worldSegmentMarketPanel()}${competitorEcosystemPanel()}</div>`}
 function strategyName(x){return {growth:'成長',profit:'採算',tech:'技術',quality:'品質',balanced:'均衡'}[x]||x}
 function productSalesOverviewV023(f){const rows=f.models.filter(m=>m.status==='active'||m.status==='legacy').map(m=>{const inv=f.goods[m.id]?.q||0,now=Object.values(f.marketThisMonth||{}).reduce((sum,v)=>sum+(v.models?.[m.id]?.units||0),0);return `<tr><td><b>${esc(m.name)}</b><div class="tiny muted">${esc(designLabel('exterior',m.design?.exterior||'balanced'))}</div></td><td class="num">${nfmt(now)}</td><td class="num">${nfmt(inv)}</td><td class="num">${nfmt(m.quality)}</td><td class="num">${esc(gradeName(m))}</td></tr>`}).join('');return `<section class="panel span12"><h2>車種別 販売・在庫サマリー</h2><div class="scroll"><table><thead><tr><th>車種と外観</th><th class="num">直近販売</th><th class="num">完成車在庫</th><th class="num">品質</th><th>グレード</th></tr></thead><tbody>${rows||'<tr><td colspan="5">まだ車種がありません</td></tr>'}</tbody></table></div><p class="hint">実績は最後に確定した月の集計を使用。国別・購買層別の詳細は「自社グループ市場分析」で確認できます。</p></section>`}
 let PRODUCT_VIEW='design';
@@ -13753,6 +13753,59 @@ function worldPhase3Preview(s,market,playable){
  </section>`;
 }
 
+// SPEC-164: derive merchandise export/import totals from actual final receipts;
+// no new independent balance can drift from the shipment ledger.
+function phase8AggregateTrade(rows){
+ const totals=new Map(),seen=new Set();
+ for(const r of rows){
+  if(r.status!=='DELIVERED')continue;
+  if(typeof r.id!=='string'||!r.id||seen.has(r.id)||!Number.isSafeInteger(r.month)||!r.from||!r.to||!Number.isSafeInteger(r.goodsSeller)||r.goodsSeller<1||!Number.isSafeInteger(r.sellerRate)||r.sellerRate<1)throw Error('貿易統計の検収明細が不正');
+  seen.add(r.id);
+  if(r.from===r.to)continue;
+  const value=Number((BigInt(r.goodsSeller)*BigInt(r.sellerRate)+50000n)/100000n);
+  if(!Number.isSafeInteger(value))throw Error('貿易統計の換算額が上限超過');
+  for(const [id,side] of [[r.from,'exports'],[r.to,'imports']]){
+   const key=r.month+'|'+id,entry=totals.get(key)??{month:r.month,jurisdictionId:id,exports:0,imports:0};
+   entry[side]+=value;
+   if(!Number.isSafeInteger(entry[side]))throw Error('貿易統計の総額が上限超過');
+   totals.set(key,entry);
+  }
+ }
+ return [...totals.values()].sort((a,b)=>a.month-b.month||a.jurisdictionId.localeCompare(b.jurisdictionId));
+}
+function phase8TradeByJurisdiction(s,fromMonth,toMonth){
+ const w=s.worldExpansion;if(!w)return [];
+ const history=new Map(),rows=[];
+ for(const t of w.internationalShipments??[]){
+  if(t.status!=='DELIVERED'||t.receivedAt<fromMonth||t.receivedAt>toMonth)continue;
+  const profile=WORLD_INTERNATIONAL_CORRIDORS[w.internationalRoutes?.[t.routeId]?.profileId];
+  if(!profile)throw Error('貿易統計の輸送経路が不明：'+t.id);
+  const a=WORLD_LOCATIONS.get('LOC-'+profile.from),b=WORLD_LOCATIONS.get('LOC-'+profile.to);
+  let jurisdictions=history.get(t.receivedAt);
+  if(!jurisdictions){
+   const snapshot=makeWorldExpansion(w.marketRegistryVersion??0);
+   for(const event of worldHistoryThrough(t.receivedAt,w.marketRegistryVersion??0))recordWorldEvent(snapshot,event);
+   jurisdictions=snapshot.territoryJurisdictions;history.set(t.receivedAt,jurisdictions);
+  }
+  rows.push({id:t.id,status:t.status,month:t.receivedAt,from:jurisdictions[a?.territoryId],to:jurisdictions[b?.territoryId],
+   goodsSeller:t.goodsSeller,sellerRate:t.sellerRate});
+ }
+ return phase8AggregateTrade(rows);
+}
+function phase8TradePanel(s){
+ if(!s.worldExpansion)return '';
+ const end=ym(s.year,s.month)-1,rows=phase8TradeByJurisdiction(s,end-11,end);
+ const summary=new Map();
+ for(const r of rows){
+  const row=summary.get(r.jurisdictionId)??{exports:0,imports:0,yearExports:0,yearImports:0};
+  row.yearExports+=r.exports;row.yearImports+=r.imports;
+  if(r.month===end){row.exports=r.exports;row.imports=r.imports;}
+  summary.set(r.jurisdictionId,row);
+ }
+ const body=[...summary].sort((a,b)=>a[0].localeCompare(b[0])).map(([id,r])=>
+  '<tr><td>'+esc(WORLD_JURISDICTIONS.get(id)?.name??id)+'</td><td class="num">'+baseMoney(r.exports)+'</td><td class="num">'+baseMoney(r.imports)+'</td><td class="num">'+baseMoney(r.exports-r.imports)+'</td><td class="num">'+baseMoney(r.yearExports)+'</td><td class="num">'+baseMoney(r.yearImports)+'</td></tr>').join('');
+ return '<section class="panel span12"><h2>国別商品貿易統計（実検収分）</h2><div class="scroll"><table><thead><tr><th>管轄国</th><th>前月輸出総額</th><th>前月輸入総額</th><th>前月貿易収支</th><th>直近12か月輸出</th><th>直近12か月輸入</th></tr></thead><tbody>'+(body||'<tr><td colspan="6">検収済みの国際貨物実績なし</td></tr>')+'</tbody></table></div><p class="hint">商品代金のみを検収月・当時の管轄国・出荷時の固定為替で集計。未納・返金・運賃・関税を含めません。ゲームで記録された国際実貨物のみで、全国家経済の貿易推計ではありません。</p></section>';
+}
 function worldMarketPanel(s){
  const rows=WORLD_MARKETS.map(m=>{
   const active=s.worldExpansion.openMarkets[m.id]!==null;

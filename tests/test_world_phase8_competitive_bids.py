@@ -24,6 +24,20 @@ def main():
             actual = page.evaluate("(w) => phase8CrisisFactor(w)", market)
             assert abs(actual - expected) < 1e-9, (market, actual, expected)
         print("Phase 8 crisis spending policy: 7/7 passed")
+        trade_rows = json.loads("[{\"month\":22800,\"from\":\"US\",\"to\":\"UK\",\"goodsSeller\":101,\"sellerRate\":150000,\"status\":\"DELIVERED\",\"id\":\"a\"},{\"month\":22800,\"from\":\"US\",\"to\":\"UK\",\"goodsSeller\":50,\"sellerRate\":200000,\"status\":\"DELIVERED\",\"id\":\"b\"},{\"month\":22800,\"from\":\"UK\",\"to\":\"US\",\"goodsSeller\":40,\"sellerRate\":50000,\"status\":\"DELIVERED\",\"id\":\"c\"},{\"month\":22800,\"from\":\"US\",\"to\":\"UK\",\"goodsSeller\":101,\"sellerRate\":150000,\"status\":\"IN_TRANSIT\",\"id\":\"d\"},{\"month\":22800,\"from\":\"US\",\"to\":\"UK\",\"goodsSeller\":101,\"sellerRate\":150000,\"status\":\"REFUNDED\",\"id\":\"e\"},{\"month\":22800,\"from\":\"US\",\"to\":\"US\",\"goodsSeller\":101,\"sellerRate\":150000,\"status\":\"DELIVERED\",\"id\":\"f\"},{\"month\":22801,\"from\":\"US\",\"to\":\"UK\",\"goodsSeller\":101,\"sellerRate\":150000,\"status\":\"DELIVERED\",\"id\":\"g\"}]")
+        trade_expected = json.loads("[{\"month\":22800,\"jurisdictionId\":\"UK\",\"exports\":20,\"imports\":252},{\"month\":22800,\"jurisdictionId\":\"US\",\"exports\":252,\"imports\":20},{\"month\":22801,\"jurisdictionId\":\"UK\",\"exports\":0,\"imports\":152},{\"month\":22801,\"jurisdictionId\":\"US\",\"exports\":152,\"imports\":0}]")
+        assert page.evaluate("(rows) => phase8AggregateTrade(rows)", trade_rows) == trade_expected
+        assert page.evaluate("(row) => {try {phase8AggregateTrade([row,row]);return false;}catch(e){return true;}}", trade_rows[0])
+        actual = page.evaluate("""() => {
+            const w=makeWorldExpansion();
+            w.internationalRoutes.R={profileId:'US-UK-SEA-1900'};
+            w.internationalShipments=[
+              {id:'A',routeId:'R',status:'DELIVERED',receivedAt:ym(1900,2),goodsSeller:100,sellerRate:200000},
+              {id:'B',routeId:'R',status:'IN_TRANSIT',receivedAt:null,goodsSeller:100,sellerRate:200000}];
+            return phase8TradeByJurisdiction({worldExpansion:w},ym(1900,1),ym(1900,3));
+        }""")
+        assert actual == [{"month":22801,"jurisdictionId":"JUR-UK","exports":0,"imports":200},{"month":22801,"jurisdictionId":"JUR-US","exports":200,"imports":0}], actual
+        print("Phase 8 delivered international trade aggregation: 3/3 passed")
         browser.close()
     print(f"Phase 8 competitive quotes: {len(CASES)}/{len(CASES)} passed")
 
