@@ -1927,6 +1927,7 @@ function completeModelProject(s,f,p,events){
 function shareDealSimulation(s,buyer,target,percent,offerMultiplier){
  ensureGameplayV07(target);const fraction=roundShare(percent/100), available=target.shareBlocks.reduce((a,b)=>a+b.holding,0);
  if(!Number.isInteger(percent)||percent<1||percent>100||fraction>available+0.00000001)throw Error('取得割合は外部株主の売却可能持分以内で1%刻みです');
+ if(s.worldExpansion)phase7WholeShareQuantity(target,percent*10000);
  if(!Number.isFinite(offerMultiplier)||offerMultiplier<.75||offerMultiplier>2.5)throw Error('提示倍率は0.75〜2.50倍としてください');
  // Acceptance is deterministic, not an unapproved random hostile takeover.
  const willing=[...target.shareBlocks].filter(x=>x.holding>0&&offerMultiplier+1e-9>=x.reserve).sort((a,b)=>a.reserve-b.reserve);
@@ -1943,7 +1944,7 @@ function buyNegotiatedStake(){let before=null;try{
  const qty=Math.round(intValue('negPercent',1,100));const factor=intValue('negPremium',75,250)/100;
  const result=shareDealSimulation(S,buyer,target,qty,factor);
  if(!result.accepted)throw Error('提示条件を承諾する外部株主の持分が不足しています。価格倍率または取得割合を見直してください（不足 '+nfmt(result.left*100)+'%）');
- const paid=verifyMoney(buyer,result.total);before=structuredClone(S);
+ const paid=verifyMoney(buyer,result.total);if(S.worldExpansion&&paid>phase7AcquisitionCash(S,buyer))throw Error('買収に利用できる自己資金が不足しています');before=structuredClone(S);
  // Contract has cash settlement and is recorded only after all sellers accept.
  post(buyer,{investment:paid},{cash:paid},'外部株主から株式取得：'+target.name,'investing');
  const buyerJournal=buyer.journals.at(-1)?.id;
@@ -6826,7 +6827,7 @@ function borrow(){
 }
 function spendAd(){try{const f=current();if(!canEdit(f))throw Error('権限がありません');const base=intValue('adBase',1000,1000000),code=inputValue('adCountry');spendImmediate(f,base,'advert','市場広告宣伝費');if(!f.marketPresence.includes(code))f.marketPresence.push(code);f.brand[code]=clamp((f.brand[code]||0)+Math.sqrt(base/1000)*4,0,95);f.dealers[code]=clamp((f.dealers[code]||0)+Math.sqrt(base/1000)*3,0,95);render();toast(NAMES[code]+'市場への広告・販路投資を実行しました')}catch(e){toast(e.message)}}
 function createSub(){try{const f=current();if(!canEdit(f))throw Error('権限がありません');const name=inputValue('subName').trim().slice(0,38),code=inputValue('subCountry'),ind=inputValue('subIndustry'),minimum=Math.round(450000*eraCostFactor(S.year)),base=intValue('subCapital',minimum,20000000);if(!Object.hasOwn(S.world,code))throw Error('設立先市場は未開放です');if(!name)throw Error('会社名を入力してください');if(S.firms.some(v=>v.name===name))throw Error('同名の企業があります');if(base<minimum)throw Error('事業設備・初期在庫の必要資本金は'+nfmt(minimum)+'円相当です');worldRequireInitialLabor(S,code,.7);const amount=verifyMoney(f,base);post(f,{investment:amount},{cash:amount},'子会社への資本払込','investing');const parentJournal=f.journals.at(-1)?.id;const seedLocal=Math.round(amount*balanceFxRate(S,f)/balanceFxRate(S,{country:code}));const seedSpotBase=seedLocal*COUNTRIES[code].fx/100;const child=initFirm(S,{name,country:code,industry:ind,seedBase:seedSpotBase,size:.7,strategy:'balanced',publicOwnership:false});child.owners=[{id:f.id,econ:1,vote:1}];registerEquityLink(S,{parentId:f.id,childId:child.id,ratio:1,kind:'foundation',considerationLocal:amount,buyerJournal:parentJournal,childJournal:child.journals.find(j=>j.text==='創業資本')?.id,bookEquityBase:baseFromLocal(amount,f.country),cashAcquiredBase:baseFromLocal(acc(child,'cash'),child.country)});ensureSupplyNetwork(S);logNotice(`${f.name}が${name}を完全子会社として設立しました。`,'good');VIEW_FIRM=child.id;render();toast('子会社を設立しました。資本は親会社から実際に移転しました。')}catch(e){toast(e.message)}}
-function acquire(id){try{const buyer=current(),target=company(id);if(!canEdit(buyer)||!target||target.id===buyer.id)throw Error('買収対象が不正です');if(controller(S,target.id)||controller(S,buyer.id,target.id))throw Error('支配済み、または循環保有となる取引です');if(target.owners.some(o=>o.id!=='PUBLIC'))throw Error('この試作版では複数株主の株式取得は未対応です');const fraction=S.worldExpansion?.7:.6,external=roundShare(1-fraction);const costBase=Math.max(180000,Math.round(baseFromLocal(netWorth(target),target.country)/100*(fraction+.05)));const amount=verifyMoney(buyer,costBase);const bookEquityBase=baseFromLocal(netWorth(target),target.country),cashAcquiredBase=baseFromLocal(acc(target,'cash'),target.country),profitAtAcq=financials(target).profit;const revAtAcq=financials(target).revenue,expAtAcq=financials(target).expenses;post(buyer,{investment:amount},{cash:amount},'株式取得：'+target.name,'investing');const buyerJournal=buyer.journals.at(-1)?.id;target.owners=[{id:buyer.id,econ:fraction,vote:fraction},{id:'PUBLIC',econ:external,vote:external}];target.shareBlocks=HOLDER_TEMPLATES.map((h,i)=>({...h,holding:roundShare(external*h.weight)}));target.shareBlocks[2].holding=roundShare(external-target.shareBlocks[0].holding-target.shareBlocks[1].holding);registerEquityLink(S,{parentId:buyer.id,childId:target.id,ratio:fraction,kind:'acquisition',considerationLocal:amount,buyerJournal,bookEquityBase,cashAcquiredBase,revAtAcq,expAtAcq,profitAtAcq});logNotice(`${buyer.name}は${target.name}の株式${Math.round(fraction*100)}%を取得しました。対象会社の資産・負債は対象会社に残ります。`,'good');render();toast(target.name+'の'+Math.round(fraction*100)+'%株式を取得しました')}catch(e){toast(e.message)}}
+function acquire(id){try{const buyer=current(),target=company(id);if(!canEdit(buyer)||!target||target.id===buyer.id)throw Error('買収対象が不正です');if(controller(S,target.id)||controller(S,buyer.id,target.id))throw Error('支配済み、または循環保有となる取引です');if(target.owners.some(o=>o.id!=='PUBLIC'))throw Error('この試作版では複数株主の株式取得は未対応です');const fraction=S.worldExpansion?.7:.6,external=roundShare(1-fraction);if(S.worldExpansion)phase7WholeShareQuantity(target,700000);const costBase=Math.max(180000,Math.round(baseFromLocal(netWorth(target),target.country)/100*(fraction+.05)));const amount=verifyMoney(buyer,costBase);if(S.worldExpansion&&amount>phase7AcquisitionCash(S,buyer))throw Error('買収に利用できる自己資金が不足しています');const bookEquityBase=baseFromLocal(netWorth(target),target.country),cashAcquiredBase=baseFromLocal(acc(target,'cash'),target.country),profitAtAcq=financials(target).profit;const revAtAcq=financials(target).revenue,expAtAcq=financials(target).expenses;post(buyer,{investment:amount},{cash:amount},'株式取得：'+target.name,'investing');const buyerJournal=buyer.journals.at(-1)?.id;target.owners=[{id:buyer.id,econ:fraction,vote:fraction},{id:'PUBLIC',econ:external,vote:external}];target.shareBlocks=HOLDER_TEMPLATES.map((h,i)=>({...h,holding:roundShare(external*h.weight)}));target.shareBlocks[2].holding=roundShare(external-target.shareBlocks[0].holding-target.shareBlocks[1].holding);registerEquityLink(S,{parentId:buyer.id,childId:target.id,ratio:fraction,kind:'acquisition',considerationLocal:amount,buyerJournal,bookEquityBase,cashAcquiredBase,revAtAcq,expAtAcq,profitAtAcq});logNotice(`${buyer.name}は${target.name}の株式${Math.round(fraction*100)}%を取得しました。対象会社の資産・負債は対象会社に残ります。`,'good');render();toast(target.name+'の'+Math.round(fraction*100)+'%株式を取得しました')}catch(e){toast(e.message)}}
 function groupLoan(){
  try{
   const parent=current(),id=inputValue('loanSubs'),child=company(id),base=intValue('loanAmount',10000,10000000);
@@ -7997,6 +7998,17 @@ function maValuation(s,f){
  const reference=Math.max(150000,Math.round((bookComponent*.75+operation*.25)*(1-risk)));
  return {book,cash,debt,sales,profit,risk,operation,reference,method:'純資産80%補正・年換算業績・財務リスク'};
 }
+// SPEC-056/134: until the share registry stores integer quantities as its
+// authoritative values, reject percentage quotes that cannot represent a whole
+// number of voting shares exactly. Do not silently round the consideration.
+function phase7WholeShareQuantity(f,units){
+ const issued=f.sharesOutstanding??1000000,treasury=f.treasuryShares??0;
+ if(!Number.isSafeInteger(issued)||!Number.isSafeInteger(treasury)||treasury<0||issued<=treasury||
+    !Number.isSafeInteger(units)||units<1||units>1000000)throw Error('発行済株式数・取得割合が不正です');
+ const product=BigInt(issued-treasury)*BigInt(units);
+ if(product%1000000n!==0n)throw Error('取得割合が整数株数になりません。発行済株式数に対応する割合を指定してください');
+ return Number(product/1000000n);
+}
 function maQuote(s,buyer,target,percent,multiplier){
  if(!buyer||!target||buyer.id===target.id)throw Error('買い手と対象企業を別々に指定してください');
  if(controller(s,buyer.id,target.id)&&!(s.worldExpansion&&target.id!==s.playerId&&controller(s,buyer.id)&&controller(s,target.id)))throw Error('対象企業が買い手を支配しています');
@@ -8008,6 +8020,7 @@ function maQuote(s,buyer,target,percent,multiplier){
     Math.abs(percent*10000-requestedUnits)>1e-6)throw Error('取得割合は0.0001〜100%の範囲で0.0001%刻みで指定してください');
  if(!Number.isFinite(multiplier)||multiplier<.75||multiplier>2.5)throw Error('提示倍率は75〜250%で指定してください');
  const v=maValuation(s,target),q=requestedUnits/1000000,publicHolding=target.owners.find(o=>o.id==='PUBLIC')?.econ||0;
+ const shareQuantity=s.worldExpansion?phase7WholeShareQuantity(target,requestedUnits):null;
  const publicUnits=Math.round(publicHolding*1000000);
  if(requestedUnits>publicUnits)throw Error('外部株主の売却可能持分は'+maPct(publicHolding)+'です。企業株主の株式は交渉対象外です');
  const ordered=(target.shareBlocks||[]).filter(h=>h.holding>0&&multiplier+1e-9>=h.reserve).sort((a,b)=>a.reserve-b.reserve);
@@ -8022,7 +8035,7 @@ function maQuote(s,buyer,target,percent,multiplier){
  const localAvailable=s.worldExpansion?phase7AcquisitionCash(s,buyer):acc(buyer,'cash');
  const available=Math.max(0,Math.round(localAvailable*worldReferenceFx(buyer.country,s)/100));
  const paid=localFromBase(total,buyer.country,s),affordable=s.worldExpansion?paid>0&&paid<=localAvailable:total<=available;
- return {...v,percent:requestedUnits/10000,fraction:q,multiplier,total,available,lots,
+ return {...v,percent:requestedUnits/10000,fraction:q,multiplier,total,available,lots,shareQuantity,
   missing:leftUnits/1000000,accepted:leftUnits===0&&affordable,
   consent:leftUnits===0,affordable,publicHolding};
 }
@@ -8303,6 +8316,7 @@ function corporateShareQuote(s,buyerId,targetId,sellerId,percent,mode,offerFacto
  const stake=target.owners.find(o=>o.id===seller.id)?.econ||0;
  const stakeUnits=Math.round(stake*1000000),units=Math.round(percent*10000);
  if(!Number.isFinite(percent)||units<1||units>1000000||Math.abs(percent*10000-units)>1e-6)throw Error('取得割合は0.0001〜100%（手入力は0.01%刻み）で指定してください');
+ const shareQuantity=s.worldExpansion?phase7WholeShareQuantity(target,units):null;
  if(units>stakeUnits)throw Error('売却可能な企業保有株式は'+maPct(stake)+'です');
  if(!Number.isFinite(offerFactor)||offerFactor<rule[1]-1e-9||offerFactor>rule[2]+1e-9)throw Error(rule[0]+'の提示額は時価の'+Math.round(rule[1]*100)+'〜'+Math.round(rule[2]*100)+'%で指定してください');
  const discounted=corporateGroupSeller(s,buyer,seller);
@@ -8315,7 +8329,7 @@ function corporateShareQuote(s,buyerId,targetId,sellerId,percent,mode,offerFacto
  const buyerPay=localFromBase(total,buyer.country,s),sellerReceive=localFromBase(total,seller.country,s);
  const consent=offerFactor+1e-9>=reserve.factor;
  const affordable=buyerPay>0&&sellerReceive>0&&buyerPay<=(s.worldExpansion?phase7AcquisitionCash(s,buyer):acc(buyer,'cash'));
- return {buyer,target,seller,units,percent:units/10000,fraction,mode,offerFactor,reserve:reserve.factor,
+ return {buyer,target,seller,units,percent:units/10000,fraction,mode,offerFactor,reserve:reserve.factor,shareQuantity,
   reasons:reserve.reasons,available:stake,reference:value.reference,total,buyerPay,sellerReceive,consent,affordable,accepted:consent&&affordable,discounted};
 }
 function executeCorporateShareTransfer(s,buyerId,targetId,sellerId,percent,mode,offerFactor){

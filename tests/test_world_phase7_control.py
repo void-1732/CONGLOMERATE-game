@@ -52,6 +52,25 @@ def main():
             assert r["rights"]["whollyOwned"]==(r["pct"]==100),r
             assert (r["start"] is not None)==(r["pct"]>=70),r
         assert all(result[k] for k in ("save","duplicate","denied","atomic","indirect","legacyRule")),result
+        whole_shares=page.evaluate("""()=>{
+ S=newWorldGame({country:'JP',name:'Whole share quote'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';
+ const root=company(S.playerId,S),target=S.firms.find(f=>f.id!==root.id&&f.country==='JP'&&f.owners.every(o=>o.id==='PUBLIC'));
+ post(root,{cash:1000000000},{capital:1000000000},'検証用資本','financing',S);
+ const issue=executeCapitalIssuance(S,target.id,5,1,'institutional','ai');
+ const before=JSON.stringify(S);
+ let rejected=false;try{executeMADeal(S,root.id,target.id,.0001,2.5)}catch(e){rejected=e.message.includes('整数株数')}
+ const atomic=before===JSON.stringify(S);
+ const q=maQuote(S,root,target,.002,2.5);
+ executeMADeal(S,root.id,target.id,.002,2.5);
+ const own=target.owners.find(o=>o.id===root.id);
+ const loaded=parsePayload(savePayload(S)),restored=company(target.id,loaded);
+ const treasury={sharesOutstanding:1050000,treasuryShares:50000};
+ return {issued:issue.totalShares===1050000,rejected,atomic,quantity:q.shareQuantity===21,
+  paid:Math.round(own.econ*1000000)===20,restored:restored.sharesOutstanding===1050000&&restored.owners.find(o=>o.id===root.id)?.econ===own.econ,
+  treasury:phase7WholeShareQuantity(treasury,1)===1,clean:!check(S).length&&!check(loaded).length};
+}""")
+        assert len(whole_shares)==8 and all(whole_shares.values()),whole_shares
+        print("PASS Phase 7 SPEC-056/134: whole-share quote after issuance, rejection before reservation, and save")
         staged=page.evaluate("""async()=>{
  S=newWorldGame({country:'JP',name:'Staged acquisition'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';saveAuto=async()=>true;
  const root=company(S.playerId,S),target=S.firms.find(f=>f.id!==root.id&&f.country==='JP'&&f.owners.length===1&&f.owners[0].id==='PUBLIC');
