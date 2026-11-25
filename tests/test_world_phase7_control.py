@@ -288,6 +288,37 @@ def main():
 }""")
         assert len(banking)==9 and all(banking.values()),banking
         print("PASS Phase 7 SPEC-021: nine ordinary bank lending, repayment and integrity checks")
+        losses=page.evaluate("""async()=>{
+ S=newWorldGame({country:'JP',name:'Loan impairment audit'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';saveAuto=async()=>true;
+ const root=company(S.playerId,S),rootId=root.id;
+ post(root,{cash:5000000000},{capital:5000000000},'検証用資本','financing',S);
+ const bank=initFirm(S,{name:'Impairment lender',country:'JP',industry:'service',seedBase:650000,publicOwnership:true}),bankId=bank.id;
+ syncWorldIdentities(S);post(bank,{cash:1000000000},{capital:1000000000},'検証用資本','financing',S);
+ executeMADeal(S,rootId,bankId,70,2.5);
+ const p=360000,r=phase7IssueBankLoan(S,bankId,rootId,p,12),loanId=r.id;
+ const close=async()=>{const m=S.monthCommitted;await runMonth();if(S.monthCommitted!==m+1)throw Error(JSON.stringify(LAST_MONTH_DIAGNOSTIC))};
+ await close();
+ const debtor=company(rootId,S),lender=company(bankId,S),cash=acc(debtor,'cash');
+ post(debtor,{otherExpense:cash},{cash},'支払不能の隔離試験支出','operating',S);
+ const current=S.worldExpansion.bankLoans.find(x=>x.id===loanId),before=consolidate(S),bankEquity=financials(lender).equity;
+ phase7UpdateBankCreditLosses(S);
+ const allowance=current.allowance,after=consolidate(S);
+ const loss=allowance===90000&&acc(lender,'bankLoanAllowance')===-allowance&&financials(lender).equity===bankEquity-allowance&&current.remaining===p;
+ const ledger=lender.journals.at(-1).dr[0][0]==='otherExpense'&&lender.journals.at(-1).cr[0][0]==='bankLoanAllowance';
+ const consolidated=before.bs.assets===after.bs.assets&&before.pl.profit===after.pl.profit&&before.spot.assets===after.spot.assets&&!after.errors.length;
+ const risk=worldBankCreditRisk(S,lender).allowance===allowance&&worldBankCreditRisk(S,lender).netExposure===p-allowance;
+ const loaded=parsePayload(savePayload(S)),restored=loaded.worldExpansion.bankLoans[0].allowance===allowance&&!check(loaded).length;
+ const forged=structuredClone(loaded);forged.worldExpansion.bankLoans[0].lossChanges[0].delta++;
+ let tamper=false;try{parsePayload(savePayload(forged))}catch(e){tamper=e.message.includes('銀行貸出損失')}
+ post(debtor,{cash:500000000},{otherRevenue:500000000},'返済可能資金の営業収入','operating',S);
+ for(const f of S.firms){f._profitStart=financials(f).profit;f._salesNow=0;f._unitsNow=0;}
+ financeMonthly(S,[]);
+ const release=(current.allowance??0)===0&&acc(lender,'bankLoanAllowance')===0&&current.remaining===p-p/12&&current.lossChanges.at(-1).delta===-allowance;
+ const clean=!check(S).length&&!consolidate(S).errors.length&&!check(parsePayload(savePayload(S))).length;
+ return {loss,ledger,consolidated,risk,restored,tamper,release,clean};
+}""")
+        assert len(losses)==8 and all(losses.values()),losses
+        print("PASS Phase 7 SPEC-054: eight loan impairment, reversal, consolidation and integrity checks")
         assert not errors,errors
         print("PASS Phase 7 SPEC-126: six paid purchase boundaries, cash, ownership, 5 staged and 6 inherited-scope accounting checks")
         print("PASS Phase 7 SPEC-134: 8 live and restored shareholder registry checks")

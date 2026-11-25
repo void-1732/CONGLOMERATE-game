@@ -867,7 +867,7 @@ const COUNTRIES={
  SA:{currency:'SAR',fx:49,pop:anchorPopulation('SA',1932),wealth:.72,wage:123,demand:14,
   steel:482,rubber:329,steelSupply:105,rubberSupply:85}
 };
-const ACCTYPE={cash:'asset',materials:'asset',materialsTransit:'asset',componentStock:'asset',componentTransit:'asset',wip:'asset',goods:'asset',goodsTransit:'asset',constructionAssets:'asset',ppe:'asset',accdep:'contra',investment:'asset',ar:'asset',loanrec:'asset',resourceRights:'asset',worldShipmentStock:'asset',worldImportDutyPrepaid:'asset',worldInternationalReceivable:'asset',worldStoredStock:'asset',worldConstructionWip:'asset',worldInsuranceReserve:'asset',worldInsurancePrepaid:'asset',worldTravelAdvance:'asset',worldBankDeposits:'asset',worldBankRemittance:'asset',worldBankReserve:'asset',worldSupplierAdvances:'asset',partReceivable:'asset',partPayable:'liability',worldCustomerAdvances:'liability',worldInternationalPayable:'liability',worldInternationalDutyPayable:'liability',worldInsuranceUnearned:'liability',worldDemandDeposits:'liability',payable:'liability',wagesDue:'liability',debt:'liability',interestDue:'liability',taxDue:'liability',capital:'equity',treasuryStock:'contraEquity',dividendsPaid:'contraEquity',sales:'revenue',serviceRevenue:'revenue',otherRevenue:'revenue',cogs:'expense',labor:'expense',rndExpense:'expense',advert:'expense',maintenance:'expense',interestExpense:'expense',depreciation:'expense',taxExpense:'expense',fxLoss:'expense',otherExpense:'expense'};
+const ACCTYPE={cash:'asset',materials:'asset',materialsTransit:'asset',componentStock:'asset',componentTransit:'asset',wip:'asset',goods:'asset',goodsTransit:'asset',constructionAssets:'asset',ppe:'asset',accdep:'contra',investment:'asset',ar:'asset',loanrec:'asset',bankLoanAllowance:'contra',resourceRights:'asset',worldShipmentStock:'asset',worldImportDutyPrepaid:'asset',worldInternationalReceivable:'asset',worldStoredStock:'asset',worldConstructionWip:'asset',worldInsuranceReserve:'asset',worldInsurancePrepaid:'asset',worldTravelAdvance:'asset',worldBankDeposits:'asset',worldBankRemittance:'asset',worldBankReserve:'asset',worldSupplierAdvances:'asset',partReceivable:'asset',partPayable:'liability',worldCustomerAdvances:'liability',worldInternationalPayable:'liability',worldInternationalDutyPayable:'liability',worldInsuranceUnearned:'liability',worldDemandDeposits:'liability',payable:'liability',wagesDue:'liability',debt:'liability',interestDue:'liability',taxDue:'liability',capital:'equity',treasuryStock:'contraEquity',dividendsPaid:'contraEquity',sales:'revenue',serviceRevenue:'revenue',otherRevenue:'revenue',cogs:'expense',labor:'expense',rndExpense:'expense',advert:'expense',maintenance:'expense',interestExpense:'expense',depreciation:'expense',taxExpense:'expense',fxLoss:'expense',otherExpense:'expense'};
 const PAGES={dashboard:'経営概況',marketOwn:'自社グループ市場分析',market:'世界市場分析',product:'製品・開発',factory:'工場・調達',people:'研究・人事',finance:'財務・資金',group:'企業グループ',consolidated:'連結財務三表',reports:'月次レポート',save:'保存・設定'};
 /* STEP 2: navigation only. Every tab points to a current, fully functional PAGE.
    New specialized pages are created in STEP 3+, not silently replaced with placeholders.
@@ -3867,6 +3867,7 @@ function phase7ValidateLoanSchedules(s){
   }
   f.loans=f.loans.filter(x=>!x.closed);
  }
+ if(s.worldExpansion)phase7UpdateBankCreditLosses(s);
  // Stage 2: recognize current-period taxes and issue reports after all intercompany legs are posted.
  for(const f of s.firms){
   const prevProfit=f._profitStart??0,delta=financials(f).profit-prevProfit;
@@ -7088,7 +7089,8 @@ function consolidate(s,rootId=s.playerId){
   interestRecEliminated+=baseFromLocal(loan.parentInterestRemaining||0,parent.country,s);
   interestDueEliminated+=baseFromLocal(loan.interestOutstanding||0,child.country,s);
  }
- bs.assets-=loanRecEliminated+interestRecEliminated;
+ const bankLoss=phase7BankLossAdjustments(s,ids,insidePeriod,ownership.shares,(n,f)=>baseFromLocal(n,f.country,s));
+ bs.assets-=loanRecEliminated+interestRecEliminated-bankLoss.asset;
  bs.liab-=loanDebtEliminated+interestDueEliminated;
  if(loanRecEliminated!==loanDebtEliminated||interestRecEliminated!==interestDueEliminated)
   notes.push('内部貸付債権債務の換算差額は外貨換算ルール未確定のため要確認');
@@ -7152,7 +7154,7 @@ function consolidate(s,rootId=s.playerId){
  // assets (not gross balance sheet items) are allocated to NCI by effective ownership.
  const controlledInvestByOwner={};for(const l of activeLinks)controlledInvestByOwner[l.parentId]=(controlledInvestByOwner[l.parentId]||0)+baseFromLocal(l.considerationLocal,company(l.parentId,s).country,s);
  let nci=0;for(const f of members){if(f.id===rootId)continue;const minority=1-(ownership.shares[f.id]||0),net=baseFromLocal(financials(f).equity,f.country,s)-(controlledInvestByOwner[f.id]||0);nci+=minority*net;}
- nci+=nciGoodwill-parts.nci-domesticCost.nci-internationalCost.nci;
+ nci+=bankLoss.nciAsset+nciGoodwill-parts.nci-domesticCost.nci-internationalCost.nci;
  nci-=stockTx.reduce((a,t)=>{const buyer=company(t.buyer,s),remain=buyer.goods[t.stockKey]?.q||0;const ratio=t.q?Math.min(1,remain/t.q):0;return a+Math.round(t.marginBase*ratio)*(1-(ownership.shares[t.seller]||0));},0);
  bs.nci=Math.round(nci);bs.equity=bs.assets-bs.liab;bs.parentEquity=bs.equity-bs.nci;bs.liabEquityDiff=bs.assets-bs.liab-bs.equity;
  if(!Number.isSafeInteger(bs.assets)||!Number.isSafeInteger(bs.equity)||!Number.isSafeInteger(bs.nci))errors.push('連結金額の安全整数範囲を超過');
@@ -7173,7 +7175,7 @@ function consolidate(s,rootId=s.playerId){
  const equityRevenueEliminated=internalEquity.reduce((n,t)=>n+Math.max(0,t.gainBase||0),0),equityExpenseEliminated=internalEquity.reduce((n,t)=>n+Math.max(0,-(t.gainBase||0)),0);
  const netElimination=internalSales-internalSellerCost-internalCostSold;
  // For a period with internal stock still in inventory: netElimination=remaining markup.
- rev-=dividendIncome+internalSales+interestRev+parts.sales+equityRevenueEliminated+domesticCost.sales+internationalCost.sales+serviceFees+insuranceInternalFees;exp-=internalSellerCost+internalCostSold+interestExp+parts.sales-parts.deferred+equityExpenseEliminated+domesticCost.sales-domesticCost.retained+internationalCost.sales-internationalCost.retained+serviceFees+insuranceInternalFees;
+ rev-=bankLoss.revenue+dividendIncome+internalSales+interestRev+parts.sales+equityRevenueEliminated+domesticCost.sales+internationalCost.sales+serviceFees+insuranceInternalFees;exp-=bankLoss.expense+internalSellerCost+internalCostSold+interestExp+parts.sales-parts.deferred+equityExpenseEliminated+domesticCost.sales-domesticCost.retained+internationalCost.sales-internationalCost.retained+serviceFees+insuranceInternalFees;
  const rawProfit=rev-exp;
  const pl={revenue:Math.round(rev),expenses:Math.round(exp),profit:Math.round(rawProfit+bargain),bargainGain:Math.round(bargain),intercompanySales:internalSales+parts.sales+domesticCost.sales+internationalCost.sales+serviceFees+insuranceInternalFees,internalInterest:interestRev,unrealizedProfit:inventoryProfit+parts.deferred+domesticCost.retained+internationalCost.retained,nciProfit:0,parentProfit:0};
  let minorProfit=0;
@@ -7184,7 +7186,7 @@ function consolidate(s,rootId=s.playerId){
  minorProfit-=accrued.reduce((a,t)=>a+(1-(ownership.shares[t.seller]||0))*t.revenueBase-(1-(ownership.shares[t.buyer]||0))*t.expenseBase,0);
  minorProfit-=internalEquity.reduce((n,t)=>n+(t.gainBase||0)*(1-(ownership.shares[t.seller]||0)),0);
  minorProfit-=dividends.reduce((n,t)=>n+baseFromLocal(t.received,company(t.buyer,s).country,s)*(1-(ownership.shares[t.buyer]||0)),0);
- pl.nciProfit=Math.round(minorProfit-parts.nci-domesticCost.nci-internationalCost.nci);pl.parentProfit=pl.profit-pl.nciProfit;
+ pl.nciProfit=Math.round(minorProfit+bankLoss.nciProfit-parts.nci-domesticCost.nci-internationalCost.nci);pl.parentProfit=pl.profit-pl.nciProfit;
  // Cash-flow classification for most recently committed month. Each legal entity's
  // cash journal is summed once, then linked internal cash legs are removed by ID.
  const period=s.monthCommitted;
@@ -7455,12 +7457,13 @@ function accountingFxReview(s,rootId,g){
   interestPayable+=Math.round((loan.interestOutstanding||0)*balanceFxRate(s,f));
  }
  const internalDeposits=worldInternalBankDeposits(s,ids,f=>balanceFxRate(s,f));
- const a=grossAssets-investment+goodwill-inventoryProfit-loanReceivable-interestReceivable-parts.spotClaims-parts.spotDeferred-internalDeposits-international.spotRetained-internationalOpenAsset;
+ const bankLoss=phase7BankLossAdjustments(s,ids,within,g.shares,(n,f,e)=>Math.round(n*(e?.rate??balanceFxRate(s,f))),period);
+ const a=grossAssets-investment+goodwill-inventoryProfit-loanReceivable-interestReceivable-parts.spotClaims-parts.spotDeferred-internalDeposits-international.spotRetained-internationalOpenAsset+bankLoss.asset;
  const l=grossLiabilities-loanPayable-interestPayable-parts.spotClaims-internalDeposits-internationalOpenLiability;
  const totalEquity=a-l;
  const heldInvestment={};for(const x of historical){const f=company(x.parentId,s);
   heldInvestment[f.id]=(heldInvestment[f.id]||0)+Math.round((x.considerationLocal||0)*balanceFxRate(s,f));}
- let nci=goodwillMinority-parts.spotNci;
+ let nci=goodwillMinority-parts.spotNci+bankLoss.nciAsset;
  for(const f of members){if(f.id===rootId)continue;
   const effective=g.shares[f.id]??0,translatedNet=Math.round(financials(f).equity*balanceFxRate(s,f));
   nci+=Math.round((1-effective)*(translatedNet-(heldInvestment[f.id]||0)));
@@ -7518,9 +7521,10 @@ function accountingFxReview(s,rootId,g){
  }
  const dividendPeriod=phase7DividendCashPairs(s).filter(t=>t.yearMonth===period&&ids.has(t.seller)&&ids.has(t.buyer)&&within(t));
  const dividendEliminated=dividendPeriod.reduce((n,t)=>n+Math.round(t.received*t.toRate),0);
- rev-=dividendEliminated+internalSalesPeriod+interestRevenuePeriod+parts.periodSales+internationalPeriodSales;
+ rev-=bankLoss.revenue+dividendEliminated+internalSalesPeriod+interestRevenuePeriod+parts.periodSales+internationalPeriodSales;
  nciProfit-=Math.round(dividendPeriod.reduce((n,t)=>n+Math.round(t.received*t.toRate)*(1-(g.shares[t.buyer]??0)),0));
- exp-=internalSalesPeriod+interestExpensePeriod+parts.periodSales+internationalPeriodSales;
+ exp-=bankLoss.expense+internalSalesPeriod+interestExpensePeriod+parts.periodSales+internationalPeriodSales;
+ nciProfit+=Math.round(bankLoss.nciProfit);
  exp+=deltaDeferred;
  const insideEquity=(s.equityTransfers||[]).filter(t=>t.month===period&&ids.has(t.seller)&&ids.has(t.buyer));
  const shareGain=insideEquity.map(t=>{const f=company(t.seller,s);const j=f.journals.find(j=>j.id===t.sellerJournal);return Math.round((t.gainLocal||0)*Number(j?.fxAtPost??worldReferenceFx(f.country,s)));});
@@ -15257,10 +15261,10 @@ function worldBankCreditRisk(s,bank){
   if(!Number.isSafeInteger(exposure)||exposure<0)throw Error('銀行貸出元本残高が不正');
   total+=exposure;sector[borrower.industry]=(sector[borrower.industry]??0)+exposure;
  }
- const equity=Math.max(0,financials(bank).equity),liquid=Math.max(0,phase7AvailableCash(s,bank));
+ const equity=Math.max(0,financials(bank).equity),liquid=Math.max(0,phase7AvailableCash(s,bank)),allowance=Math.max(0,-acc(bank,'bankLoanAllowance'));
  // Provisional model limits: preserve the previous 2x capital single-loan ceiling
  // as a total ceiling; a single sector may use at most 1.5x capital.
- return {total,sector,equity,liquid,totalLimit:Math.floor(equity*2),sectorLimit:Math.floor(equity*1.5)};
+ return {total,sector,equity,liquid,allowance,netExposure:total-allowance,totalLimit:Math.floor(equity*2),sectorLimit:Math.floor(equity*1.5)};
 }
 function worldInfrastructureBankReady(s,bank,buyer,principal){
  if(!bank||!buyer||bank===buyer||!Number.isSafeInteger(principal)||principal<1||!isActiveCorporateFirm(bank)||bank.country!==buyer.country||bank.industry!=='service'
@@ -15807,11 +15811,43 @@ function phase7RecordBankPayment(s,loan,borrower,bank,kind,amount){
  if(kind==='principal')r.remaining-=amount;else r.interestPaid+=amount;
  r.payments.push({kind,amount,month:ym(s.year,s.month),borrowerJournal:borrower.journals.at(-1).id,bankJournal:bank.journals.at(-1).id});
 }
+// SPEC-054: impairment is an actual contra-asset / expense journal, not debt forgiveness.
+// Model policy: 25% of principal when contractual payment is overdue; 100% on withdrawal.
+function phase7UpdateBankCreditLosses(s){
+ const month=ym(s.year,s.month);
+ for(const r of s.worldExpansion?.bankLoans??[]){
+  const borrower=company(r.borrowerId,s),bank=company(r.bankId,s),loan=borrower.loans.find(l=>l.id===r.id);
+  const previous=r.allowance??0;
+  const overdue=loan&&(phase7ScheduledPrincipal(s,loan)>0||(loan.interestOutstanding??0)>0);
+  const target=borrower.lifecycle?.phase==='withdrawn'?r.remaining:overdue?Math.ceil(r.remaining/4):0;
+  const delta=target-previous;if(!delta)continue;
+  const journal=s.seq;
+  if(delta>0)post(bank,{otherExpense:delta},{bankLoanAllowance:delta},'銀行貸出損失引当 '+r.id,'operating',s);
+  else post(bank,{bankLoanAllowance:-delta},{otherRevenue:-delta},'銀行貸出損失引当戻入 '+r.id,'operating',s);
+  r.allowance=target;(r.lossChanges??=[]).push({month,journal,delta,remaining:r.remaining,rate:balanceFxRate(s,bank)});
+ }
+}
+function phase7BankLossAdjustments(s,ids,within,shares,convert,period=null){
+ const out={asset:0,nciAsset:0,revenue:0,expense:0,nciProfit:0};
+ for(const r of s.worldExpansion?.bankLoans??[]){
+  if(!ids.has(r.bankId)||!ids.has(r.borrowerId))continue;
+  const bank=company(r.bankId,s),minority=1-(shares[bank.id]??0),asset=convert(r.allowance??0,bank,null);
+  out.asset+=asset;out.nciAsset+=asset*minority;
+  for(const e of r.lossChanges??[]){
+   if(period!==null&&e.month!==period)continue;
+   const tx={seller:r.bankId,buyer:r.borrowerId,yearMonth:e.month,fromJournal:e.journal,toJournal:e.journal};
+   if(!within(tx))continue;
+   const v=convert(Math.abs(e.delta),bank,e);
+   if(e.delta>0){out.expense+=v;out.nciProfit+=v*minority;}else{out.revenue+=v;out.nciProfit-=v*minority;}
+  }
+ }
+ return out;
+}
 function phase7ValidateBankLoans(s){
  const rows=s.worldExpansion?.bankLoans??[];
  if(!Array.isArray(rows))throw Error('銀行事業融資台帳が不正');
- if(!rows.length){if(s.firms.some(f=>f.loans.some(l=>l.bankLoanId)))throw Error('銀行事業融資の証拠がありません');return;}
- const match=worldServiceJournalMatcher(s),byId=new Map(),used=new Set();let prior=0;
+ if(!rows.length){if(s.firms.some(f=>f.loans.some(l=>l.bankLoanId)||acc(f,'bankLoanAllowance')!==0))throw Error('銀行事業融資の証拠がありません');return;}
+ const match=worldServiceJournalMatcher(s),byId=new Map(),used=new Set(),allowanceByBank=new Map();let prior=0;
  for(const r of rows){
   const bank=company(r?.bankId,s),borrower=company(r?.borrowerId,s),id=Number(r?.id?.slice(1));
   if(!bank||!borrower||bank===borrower||bank.country!==r.country||borrower.country!==r.country||r.country!==WORLD_BANK_DEPOSIT_PROFILE.country||bank.industry!=='service'
@@ -15835,7 +15871,20 @@ function phase7ValidateBankLoans(s){
   if(remaining<0||remaining!==r.remaining||interest!==r.interestPaid||(!active&&remaining!==0)
    ||(active&&(active.bankLoanId!==r.id||active.parent!==r.bankId||active.outstanding!==remaining||active.parentRemaining!==remaining||active.rate!==r.rate||active.due!==r.due||active.repayment?.principal!==r.principal||active.repayment?.origin!==r.month||active.repayment?.months!==r.months||active.interestOutstanding!==active.parentInterestRemaining)))
    throw Error('銀行事業融資の元利金残高が一致しません：'+r.id);
+  const changes=r.lossChanges??[];let allowance=0,lastLoss=id;
+  if(!Array.isArray(changes))throw Error('銀行貸出損失台帳が不正');
+  for(const e of changes){
+   if(!Number.isSafeInteger(e.delta)||!e.delta||!Number.isSafeInteger(e.journal)||e.journal<=lastLoss||used.has(e.journal)
+    ||!Number.isSafeInteger(e.month)||e.month<r.month||e.month>ym(s.year,s.month)||!Number.isSafeInteger(e.remaining)||e.remaining<0||e.remaining>r.principal
+    ||!Number.isFinite(e.rate)||e.rate<=0||!match(bank,e.journal,e.month,Math.abs(e.delta),e.delta>0?'otherExpense':'bankLoanAllowance',e.delta>0?'bankLoanAllowance':'otherRevenue','operating'))
+    throw Error('銀行貸出損失の仕訳が不正：'+r.id);
+   allowance+=e.delta;if(allowance<0||allowance>e.remaining)throw Error('銀行貸出損失の引当残高が不正');
+   used.add(e.journal);lastLoss=e.journal;
+  }
+  if(allowance!==(r.allowance??0)||allowance>r.remaining)throw Error('銀行貸出損失の残高が不正');
+  allowanceByBank.set(bank.id,(allowanceByBank.get(bank.id)??0)+allowance);
  }
+ for(const f of s.firms)if(-acc(f,'bankLoanAllowance')!==(allowanceByBank.get(f.id)??0))throw Error('銀行貸出損失の元帳残高が不正');
  for(const f of s.firms)for(const l of f.loans)if(l.bankLoanId&&(!byId.has(l.bankLoanId)||byId.get(l.bankLoanId).borrowerId!==f.id))throw Error('銀行事業融資の契約参照が不正');
 }
 function worldOpenBankDeposit(s,clientId,bankId,principal){
@@ -15914,6 +15963,8 @@ function worldBankDepositPanel(s,firm,edit){
   +rowstat('分別した支払準備金',fnum(firm,acc(firm,'worldBankReserve')))
   +rowstat('預金者への払戻債務',fnum(firm,-acc(firm,'worldDemandDeposits')))
   +rowstat('貸出元本残高',fnum(firm,risk.total))
+  +rowstat('貸出損失引当（モデル）',fnum(firm,risk.allowance))
+  +rowstat('引当後貸出残高',fnum(firm,risk.netExposure))
   +rowstat('貸出総額上限（モデル）',fnum(firm,risk.totalLimit))
   +rowstat('産業別上限（モデル）',fnum(firm,risk.sectorLimit))
   +Object.entries(risk.sector).map(([industry,n])=>rowstat('貸出集中：'+industryName(industry),fnum(firm,n))).join('')
