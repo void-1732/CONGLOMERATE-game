@@ -128,7 +128,8 @@ def main():
  const root=company(s.playerId,s),targets=s.firms.filter(f=>f.id!==root.id&&f.country==='JP'&&f.owners.length===1&&f.owners[0].id==='PUBLIC');
  if(targets.length<2)throw Error('two acquisition targets required');
  const [b,c]=targets;
- for(const f of [root,b,c])post(f,{cash:1000000000},{capital:1000000000},'検証用資本','financing',s);
+ post(root,{cash:5000000000},{capital:5000000000},'検証用資本','financing',s);
+ for(const f of [b,c])post(f,{cash:1000000000},{capital:1000000000},'検証用資本','financing',s);
  executeMADeal(s,root.id,b.id,70,2.5,'player');
  executeMADeal(s,root.id,c.id,70,2.5,'player');
  executeMADeal(s,b.id,c.id,20,2.5,'player');
