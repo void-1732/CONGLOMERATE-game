@@ -6154,14 +6154,14 @@ function accrueAssemblyRoyalties(s,f,bom,quantity,batchId){
 }
 
 /* Retain the internal increment as units move through transfers, assembly and exports. */
-function partConsolidation(s,members,links,opens,period,shares){
+function partConsolidation(s,members,links,opens,period,shares,scopeEntries=null){
  const events=s.partEconomy?.tradeEvents??[];
  const result={claims:0,spotClaims:0,sales:0,periodSales:0,deferred:0,spotDeferred:0,goods:0,
   nci:0,spotNci:0,periodNci:0,periodDeferral:0,byEvent:{},localByEvent:{}};
  if(!events.length)return result;
  const ids=new Set(members.map(f=>f.id));
  const records=new Map(),componentEvents=new Map(),batchEvents=new Map();
- const starts=new Map(links.filter(l=>l.month===opens[l.childId]).slice()
+ const starts=scopeEntries?new Map(Object.entries(scopeEntries).map(([id,e])=>[id,e.buyerJournal])):new Map(links.filter(l=>l.month===opens[l.childId]).slice()
   .sort((a,b)=>b.buyerJournal-a.buyerJournal).map(l=>[l.childId,l.buyerJournal]));
  for(const e of events){
   if(!ids.has(e.seller)||!ids.has(e.buyer))continue;
@@ -6821,7 +6821,62 @@ function ownedGroup(s,rootId){const ids=controlSet(s,rootId),issues=[];if(!ids.s
 }
 const ACCOUNT_ASSETS=Object.keys(ACCTYPE).filter(k=>ACCTYPE[k]==='asset'||ACCTYPE[k]==='contra');
 const ACCOUNT_LIAB=Object.keys(ACCTYPE).filter(k=>ACCTYPE[k]==='liability');
+// Phase 7: resolve the first actual 70% crossing in (month, journal ID) order.
+ // A controlled parent's earlier holding enters the scope only when that parent enters.
+function phase7ScopeEntries(s,links,members,rootId){
+ const entries={[rootId]:{month:0,buyerJournal:0}},eligible=new Set(members.map(f=>f.id));
+ const compare=(a,b)=>a.month-b.month||a.buyerJournal-b.buyerJournal;
+ for(let pass=0;pass<members.length;pass++){
+  let changed=false;
+  for(const child of members){
+   if(child.id===rootId)continue;
+   const events=links.filter(l=>l.childId===child.id&&l.parentId!==child.id&&eligible.has(l.parentId)&&entries[l.parentId])
+    .map(l=>{const parent=entries[l.parentId],own={month:l.month,buyerJournal:l.buyerJournal??0};
+      const inherited=compare(parent,own)>0;
+      return {link:l,month:inherited?parent.month:own.month,buyerJournal:inherited?parent.buyerJournal:own.buyerJournal,inherited};})
+    .sort(compare);
+   let votes=0;
+   for(const e of events){
+    votes+=e.link.ratio;
+    if(!phase7ControlThreshold(s,votes))continue;
+    if(!entries[child.id]||compare(e,entries[child.id])<0){
+     const rec={...e.link,month:e.month,buyerJournal:e.buyerJournal};
+     if(e.inherited){
+      // The child already existed when its parent entered; reconstruct its
+      // opening cash from actual pre-entry journals, not the old share purchase.
+      const previous=child.journals.filter(j=>j.when<e.month||(j.when===e.month&&j.id<e.buyerJournal));
+      const cash=previous.reduce((sum,j)=>sum+cashOfJournal(j),0);
+      const fx=Number(previous.at(-1)?.fxAtPost??worldReferenceFx(child.country,s));
+      Object.assign(rec,{kind:'acquisition',scopeInherited:true,cashAcquiredLocal:cash,
+       targetFxOnAcq:fx,cashAcquiredBase:Math.round(cash*worldReferenceFx(child.country,s))});
+     }
+     entries[child.id]=rec;changed=true;
+    }
+    break;
+   }
+  }
+  if(!changed)break;
+ }
+ return entries;
+}
+function consolidationScope(s,links,members,rootId){
+ if(s.worldExpansion){const entries=phase7ScopeEntries(s,links,members,rootId);
+  return {entries,months:Object.fromEntries(Object.entries(entries).map(([id,e])=>[id,e.month]))};}
+ const months=consolidatedMonths(s,links,members,rootId),entries={};
+ for(const f of members)if(f.id!==rootId){
+  const e=links.filter(l=>l.childId===f.id&&l.month===months[f.id]).sort((a,b)=>a.buyerJournal-b.buyerJournal)[0];
+  if(e)entries[f.id]=e;
+ }
+ return {months,entries};
+}
+function phase7TransactionInScope(scope,t){
+ return [[t.seller,t.fromJournal],[t.buyer,t.toJournal]].every(([id,journal])=>{
+  const start=scope.months[id],e=scope.entries[id];
+  return start!==undefined&&t.yearMonth>=start&&!(e&&t.yearMonth===e.month&&Number.isInteger(journal)&&journal<e.buyerJournal);
+ });
+}
 function consolidatedMonths(s,links,members,rootId=s.playerId){
+ if(s.worldExpansion)return consolidationScope(s,links,members,rootId).months;
  const starts={[rootId]:0},eligible=new Set(members.map(f=>f.id));
  // Minority investments must not cause the target's pre-control cash flows or PL to enter consolidation.
  for(let pass=0;pass<members.length;pass++){
@@ -6864,9 +6919,9 @@ function consolidate(s,rootId=s.playerId){
  bs.assets=bs.assets-internalInvest+bs.goodwill;
  // Intra-group goods: track the actual remaining quantity, eliminate only unsold markup.
  const scopeHistory=[...activeLinks,...(s.equityLinks||[]).filter(l=>(l.remainingRatio??l.ratio)<=0&&ids.has(l.parentId)&&ids.has(l.childId))].map(l=>({...l,ratio:l.originalRatio??l.ratio}));
- const opens=consolidatedMonths(s,scopeHistory,members,rootId);
- const parts=partConsolidation(s,members,activeLinks,opens,s.monthCommitted,ownership.shares);
- const insidePeriod=t=>{if(t.yearMonth<Math.max(opens[t.seller]||0,opens[t.buyer]||0))return false;
+ const scope=consolidationScope(s,scopeHistory,members,rootId),opens=scope.months;
+ const parts=partConsolidation(s,members,activeLinks,opens,s.monthCommitted,ownership.shares,s.worldExpansion?scope.entries:null);
+ const insidePeriod=t=>{if(s.worldExpansion)return phase7TransactionInScope(scope,t);if(t.yearMonth<Math.max(opens[t.seller]||0,opens[t.buyer]||0))return false;
   if(t.yearMonth===Math.max(opens[t.seller]||0,opens[t.buyer]||0)){
    for(const entity of [t.seller,t.buyer]){
     const controllingLink=activeLinks.filter(l=>l.childId===entity&&l.month===t.yearMonth).sort((a,b)=>a.buyerJournal-b.buyerJournal)[0];
@@ -6971,7 +7026,7 @@ function consolidate(s,rootId=s.playerId){
  // finite set of tracked in-group transfers is eliminated from cumulative income.
  let rev=0,exp=0;
  for(const f of members){const fin=financials(f);let preRevenue=0,preExpense=0;
-  if(f.id!==rootId){const entry=opens[f.id]??0;const relevant=scopeHistory.filter(l=>l.childId===f.id&&l.month===entry).sort((a,b)=>a.buyerJournal-b.buyerJournal)[0];
+  if(f.id!==rootId){const entry=opens[f.id]??0;const relevant=scope.entries[f.id];
     const baseline=groupEntryIncomeBaseline(f,entry,relevant?.buyerJournal??Number.MAX_SAFE_INTEGER,s);
     preRevenue=baseline.revenue;preExpense=baseline.expenses;
    }
@@ -6986,7 +7041,7 @@ function consolidate(s,rootId=s.playerId){
  const rawProfit=rev-exp;
  const pl={revenue:Math.round(rev),expenses:Math.round(exp),profit:Math.round(rawProfit+bargain),bargainGain:Math.round(bargain),intercompanySales:internalSales+parts.sales+domesticCost.sales+internationalCost.sales+serviceFees+insuranceInternalFees,internalInterest:interestRev,unrealizedProfit:inventoryProfit+parts.deferred+domesticCost.retained+internationalCost.retained,nciProfit:0,parentProfit:0};
  let minorProfit=0;
- for(const f of members){if(f.id===rootId)continue;const entry=opens[f.id]??0,l=scopeHistory.filter(l=>l.childId===f.id&&l.month===entry).sort((a,b)=>a.buyerJournal-b.buyerJournal)[0];
+ for(const f of members){if(f.id===rootId)continue;const entry=opens[f.id]??0,l=scope.entries[f.id];
   const fin=financials(f),baseline=groupEntryIncomeBaseline(f,entry,l?.buyerJournal??Number.MAX_SAFE_INTEGER,s);
   const p=fin.profit-baseline.profit;minorProfit+=(1-(ownership.shares[f.id]||0))*baseFromLocal(p,f.country,s);}
  minorProfit-=stockTx.reduce((a,t)=>{const it=company(t.buyer,s).goods[t.stockKey],ratio=t.q?Math.min(1,(it?.q||0)/t.q):0;return a+t.marginBase*ratio*(1-(ownership.shares[t.seller]||0));},0);
@@ -6997,7 +7052,7 @@ function consolidate(s,rootId=s.playerId){
  // cash journal is summed once, then linked internal cash legs are removed by ID.
  const period=s.monthCommitted;
  const cf={period,operating:0,investing:0,financing:0,net:0,internalEliminated:0,internationalFxCash:0,openingCash:null,closingCash:bs.cash,fxAndAcquisitions:0,reconciled:true,unlinked:[]};
- for(const f of members){const start=opens[f.id]||0;for(const j of f.journals){if(j.when!==period||j.when<start)continue;
+ for(const f of members){const start=opens[f.id]||0;for(const j of f.journals){if(j.when!==period||j.when<start||(s.worldExpansion&&scope.entries[f.id]&&j.when===scope.entries[f.id].month&&j.id<scope.entries[f.id].buyerJournal))continue;
   const cash=(j.dr.filter(x=>x[0]==='cash').reduce((a,b)=>a+b[1],0)-j.cr.filter(x=>x[0]==='cash').reduce((a,b)=>a+b[1],0));if(!cash)continue;
   const base=baseFromLocal(cash,f.country,s);
   if(cashJournals.has(j.id)){cf.internalEliminated+=base;continue;}
@@ -7005,7 +7060,7 @@ function consolidate(s,rootId=s.playerId){
   cf.internationalFxCash+=foreign;
   const cat=j.kind==='financing'?'financing':j.kind==='investing'?'investing':'operating';cf[cat]+=base-foreign;
  }}
- for(const l of activeLinks){if(l.kind==='acquisition'&&l.month===period){cf.investing+=l.cashAcquiredBase||0;}}
+ for(const l of s.worldExpansion?Object.values(scope.entries):activeLinks){if(l.kind==='acquisition'&&l.month===period){cf.investing+=l.cashAcquiredBase||0;}}
  cf.operating+=cf.internationalFxCash;
  cf.net=cf.operating+cf.investing+cf.financing;
  const prior=[...(s.consoHistory||[])].reverse().find(x=>x.month===period-1);
@@ -7055,16 +7110,13 @@ function computePeriodCF(s,rootId,g,bridge){
  const memberIds=new Set(g.members),members=g.members.map(id=>company(id,s));
  const {links}=legacyLinks(s),active=links.filter(l=>memberIds.has(l.parentId)&&memberIds.has(l.childId));
  const scopeHistory=[...active,...(s.equityLinks||[]).filter(l=>(l.remainingRatio??l.ratio)<=0&&memberIds.has(l.parentId)&&memberIds.has(l.childId))].map(l=>({...l,ratio:l.originalRatio??l.ratio}));
- const opens=consolidatedMonths(s,scopeHistory,members,rootId);
- const linksEntering=new Map();for(const f of members){
-  if(f.id===rootId)continue;
-  const entering=scopeHistory.filter(l=>l.childId===f.id&&l.month===opens[f.id]);
-  if(entering.length)linksEntering.set(f.id,entering.sort((a,b)=>a.buyerJournal-b.buyerJournal)[0]);
- }
+ const scope=consolidationScope(s,scopeHistory,members,rootId),opens=scope.months;
+ const linksEntering=new Map(Object.entries(scope.entries).filter(([id])=>id!==rootId));
  const ignored=new Set(),internationalLegs=new Map();let loanPairs=0;
  for(const t of [...(s.intercompanyTx||[]),...developmentCashPairs(s),...partCashPairs(s),...worldTelephoneCashPairs(s),...worldMedicalCashPairs(s),...worldPowerCashPairs(s),...worldConstructionCashPairs(s),...worldInternationalCashPairs(s)]){
   if(!memberIds.has(t.seller)||!memberIds.has(t.buyer))continue;
   if(t.yearMonth<Math.max(opens[t.seller]??0,opens[t.buyer]??0))continue;
+  if(s.worldExpansion&&!phase7TransactionInScope(scope,t))continue;
   if(['developmentCash','partTradeCash','domesticTradeCash'].includes(t.kind)){
    const beforeEntry=([id,journal])=>{
     const entry=linksEntering.get(id);
@@ -7117,7 +7169,7 @@ function computePeriodCF(s,rootId,g,bridge){
  // Acquired subsidiaries contribute only cash present at the acquisition instant;
  // their earlier standalone cash inflows/outflows never enter the group CF.
  const acquisitionInputs={};
- for(const l of active){if(l.month!==period||l.kind!=='acquisition')continue;
+ for(const l of s.worldExpansion?linksEntering.values():active){if(l.month!==period||l.kind!=='acquisition')continue;
   if(!memberIds.has(l.childId)||opens[l.childId]!==period||acquisitionInputs[l.childId])continue;
   const controlling=linksEntering.get(l.childId);if(controlling?.id!==l.id)continue;
   const f=company(l.childId,s),local=Number(l.cashAcquiredLocal??(l.cashAcquiredBase||0)/worldReferenceFx(f.country,s));
@@ -7190,10 +7242,10 @@ function accountingFxReview(s,rootId,g){
  const ids=new Set(g.members),members=g.members.map(id=>company(id,s));
  const historical=legacyLinks(s).links.filter(l=>ids.has(l.parentId)&&ids.has(l.childId));
  const scopeHistory=[...historical,...(s.equityLinks||[]).filter(l=>(l.remainingRatio??l.ratio)<=0&&ids.has(l.parentId)&&ids.has(l.childId))].map(l=>({...l,ratio:l.originalRatio??l.ratio}));
- const starts=consolidatedMonths(s,scopeHistory,members,rootId);
- const parts=partConsolidation(s,members,historical,starts,s.monthCommitted,g.shares);
- const international=worldInternationalConsolidationAdjustments(s,ids,t=>
-  t.yearMonth>=Math.max(starts[t.seller]??Number.MAX_SAFE_INTEGER,starts[t.buyer]??Number.MAX_SAFE_INTEGER),g.shares);
+ const scope=consolidationScope(s,scopeHistory,members,rootId),starts=scope.months;
+ const parts=partConsolidation(s,members,historical,starts,s.monthCommitted,g.shares,s.worldExpansion?scope.entries:null);
+ const within=t=>s.worldExpansion?phase7TransactionInScope(scope,t):t.yearMonth>=Math.max(starts[t.seller]??Number.MAX_SAFE_INTEGER,starts[t.buyer]??Number.MAX_SAFE_INTEGER);
+ const international=worldInternationalConsolidationAdjustments(s,ids,within,g.shares);
  const foreignBalances=worldInternationalOpenBalances(s,ids,(amount,f)=>Math.round(amount*balanceFxRate(s,f)));
  const internationalOpenAsset=foreignBalances.advanceAsset+foreignBalances.creditAsset;
  const internationalOpenLiability=foreignBalances.advanceLiability+foreignBalances.creditLiability;
@@ -7236,8 +7288,7 @@ function accountingFxReview(s,rootId,g){
  // the unrealized profit at closing rates, but retain transaction-date FX for PL.
  let inventoryProfit=0,internalSalesPeriod=0,interestRevenuePeriod=0,interestExpensePeriod=0;
  const period=s.monthCommitted;
- const txs=(s.intercompanyTx||[]).filter(t=>ids.has(t.seller)&&ids.has(t.buyer)
-      &&t.yearMonth>=Math.max(starts[t.seller]??Number.MAX_SAFE_INTEGER,starts[t.buyer]??Number.MAX_SAFE_INTEGER));
+ const txs=(s.intercompanyTx||[]).filter(t=>ids.has(t.seller)&&ids.has(t.buyer)&&within(t));
  function relatedJournal(f,id){return f?.journals.find(j=>j.id===id)}
  for(const t of txs){
   if(t.kind==='goods'){
@@ -7298,7 +7349,7 @@ function accountingFxReview(s,rootId,g){
  const periodEntries={};let rev=0,exp=0,nciProfit=0;
  for(const f of members){
   let income=0,revenue=0,expenses=0,entryCount=0;
-  const entry=historical.filter(x=>x.childId===f.id&&x.month===starts[f.id]).sort((a,b)=>a.buyerJournal-b.buyerJournal)[0];
+  const entry=s.worldExpansion?scope.entries[f.id]:historical.filter(x=>x.childId===f.id&&x.month===starts[f.id]).sort((a,b)=>a.buyerJournal-b.buyerJournal)[0];
   for(const j of f.journals){if(j.when!==period||j.when<(starts[f.id]??Number.MAX_SAFE_INTEGER))continue;
    if(entry&&j.when===entry.month&&j.id<entry.buyerJournal)continue;
    const jIncome=journalIncome(j),rate=Number(j.fxAtPost??worldReferenceFx(f.country,s));
@@ -7324,7 +7375,7 @@ function accountingFxReview(s,rootId,g){
   if(call.month!==period||!ids.has(call.clientId)||!ids.has(call.providerId))continue;
   const parties=[call.clientId,call.providerId],legs=[call.journal,call.journal+1];
   if(parties.some((id,index)=>call.month<(starts[id]??Number.MAX_SAFE_INTEGER)
-   ||historical.some(link=>link.childId===id&&link.month===call.month&&legs[index]<link.buyerJournal)))continue;
+   ||(s.worldExpansion?(scope.entries[id]?.month===call.month&&legs[index]<scope.entries[id].buyerJournal):historical.some(link=>link.childId===id&&link.month===call.month&&legs[index]<link.buyerJournal))))continue;
   const provider=company(call.providerId,s),journal=relatedJournal(provider,legs[1]);
   internalSalesPeriod+=Math.round(call.fee*Number(journal?.fxAtPost??worldReferenceFx(provider.country,s)));
  }

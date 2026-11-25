@@ -52,8 +52,54 @@ def main():
             assert r["rights"]["whollyOwned"]==(r["pct"]==100),r
             assert (r["start"] is not None)==(r["pct"]>=70),r
         assert all(result[k] for k in ("save","duplicate","denied","atomic","indirect","legacyRule")),result
+        staged=page.evaluate("""async()=>{
+ S=newWorldGame({country:'JP',name:'Staged acquisition'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';saveAuto=async()=>true;
+ const root=company(S.playerId,S),target=S.firms.find(f=>f.id!==root.id&&f.country==='JP'&&f.owners.length===1&&f.owners[0].id==='PUBLIC');
+ post(root,{cash:1000000000},{capital:1000000000},'検証用資本','financing',S);
+ const close=async()=>{const m=S.monthCommitted;await runMonth();if(S.monthCommitted!==m+1)throw Error(JSON.stringify(LAST_MONTH_DIAGNOSTIC))};
+ const rootId=root.id,targetId=target.id;await close();
+ const buyer=company(rootId,S),t=company(targetId,S);t.auto=false;t.delegate.mode='manual';for(const m of t.models)t.plans[m.id]=0;
+ executeMADeal(S,rootId,targetId,30,2.5,'player');
+ post(t,{cash:12345},{otherRevenue:12345},'支配前の外部売上','operating',S);
+ executeMADeal(S,rootId,targetId,40,2.5,'player');
+ const crossing=S.equityLinks.at(-1),atControl=acc(t,'cash');
+ post(t,{cash:23456},{otherRevenue:23456},'支配後の外部売上','operating',S);
+ await close();
+ const c=consolidate(S),targetNow=company(targetId,S),audit=accountingFxReview(S,rootId,c);
+ const expected=targetNow.journals.filter(j=>j.when===S.monthCommitted&&j.id>=crossing.buyerJournal).reduce((n,j)=>n+Math.round(journalIncome(j).revenue*Number(j.fxAtPost??worldReferenceFx(targetNow.country,S))),0);
+ return {income:audit.periodEntries[targetId].revenue===expected,cf:c.cf.reconciled,scopeCash:c.cf.scopeAdded===Math.round(atControl*crossing.targetFxOnAcq),clean:!c.errors.length&&!check(S).length,restore:!check(parsePayload(savePayload(S))).length};
+}""")
+        assert len(staged)==5 and all(staged.values()),staged
+        indirect=page.evaluate("""async()=>{
+ S=newWorldGame({country:'JP',name:'Inherited control'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';saveAuto=async()=>true;
+ const root=company(S.playerId,S),p=S.firms.find(f=>f.id!==root.id&&f.country==='JP'&&f.owners.length===1&&f.owners[0].id==='PUBLIC');
+ post(root,{cash:1000000000},{capital:1000000000},'検証用資本','financing',S);
+ const parentId=p.id,rootId=root.id,amount=65000000,payer=S.seq;
+ post(p,{investment:amount},{cash:amount},'検証用子会社出資','investing',S);
+ const child=initFirm(S,{name:'Inherited subsidiary',country:'JP',industry:'service',seedBase:650000,publicOwnership:false});
+ child.owners=[{id:parentId,econ:1,vote:1}];
+ registerEquityLink(S,{parentId,childId:child.id,ratio:1,kind:'foundation',considerationLocal:amount,buyerJournal:payer,childJournal:child.journals.find(j=>j.text==='創業資本').id,bookEquityBase:baseFromLocal(amount,'JP',S),cashAcquiredBase:baseFromLocal(acc(child,'cash'),'JP',S)});
+ syncWorldIdentities(S);const childId=child.id;
+ const close=async()=>{const m=S.monthCommitted;await runMonth();if(S.monthCommitted!==m+1)throw Error(JSON.stringify(LAST_MONTH_DIAGNOSTIC))};
+ await close();
+ const parent=company(parentId,S),sub=company(childId,S);
+ parent.auto=false;sub.auto=false;parent.delegate.mode='manual';sub.delegate.mode='manual';
+ for(const f of [parent,sub])for(const m of f.models)f.plans[m.id]=0;
+ post(sub,{cash:12345},{otherRevenue:12345},'支配前の外部売上','operating',S);
+ executeMADeal(S,rootId,parentId,70,2.5,'player');
+ const crossing=S.equityLinks.at(-1),expectedScope=acc(parent,'cash')+acc(sub,'cash');
+ const ids=controlSet(S,rootId),members=S.firms.filter(f=>ids.has(f.id));
+ const scope=consolidationScope(S,S.equityLinks.filter(l=>ids.has(l.parentId)&&ids.has(l.childId)),members,rootId);
+ const inherited=scope.entries[childId].scopeInherited&&scope.entries[childId].buyerJournal===crossing.buyerJournal;
+ post(sub,{cash:23456},{otherRevenue:23456},'支配後の外部売上','operating',S);
+ await close();
+ const c=consolidate(S),audit=accountingFxReview(S,rootId,c),subNow=company(childId,S);
+ const expected=subNow.journals.filter(j=>j.when===S.monthCommitted&&j.id>=crossing.buyerJournal).reduce((n,j)=>n+Math.round(journalIncome(j).revenue*Number(j.fxAtPost??worldReferenceFx(subNow.country,S))),0);
+ return {inherited,income:audit.periodEntries[childId].revenue===expected,scopeCash:c.cf.scopeAdded===expectedScope,cf:c.cf.reconciled,clean:!c.errors.length&&!check(S).length,restored:!check(parsePayload(savePayload(S))).length};
+}""")
+        assert len(indirect)==6 and all(indirect.values()),indirect
         assert not errors,errors
-        print("PASS Phase 7 SPEC-126: six paid purchase boundaries, indirect control, cash, ownership validation and save")
+        print("PASS Phase 7 SPEC-126: six paid purchase boundaries, cash, ownership, 5 staged and 6 inherited-scope accounting checks")
         browser.close()
 
 if __name__=="__main__":
