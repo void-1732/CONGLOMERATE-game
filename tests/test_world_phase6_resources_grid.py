@@ -95,6 +95,10 @@ def main():
           const reject=fn=>{try{fn();return false}catch{return true}};
           const rejectsInvalid=reject(()=>worldSetGridPlan(S,id,hid,'request',61));
           const priority=worldGridPriority(S,high)<worldGridPriority(S,low);
+          const manual=structuredClone(S);worldGeneratePower(manual,id,aid,5);
+          const beforeManual=worldPowerAvailable(manual,aid);
+          const manualDenied=reject(()=>worldTransferPower(manual,id,aid,lid,40))
+            &&beforeManual===45&&worldPowerAvailable(manual,aid)===beforeManual&&!manual.worldExpansion.powerTransfers.length;
           const before=S.monthCommitted;await runMonth();
           const gen=S.worldExpansion.energyReceipts.at(-1),ts=S.worldExpansion.powerTransfers,budget=S.worldExpansion.powerAllocations[hid],
             out=company(id,S).stock['PRD-M43'];
@@ -108,12 +112,12 @@ def main():
           bad.worldExpansion.powerLines[hid].transformValue++;
           const tamper=reject(()=>parsePayload(savePayload(bad)));
           const persistent=saved.worldExpansion.powerTransfers.length===2&&saved.worldExpansion.powerLines[hid].monthlyRequestKwh===40;
-          return {complete,assets,rejectsInvalid,priority,month,conservation,prioritized,production,shortage,tamper,persistent,
+          return {complete,assets,rejectsInvalid,priority,manualDenied,month,conservation,prioritized,production,shortage,tamper,persistent,
             clean:!check(saved).length&&!consolidate(saved).errors.length};
         }""")
-        assert len(grid)==12 and all(grid.values()), grid
+        assert len(grid)==13 and all(grid.values()), grid
         assert not errors, errors
-        print("PASS Phase 6 mineral regions 14 checks; physical regional grid 12 checks, real month, priority, outage, product cost and save")
+        print("PASS Phase 6 mineral regions 14 checks; physical regional grid 13 checks, real month, manual and scheduled priority, outage, product cost and save")
         browser.close()
 
 if __name__=="__main__":

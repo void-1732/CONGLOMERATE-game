@@ -2002,7 +2002,8 @@ function worldInitialStaff(size){
 function worldLaborCapacity(s,code){
  if(!s.worldExpansion)return Infinity;
  const pop=anchorPopulation(code,1900)??COUNTRIES[code]?.pop;
- if(!Object.hasOwn(s.world,code)||!Number.isFinite(pop)||pop<=0)throw Error('労働市場の国・基準人口が不正：'+code);
+ // A fixed national baseline exists even before the market opens; opening is checked by the existing transaction paths.
+ if(!Object.hasOwn(COUNTRIES,code)||!Number.isFinite(pop)||pop<=0)throw Error('労働市場の国・基準人口が不正：'+code);
  return Math.floor(pop*10000);
 }
 function worldLaborHeadcount(f){
@@ -14102,6 +14103,14 @@ function worldTransferPower(s,firmId,sourceId,targetId,sentKwh,scheduled=false){
   throw Error('送電線、実電力または設備容量が不足');
  if(!scheduled&&Object.values(s.worldExpansion.publicPowerLines??{}).some(l=>l.plantId===sourceId&&l.retiredAt==null))
   throw Error('公共配電線を持つ発電所は、優先順位に従って月次に送電します');
+ // SPEC-078: manual transfers must not bypass a higher-priority scheduled
+ // recipient on the same generator. Dispatch resolves the competing demands.
+ if(!scheduled&&Object.values(s.worldExpansion.powerLines??{}).some(other=>{
+  if(other.sourcePlantId!==sourceId||other.retiredAt!=null||other.targetPlantId===targetId||other.monthlyRequestKwh<2||!Number.isSafeInteger(other.monthlyRequestKwh))return false;
+  const receiver=company(other.ownerCompanyId,s),p=receiver?.plants.find(x=>x.id===other.targetPlantId);
+  if(!isActiveCorporateFirm(receiver)||!p||!worldDomesticSiteActive(p,p.siteId)||s.worldExpansion.powerAllocations?.[p.id]?.month===month)return false;
+  return worldGridLineCapacity(other,a,p)>=2&&worldGridPriority(s,p)<worldGridPriority(s,b);
+ }))throw Error('優先供給先の未充足需要があるため、月次優先配電を実行してください');
  const loss=Math.ceil(sentKwh*line.lossBps/10000),delivered=sentKwh-loss,
   receipt=s.worldExpansion.energyReceipts.find(x=>x.id===src.receiptId);
  if(delivered<1)throw Error('送電損失により有効電力がありません');

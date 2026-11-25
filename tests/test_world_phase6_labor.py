@@ -26,6 +26,7 @@ def main():
           const realCap=worldLaborCapacity,cap=realCap(S,'JP'),employed=worldLaborEmployed(S,'JP');
           const reference=cap===Math.floor((anchorPopulation('JP',1900)??COUNTRIES.JP.pop)*10000)
             &&worldLaborAvailable(S,'JP')===cap-employed;
+          const allNationalBaselines=Object.keys(COUNTRIES).every(code=>Number.isSafeInteger(realCap(S,code))&&realCap(S,code)>0);
           // Stress fixture: only three vacancies in JP, without creating a huge payroll.
           const constrained=employed+3;
           worldLaborCapacity=(s,code)=>s.worldExpansion&&code==='JP'?constrained:realCap(s,code);
@@ -66,11 +67,31 @@ def main():
           // Production-model cap is independently validated without the fixture.
           const huge=structuredClone(S);company(root,huge).staff.production+=realCap(huge,'JP');
           const realTamper=denied(huge);
-          return {reference,first,second,reject,founding,persistent,tamper,released,month,realTamper};
+          // Exercise the actual rival-capex and new-entry paths with scarce workers.
+          S=newWorldGame({country:'JP',name:'AI labor test'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';
+          const rival=S.firms.find(f=>f.country==='JP'&&!controller(S,f.id)&&['auto','manufacturing'].includes(f.industry)
+            &&f.lifecycle?.phase==='active'&&f.plants.some(p=>!p.construction&&['integrated','assembly'].includes(p.kind)));
+          const rp=rival.plants.find(p=>!p.construction&&['integrated','assembly'].includes(p.kind)),staff=rival.staff.production,capacity=rp.capacity;
+          const used=worldLaborEmployed(S,'JP');worldLaborCapacity=(s,code)=>code==='JP'?used+2:realCap(s,code);
+          for(const f of S.firms){f.lifecycle.growthStreak=0;f.monthly.profit=0}
+          rival.lifecycle.growthStreak=5;rival.lifecycle.investmentMonth=-1;rival.monthly.profit=100;
+          const policy=ensureCompetitionPolicy(rival,S);policy.annualCapexBudgetBase=100000000;policy.reserveBase=0;policy.spentThisYearBase=0;
+          const reserve=localFromBase(3000000,rival.country,S);
+          if(acc(rival,'cash')<reserve)post(rival,{cash:reserve},{capital:reserve},'検証用追加資本','financing',S);
+          S.competition.lastEntry=ym(S.year,S.month);competitorEvolution(S,[]);
+          const aiExpansion=rp.capacity===capacity+8&&rival.staff.production===staff+2&&worldLaborAvailable(S,'JP')===0;
+          const n=S.firms.length,entries=S.competition.entryCount??0,caps=Object.fromEntries(Object.keys(S.world).map(code=>[code,worldLaborEmployed(S,code)]));
+          worldLaborCapacity=(s,code)=>caps[code]??realCap(s,code);
+          S.competition.lastEntry=ym(S.year,S.month)-20;S.competition.maxFirms=S.firms.length+10;
+          for(const f of S.firms){f.lifecycle.growthStreak=0;f.monthly.profit=0}
+          competitorEvolution(S,[]);
+          const aiEntryDenied=S.firms.length===n&&(S.competition.entryCount??0)===entries;
+          worldLaborCapacity=realCap;
+          return {reference,allNationalBaselines,first,second,reject,founding,persistent,tamper,released,month,realTamper,aiExpansion,aiEntryDenied};
         }""")
-        assert len(result)==10 and all(result.values()),result
+        assert len(result)==13 and all(result.values()),result
         assert not errors,errors
-        print("PASS SPEC-165: 10 checks, finite national labor, first-come hiring, actual costs, founding guard, monthly close, save and tamper")
+        print("PASS SPEC-165: 13 checks, national baselines, finite first-come hiring, costs, AI expansion/entry, monthly close, save and tamper")
         browser.close()
 
 if __name__=="__main__":
