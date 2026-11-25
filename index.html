@@ -8033,12 +8033,17 @@ function phase7ValidateMAReservations(s){
  if(!Array.isArray(rows))throw Error('買収資金予約台帳が不正');
  const ids=new Set(),pairs=new Set(),totals=new Map(),month=ym(s.year,s.month);
  for(const r of rows){
-  const buyer=company(r?.buyerId,s),target=company(r?.targetId,s),id=Number(r?.id?.slice(4)),key=r?.buyerId+'|'+r?.targetId;
+  const buyer=company(r?.buyerId,s),target=company(r?.targetId,s),id=Number(r?.id?.slice(4)),key=phase7MAReservationKey(r);
+  const corporate=r?.corporate,seller=company(corporate?.sellerId,s),rule=Object.hasOwn(CORP_SHARE_RULES,corporate?.mode)?CORP_SHARE_RULES[corporate.mode]:null;
+  const limits=rule??[null,.75,2.5];
   if(!buyer||!target||buyer===target||!/^MAR-\d+$/.test(r.id)||!Number.isSafeInteger(id)||id<1||id>=s.seq||ids.has(r.id)||pairs.has(key)
    ||!Number.isSafeInteger(r.month)||r.month!==month||!Number.isSafeInteger(r.amountLocal)||r.amountLocal<1
    ||!Number.isSafeInteger(r.totalBase)||r.totalBase<1||r.amountLocal!==localFromBase(r.totalBase,buyer.country,s)
    ||!Number.isFinite(r.percent)||r.percent<.0001||r.percent>100||Math.abs(r.percent*10000-Math.round(r.percent*10000))>1e-6
-   ||!Number.isFinite(r.multiplier)||r.multiplier<.75||r.multiplier>2.5)
+   ||!Number.isFinite(r.multiplier)||r.multiplier<limits[1]||r.multiplier>limits[2]
+   ||(corporate!==undefined&&(!rule||!seller||seller===buyer||seller===target
+    ||!Number.isSafeInteger(corporate.receiveLocal)||corporate.receiveLocal<1
+    ||corporate.receiveLocal!==localFromBase(r.totalBase,seller.country,s))))
    throw Error('買収資金予約の金額・参照が不正：'+r?.id);
   ids.add(r.id);pairs.add(key);totals.set(buyer.id,(totals.get(buyer.id)??0)+r.amountLocal);
  }
@@ -8047,14 +8052,25 @@ function phase7ValidateMAReservations(s){
   if(!Number.isSafeInteger(total)||total>Math.max(0,acc(buyer,'cash')-phase7RestrictedCash(s,buyer)))throw Error('買収予約が利用可能な自己資金を超過：'+id);
  }
 }
+function phase7MAReservationKey(row){return [row?.buyerId,row?.targetId,row?.corporate?.sellerId??'PUBLIC'].join('|');}
+function phase7ReserveMAQuote(s,buyerId,targetId,percent,multiplier,totalBase,amountLocal,corporate){
+ const row={buyerId,targetId,percent,multiplier,totalBase,amountLocal,month:ym(s.year,s.month)};
+ if(corporate)row.corporate=corporate;
+ const rows=s.worldExpansion.maReservations??=[];
+ if(rows.some(r=>phase7MAReservationKey(r)===phase7MAReservationKey(row)))throw Error('この買収提案は予約済みです');
+ row.id='MAR-'+s.seq++;rows.push(row);return row;
+}
 function phase7ProposeMA(s,buyerId,targetId,percent,multiplier){
  if(!s.worldExpansion)throw Error('世界経済の買収資金予約のみ対応');
  const buyer=company(buyerId,s),target=company(targetId,s),q=maQuote(s,buyer,target,percent,multiplier);
- const amountLocal=localFromBase(q.total,buyer.country,s),rows=s.worldExpansion.maReservations??[];
- if(rows.some(r=>r.buyerId===buyerId&&r.targetId===targetId))throw Error('この買収提案は予約済みです');
- if(!q.affordable||amountLocal<1||amountLocal>phase7AcquisitionCash(s,buyer))throw Error('買収可能な自己資金が不足しています（借入・増資資金は対象外）');
- const r={id:'MAR-'+s.seq++,buyerId,targetId,percent:q.percent,multiplier,totalBase:q.total,amountLocal,month:ym(s.year,s.month)};
- (s.worldExpansion.maReservations??=[]).push(r);return r;
+ if(!q.affordable)throw Error('買収可能な自己資金が不足しています（借入・増資資金は対象外）');
+ return phase7ReserveMAQuote(s,buyerId,targetId,q.percent,multiplier,q.total,localFromBase(q.total,buyer.country,s));
+}
+function phase7ProposeCorporateMA(s,buyerId,targetId,sellerId,percent,mode,multiplier){
+ if(!s.worldExpansion)throw Error('世界経済の買収資金予約のみ対応');
+ const q=corporateShareQuote(s,buyerId,targetId,sellerId,percent,mode,multiplier);
+ if(!q.affordable)throw Error('買収可能な自己資金が不足しています（借入・増資資金は対象外）');
+ return phase7ReserveMAQuote(s,buyerId,targetId,q.percent,multiplier,q.total,q.buyerPay,{sellerId,mode,receiveLocal:q.sellerReceive});
 }
 function phase7CancelMA(s,buyerId,id){
  const rows=s.worldExpansion?.maReservations??[],i=rows.findIndex(r=>r.id===id&&r.buyerId===buyerId);
@@ -8068,6 +8084,11 @@ function phase7SettleMA(s,buyerId,id,actor='player'){
  const r=phase7CancelMA(s,buyerId,id),buyer=company(buyerId,s),target=company(r.targetId,s);
  // A changed price, rejected offer, or insufficient unreserved funds releases the proposal.
  if(r.month!==ym(s.year,s.month))throw Error('買収提案の期限が切れています');
+ if(r.corporate){
+  const {sellerId,mode,receiveLocal}=r.corporate,q=corporateShareQuote(s,buyerId,r.targetId,sellerId,r.percent,mode,r.multiplier);
+  if(q.total!==r.totalBase||q.buyerPay!==r.amountLocal||q.sellerReceive!==receiveLocal)throw Error('買収価格が変わりました。予約を解除しました');
+  return executeCorporateShareTransferUnreserved(s,q);
+ }
  const q=maQuote(s,buyer,target,r.percent,r.multiplier);
  if(q.total!==r.totalBase||localFromBase(q.total,buyer.country,s)!==r.amountLocal)throw Error('買収価格が変わりました。予約を解除しました');
  return executeMADealUnreserved(s,buyerId,r.targetId,r.percent,r.multiplier,actor);
@@ -8127,7 +8148,7 @@ function corporateSellerDemand(s,buyer,seller,target,stake,mode){
  return {factor:Math.min(3.8,Math.round(factor*100)/100),reasons:reasons.length?reasons:['一般株式売却審査']};
 }
 function corporateShareQuote(s,buyerId,targetId,sellerId,percent,mode,offerFactor){
- const buyer=company(buyerId,s),target=company(targetId,s),seller=company(sellerId,s),rule=CORP_SHARE_RULES[mode];
+ const buyer=company(buyerId,s),target=company(targetId,s),seller=company(sellerId,s),rule=Object.hasOwn(CORP_SHARE_RULES,mode)?CORP_SHARE_RULES[mode]:null;
  if(!buyer||!target||!seller||!rule)throw Error('対象・売り手・買い手・買収方式が不正です');
  if(buyer.id===seller.id||buyer.id===target.id||seller.id===target.id)throw Error('売り手・買い手・対象は別法人を選んでください');
  if(!controller(s,buyer.id)||(controller(s,buyer.id,target.id)&&!(s.worldExpansion&&target.id!==s.playerId&&controller(s,target.id))))throw Error('管理権限がないか、連結親会社への逆取得です');
@@ -8155,8 +8176,14 @@ function corporateShareQuote(s,buyerId,targetId,sellerId,percent,mode,offerFacto
   reasons:reserve.reasons,available:stake,reference:value.reference,total,buyerPay,sellerReceive,consent,affordable,accepted:consent&&affordable,discounted};
 }
 function executeCorporateShareTransfer(s,buyerId,targetId,sellerId,percent,mode,offerFactor){
+ if(s.worldExpansion){
+  const r=phase7ProposeCorporateMA(s,buyerId,targetId,sellerId,percent,mode,offerFactor);
+  return phase7SettleMA(s,buyerId,r.id);
+ }
+ return executeCorporateShareTransferUnreserved(s,corporateShareQuote(s,buyerId,targetId,sellerId,percent,mode,offerFactor));
+}
+function executeCorporateShareTransferUnreserved(s,q){
  ensureMAState(s);
- const q=corporateShareQuote(s,buyerId,targetId,sellerId,percent,mode,offerFactor);
  if(!q.consent)throw Error('親会社が売却を拒否しました。必要な提示倍率は時価の約'+Math.round(q.reserve*100)+'%（'+q.reasons.join('・')+'）。条件を上げて再交渉してください');
  if(!q.affordable)throw Error('必要な買収資金が不足しています：'+maMoney(q.total));
  const {buyer,target,seller}=q,sellerOwner=target.owners.find(o=>o.id===seller.id);
@@ -8201,14 +8228,14 @@ function executeCorporateShareTransfer(s,buyerId,targetId,sellerId,percent,mode,
   sellerId:seller.id,...(isInternal?{internalSellerId:seller.id,consolidationCostLocal:localFromBase(baseFromLocal(bookCost,seller.country,s)/100,buyer.country,s)}:{})});
  if(isInternal){const historical=links[0],newLink=s.equityLinks.at(-1);const fx=historical?.targetFxOnAcq??newLink.targetFxOnAcq;newLink.acquisitionSnapshot={...newLink.acquisitionSnapshot,...(historical?.acquisitionSnapshot||{}),equity:Math.round(weightedLocalEquity)};newLink.bookEquityLocal=Math.round(weightedLocalEquity);newLink.consolidationBookEquityBase=inheritedNet;newLink.consolidationSnapshotEquityLocal=Math.round(weightedLocalEquity);newLink.targetFxOnAcq=fx;}
  const rec={id:'ET'+s.seq++,month:ym(s.year,s.month),buyer:buyer.id,seller:seller.id,target:target.id,percent:q.percent,
-  ratio:q.fraction,priceBase:q.total,multiplier:offerFactor,mode,required:q.reserve,bookCostLocal:bookCost,gainLocal:gain,
+  ratio:q.fraction,priceBase:q.total,multiplier:q.offerFactor,mode:q.mode,required:q.reserve,bookCostLocal:bookCost,gainLocal:gain,
   gainBase:baseFromLocal(gain,seller.country,s),buyerJournal,sellerJournal,internal:isInternal};
  s.equityTransfers.push(rec); // Keep all accounting events needed for cumulative intra-group profit eliminations.
  if(isInternal)registerInterco(s,{kind:'equityCash',seller:seller.id,buyer:buyer.id,yearMonth:rec.month,fromJournal:sellerJournal,toJournal:buyerJournal});
  const entry={id:'MA'+s.seq++,month:rec.month,buyer:buyer.id,seller:seller.id,target:target.id,percent:q.percent,priceBase:q.total,
-  multiplier:offerFactor,actor:'player',holders:[{name:seller.name,percent:q.percent}],control:nowControl,reference:q.reference,mode,kind:'corporate-share'};
+  multiplier:q.offerFactor,actor:'player',holders:[{name:seller.name,percent:q.percent}],control:nowControl,reference:q.reference,mode:q.mode,kind:'corporate-share'};
  s.maDeals.unshift(entry);if(s.maDeals.length>150)s.maDeals.pop();
- s.negotiationHistory??=[];s.negotiationHistory.unshift({month:entry.month,buyer:buyer.id,target:target.id,percent:q.percent,priceBase:q.total,multiplier:offerFactor,holders:[seller.name],control:nowControl});
+ s.negotiationHistory??=[];s.negotiationHistory.unshift({month:entry.month,buyer:buyer.id,target:target.id,percent:q.percent,priceBase:q.total,multiplier:q.offerFactor,holders:[seller.name],control:nowControl});
  if(s.negotiationHistory.length>80)s.negotiationHistory.pop();
  buyer.maCooldown=ym(s.year,s.month);
  if(nowControl&&!hadControl)s.maPlans.push({id:'PMI'+s.seq++,buyer:buyer.id,target:target.id,start:rec.month,months:0,duration:6,progress:0,mode:'pending',costBase:Math.max(800,Math.round(q.total*.016/6)),actor:'player',done:false});
@@ -8303,19 +8330,21 @@ document.addEventListener('click',event=>{
  const buyer=current();if(!canEdit(buyer))return;
  try{
   const trial=structuredClone(S),action=button.dataset.phase7MaReserve;
-  if(action==='propose'){
-   const r=phase7ProposeMA(trial,buyer.id,MA_VIEW.target,maRequestedPercent(),Number(inputValue('maMultiplier'))/100);
-   phase7ValidateMAReservations(trial);S=trial;render();toast('買収資金を予約しました：'+fnum(buyer,r.amountLocal));
+  if(action==='propose'||action==='propose-corporate'){
+   const r=action==='propose-corporate'
+    ?phase7ProposeCorporateMA(trial,buyer.id,MA_VIEW.target,inputValue('maCorpSeller'),corpSharePercent(),inputValue('maCorpMode'),Number(inputValue('maCorpFactor'))/100)
+    :phase7ProposeMA(trial,buyer.id,MA_VIEW.target,maRequestedPercent(),Number(inputValue('maMultiplier'))/100);
+   phase7ValidateMAReservations(trial);S=trial;requestOperationSaveV037();render();toast('買収資金を予約しました：'+fnum(buyer,r.amountLocal));
   }else if(action==='cancel'){
-   phase7CancelMA(trial,buyer.id,button.dataset.id);S=trial;render();toast('買収資金予約を解除しました');
+   phase7CancelMA(trial,buyer.id,button.dataset.id);S=trial;requestOperationSaveV037();render();toast('買収資金予約を解除しました');
   }else if(action==='settle'){
    try{
     const entry=phase7SettleMA(trial,buyer.id,button.dataset.id);
     const err=check(trial),g=consolidate(trial,trial.playerId);if(err.length||g.errors.length)throw Error([...err,...g.errors][0]);
-    S=trial;render();toast('買収成立：'+maMoney(entry.priceBase));
+    S=trial;requestOperationSaveV037();render();toast('買収成立：'+maMoney(entry.priceBase));
    }catch(e){
     // Commit only the cancellation on failure; discard any attempted accounting mutations.
-    const cancelled=structuredClone(S);phase7CancelMA(cancelled,buyer.id,button.dataset.id);S=cancelled;render();toast('買収不成立・予約解除：'+e.message);
+    const cancelled=structuredClone(S);phase7CancelMA(cancelled,buyer.id,button.dataset.id);S=cancelled;requestOperationSaveV037();render();toast('買収不成立・予約解除：'+e.message);
    }
   }
  }catch(e){toast(e.message);}
@@ -8382,6 +8411,7 @@ function corporateSharesPanel(buyer,target,edit){
  '<div class="field"><label>提示額（企業価値に対する%）</label><input id="maCorpFactor" type="number" min="50" max="400" step="1" value="130" '+(active?'':'disabled')+'></div>'+
  '<button class="btn" data-action="maCorpFill" '+(active?'':'disabled')+'>売り手保有分を全取得</button>'+
  '<button class="btn" data-action="maCorpQuote" '+(active?'':'disabled')+'>価格・承諾条件を試算</button>'+
+ (S.worldExpansion&&active?'<button class="btn" data-phase7-ma-reserve="propose-corporate">企業株式の買収資金を予約</button>':'')+
  '<button class="btn primary" data-action="maCorpBuy" '+(active?'':'disabled')+'>企業株主から株式を取得</button></div>'+
  '<div class="note" id="maCorpQuoteResult" style="margin-top:10px">'+(sellers.length?'売却希望倍率は売り手企業の戦略・支配権・利益・資金余力をもとにゲーム内で決定します。事業統合済みの売り手も残存株式の売却が可能です。交渉方式変更時は提示倍率が自動的に初期化されます。':'この企業に譲渡可能な企業株主はいません。')+'</div>'+
  '<p class="footnote">70%以上の子会社が保有する孫会社の株式は、選択した買い手企業がその子会社の株式を直接70%以上保有している場合、時価100%で譲受できます。全取得ボタンは表示上の小数第2位以下の端数も保全します。条件不足・投資元帳不明・循環出資では売買を実行しません。</p></section>';
@@ -8397,7 +8427,12 @@ function maPage(){const buyer=current(),edit=canEdit(buyer);ensureMAState(S);con
  const plan=S.maPlans.find(x=>x.buyer===buyer.id&&x.target===target.id&&x.mode!=='completed');
  const deals=(S.maDeals||[]).slice(0,16);
  const reserveRows=S.worldExpansion?(S.worldExpansion.maReservations??[]).filter(r=>r.buyerId===buyer.id):[];
- const reservationPanel=S.worldExpansion?'<div class="note">'+rowstat('買収予約額',fnum(buyer,phase7ReservedCash(S,buyer.id)))+rowstat('未予約の現金',fnum(buyer,phase7AvailableCash(S,buyer)))+rowstat('借入・増資由来の買収対象外資金',fnum(buyer,phase7RestrictedCash(S,buyer)))+rowstat('買収に使用可能な自己資金',fnum(buyer,phase7AcquisitionCash(S,buyer)))+(edit?'<button class="btn" data-phase7-ma-reserve="propose">条件を提示・資金を予約</button>':'')+reserveRows.map(r=>'<div class="row">'+esc(company(r.targetId,S)?.name||r.targetId)+' '+maPct(r.percent/100)+' / '+fnum(buyer,r.amountLocal)+(edit?'<button class="btn primary" data-phase7-ma-reserve="settle" data-id="'+esc(r.id)+'">予約を約定</button><button class="btn" data-phase7-ma-reserve="cancel" data-id="'+esc(r.id)+'">予約取消</button>':'')+'</div>').join('')+'<p class="hint">予約は当月の月末処理開始時に失効します。予約中の資金は他の支出に利用できません。</p></div>':'';
+ const reservationDetails=reserveRows.map(r=>{
+  const targetName=company(r.targetId,S)?.name||r.targetId,seller=r.corporate?company(r.corporate.sellerId,S)?.name:'外部株主';
+  return '<div class="row">'+esc(targetName)+' '+maPct(r.percent/100)+' / '+esc(seller??'')+' / '+fnum(buyer,r.amountLocal)
+   +(edit?'<button class="btn primary" data-phase7-ma-reserve="settle" data-id="'+esc(r.id)+'">予約を約定</button><button class="btn" data-phase7-ma-reserve="cancel" data-id="'+esc(r.id)+'">予約取消</button>':'')+'</div>';
+ }).join('');
+ const reservationPanel=S.worldExpansion?'<div class="note">'+rowstat('買収予約額',fnum(buyer,phase7ReservedCash(S,buyer.id)))+rowstat('未予約の現金',fnum(buyer,phase7AvailableCash(S,buyer)))+rowstat('借入・増資由来の買収対象外資金',fnum(buyer,phase7RestrictedCash(S,buyer)))+rowstat('買収に使用可能な自己資金',fnum(buyer,phase7AcquisitionCash(S,buyer)))+(edit?'<button class="btn" data-phase7-ma-reserve="propose">条件を提示・資金を予約</button>':'')+reservationDetails+'<p class="hint">予約は当月の月末処理開始時に失効します。予約中の資金は他の支出に利用できません。</p></div>':'';
  return titlePage('M&A・企業価値・株主構成','企業を国・業態・価格・資本構成で絞り込み、価格交渉と買収後統合を実行します。',tag('仮評価／簿価ベースの連結'))+(!edit?noaccess():'')+
  `<div class="grid">
  <section class="panel span12"><h2>買収候補を絞り込む</h2><div class="formgrid">

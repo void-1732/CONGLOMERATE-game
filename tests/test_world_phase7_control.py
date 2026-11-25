@@ -356,6 +356,66 @@ def main():
 }""")
         assert len(losses)==8 and all(losses.values()),losses
         print("PASS Phase 7 SPEC-054: eight loan impairment, reversal, consolidation and integrity checks")
+        game_url="http://conglomerate.test/index.html"
+        page.route(game_url,lambda route:route.fulfill(path=ROOT/"index.html",content_type="text/html; charset=utf-8"))
+        page.goto(game_url)
+        page.wait_for_function("STORAGE_READY && SAVE_INDEX.backend === 'IndexedDB'")
+        ids=page.evaluate("""()=>{
+ S=newWorldGame({country:'JP',name:'Corporate reservation'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';PAGE='ma';
+ const buyer=company(S.playerId,S),seller=initFirm(S,{name:'Corporate seller',country:'UK',industry:'service',seedBase:650000,publicOwnership:true});
+ const target=S.firms.find(f=>f.id!==buyer.id&&f.country==='JP'&&f.owners.every(o=>o.id==='PUBLIC'));
+ syncWorldIdentities(S);
+ for(const [from,to] of [[buyer,seller],[seller,target]]){
+  const required=localFromBase(maQuote(S,from,to,70,2.5).total,from.country,S);
+  const capital=required+500000000;
+  post(from,{cash:capital},{capital},'検証用資本','financing',S);
+  executeMADeal(S,from.id,to.id,70,2.5);
+ }
+ MA_VIEW.target=target.id;render();
+ return {bid:buyer.id,sid:seller.id,tid:target.id};
+}""")
+        def reserve_corporate():
+            page.locator("#maCorpSeller").select_option(ids["sid"])
+            page.locator("#maCorpPercent").fill("20")
+            page.locator("#maCorpMode").select_option("group")
+            page.locator('[data-phase7-ma-reserve="propose-corporate"]').click()
+            return page.evaluate("S.worldExpansion.maReservations.at(-1)")
+        reservation=reserve_corporate()
+        assert reservation["corporate"]["sellerId"]==ids["sid"]
+        blocked=page.evaluate("""({bid,sid,tid})=>{
+ const buyer=company(bid),before=JSON.stringify(S),amount=phase7AvailableCash(S,buyer)+1;
+ const reject=fn=>{try{fn();return false}catch{return true}};
+ const duplicate=reject(()=>phase7ProposeCorporateMA(S,bid,tid,sid,20,'group',1));
+ const ordinary=reject(()=>post(buyer,{otherExpense:amount},{cash:amount},'予約中の支出','operating',S));
+ const forged=structuredClone(S);forged.worldExpansion.maReservations[0].corporate.receiveLocal++;
+ return duplicate&&ordinary&&before===JSON.stringify(S)&&reject(()=>parsePayload(savePayload(forged)));
+}""",ids)
+        assert blocked
+        page.wait_for_function("""async id=>{
+ const active=await idbRead('meta','active');if(!active)return false;
+ const row=await idbRead('snapshots','auto:'+active.slot);
+ return parsePayload(row.serialized).worldExpansion.maReservations.some(r=>r.id===id);
+}""",arg=reservation["id"],timeout=30_000)
+        page.reload()
+        page.wait_for_function("STORAGE_READY && SAVE_INDEX.backend === 'IndexedDB'")
+        page.evaluate("""async ({bid,tid})=>{await restoreAuto();VIEW_FIRM=bid;PAGE='ma';MA_VIEW.target=tid;render();}""",ids)
+        assert page.evaluate("phase7ReservedCash(S,S.playerId)")==reservation["amountLocal"]
+        page.evaluate("""id=>post(company(id),{cash:100000000},{otherRevenue:100000000},'対象の評価額変更','operating',S)""",ids["tid"])
+        page.locator('[data-phase7-ma-reserve="settle"]').click()
+        assert page.evaluate("!phase7ReservedCash(S,S.playerId) && S.equityTransfers.length===0")
+        settlement=reserve_corporate()
+        before=page.evaluate("""({bid,sid,tid})=>[bid,sid,tid].map(id=>acc(company(id),'cash'))""",ids)
+        page.locator('[data-phase7-ma-reserve="settle"]').click()
+        corporate_result=page.evaluate("""({bid,sid,tid})=>{
+ const recorded=S.equityTransfers.at(-1),target=company(tid),report=consolidate(S);
+ return {cash:[bid,sid,tid].map(id=>acc(company(id),'cash')),
+   settled:!phase7ReservedCash(S,bid)&&recorded?.seller===sid&&recorded?.target===tid
+    &&target.owners.find(o=>o.id===bid)?.econ===.2&&target.owners.find(o=>o.id===sid)?.econ===.5,
+   clean:!check(S).length&&!report.errors.length&&!consolidate(parsePayload(savePayload(S))).errors.length};
+}""",ids)
+        assert corporate_result["settled"] and corporate_result["clean"],corporate_result
+        assert corporate_result["cash"]==[before[0]-settlement["amountLocal"],before[1]+settlement["corporate"]["receiveLocal"],before[2]]
+        print("PASS Phase 7 SPEC-128: corporate acquisition reservation, stale release, cross-border payment and real IndexedDB reload")
         assert not errors,errors
         print("PASS Phase 7 SPEC-126: six paid purchase boundaries, cash, ownership, 5 staged and 6 inherited-scope accounting checks")
         print("PASS Phase 7 SPEC-134: 8 live and restored shareholder registry checks")
