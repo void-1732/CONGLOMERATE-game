@@ -266,10 +266,33 @@ def main():
             &&bankAfter.journals.some(j=>j.when===S.monthCommitted&&j.text.includes('貸付元本の回収')&&j.amount===installment);
           const repaymentRestore=parsePayload(savePayload(S)),loanRestored=company(pid,repaymentRestore).loans.find(x=>x.id===l.id);
           const repaymentClean=loanRestored?.outstanding===after.outstanding&&!check(S).length&&!consolidate(S).errors.length&&consolidate(S).cf.reconciled;
-          return {history,shares,ui,forbidden,reserved,noPremature,grant,loan,lock,clean,bankExposure,concentration,riskRestore,amortized,principalJournal,repaymentClean};
+          const bankRow=repaymentRestore.worldExpansion.bankLoans.find(x=>x.id===l.id);
+          const auditedLoan=bankRow.infrastructureContractId===c.id&&bankRow.remaining===after.outstanding
+            &&bankRow.payments.some(x=>x.kind==='principal'&&x.amount===installment)&&bankRow.interestPaid>0
+            &&worldServiceActivity(repaymentRestore,'PRD-S06').some(x=>x.ref===l.id&&x.providerId===bankId);
+          const legacy=structuredClone(repaymentRestore);
+          delete legacy.worldExpansion.bankLoans;
+          delete company(pid,legacy).loans.find(x=>x.id===l.id).bankLoanId;
+          const oldSavedContract=company(pid,parsePayload(savePayload(legacy))).loans.find(x=>x.id===l.id).outstanding===after.outstanding;
+          const trial=repaymentRestore,trialBuyer=company(pid,trial),trialBank=company(bankId,trial),cash=acc(trialBuyer,'cash');
+          post(trialBuyer,{otherExpense:cash},{cash},'支払不能検証用支出','operating',trial);
+          phase7UpdateBankCreditLosses(trial);
+          const provision=Math.ceil(after.outstanding/4),riskWithLoss=worldBankCreditRisk(trial,trialBank);
+          const impaired=bankRow.allowance===provision&&-acc(trialBank,'bankLoanAllowance')===provision
+            &&-acc(trialBuyer,'debt')===after.outstanding&&riskWithLoss.netExposure===after.outstanding-provision;
+          const savedLoss=parsePayload(savePayload(trial));
+          const invalidLoss=structuredClone(savedLoss);invalidLoss.worldExpansion.bankLoans[0].lossChanges[0].remaining++;
+          const lossAudited=savedLoss.worldExpansion.bankLoans[0].allowance===provision&&reject(()=>parsePayload(savePayload(invalidLoss)));
+          post(trialBuyer,{cash:500000000},{otherRevenue:500000000},'返済再開の営業収入','operating',trial);
+          for(const f of trial.firms){f._profitStart=financials(f).profit;f._salesNow=0;f._unitsNow=0;}
+          financeMonthly(trial,[]);
+          const recovered=bankRow.allowance===0&&acc(trialBank,'bankLoanAllowance')===0&&bankRow.remaining===after.outstanding-installment
+            &&bankRow.lossChanges.at(-1).delta===-provision&&!check(parsePayload(savePayload(trial))).length;
+          return {history,shares,ui,forbidden,reserved,noPremature,grant,loan,lock,clean,bankExposure,concentration,riskRestore,amortized,principalJournal,repaymentClean,
+            auditedLoan,oldSavedContract,impaired,lossAudited,recovered};
         }""")
-        assert len(funded)==16 and all(funded.values()),funded
-        print("PASS Phase 6/7 funded infrastructure: 16 checks, JV capital, public grant, monthly principal, sector concentration and custody")
+        assert len(funded)==21 and all(funded.values()),funded
+        print("PASS Phase 6/7 funded infrastructure: 21 checks including loan impairment, recovery and save evidence")
         autonomous=page.evaluate("""async()=>{
           S=newWorldGame({country:'JP',name:'Domestic freight customer'});saveAuto=async()=>true;
           S.year=1980;S.month=1;S.monthCommitted=ym(S.year,S.month)-1;applyWorldHistory(S);

@@ -929,3 +929,15 @@ Latest code SHA 85b11586ddef88fd4a2de1d81ebf7370af02bd51: direct execution of re
 | 040/116/118 — group finance / protection | partial consolidated accounting and external shareholder allocation; not a complete fair value, shareholder protection or full transaction audit |
 
 Phase 6 earlier fixed evidence: 6a278f68 development #45399058949, IndexedDB #45399058656, five 1,200-month conditions #45399058732 reported passed; cannot transfer these results to current SHA. At check of code SHA 85b11586, development CI #45604108221 running, IndexedDB #45604108602 and long #45604108649 queued. Earlier CI runs superseded/cancelled by subsequent commits are not passes. Require complete development/real-browser/IndexedDB/120/1200-month results for one final SHA plus original specification audit. No Phase 6 or 7 acceptance declared; Phase 8 not started.
+
+### Phase 6・7の追加実装と受入確認（2026-11-25）
+
+| 対象 | 実際に確認した動作 | 残る照合 |
+|---|---|---|
+| Phase 6の発電設備と建設請負 | 世界インフラ画面から発注・承諾し、実物発電機・工事資材・給与で2か月の工事を行う。竣工前は同じ施設の直接設置を拒否し、竣工で請負代金を決済する。通常の月次で燃料3単位を消費して27 kWhを供給し、設備の償却、保存・復元、竣工証拠の改変拒否をChromiumで確認した。 | 追加の発電方式、設備の地域別範囲、発電事業のAI採算評価。 |
+| 117 買収資金 | 分別預金の払戻後も借入・増資由来の資金区分を維持する。預金の一部に自己資金が含まれる場合の払戻順序、JSON復元、1万件超の仕訳繰越、繰越証拠の改変拒否を確認した。預金の開始仕訳が既に失われた旧保存では、内訳不明の払戻を買収対象外とする。 | 預金以外の資産への組替えや関連企業経由の出所追跡。 |
+| 128 企業株主からの取得 | 企業株主への対価を予約し、別支出を拒否する。日英間の両通貨での支払・入金と、価格変更後の予約解除を確認。自動保存のIndexedDBレコードとブラウザ再読込後の復元を照合した。 | 旧画面や倒産清算等の全入口の照合、証拠の全件監査。 |
+| 021・044・054・086 建設向け融資 | 新規の竣工融資も共通銀行台帳で追跡する。元本・利息の返済仕訳、未払時の貸倒引当、返済再開時の引当戻入、銀行の純エクスポージャー、旧形式の返済と保存を確認した。 | 既存の旧契約とその他の信用商品、銀行業の対象法域、制度と係数。 |
+| 126・132・134 企業支配 | 30・70・100%の境界、直接・間接支配、グループ内の有償相互持株、連結の重複防止、株主名簿、保存・復元を既存のChromium試験で再確認した。 | 独立グループ同士の相互支配、最上位親会社への逆取得、発行・取得・自己株式を含む整数株数の全操作。 |
+
+原本の参照先をリポジトリ履歴・PR・添付から調査した。現時点の作業環境では174項目台帳、詳細設計ファイル、対象Figmaのファイルキーを取得できていない。上記の追加実装と既存の試験証拠を保持し、未照合の項目は正式受入判定を保留する。

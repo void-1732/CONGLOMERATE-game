@@ -15405,11 +15405,8 @@ function worldPayConstructionFunding(s,c,buyer,month){
   post(lender,{loanrec:a.loan},{cash:a.loan},'インフラ融資の実行 '+c.id,'investing',s);
   record.borrowerJournal=s.seq;
   post(buyer,{cash:a.loan},{debt:a.loan},'インフラ融資の借入 '+c.id,'financing',s);
-  const loan={id:'L'+s.seq++,outstanding:a.loan,rate:a.rate,due:month+36,parent:lender.id,
-   parentRemaining:a.loan,interestOutstanding:0,parentInterestRemaining:0,infrastructureContractId:c.id,repayment:phase7LoanSchedule(a.loan,month,36)};
-  buyer.loans.push(loan);record.loanId=loan.id;
-  registerInterco(s,{kind:'loan',seller:lender.id,buyer:buyer.id,fromJournal:record.lenderJournal,toJournal:record.borrowerJournal,
-   yearMonth:month,loanBase:baseFromLocal(a.loan,buyer.country,s)});
+  record.loanId=phase7RegisterBankLoan(s,lender,buyer,{principal:a.loan,month,months:36,rate:a.rate,
+   fromJournal:record.lenderJournal,toJournal:record.borrowerJournal,infrastructureContractId:c.id}).id;
  }
  c.funding.payment=record;
 }
@@ -15904,10 +15901,17 @@ function phase7IssueBankLoan(s,bankId,borrowerId,principal,months){
  post(bank,{loanrec:principal},{cash:principal},'銀行事業の普通融資','investing',s);
  const toJournal=s.seq;
  post(borrower,{cash:principal},{debt:principal},'銀行事業からの普通借入','financing',s);
+ return phase7RegisterBankLoan(s,bank,borrower,{principal,month,months,rate,fromJournal,toJournal});
+}
+function phase7RegisterBankLoan(s,bank,borrower,{principal,month,months,rate,fromJournal,toJournal,infrastructureContractId}){
  const id='L'+s.seq++,due=month+months;
+ const bankId=bank.id,borrowerId=borrower.id;
  const r={id,bankId,borrowerId,country:bank.country,month,months,due,rate,principal,fromJournal,toJournal,payments:[],remaining:principal,interestPaid:0};
+ if(infrastructureContractId!==undefined)r.infrastructureContractId=infrastructureContractId;
  (s.worldExpansion.bankLoans??=[]).push(r);
- borrower.loans.push({id,parent:bankId,bankLoanId:id,outstanding:principal,parentRemaining:principal,interestOutstanding:0,parentInterestRemaining:0,rate,due,repayment:phase7LoanSchedule(principal,month,months)});
+ borrower.loans.push({id,parent:bankId,bankLoanId:id,outstanding:principal,parentRemaining:principal,interestOutstanding:0,
+  parentInterestRemaining:0,rate,due,repayment:phase7LoanSchedule(principal,month,months),
+  ...(infrastructureContractId===undefined?{}:{infrastructureContractId})});
  registerInterco(s,{kind:'loan',seller:bankId,buyer:borrowerId,fromJournal,toJournal,yearMonth:month,loanBase:baseFromLocal(principal,bank.country,s)});
  return r;
 }
@@ -15955,11 +15959,18 @@ function phase7ValidateBankLoans(s){
  if(!Array.isArray(rows))throw Error('銀行事業融資台帳が不正');
  if(!rows.length){if(s.firms.some(f=>f.loans.some(l=>l.bankLoanId)||acc(f,'bankLoanAllowance')!==0))throw Error('銀行事業融資の証拠がありません');return;}
  const match=worldServiceJournalMatcher(s),byId=new Map(),used=new Set(),allowanceByBank=new Map();let prior=0;
+ const projects=new Map((s.worldExpansion.constructionContracts??[]).map(c=>[c.id,c]));
  for(const r of rows){
   const bank=company(r?.bankId,s),borrower=company(r?.borrowerId,s),id=Number(r?.id?.slice(1));
-  if(!bank||!borrower||bank===borrower||bank.country!==r.country||borrower.country!==r.country||r.country!==WORLD_BANK_DEPOSIT_PROFILE.country||bank.industry!=='service'
+  const project=projects.get(r?.infrastructureContractId),funding=project?.funding;
+  const validProduct=r?.infrastructureContractId===undefined
+   ?r?.country===WORLD_BANK_DEPOSIT_PROFILE.country&&r.month>=WORLD_BANK_DEPOSIT_PROFILE.opensAt
+   :project?.status==='COMPLETE'&&project.buyerId===r.borrowerId&&project.finishedAt===r.month&&r.months===36
+    &&funding?.bankId===r.bankId&&funding.approval?.loan===r.principal&&funding.approval?.rate===r.rate
+    &&funding.payment?.loanId===r.id&&funding.payment?.lenderJournal===r.fromJournal&&funding.payment?.borrowerJournal===r.toJournal;
+  if(!validProduct||!bank||!borrower||bank===borrower||bank.country!==r.country||borrower.country!==r.country||bank.industry!=='service'
    ||!/^L\d+$/.test(r.id)||!Number.isSafeInteger(id)||id<=prior||id>=s.seq||r.fromJournal!==id-2||r.toJournal!==id-1
-   ||!Number.isSafeInteger(r.month)||r.month<WORLD_BANK_DEPOSIT_PROFILE.opensAt||r.month>ym(s.year,s.month)
+   ||!Number.isSafeInteger(r.month)||r.month<WORLD_START_MONTH||r.month>ym(s.year,s.month)
    ||![12,24,36].includes(r.months)||r.due!==r.month+r.months||!Number.isFinite(r.rate)||r.rate<.02
    ||!Number.isSafeInteger(r.principal)||r.principal<1||!Array.isArray(r.payments)
    ||!match(bank,r.fromJournal,r.month,r.principal,'loanrec','cash','investing')
@@ -15976,16 +15987,21 @@ function phase7ValidateBankLoans(s){
   }
   const active=borrower.loans.find(l=>l.id===r.id);
   if(remaining<0||remaining!==r.remaining||interest!==r.interestPaid||(!active&&remaining!==0)
-   ||(active&&(active.bankLoanId!==r.id||active.parent!==r.bankId||active.outstanding!==remaining||active.parentRemaining!==remaining||active.rate!==r.rate||active.due!==r.due||active.repayment?.principal!==r.principal||active.repayment?.origin!==r.month||active.repayment?.months!==r.months||active.interestOutstanding!==active.parentInterestRemaining)))
+   ||(active&&(active.bankLoanId!==r.id||active.infrastructureContractId!==r.infrastructureContractId||active.parent!==r.bankId||active.outstanding!==remaining||active.parentRemaining!==remaining||active.rate!==r.rate||active.due!==r.due||active.repayment?.principal!==r.principal||active.repayment?.origin!==r.month||active.repayment?.months!==r.months||active.interestOutstanding!==active.parentInterestRemaining)))
    throw Error('銀行事業融資の元利金残高が一致しません：'+r.id);
-  const changes=r.lossChanges??[];let allowance=0,lastLoss=id;
+  const changes=r.lossChanges??[];let allowance=0,lastLoss=id,remainingAtLoss=r.principal,paymentIndex=0;
   if(!Array.isArray(changes))throw Error('銀行貸出損失台帳が不正');
   for(const e of changes){
    if(!Number.isSafeInteger(e.delta)||!e.delta||!Number.isSafeInteger(e.journal)||e.journal<=lastLoss||used.has(e.journal)
     ||!Number.isSafeInteger(e.month)||e.month<r.month||e.month>ym(s.year,s.month)||!Number.isSafeInteger(e.remaining)||e.remaining<0||e.remaining>r.principal
     ||!Number.isFinite(e.rate)||e.rate<=0||!match(bank,e.journal,e.month,Math.abs(e.delta),e.delta>0?'otherExpense':'bankLoanAllowance',e.delta>0?'bankLoanAllowance':'otherRevenue','operating'))
     throw Error('銀行貸出損失の仕訳が不正：'+r.id);
-   allowance+=e.delta;if(allowance<0||allowance>e.remaining)throw Error('銀行貸出損失の引当残高が不正');
+   while(paymentIndex<r.payments.length&&r.payments[paymentIndex].bankJournal<e.journal){
+    const payment=r.payments[paymentIndex++];if(payment.kind==='principal')remainingAtLoss-=payment.amount;
+   }
+   allowance+=e.delta;
+   if(e.remaining!==remainingAtLoss||![0,Math.ceil(remainingAtLoss/4),remainingAtLoss].includes(allowance))
+    throw Error('銀行貸出損失の引当残高が不正');
    used.add(e.journal);lastLoss=e.journal;
   }
   if(allowance!==(r.allowance??0)||allowance>r.remaining)throw Error('銀行貸出損失の残高が不正');
