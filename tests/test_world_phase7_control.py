@@ -411,10 +411,24 @@ def main():
  company(forged.playerId,forged).journals.find(j=>j.id===current.id).taxAssessment.sourceId='HMRC_TABLE_A6';
  let tamper=false;try{parsePayload(savePayload(forged))}catch(e){tamper=e.message.includes('法人税率')}
  const clean=!check(saved).length&&acc(company(saved.playerId,saved),'taxExpense')===67800;
- return {migrated,federal,uk,tamper,clean};
+ const japan=newWorldGame({country:'JP',name:'Japan fiscal-rate migration'});
+ japan.year=1984;japan.month=3;japan.monthCommitted=ym(japan.year,japan.month)-1;
+ applyWorldHistory(japan);syncWorldIdentities(japan);
+ delete japan.worldExpansion.corporateTaxJPFromSeq;
+ const jpOld=assess(japan),jpCutoff=japan.seq,jpLoaded=parsePayload(savePayload(japan));
+ jpLoaded.month++;jpLoaded.monthCommitted=ym(jpLoaded.year,jpLoaded.month)-1;
+ const jpNew=assess(jpLoaded),jpSaved=parsePayload(savePayload(jpLoaded));
+ const japanMigration=jpSaved.worldExpansion.corporateTaxJPFromSeq===jpCutoff&&jpOld.amount===15000&&jpNew.amount===43300
+   &&jpNew.taxAssessment.sourceId==='JP_TAX_COMMISSION_FISCAL_RATES'&&!check(jpSaved).length
+   &&acc(company(jpSaved.playerId,jpSaved),'taxExpense')===58300;
+ const japanBoundaries=phase7CorporateTaxProfile('JP',1950,3).status==='provisional'
+   &&phase7CorporateTaxProfile('JP',1950,4).bps===3500&&phase7CorporateTaxProfile('JP',1970,4).bps===3675
+   &&phase7CorporateTaxProfile('JP',1984,3).bps===4200&&phase7CorporateTaxProfile('JP',1984,4).bps===4330
+   &&phase7CorporateTaxProfile('JP',1989,4).bps===4000&&phase7CorporateTaxProfile('JP',1990,1).bps===4998;
+ return {migrated,federal,uk,tamper,clean,japanMigration,japanBoundaries};
 }""")
         assert all(early_tax.values()),early_tax
-        print("PASS Phase 7 SPEC-082: historical IRS/HMRC rates, FY boundary, saved assessment retention and source integrity")
+        print("PASS Phase 7 SPEC-082: historical US/UK/JP rates, fiscal-year boundaries and preserved saved assessments")
         banking=page.evaluate("""async()=>{
  S=newWorldGame({country:'JP',name:'Ordinary bank customer'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';saveAuto=async()=>true;
  const root=company(S.playerId,S),rootId=root.id;

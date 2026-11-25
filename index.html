@@ -3831,11 +3831,16 @@ function phase7ValidateLoanSchedules(s){
   [1940,2400],[1941,3100],[1942,4000],[1946,3800],[1950,4200],[1951,5075],[1952,5200],
   [1964,5000],[1965,4800],[1968,5280],[1970,4920],[1971,4800],[1979,4600]
  ]);
+ const WORLD_EARLY_JP_CORPORATE_TAX_BPS=Object.freeze([
+  [1950,3500],[1952,4200],[1955,4000],[1958,3800],[1965,3700],[1966,3500],
+  [1970,3675],[1974,4000],[1981,4200],[1984,4330],[1987,4200],[1989,4000]
+ ]);
  const WORLD_EARLY_CORPORATE_TAX_SOURCES=Object.freeze({
   IRS_SOI_TABLE_1:'https://www.irs.gov/pub/irs-soi/02corate.pdf',
-  HMRC_TABLE_A6:'https://www.gov.uk/government/statistics/rates-of-corporation-tax'
+  HMRC_TABLE_A6:'https://www.gov.uk/government/statistics/rates-of-corporation-tax',
+  JP_TAX_COMMISSION_FISCAL_RATES:'https://www.cao.go.jp/zei-cho/history/1996-2009/gijiroku/houjin/1999/pdf/ho001_01.pdf'
  });
- function phase7CorporateTaxProfile(country,year,month=1,legacy=false){
+ function phase7CorporateTaxProfile(country,year,month=1,legacy=false,japaneseLegacy=false){
   if(!legacy){
    if(country==='US'&&year>=1909&&year<1980){
     const [,bps]=WORLD_EARLY_US_CORPORATE_TAX_BPS.findLast(([start])=>start<=year);
@@ -3844,6 +3849,11 @@ function phase7ValidateLoanSchedules(s){
    const financialYear=month<4?year-1:year;
    if(country==='UK'&&financialYear>=1971&&financialYear<=1979){
     return {bps:financialYear<=1972?4000:5200,dataYear:financialYear,status:'observed',country,sourceId:'HMRC_TABLE_A6'};
+   }
+   // Use the published fiscal-year main rate for the monthly estimate.
+   if(country==='JP'&&!japaneseLegacy&&financialYear>=1950&&year<1990){
+    const [,bps]=WORLD_EARLY_JP_CORPORATE_TAX_BPS.findLast(([start])=>start<=financialYear);
+    return {bps,dataYear:financialYear,status:'observed',country,sourceId:'JP_TAX_COMMISSION_FISCAL_RATES'};
    }
   }
   const series=WORLD_CORPORATE_TAX_BPS[country];
@@ -3857,11 +3867,11 @@ function phase7ValidateLoanSchedules(s){
   return {bps:1500,dataYear:null,status:'provisional',country};
  }
  function phase7ValidateTaxAssessments(s){
-  const cutoff=s.worldExpansion?.corporateTaxFromSeq??s.seq;
-  if(!Number.isSafeInteger(cutoff)||cutoff<1||cutoff>s.seq)throw Error('法人税率の適用開始が不正');
+  const cutoff=s.worldExpansion.corporateTaxFromSeq??s.seq,japanCutoff=s.worldExpansion.corporateTaxJPFromSeq??s.seq;
+  if([cutoff,japanCutoff].some(seq=>!Number.isSafeInteger(seq)||seq<1||seq>s.seq))throw Error('法人税率の適用開始が不正');
   for(const f of s.firms)for(const j of f.journals){
    if(j.taxAssessment===undefined)continue;
-   const a=j.taxAssessment,p=phase7CorporateTaxProfile(f.country,Math.floor(j.when/12),j.when%12+1,j.id<cutoff);
+   const a=j.taxAssessment,p=phase7CorporateTaxProfile(f.country,Math.floor(j.when/12),j.when%12+1,j.id<cutoff,j.id<japanCutoff);
    if(!a||a.country!==f.country||!Object.hasOwn(WORLD_ENGINE_TERRITORY,f.country)||!Number.isSafeInteger(a.taxableProfit)||a.taxableProfit<1
     ||a.bps!==p.bps||a.status!==p.status||a.dataYear!==p.dataYear||a.sourceId!==p.sourceId||j.text!=='当月法人税見込計上'||j.kind!=='operating'
     ||j.amount!==Math.round(a.taxableProfit*a.bps/10000)||j.dr.length!==1||j.cr.length!==1||j.dr[0][0]!=='taxExpense'||j.cr[0][0]!=='taxDue'||j.dr[0][1]!==j.amount||j.cr[0][1]!==j.amount)
@@ -3905,7 +3915,8 @@ function phase7ValidateLoanSchedules(s){
  // Stage 2: recognize current-period taxes and issue reports after all intercompany legs are posted.
  for(const f of s.firms){
   const prevProfit=f._profitStart??0,delta=financials(f).profit-prevProfit;
-  const profile=s.worldExpansion?phase7CorporateTaxProfile(f.country,s.year,s.month,s.worldExpansion.corporateTaxFromSeq===undefined):{bps:1500};
+  const profile=s.worldExpansion?phase7CorporateTaxProfile(f.country,s.year,s.month,
+   s.worldExpansion.corporateTaxFromSeq===undefined,s.worldExpansion.corporateTaxJPFromSeq===undefined):{bps:1500};
   const tax=Math.max(0,Math.round(delta*profile.bps/10000));
   if(tax){post(f,{taxExpense:tax},{taxDue:tax},'当月法人税見込計上','operating',s);
    if(s.worldExpansion)f.journals.at(-1).taxAssessment={...profile,taxableProfit:delta};
@@ -6631,6 +6642,7 @@ function parsePayload(raw){if(typeof raw!=='string')throw Error('保存データ
   s.worldExpansion.uniformDutyFromSeq??=s.seq;
   s.worldExpansion.freightRateFromSeq??=s.seq;
   s.worldExpansion.corporateTaxFromSeq??=s.seq;
+  s.worldExpansion.corporateTaxJPFromSeq??=s.seq;
  s.worldExpansion.miningLandFromSeq??=s.seq;
   const errs=check(s);
   if(errs.length)throw Error(errs.slice(0,3).join(' / '));
@@ -13078,6 +13090,7 @@ function newWorldGame(setup,legacyCurrency=false){
  state.worldExpansion=makeWorldExpansion();
  state.worldExpansion.uniformDutyFromSeq=1;
  state.worldExpansion.corporateTaxFromSeq=1;
+ state.worldExpansion.corporateTaxJPFromSeq=1;
  state.worldExpansion.miningLandFromSeq=1;
  state.worldExpansion.freightRateFromSeq=1;
  // Existing saves keep their booked exchange-rate histories. New games share the EUR rate.
