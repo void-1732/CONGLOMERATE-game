@@ -7217,7 +7217,7 @@ function consolidate(s,rootId=s.playerId){
  }
  const dividends=phase7DividendCashPairs(s).filter(t=>ids.has(t.seller)&&ids.has(t.buyer)&&insidePeriod(t));
  const dividendIncome=dividends.reduce((n,t)=>n+baseFromLocal(t.received,company(t.buyer,s).country,s),0);
- const cashTx=[...dividends,...(s.intercompanyTx||[]),...developmentCashPairs(s),...partCashPairs(s),...worldPowerCashPairs(s),...worldConstructionCashPairs(s),...assetCash,...tradeCash,...storageCash,...phoneCash,...medicalCash,...insuranceCash].filter(t=>ids.has(t.seller)&&ids.has(t.buyer)&&insidePeriod(t));
+ const cashTx=[...dividends,...(s.intercompanyTx||[]),...developmentCashPairs(s),...partCashPairs(s),...worldPowerCashPairs(s),...worldConstructionCashPairs(s),...worldMiningLandCashPairs(s),...assetCash,...tradeCash,...storageCash,...phoneCash,...medicalCash,...insuranceCash].filter(t=>ids.has(t.seller)&&ids.has(t.buyer)&&insidePeriod(t));
  const cashJournals=new Set();for(const t of cashTx)if(['dividendCash','loan','loanCash','interestCash','goods','developmentCash','partTradeCash','equityCash','domesticAssetCash','domesticTradeCash'].includes(t.kind))for(const id of [t.fromJournal,t.toJournal])if(id!==undefined)cashJournals.add(id);
  for(const l of activeLinks)if(l.kind==='foundation')for(const id of [l.buyerJournal,l.childJournal])if(id!==undefined)cashJournals.add(id);
  // Group assets minus group debts determine consolidated net equity. Subsidiary net
@@ -7322,7 +7322,7 @@ function computePeriodCF(s,rootId,g,bridge){
  const scope=consolidationScope(s,scopeHistory,members,rootId),opens=scope.months;
  const linksEntering=new Map(Object.entries(scope.entries).filter(([id])=>id!==rootId));
  const ignored=new Set(),internationalLegs=new Map();let loanPairs=0;
- for(const t of [...phase7DividendCashPairs(s),...(s.intercompanyTx||[]),...developmentCashPairs(s),...partCashPairs(s),...worldTelephoneCashPairs(s),...worldMedicalCashPairs(s),...worldPowerCashPairs(s),...worldConstructionCashPairs(s),...worldInternationalCashPairs(s)]){
+ for(const t of [...phase7DividendCashPairs(s),...(s.intercompanyTx||[]),...developmentCashPairs(s),...partCashPairs(s),...worldTelephoneCashPairs(s),...worldMedicalCashPairs(s),...worldPowerCashPairs(s),...worldConstructionCashPairs(s),...worldMiningLandCashPairs(s),...worldInternationalCashPairs(s)]){
   if(!memberIds.has(t.seller)||!memberIds.has(t.buyer))continue;
   if(t.yearMonth<Math.max(opens[t.seller]??0,opens[t.buyer]??0))continue;
   if(s.worldExpansion&&!phase7TransactionInScope(scope,t))continue;
@@ -13909,19 +13909,69 @@ function worldPurchaseMiningLand(s,firmId,siteId){
  (w.miningLandTitles??={})[siteId]=title;
  return title;
 }
+// SPEC-076: keep immutable title acquisition and subsequent ownership history.
+// Only unencumbered land is transferable in this path. A deposit with its own
+// legal and geological history must not be transferred by changing a title alone.
+function worldMiningLandEncumbered(s,siteId){
+ return Object.values(s.worldExpansion?.resourceDeposits??{}).some(d=>d.locationId==='LOC-'+siteId&&['MODEL_DISCOVERED','MODEL_KNOWN'].includes(d.status));
+}
+function worldMiningLandOwnerAt(title,seq){
+ let owner=title.originFirmId??title.firmId;
+ for(const t of title.transfers??[]){
+  if(Number(t.id.slice(4))>=seq)break;
+  owner=t.to;
+ }
+ return owner;
+}
+function worldTransferMiningLand(s,fromId,toId,siteId){
+ const w=s.worldExpansion,t=w?.miningLandTitles?.[siteId],from=company(fromId,s),to=company(toId,s);
+ if(!t||t.firmId!==fromId||fromId===toId||!isActiveCorporateFirm(from)||!isActiveCorporateFirm(to)
+  ||!controller(s,fromId)||!controller(s,toId)||to.industry!=='resource'||from.country!==to.country
+  ||worldMiningLandEncumbered(s,siteId))throw Error('同一グループの鉱床未取得用地のみ譲渡できます');
+ worldValidateMiningLand(s);
+ const amount=t.amount;
+ if(phase7AvailableCash(s,to)<amount||!Number.isSafeInteger(acc(from,'cash')+amount)
+  ||!Number.isSafeInteger(acc(to,'worldMiningLand')+amount))throw Error('採掘用地の譲渡資金または帳簿残高が不正です');
+ // Both legs use the existing carrying value; no fictional disposal profit.
+ const buyerJournal=s.seq;
+ post(to,{worldMiningLand:amount},{cash:amount},'採掘用地のグループ内簿価取得・'+siteId,'investing',s);
+ const sellerJournal=s.seq;
+ post(from,{cash:amount},{worldMiningLand:amount},'採掘用地のグループ内簿価譲渡・'+siteId,'investing',s);
+ const transfer={id:'MLX-'+s.seq++,from:fromId,to:toId,month:ym(s.year,s.month),amount,buyerJournal,sellerJournal};
+ t.originFirmId??=fromId;(t.transfers??=[]).push(transfer);t.firmId=toId;
+ return transfer;
+}
+function worldMiningLandCashPairs(s){
+ return Object.values(s.worldExpansion?.miningLandTitles??{}).flatMap(t=>(t.transfers??[]).map(x=>({
+  kind:'domesticTradeCash',seller:x.from,buyer:x.to,yearMonth:x.month,fromJournal:x.sellerJournal,toJournal:x.buyerJournal
+ })));
+}
 function worldValidateMiningLand(s){
  const w=s.worldExpansion,titles=w.miningLandTitles??{},cutoff=w.miningLandFromSeq??s.seq,now=ym(s.year,s.month);
  if(typeof titles!=='object'||Array.isArray(titles)||!Number.isSafeInteger(cutoff)||cutoff<1||cutoff>s.seq)
   throw Error('採掘用地の所有権台帳の形式が不正です');
  const match=worldServiceJournalMatcher(s),totals=new Map();
  for(const [siteId,t] of Object.entries(titles)){
-  const site=findSite(siteId),f=company(t?.firmId,s),seq=Number(t?.id?.slice(4)),year=Math.floor(t?.month/12);
+  const site=findSite(siteId),f=company(t?.originFirmId??t?.firmId,s),seq=Number(t?.id?.slice(4)),year=Math.floor(t?.month/12);
   if(!site||!f||f.industry!=='resource'||f.country!==site.country||t.siteId!==siteId
    ||!/^MLT-\d+$/.test(t.id)||!Number.isSafeInteger(seq)||seq<cutoff||seq>=s.seq||t.journal!==seq-1
    ||!Number.isSafeInteger(t.month)||t.month>now||!worldExplorationFieldsAt(siteId).some(k=>year>=worldExplorationField(k).availableFromYear)
    ||!Number.isSafeInteger(t.amount)||t.amount<1||t.amount!==worldMiningLandPrice(site,year,s)
    ||!match(f,t.journal,t.month,t.amount,'worldMiningLand','cash','investing'))throw Error('採掘用地の権利・取得仕訳が不正です：'+siteId);
-  totals.set(f.id,(totals.get(f.id)??0)+t.amount);
+  const transfers=t.transfers??[];
+  if(!Array.isArray(transfers)||(transfers.length>0)!==(t.originFirmId!==undefined))throw Error('採掘用地の譲渡台帳が不正：'+siteId);
+  let owner=f.id,last=seq,lastMonth=t.month;
+  for(const x of transfers){
+   const buyer=company(x?.to,s),seller=company(x?.from,s),id=Number(x?.id?.slice(4));
+   if(!buyer||!seller||buyer===seller||seller.id!==owner||buyer.industry!=='resource'||buyer.country!==site.country
+    ||!/^MLX-\d+$/.test(x.id)||!Number.isSafeInteger(id)||id>=s.seq||x.buyerJournal!==id-2||x.sellerJournal!==id-1||x.buyerJournal<=last
+    ||!Number.isSafeInteger(x.month)||x.month<lastMonth||x.month>now||x.amount!==t.amount
+    ||!match(buyer,x.buyerJournal,x.month,x.amount,'worldMiningLand','cash','investing')
+    ||!match(seller,x.sellerJournal,x.month,x.amount,'cash','worldMiningLand','investing'))throw Error('採掘用地の譲渡仕訳・所有権が不正：'+siteId);
+   owner=buyer.id;last=id;lastMonth=x.month;
+  }
+  if(owner!==t.firmId)throw Error('採掘用地の現在所有権が不正：'+siteId);
+  totals.set(owner,(totals.get(owner)??0)+t.amount);
  }
  for(const f of s.firms)if(acc(f,'worldMiningLand')!==(totals.get(f.id)??0))
   throw Error('採掘用地の所有権台帳と帳簿残高が一致しません：'+f.id);
@@ -13930,7 +13980,7 @@ function worldMiningLandSupportsAction(s,entry,seq,siteId){
  // Pre-title claims and attempts keep their original legal and accounting records.
  if(entry.landTitleId===undefined&&seq<(s.worldExpansion.miningLandFromSeq??s.seq))return true;
  const title=s.worldExpansion.miningLandTitles?.[siteId];
- return !!title&&title.id===entry.landTitleId&&title.firmId===entry.firmId
+ return !!title&&title.id===entry.landTitleId&&worldMiningLandOwnerAt(title,seq)===entry.firmId
   &&Number(title.id.slice(4))<seq&&title.month<=entry.month;
 }
 function worldResourceScarcityBps(s,country,productId){
@@ -19890,8 +19940,10 @@ function worldResourceAndPowerPanel(firm,editable){
  const landRows=firm.industry==='resource'?SITE_CATALOG.filter(site=>site.country===firm.country&&worldMiningLandOpen(S,site.id)).map(site=>{
   const title=world.miningLandTitles?.[site.id],price=worldMiningLandPrice(site,S.year,S);
   const owner=title&&company(title.firmId,S);
+  const targets=editable&&owner===firm&&!worldMiningLandEncumbered(S,site.id)?S.firms.filter(f=>f!==firm&&isActiveCorporateFirm(f)&&controller(S,f.id)&&f.industry==='resource'&&f.country===firm.country):[];
+  const transfer=targets.length?'<select id="world-land-to-'+esc(site.id)+'">'+targets.map(f=>'<option value="'+esc(f.id)+'">'+esc(f.name)+'</option>').join('')+'</select><button class="btn sm" data-world-land-transfer="'+esc(site.id)+'">簿価譲渡 '+fnum(firm,title.amount)+'</button>':'';
   return '<div class="row"><strong>'+esc(site.name)+'の採掘用地</strong>'+(owner
-   ?'<small>所有者 '+esc(owner.name)+'</small>'
+   ?'<small>所有者 '+esc(owner.name)+'</small>'+transfer
    :'<button class="btn sm" data-world-land-buy="'+esc(site.id)+'" '+(editable&&phase7AvailableCash(S,firm)>=price?'':'disabled')+'>所有権を取得 '+fnum(firm,price)+'</button>')+'</div>';
  }).join(''):'';
  const mineRows=firm.industry==='resource'?facilities.map((p,i)=>{
@@ -19953,7 +20005,7 @@ document.addEventListener('click',event=>{
  const mine=event.target.closest('[data-world-mine-save]');
  const explore=event.target.closest('[data-world-explore]');
  const known=event.target.closest('[data-world-known-plant]');
- const land=event.target.closest('[data-world-land-buy]');
+ const land=event.target.closest('[data-world-land-buy]'),landTransfer=event.target.closest('[data-world-land-transfer]');
  const install=event.target.closest('[data-world-generator-install]');
  const generate=event.target.closest('[data-world-generate]');
  const lineInstall=event.target.closest('[data-world-line-install]');
@@ -19961,7 +20013,7 @@ document.addEventListener('click',event=>{
  const gridPlan=event.target.closest('[data-world-grid-plan]');
  const powerOffer=event.target.closest('[data-world-power-offer]'),powerAccept=event.target.closest('[data-world-power-accept]'),powerCancel=event.target.closest('[data-world-power-cancel]');
  const publicInstall=event.target.closest('[data-world-public-power-install]'),publicRetire=event.target.closest('[data-world-public-power-retire]');
- if(!mine&&!explore&&!known&&!land&&!install&&!generate&&!lineInstall&&!transfer&&!gridPlan&&!powerOffer&&!powerAccept&&!powerCancel&&!publicInstall&&!publicRetire||!S?.worldExpansion||MONTH_RUNNING||!canEdit(current()))return;
+ if(!mine&&!explore&&!known&&!land&&!landTransfer&&!install&&!generate&&!lineInstall&&!transfer&&!gridPlan&&!powerOffer&&!powerAccept&&!powerCancel&&!publicInstall&&!publicRetire||!S?.worldExpansion||MONTH_RUNNING||!canEdit(current()))return;
  try{
   const firm=current();
   if(powerOffer){
@@ -19973,6 +20025,7 @@ document.addEventListener('click',event=>{
   }else if(publicRetire)worldRetirePublicPowerLine(S,firm.id,publicRetire.dataset.worldPublicPowerRetire);
   else if(powerAccept)worldAcceptPowerSupply(S,firm.id,powerAccept.dataset.worldPowerAccept);
   else if(powerCancel)worldCancelPowerOffer(S,firm.id,powerCancel.dataset.worldPowerCancel);
+  else if(landTransfer){const site=landTransfer.dataset.worldLandTransfer;worldTransferMiningLand(S,firm.id,inputValue('world-land-to-'+site),site);}
   else if(land)worldPurchaseMiningLand(S,firm.id,land.dataset.worldLandBuy);
   else if(gridPlan){
    const quantity=Number(document.getElementById(gridPlan.dataset.worldGridInput)?.value);

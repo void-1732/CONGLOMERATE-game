@@ -80,6 +80,31 @@ def main():
             titleBeforeOperating,claimTitle,duplicateTitle,foreignTitle,legacyRestore,titleAudit};
         }""",ids)
         assert len(result)==19 and all(result.values()),result
+        land=page.evaluate("""({id})=>{
+          VIEW_FIRM=S.playerId;PAGE='corporateSubsidiaries';render();
+          document.querySelector('#subName').value='Second mining company';
+          document.querySelector('#subCountry').value='JP';
+          document.querySelector('#subIndustry').value='resource';
+          document.querySelector('#subCapital').value='1100000';
+          createSub();syncWorldIdentities(S);
+          const a=company(id,S),b=S.firms.find(x=>x.name==='Second mining company');
+          const title=worldPurchaseMiningLand(S,id,'JP-SADO'),amount=title.amount,ac=acc(a,'cash'),bc=acc(b,'cash'),before=acc(a,'worldMiningLand');
+          const reject=fn=>{try{fn();return false}catch{return true}};
+          const encumbered=reject(()=>worldTransferMiningLand(S,id,b.id,'JP-ASHIO'));
+          const tx=worldTransferMiningLand(S,id,b.id,'JP-SADO');
+          const accounting=acc(a,'cash')===ac+amount&&acc(b,'cash')===bc-amount&&acc(a,'worldMiningLand')===before-amount&&acc(b,'worldMiningLand')===amount;
+          const ownership=title.firmId===b.id&&title.originFirmId===id&&worldMiningLandOwnerAt(title,Number(tx.id.slice(4)))===id&&worldMiningLandOwnerAt(title,S.seq)===b.id;
+          const oldOwner=reject(()=>worldTransferMiningLand(S,id,b.id,'JP-SADO'));
+          const saved=parsePayload(savePayload(S)),record=saved.worldExpansion.miningLandTitles['JP-SADO'];
+          const restore=record.firmId===b.id&&record.transfers[0].id===tx.id&&acc(company(b.id,saved),'worldMiningLand')===amount;
+          const fake=structuredClone(saved);fake.worldExpansion.miningLandTitles['JP-SADO'].transfers[0].amount++;
+          const tamper=reject(()=>parsePayload(savePayload(fake)));
+          const paired=worldMiningLandCashPairs(S).some(x=>x.fromJournal===tx.sellerJournal&&x.toJournal===tx.buyerJournal);
+          const clean=!check(saved).length&&!consolidate(saved).errors.length;
+          return {encumbered,accounting,ownership,oldOwner,restore,tamper,paired,clean};
+        }""",ids)
+        assert len(land)==8 and all(land.values()),land
+        print("PASS Phase 6 unencumbered mining land: book-value transfer, legal history, cash pairs, save and tamper")
         assert not errors,errors
         print("PASS Phase 6 known deposits: 19 checks, 18 minerals, 10 countries, independent titles, UI, extraction and restore")
         browser.close()
