@@ -7244,11 +7244,16 @@ function phase7ScopeEntries(s,links,members,rootId){
     if(!entries[child.id]||compare(e,entries[child.id])<0){
      const rec={...e.link,month:e.month,buyerJournal:e.buyerJournal};
      if(e.inherited){
-      // The child already existed when its parent entered; reconstruct its
-      // opening cash from actual pre-entry journals, not the old share purchase.
-      const previous=child.journals.filter(j=>j.when<e.month||(j.when===e.month&&j.id<e.buyerJournal));
-      const cash=previous.reduce((sum,j)=>sum+cashOfJournal(j),0);
-      const fx=Number(previous.at(-1)?.fxAtPost??worldReferenceFx(child.country,s));
+      // Work back from current cash using retained post-entry movements.
+      // Pre-entry postings alone omit the opening balance after journal archival.
+      let previous=null,afterCash=0;
+      for(const j of child.journals){
+       if(j.when<e.month||(j.when===e.month&&j.id<e.buyerJournal))previous=j;
+       else afterCash+=cashOfJournal(j);
+      }
+      const hasEntryHistory=previous!==null||child.journals.length<10000;
+      const cash=hasEntryHistory?acc(child,'cash')-afterCash:0;
+      const fx=Number(previous?.fxAtPost??worldReferenceFx(child.country,s));
       Object.assign(rec,{kind:'acquisition',scopeInherited:true,cashAcquiredLocal:cash,
        targetFxOnAcq:fx,cashAcquiredBase:Math.round(cash*worldReferenceFx(child.country,s))});
      }

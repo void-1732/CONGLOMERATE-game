@@ -140,11 +140,15 @@ def main():
         print("PASS Phase 7 exact one-share acquisition, lot dilution, reservation and saved registry")
         staged=page.evaluate("""async()=>{
  S=newWorldGame({country:'JP',name:'Staged acquisition'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';saveAuto=async()=>true;
- const root=company(S.playerId,S),target=S.firms.find(f=>f.id!==root.id&&f.country==='JP'&&f.owners.length===1&&f.owners[0].id==='PUBLIC');
+ const root=company(S.playerId,S),rootId=root.id;
  post(root,{cash:1000000000},{capital:1000000000},'検証用資本','financing',S);
  const close=async()=>{const m=S.monthCommitted;await runMonth();if(S.monthCommitted!==m+1)throw Error(JSON.stringify(LAST_MONTH_DIAGNOSTIC))};
- const rootId=root.id,targetId=target.id;await close();
- const buyer=company(rootId,S),t=company(targetId,S);t.auto=false;t.delegate.mode='manual';for(const m of t.models)t.plans[m.id]=0;
+ await close();
+ // Use a standalone company after the first AI review to isolate direct entry.
+ const t=S.firms.find(f=>f.id!==rootId&&f.country==='JP'&&f.owners.length===1
+   &&f.owners[0].id==='PUBLIC'&&controlSet(S,f.id).size===1);
+ if(!t)throw Error('Direct acquisition fixture has no standalone target');
+ const targetId=t.id;t.auto=false;t.delegate.mode='manual';for(const m of t.models)t.plans[m.id]=0;
  executeMADeal(S,rootId,targetId,30,2.5,'player');
  post(t,{cash:12345},{otherRevenue:12345},'支配前の外部売上','operating',S);
  executeMADeal(S,rootId,targetId,40,2.5,'player');
@@ -159,6 +163,8 @@ def main():
         indirect=page.evaluate("""async()=>{
  S=newWorldGame({country:'JP',name:'Inherited control'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';saveAuto=async()=>true;
  const root=company(S.playerId,S),p=S.firms.find(f=>f.id!==root.id&&f.country==='JP'&&f.owners.length===1&&f.owners[0].id==='PUBLIC');
+ // Freeze this fixture's parent and child scope during the first AI review.
+ p.maCooldown=ym(S.year,S.month);
  post(root,{cash:1000000000},{capital:1000000000},'検証用資本','financing',S);
  const parentId=p.id,rootId=root.id,amount=65000000,payer=S.seq;
  post(p,{investment:amount},{cash:amount},'検証用子会社出資','investing',S);
@@ -171,6 +177,8 @@ def main():
  const parent=company(parentId,S),sub=company(childId,S);
  parent.auto=false;sub.auto=false;parent.delegate.mode='manual';sub.delegate.mode='manual';
  for(const f of [parent,sub])for(const m of f.models)f.plans[m.id]=0;
+ for(let i=0;i<10000;i++)post(sub,{cash:1},{otherRevenue:1},'取得前の検証売上','operating',S);
+ const archived=sub.journals.length===10000&&!sub.journals.some(j=>j.text==='創業資本');
  post(sub,{cash:12345},{otherRevenue:12345},'支配前の外部売上','operating',S);
  executeMADeal(S,rootId,parentId,70,2.5,'player');
  const crossing=S.equityLinks.at(-1),expectedScope=acc(parent,'cash')+acc(sub,'cash');
@@ -181,9 +189,9 @@ def main():
  await close();
  const c=consolidate(S),audit=accountingFxReview(S,rootId,c),subNow=company(childId,S);
  const expected=subNow.journals.filter(j=>j.when===S.monthCommitted&&j.id>=crossing.buyerJournal).reduce((n,j)=>n+Math.round(journalIncome(j).revenue*Number(j.fxAtPost??worldReferenceFx(subNow.country,S))),0);
- return {inherited,income:audit.periodEntries[childId].revenue===expected,scopeCash:c.cf.scopeAdded===expectedScope,cf:c.cf.reconciled,clean:!c.errors.length&&!check(S).length,restored:!check(parsePayload(savePayload(S))).length};
+ return {archived,inherited,income:audit.periodEntries[childId].revenue===expected,scopeCash:c.cf.scopeAdded===expectedScope,cf:c.cf.reconciled,clean:!c.errors.length&&!check(S).length,restored:!check(parsePayload(savePayload(S))).length};
 }""")
-        assert len(indirect)==6 and all(indirect.values()),indirect
+        assert len(indirect)==7 and all(indirect.values()),indirect
         registry=page.evaluate("""()=>{
  const s=newWorldGame({country:'JP',name:'Registry audit'});
  const root=company(s.playerId,s),other=s.firms.find(f=>f.id!==root.id&&f.owners.length===1&&f.owners[0].id==='PUBLIC');
@@ -658,7 +666,7 @@ def main():
         assert corporate_result["cash"]==[before[0]-settlement["amountLocal"],before[1]+settlement["corporate"]["receiveLocal"],before[2]]
         print("PASS Phase 7 SPEC-128: corporate acquisition reservation, stale release, cross-border payment and real IndexedDB reload")
         assert not errors,errors
-        print("PASS Phase 7 SPEC-126: six paid purchase boundaries, cash, ownership, 5 staged and 6 inherited-scope accounting checks")
+        print("PASS Phase 7 SPEC-126: six paid purchase boundaries, cash, ownership, 5 staged and 7 inherited-scope accounting checks")
         print("PASS Phase 7 SPEC-134: 8 live and restored shareholder registry checks")
         browser.close()
 
