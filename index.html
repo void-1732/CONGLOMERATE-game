@@ -8627,6 +8627,54 @@ function executeCorporateShareTransferUnreserved(s,q){
 function maBeginPlan(s,id){const p=s.maPlans.find(x=>x.id===id);if(!p||p.mode!=='pending')throw Error('統合待ちの案件が見つかりません');if(!controller(s,p.target,p.buyer))throw Error('統合開始には対象企業の議決権支配が必要です');p.mode='active';return p;}
 // SPEC-120: review large AI acquisitions each quarter in the world scenario.
 function phase7MAReviewDue(s){return (s.worldExpansion?[1,4,7,10]:[1,7]).includes(s.month);}
+
+ // SPEC-120/122/127: compare independent buyers' admissible quotes before
+ // reserving/settling the winning order. Losing indications are not orders.
+ function phase8SelectCompetitiveBid(proposals){
+ const winners=new Map();
+ const cmp=(a,b)=>b.total-a.total||(a.buyerId<b.buyerId?-1:a.buyerId>b.buyerId?1:0);
+ for(const p of proposals){
+  if(!p.accepted||!Number.isFinite(p.score)||!Number.isSafeInteger(p.total)||p.total<1||!Number.isFinite(p.available)||p.total>p.available*.47)continue;
+  const prior=winners.get(p.targetId);
+  if(!prior||cmp(p,prior)<0)winners.set(p.targetId,p);
+ }
+ return [...winners.values()].sort((a,b)=>b.score-a.score||cmp(a,b)||(a.targetId<b.targetId?-1:a.targetId>b.targetId?1:0))[0]??null;
+}
+function phase8ReviewIndependentBids(s,events,pool,month){
+ const proposals=[];
+ for(const buyer of pool.slice(0,7)){
+  if(random(s)>.45)continue;
+  const candidates=s.firms.filter(t=>t.id!==buyer.id&&t.lifecycle?.phase==='active'&&t.reorgStatus!=='integrated'&&!controller(s,t.id)&&!controller(s,buyer.id,t.id)&&(t.maCooldown||-200)<month-12)
+   .map(t=>({t,score:(t.country===buyer.country?20:0)+(t.industry!==buyer.industry?9:3)+(t.distress?.stage||0)*3+Math.max(0,35-Math.abs(financials(t).equity/Math.max(1,financials(buyer).equity))*15)}))
+   .sort((a,b)=>b.score-a.score).slice(0,6);
+  for(const {t:target,score} of candidates){
+   try{
+    const registry=phase7ReadShareRegistry(target),active=registry.issued-registry.treasury;
+    const quantity=Number((BigInt(active)*70n+99n)/100n);
+    if(quantity<1||quantity>(registry.owners.find(o=>o.id==='PUBLIC')?.count??0))continue;
+    const percent=phase7SharePercent(target,quantity);
+    // PROVISIONAL: retain the existing 47% cash ceiling; strategic fit
+    // permits a bounded premium above the former fixed 126% offer.
+    const ceiling=Math.min(2.5,Math.max(1.26,Math.round((1.26+score/200)*100)/100));
+    const factors=[ceiling,1.50,1.40,1.26].filter((v,i,a)=>v<=ceiling&&a.indexOf(v)===i).sort((a,b)=>b-a);
+    for(const multiplier of factors){
+     const q=maQuote(s,buyer,target,percent,multiplier);
+     if(!q.accepted||q.total>q.available*.47)continue;
+     proposals.push({buyerId:buyer.id,targetId:target.id,score,percent,multiplier,total:q.total,available:q.available,accepted:q.accepted});
+     break;
+    }
+   }catch(e){/* An inadmissible indication cannot create a transaction. */}
+  }
+ }
+ const winner=phase8SelectCompetitiveBid(proposals);
+ if(!winner)return;
+ const buyer=company(winner.buyerId,s),target=company(winner.targetId,s);
+ const deal=executeMADeal(s,winner.buyerId,winner.targetId,winner.percent,winner.multiplier,'ai');
+ const err=check(s);if(err.length)throw Error(err[0]);
+ events.push('AI M&A：'+buyer.name+'が'+target.name+'の'+maPct(winner.percent/100)+'を'+maMoney(deal.priceBase)+'で取得（競合提示比較）');
+ s.maAIHistory.unshift(deal.id);if(s.maAIHistory.length>50)s.maAIHistory.pop();
+}
+
 function processMAMonth(s,events){
  ensureMAState(s);const month=ym(s.year,s.month);
  for(const p of s.maPlans){if(!['active','paused'].includes(p.mode)||p.done)continue;
@@ -8648,6 +8696,7 @@ function processMAMonth(s,events){
  // buyer-specific cooldown remains in force.
  if(!phase7MAReviewDue(s)||s.firms.length<3)return;
  const pool=s.firms.filter(f=>!f.player&&!controller(s,f.id)&&f.lifecycle?.phase==='active'&&f.reorgStatus!=='integrated'&&month-(f.maCooldown||-200)>18&&financials(f).cash>localFromBase(250000,f.country,s)&&financials(f).equity>0).sort((a,b)=>financials(b).cash/worldReferenceFx(b.country,s)-financials(a).cash/worldReferenceFx(a.country,s));
+ if(s.worldExpansion)return phase8ReviewIndependentBids(s,events,pool,month);
  let completed=0;
  for(const buyer of pool.slice(0,7)){
   if(completed>=1)break;
