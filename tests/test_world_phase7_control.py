@@ -301,6 +301,37 @@ def main():
 }""")
         assert len(taxation)==9 and all(taxation.values()),taxation
         print("PASS Phase 7 SPEC-082: nine country/year tax profile, accounting and restoration checks")
+        early_tax=page.evaluate("""()=>{
+ const old=newWorldGame({country:'US',name:'Historical corporate tax'});
+ old.year=1968;old.month=3;old.monthCommitted=ym(old.year,old.month)-1;
+ applyWorldHistory(old);syncWorldIdentities(old);
+ delete old.worldExpansion.corporateTaxFromSeq;
+ const revenue=100000;
+ const assess=s=>{
+  for(const f of s.firms){f._profitStart=financials(f).profit;f._salesNow=0;f._unitsNow=0;}
+  const firm=company(s.playerId,s);
+  post(firm,{cash:revenue},{otherRevenue:revenue},'法人税率検証用の営業収益','operating',s);
+  financeMonthly(s,[]);
+  return firm.journals.findLast(j=>j.taxAssessment);
+ };
+ const previous=assess(old),cutoff=old.seq,loaded=parsePayload(savePayload(old));
+ const migrated=previous.amount===15000&&previous.taxAssessment.status==='provisional'
+   &&loaded.worldExpansion.corporateTaxFromSeq===cutoff&&company(loaded.playerId,loaded).journals.some(j=>j.id===previous.id&&j.amount===previous.amount);
+ loaded.month++;loaded.monthCommitted=ym(loaded.year,loaded.month)-1;
+ const current=assess(loaded),a=current.taxAssessment;
+ const federal=a.sourceId==='IRS_SOI_TABLE_1'&&a.bps===5280&&a.dataYear===1968&&current.amount===52800
+   &&phase7CorporateTaxProfile('US',1908).status==='provisional'&&phase7CorporateTaxProfile('US',1909).bps===100
+   &&phase7CorporateTaxProfile('US',1979).bps===4600&&phase7CorporateTaxProfile('US',1980).bps===4970;
+ const uk=phase7CorporateTaxProfile('UK',1973,3).bps===4000&&phase7CorporateTaxProfile('UK',1973,4).bps===5200
+   &&phase7CorporateTaxProfile('UK',1980,1).sourceId==='HMRC_TABLE_A6';
+ const saved=parsePayload(savePayload(loaded)),forged=structuredClone(saved);
+ company(forged.playerId,forged).journals.find(j=>j.id===current.id).taxAssessment.sourceId='HMRC_TABLE_A6';
+ let tamper=false;try{parsePayload(savePayload(forged))}catch(e){tamper=e.message.includes('法人税率')}
+ const clean=!check(saved).length&&acc(company(saved.playerId,saved),'taxExpense')===67800;
+ return {migrated,federal,uk,tamper,clean};
+}""")
+        assert all(early_tax.values()),early_tax
+        print("PASS Phase 7 SPEC-082: historical IRS/HMRC rates, FY boundary, saved assessment retention and source integrity")
         banking=page.evaluate("""async()=>{
  S=newWorldGame({country:'JP',name:'Ordinary bank customer'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';saveAuto=async()=>true;
  const root=company(S.playerId,S),rootId=root.id;

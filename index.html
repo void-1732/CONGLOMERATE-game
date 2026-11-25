@@ -3815,7 +3815,29 @@ function phase7ValidateLoanSchedules(s){
   IE:Object.freeze([4500,4500,5000,5000,5000,5000,5000,5000,4700,4300,4300,4000,4000,4000,4000,3800,3600,3600,3200,2800,2400,2000,1600,1250,1250,1250,1250,1250,1250,1250,1250,1250,1250,1250,1250,1250,1250,1250,1250,1250,1250,1250,1250,1250]),
   SA:Object.freeze([4500,4500,4500,4500,4500,4500,4500,4500,4500,4500,4500,4500,4500,4500,4500,4500,4500,4500,4500,4500,4500,3000,3000,3000,3000,3000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000]),
  });
- function phase7CorporateTaxProfile(country,year){
+ // Earlier primary sources use the main rate or the rate on the highest income
+ // band as the single rate for the game's monthly provision.
+ const WORLD_EARLY_US_CORPORATE_TAX_BPS=Object.freeze([
+  [1909,100],[1916,200],[1917,600],[1918,1200],[1919,1000],[1922,1250],[1925,1300],
+  [1926,1350],[1928,1200],[1929,1100],[1930,1200],[1932,1375],[1936,1500],[1938,1900],
+  [1940,2400],[1941,3100],[1942,4000],[1946,3800],[1950,4200],[1951,5075],[1952,5200],
+  [1964,5000],[1965,4800],[1968,5280],[1970,4920],[1971,4800],[1979,4600]
+ ]);
+ const WORLD_EARLY_CORPORATE_TAX_SOURCES=Object.freeze({
+  IRS_SOI_TABLE_1:'https://www.irs.gov/pub/irs-soi/02corate.pdf',
+  HMRC_TABLE_A6:'https://www.gov.uk/government/statistics/rates-of-corporation-tax'
+ });
+ function phase7CorporateTaxProfile(country,year,month=1,legacy=false){
+  if(!legacy){
+   if(country==='US'&&year>=1909&&year<1980){
+    const [,bps]=WORLD_EARLY_US_CORPORATE_TAX_BPS.findLast(([start])=>start<=year);
+    return {bps,dataYear:year,status:'observed',country,sourceId:'IRS_SOI_TABLE_1'};
+   }
+   const financialYear=month<4?year-1:year;
+   if(country==='UK'&&financialYear>=1971&&financialYear<=1979){
+    return {bps:financialYear<=1972?4000:5200,dataYear:financialYear,status:'observed',country,sourceId:'HMRC_TABLE_A6'};
+   }
+  }
   const series=WORLD_CORPORATE_TAX_BPS[country];
   if(series&&year>=1980){
    const index=Math.min(43,year-1980);
@@ -3827,11 +3849,13 @@ function phase7ValidateLoanSchedules(s){
   return {bps:1500,dataYear:null,status:'provisional',country};
  }
  function phase7ValidateTaxAssessments(s){
+  const cutoff=s.worldExpansion?.corporateTaxFromSeq??s.seq;
+  if(!Number.isSafeInteger(cutoff)||cutoff<1||cutoff>s.seq)throw Error('法人税率の適用開始が不正');
   for(const f of s.firms)for(const j of f.journals){
    if(j.taxAssessment===undefined)continue;
-   const a=j.taxAssessment,p=phase7CorporateTaxProfile(a?.country,Math.floor(j.when/12));
-   if(!a||!Object.hasOwn(WORLD_ENGINE_TERRITORY,a.country)||!Number.isSafeInteger(a.taxableProfit)||a.taxableProfit<1
-    ||a.bps!==p.bps||a.status!==p.status||a.dataYear!==p.dataYear||j.text!=='当月法人税見込計上'||j.kind!=='operating'
+   const a=j.taxAssessment,p=phase7CorporateTaxProfile(f.country,Math.floor(j.when/12),j.when%12+1,j.id<cutoff);
+   if(!a||a.country!==f.country||!Object.hasOwn(WORLD_ENGINE_TERRITORY,f.country)||!Number.isSafeInteger(a.taxableProfit)||a.taxableProfit<1
+    ||a.bps!==p.bps||a.status!==p.status||a.dataYear!==p.dataYear||a.sourceId!==p.sourceId||j.text!=='当月法人税見込計上'||j.kind!=='operating'
     ||j.amount!==Math.round(a.taxableProfit*a.bps/10000)||j.dr.length!==1||j.cr.length!==1||j.dr[0][0]!=='taxExpense'||j.cr[0][0]!=='taxDue'||j.dr[0][1]!==j.amount||j.cr[0][1]!==j.amount)
     throw Error('法人税率・課税利益・仕訳の監査不一致：'+f.id);
   }
@@ -3871,7 +3895,7 @@ function phase7ValidateLoanSchedules(s){
  // Stage 2: recognize current-period taxes and issue reports after all intercompany legs are posted.
  for(const f of s.firms){
   const prevProfit=f._profitStart??0,delta=financials(f).profit-prevProfit;
-  const profile=s.worldExpansion?phase7CorporateTaxProfile(f.country,s.year):{bps:1500};
+  const profile=s.worldExpansion?phase7CorporateTaxProfile(f.country,s.year,s.month,s.worldExpansion.corporateTaxFromSeq===undefined):{bps:1500};
   const tax=Math.max(0,Math.round(delta*profile.bps/10000));
   if(tax){post(f,{taxExpense:tax},{taxDue:tax},'当月法人税見込計上','operating',s);
    if(s.worldExpansion)f.journals.at(-1).taxAssessment={...profile,taxableProfit:delta};
@@ -6594,6 +6618,7 @@ function parsePayload(raw){if(typeof raw!=='string')throw Error('保存データ
   // Preserve pre-existing shipment terms; newly dispatched cargo uses SPEC-079.
   s.worldExpansion.uniformDutyFromSeq??=s.seq;
   s.worldExpansion.freightRateFromSeq??=s.seq;
+  s.worldExpansion.corporateTaxFromSeq??=s.seq;
   const errs=check(s);
   if(errs.length)throw Error(errs.slice(0,3).join(' / '));
   return s;
@@ -7626,10 +7651,12 @@ function financePage(){const f=current(),edit=canEdit(f),x=financials(f);const r
 
 /* STEP 4: existing borrow form moved intact. borrow() and accounting remain unchanged. */
 function financeFundingPage(){
- const f=current(),edit=canEdit(f),x=financials(f),w=S.world[f.country],tax=S.worldExpansion?phase7CorporateTaxProfile(f.country,S.year):null;
+ const f=current(),edit=canEdit(f),x=financials(f),w=S.world[f.country],tax=S.worldExpansion?phase7CorporateTaxProfile(f.country,S.year,S.month):null;
+ const taxSource=tax?.sourceId?WORLD_EARLY_CORPORATE_TAX_SOURCES[tax.sourceId]:null;
  return titlePage('資金調達','銀行借入と既存契約を管理します。',tag('既存の借入処理'))+(!edit?noaccess():'')+`<div class="grid">
  <section class="panel span6"><h2>借入・資金繰り</h2>${rowstat('現金',fnum(f,x.cash))}${rowstat('借入残高',fnum(f,x.debt))}${rowstat('未払金',fnum(f,-acc(f,'payable')))}${rowstat('未払給与',fnum(f,-acc(f,'wagesDue')))}${rowstat('法人税未払',fnum(f,-acc(f,'taxDue')))}${tax?rowstat('法人税率（ゲーム内見込）',(tax.bps/100).toFixed(2)+'%・'+(tax.status==='observed'?tax.dataYear+'年資料':tax.status==='carried'?tax.dataYear+'年資料の据置':'暫定15%')):''}${rowstat('市場金利（仮）',(w.rate*100).toFixed(2)+'%')}${rowstat('新規借入金利（仮）',((w.rate+.03)*100).toFixed(2)+'%')}<div class="formgrid" style="margin-top:17px"><div class="field"><label for="borrowBase">借入金額（円相当）</label><input type="number" id="borrowBase" min="50000" max="50000000" value="100000" ${edit?'':'disabled'}></div><button class="btn primary" data-action="borrow" ${edit?'':'disabled'}>銀行借入（36か月）</button></div><div class="sep"></div><h3>既存借入</h3>${f.loans.length?f.loans.map(l=>`<div class="itemstat"><span>残元本 ${fnum(f,l.outstanding)}</span><span class="muted">年率${(l.rate*100).toFixed(1)}%${l.repayment?' ／ 当月元本 '+fnum(f,phase7ScheduledPrincipal(S,l))+' ／ 満期 '+Math.floor(l.due/12)+'年'+(l.due%12+1)+'月':' ／ 満期一括'}</span></div>`).join(''):'<div class="muted small">借入契約なし</div>'}<div class="footnote">借入・利息は実取引として仕訳に反映します。債権者別の再建交渉と詳細な税務処理は未実装です。</div></section>
  <section class="panel span6"><h2>その他の資金調達</h2><p class="hint">株式発行は「資本政策」、グループ内貸付は「企業グループ」で引き続き操作できます。</p><div class="vlist"><button type="button" class="btn" data-page="capital">株式発行・資本政策へ</button><button type="button" class="btn" data-page="corporateSubsidiaries">グループ内貸付へ</button><button type="button" class="btn" data-page="finance">単体財務へ戻る</button></div></section>
+ ${taxSource?`<div class="span12"><a href="${esc(taxSource)}" target="_blank" rel="noopener noreferrer">法人税率の出典</a></div>`:''}
  ${S.worldExpansion?worldBankDepositPanel(S,f,edit):''}</div>`;
 }
 /* v0.19: renames operate on stable IDs. Foreign/uncontrolled firms remain read-only. */
@@ -12928,6 +12955,7 @@ function newWorldGame(setup,legacyCurrency=false){
  const state=newGame({...setup,era:1900,difficulty:'normal',history:'historical',scenario:'world'},!legacyCurrency);
  state.worldExpansion=makeWorldExpansion();
  state.worldExpansion.uniformDutyFromSeq=1;
+ state.worldExpansion.corporateTaxFromSeq=1;
  state.worldExpansion.freightRateFromSeq=1;
  // Existing saves keep their booked exchange-rate histories. New games share the EUR rate.
  state.worldExpansion.euroFxUnified=true;
