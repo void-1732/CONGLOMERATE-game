@@ -63,8 +63,43 @@ const publicTamper=reject(()=>parsePayload(savePayload(falsified)));
 return {ui:panel.includes(sid+'|'+g.id+'|'+pid),pending,unauthorized,installed,limits,metered,product,journal,tamper,clean,shortage,persistent:sav.worldExpansion.powerSupplyContracts[0].status==='ACTIVE',
  publicPanel,foreign,publicAsset,publicOutage,publicBudget,powerBalanced,funded,publicTamper};}""")
         assert len(result)==20 and all(result.values()),result
+        hospital=page.evaluate("""async()=>{
+ S=newWorldGame({country:'JP',name:'Hospital priority acceptance'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';saveAuto=async()=>true;const root=S.playerId;
+ const sub=name=>{VIEW_FIRM=root;PAGE='corporateSubsidiaries';render();document.getElementById('subName').value=name;document.getElementById('subCountry').value='JP';document.getElementById('subIndustry').value='service';document.getElementById('subCapital').value='650000';createSub();syncWorldIdentities(S);return S.firms.find(f=>f.name===name).id;};
+ const genId=sub('Power provider'),medId=sub('Hospital');
+ S.year=1949;S.month=12;S.monthCommitted=ym(S.year,S.month)-1;applyWorldHistory(S);syncWorldIdentities(S);
+ let client=company(root,S),gen=company(genId,S),med=company(medId,S);
+ const tax=120000;post(client,{taxExpense:tax},{taxDue:tax},'検証用法人税債務','operating',S);client.payables.push({amount:tax,due:ym(S.year,S.month),account:'taxDue',note:'法人税'});
+ const close=async()=>{const m=S.monthCommitted;await runMonth();if(S.monthCommitted!==m+1)throw Error(JSON.stringify(LAST_MONTH_DIAGNOSTIC))};
+ await close();client=company(root,S);gen=company(genId,S);med=company(medId,S);
+ const g=gen.plants[0],hp=med.plants[0],lp=client.plants[0];
+ for(const f of [gen,med,client]){f.auto=false;f.delegate.mode='manual';for(const key of ['energy-1','materials-1','production-1'])if(!f.research.tree.done.includes(key))f.research.tree.done.push(key);for(const m of f.models)f.plans[m.id]=0;}
+ const add=(f,key,q,price)=>{const amount=q*price;post(f,{materials:amount},{cash:amount},'試験用実物購入','operating',S);const st=f.stock[key]??={q:0,v:0};st.q+=q;st.v+=amount;};
+ add(gen,'PRD-E04',1,300);add(gen,'PRD-R04',3,19);add(gen,'PRD-M06',2,20);add(med,'PRD-M06',2,20);add(med,'PRD-E27',1,1500);add(client,'PRD-M06',2,20);
+ worldInstallGenerator(S,genId,g.id);worldSetGridPlan(S,genId,g.id,'fuel',3);
+ const clinic=worldInstallMedicalClinic(S,medId,hp.id,2);
+ const contract=(f,p,qty)=>{const c=worldOfferPowerSupply(S,f.id,{sellerId:genId,sourcePlantId:g.id,targetPlantId:p.id,requestKwh:qty,unitPriceBase:3});worldAcceptPowerSupply(S,genId,c.id);return c;};
+ contract(med,hp,10);contract(client,lp,18);
+ worldInstallPublicPowerLine(S,genId,g.id,'JP-TOK');
+ const genReceipt=worldGeneratePower(S,genId,g.id,3);
+ const before=worldPowerAvailable(S,g.id),reject=(fn)=>{try{fn();return false}catch{return true}};
+ const noLower=reject(()=>worldTransferPower(S,root,g.id,lp.id,18));
+ const transfer=worldTransferPower(S,medId,g.id,hp.id,10);
+ const req=worldRequestMedicalService(S,root,clinic.id,lp.id,3);const care=worldPerformMedicalService(S,medId,req.id,3);
+ const metered=care.powerReceiptId===transfer.id&&care.powerKwh===3&&S.worldExpansion.powerAllocations[hp.id].usedKwh===3;
+ const remaining=worldPowerAvailable(S,g.id),savedBefore=parsePayload(savePayload(S));const validBefore=!check(savedBefore).length&&!consolidate(savedBefore).errors.length;
+ await close();
+ const sales=S.worldExpansion.publicPowerSales??[],transfers=S.worldExpansion.powerTransfers??[];
+ const pub=sales.find(x=>x.month===S.monthCommitted),low=transfers.find(t=>t.targetPlantId===lp.id&&t.month===S.monthCommitted);
+ const order=pub&&pub.sentKwh===remaining&&!low,conserved=pub&&transfer.sentKwh+pub.sentKwh===genReceipt.deliveredKwh;
+ const shortage=S.lastReport.events.some(x=>x.includes('停電')),co=consolidate(S);
+ const saved=parsePayload(savePayload(S));const forged=structuredClone(saved);forged.worldExpansion.medicalTreatments[0].powerKwh++;
+ const tamper=reject(()=>parsePayload(savePayload(forged)));
+ return {noLower,priority:worldGridPriority(S,hp)===0&&worldGridPriority(S,lp)===4,metered,validBefore,order,conserved,shortage,tamper,clean:!check(saved).length&&!co.errors.length,cf:co.cf.reconciled,exact:before===27&&pub?.sentKwh===17&&transfer.sentKwh===10};
+}""")
+        assert len(hospital)==11 and all(hospital.values()),hospital
         assert not errors,errors
-        print("PASS Phase 6 private and public power: 20 checks, tax-funded priority, metering, product cost, outage and save")
+        print("PASS Phase 6 private and public power: 20 checks; 11 hospital, public, lower-priority, actual treatment, metering and save checks")
         browser.close()
 if __name__=="__main__":
     main()

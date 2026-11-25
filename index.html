@@ -14129,7 +14129,10 @@ function worldTransferPower(s,firmId,sourceId,targetId,sentKwh,scheduled=false){
   ||target?.month===month||worldPowerAvailable(s,sourceId)<sentKwh
   ||sentKwh>worldGridLineCapacity(line,a,b))
   throw Error('送電線、実電力または設備容量が不足');
- if(!scheduled&&Object.values(s.worldExpansion.publicPowerLines??{}).some(l=>l.plantId===sourceId&&l.retiredAt==null))
+ // SPEC-078: an actual hospital is above the public-load tier. Permit its
+ // current-month care to use metered electricity before the monthly close;
+ // lower-priority manual transfers must still wait for public dispatch.
+ if(!scheduled&&worldGridPriority(s,b)>1&&Object.values(s.worldExpansion.publicPowerLines??{}).some(l=>l.plantId===sourceId&&l.retiredAt==null))
   throw Error('公共配電線を持つ発電所は、優先順位に従って月次に送電します');
  // SPEC-078: manual transfers must not bypass a higher-priority scheduled
  // recipient on the same generator. Dispatch resolves the competing demands.
