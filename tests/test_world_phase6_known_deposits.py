@@ -110,6 +110,40 @@ def main():
         }""",ids)
         assert len(land)==8 and all(land.values()),land
         print("PASS Phase 6 unencumbered mining land: book-value transfer, legal history, cash pairs, save and tamper")
+        succession=page.evaluate("""()=>{
+ const s=newWorldGame({country:'JP',name:'Land succession'});S=s;const root=company(s.playerId,s);
+ function mk(name,owned=true,site='JP-ASHIO'){
+  const amount=110000000;let j;
+  if(owned){post(root,{cash:amount},{capital:amount},'試験出資','financing',s);j=s.seq;post(root,{investment:amount},{cash:amount},'子会社への資本払込','investing',s)}
+  const f=initFirm(s,{name,country:'JP',industry:'resource',seedBase:1100000,publicOwnership:!owned});
+  if(owned){f.owners=[{id:root.id,econ:1,vote:1}];registerEquityLink(s,{parentId:root.id,childId:f.id,ratio:1,kind:'foundation',considerationLocal:amount,buyerJournal:j,childJournal:f.journals.find(j=>j.text==='創業資本').id,bookEquityBase:baseFromLocal(amount,'JP',s),cashAcquiredBase:baseFromLocal(acc(f,'cash'),'JP',s)})}
+  f.plants[0].siteId=site;f.plants[0].siteCountry='JP';syncWorldIdentities(s);ensureV20(s);return f;
+ }
+ const a=mk('Mine A'),b=mk('Mine B'),c=mk('Independent mine',false),z=mk('Wrong site',true,'JP-TOK');
+ const t=worldPurchaseMiningLand(s,a.id,'JP-ASHIO'),d=worldClaimKnownDeposit(s,a.id,a.plants[0].id,'JP-ASHIO');
+ worldSetMiningPlan(s,a.id,a.plants[0].id,d.id,2,100);
+ const before=JSON.stringify(s),reject=fn=>{try{fn();return false}catch(e){return true}};
+ const wrongSite=reject(()=>worldTransferMiningLand(s,a.id,z.id,'JP-ASHIO'))&&before===JSON.stringify(s);
+ const ac=acc(a,'cash'),bc=acc(b,'cash'),reserve=d.remaining,origin=JSON.stringify(s.worldExpansion.knownDepositClaims);
+ const x=worldTransferMiningLand(s,a.id,b.id,'JP-ASHIO');
+ worldValidateMiningLand(s);worldValidateExploration(s);validateWorldResourceDeposits(s);
+ const transferred=d.ownerCompanyId===b.id&&d.plantId===b.plants[0].id&&!a.plants[0].worldMiningPlan;
+ const accounting=acc(a,'cash')===ac+t.amount&&acc(b,'cash')===bc-t.amount&&acc(a,'worldMiningLand')===0&&acc(b,'worldMiningLand')===t.amount;
+ const immutable=d.remaining===reserve&&JSON.stringify(s.worldExpansion.knownDepositClaims)===origin;
+ const fake=structuredClone(s);fake.worldExpansion.miningLandTitles['JP-ASHIO'].transfers[0].deposits[0].extracted++;
+ const tamper=reject(()=>parsePayload(savePayload(fake)));
+ b.lifecycle={phase:'withdrawn',founded:ym(s.year,s.month),exited:ym(s.year,s.month),history:[]};
+ const ev=[];processBankruptcyLiquidations(s,ev);
+ const liquidated=t.firmId===c.id&&d.ownerCompanyId===c.id&&d.plantId===c.plants[0].id&&t.transfers[1].kind==='liquidation';
+ const estate=s.bankruptcyLiquidations.find(e=>e.firmId===b.id);
+ const clearance=estate.remainingLand===0&&estate.proceedsLocal===t.amount&&ev.some(e=>e.includes('倒産採掘用地清算'));
+ const saved=parsePayload(savePayload(s));
+ const restore=saved.worldExpansion.miningLandTitles['JP-ASHIO'].firmId===c.id&&saved.worldExpansion.resourceDeposits[d.id].remaining===reserve;
+ const clean=!check(saved).length&&!consolidate(saved).errors.length;
+ return {wrongSite,transferred,accounting,immutable,tamper,liquidated,clearance,restore,clean};
+}""")
+        assert len(succession)==9 and all(succession.values()),succession
+        print("PASS Phase 6 mining land/deposit succession: 9 checks, bankruptcy and conservation")
         assert not errors,errors
         print("PASS Phase 6 known deposits: 19 checks, 18 minerals, 10 countries, independent titles, UI, extraction and restore")
         browser.close()
