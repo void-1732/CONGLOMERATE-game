@@ -14105,24 +14105,30 @@ function validateWorldPhysicalDeliveries(s){
 }
 
 
-/* Phase 2-D physically funded onsite generators. Coefficients are PROVISIONAL:
-   coal quantity to gross kWh = 10; wire loss = 10%. No free grid feed-in.
-   Generator equipment becomes PPE; consumed coal is recognized as a real
-   expense, not inventory or revenue. Future Phase 6 replaces these values. */
+/* Physically funded onsite generators. Model coefficients are 10 gross kWh
+   per unit of coal and 10% generation loss. Equipment becomes PPE. */
+function worldGeneratorSiteReady(s,firm,plant){
+ return !!firm&&!!plant&&!plant.construction&&!plant.paused&&s.year>=1915
+  &&firm.research?.tree?.done.includes('energy-1')&&!s.worldExpansion.powerGenerators?.[plant.id];
+}
+function worldGeneratorRecord(firmId,plantId){
+ return {id:'GEN-'+plantId,ownerCompanyId:firmId,plantId,productId:'PRD-E04',
+  fuelProductId:'PRD-R04',kwhPerFuel:10,lossBps:1000};
+}
 function worldInstallGenerator(s,firmId,plantId){
  if(!s.worldExpansion)throw Error('世界ゲームでのみ発電設備を設置できます');
  const f=company(firmId,s),p=f?.plants.find(p=>p.id===plantId),equipment='PRD-E04';
- if(!f||!p||p.construction||p.paused||s.year<1915
-  ||!f.research?.tree?.done.includes('energy-1')
-  ||s.worldExpansion.powerGenerators?.[plantId])
+ if(!worldGeneratorSiteReady(s,f,p))
   throw Error('発電設備の所有、年代または研究条件を満たしません');
+ if((s.worldExpansion.constructionContracts??[]).some(c=>c.kind==='PG'&&c.status==='ACTIVE'&&c.buyerPlantId===plantId))
+  throw Error('同じ施設で発電設備の請負工事が進行中です');
  if(!f.stock[equipment]||f.stock[equipment].q<1)throw Error('物理的な発電機が在庫にありません');
  const provenance={};
  const assetValue=consume(f,equipment,1,provenance);
  if(!assetValue)throw Error('取得原価のない設備は設置できません');
  post(f,{ppe:assetValue},{materials:assetValue},'世界発電設備の設置','investing',s);
- const unit={id:'GEN-'+plantId,ownerCompanyId:firmId,plantId,
-  productId:equipment,assetValue,installedAt:ym(s.year,s.month),fuelProductId:'PRD-R04',kwhPerFuel:10,lossBps:1000,accumulatedDepreciation:0,lastDepreciatedAt:null,condition:100,retiredAt:null,...provenance};
+ const unit={...worldGeneratorRecord(firmId,plantId),assetValue,installedAt:ym(s.year,s.month),
+  accumulatedDepreciation:0,lastDepreciatedAt:null,condition:100,retiredAt:null,...provenance};
  (s.worldExpansion.powerGenerators??={})[plantId]=unit;
  return unit;
 }
@@ -14687,6 +14693,7 @@ function worldRetireEnergyAsset(s,ownerId,plantId,assetKind){
  const owner=company(ownerId,s),plant=owner?.plants.find(p=>p.id===plantId);
  if(!asset||!owner||!plant||asset.ownerCompanyId!==ownerId||asset.retiredAt!=null)
   throw Error('所有する稼働中の世界電力資産のみ廃止できます');
+ if(worldInfrastructurePublicLock(s,asset))throw Error('補助金付き設備は36か月の供用期間中です');
  if(assetKind==='generator'&&Object.values(w.powerLines??{}).some(x=>x.sourcePlantId===plantId&&x.retiredAt==null))
   throw Error('送電線を先に廃止してください');
  if(assetKind==='generator'&&Object.values(w.publicPowerLines??{}).some(x=>x.plantId===plantId&&x.retiredAt==null))
@@ -15158,9 +15165,12 @@ function worldValidateManufacturingTools(s){
  }
 }
 
-/* Phase 6: private fixed-term construction contracts for actual logistics assets.
+/* Phase 6: fixed-term construction contracts for logistics and power assets.
    Quantities, labor and maintenance coefficients are provisional model terms. */
 function worldConstructionTerms(s,kind,profileId){
+ if(kind==='PG')return findSite(profileId)&&WORLD_LOCATIONS.has('LOC-'+profileId)
+  ?{site:profileId,equipment:['PRD-E04'],months:2,workers:2,materials:[['PRD-M03',2],['PRD-M09',2]],maintenanceBase:100}
+  :null;
  const domestic=kind==='DR'||kind==='DW';
  const p=domestic?worldDomesticProfile(kind==='DR'?WORLD_DOMESTIC_CORRIDORS:WORLD_DOMESTIC_WAREHOUSE_PROFILES,profileId)
   :(['IR','IW'].includes(kind)?worldInternationalProfileOrNull(profileId,s):null);
@@ -15174,6 +15184,7 @@ function worldConstructionTerms(s,kind,profileId){
 }
 function worldConstructionOpen(s,kind,profileId,terms){
  if(!terms||!s.world[findSite(terms.site)?.country])return false;
+ if(kind==='PG')return s.year>=1915;
  if(terms.domestic)return ym(s.year,s.month)>=terms.p.opensAt;
  const p=worldDomesticProfile(WORLD_INTERNATIONAL_CORRIDORS,profileId),e=worldDomesticProfile(WORLD_INTERNATIONAL_ROUTE_EVIDENCE,profileId),month=ym(s.year,s.month);
  return !!p&&!!e&&month>=worldInternationalOpeningMonth(p,e)&&(e.untilMonth==null||month<e.untilMonth)
@@ -15203,7 +15214,8 @@ function worldConstructionTargetReady(s,c,canInstallMachine=false){
   sp=seller?.plants.find(p=>p.id===c.sellerPlantId),machine=w?.constructionMachines?.[c.sellerPlantId];
  if(!worldConstructionOpen(s,c.kind,c.profileId,t)||!buyer||!seller||buyer===seller||buyer.country!==seller.country
   ||buyer.country!==findSite(t.site)?.country||seller.industry!=='service'||!isActiveCorporateFirm(buyer)||!isActiveCorporateFirm(seller)
-  ||!worldDomesticSiteActive(bp,t.site)||!worldDomesticSiteActive(sp,t.site)||!buyer.research?.tree?.done.includes('production-1')
+  ||!worldDomesticSiteActive(bp,t.site)||!worldDomesticSiteActive(sp,t.site)
+  ||(c.kind==='PG'?!worldGeneratorSiteReady(s,buyer,bp)||w.powerLines?.[bp.id]:!buyer.research?.tree?.done.includes('production-1'))
   ||(machine?machine.ownerCompanyId!==seller.id||machine.retiredAt!=null||machine.condition<10
    :!canInstallMachine||!worldConstructionMachineReady(s,seller,sp)))return false;
  if(c.kind==='DW'&&Object.values(w.domesticWarehouses??{}).some(h=>h.plantId===bp.id&&h.retiredAt==null))return false;
@@ -15421,7 +15433,8 @@ function worldCompleteConstruction(s,c,t,events){
  const receipt={id:'ICR-'+s.seq++,contractId:c.id,sellerId:seller.id,buyerId:buyer.id,month,amount:c.fee,bookCost:c.bookCost,
   costReceipt:{sellerJournal,buyerJournal},assetId:null};
  if(c.funding)receipt.funding={grant:c.funding.approval.grant,loanId:c.funding.payment.loanId};
- const asset={id:c.kind+'-'+s.seq++,ownerCompanyId:buyer.id,assetValue:c.fee,installedAt:month,condition:100,
+ const identity=c.kind==='PG'?worldGeneratorRecord(buyer.id,c.buyerPlantId):{id:c.kind+'-'+s.seq++,ownerCompanyId:buyer.id};
+ const asset={...identity,assetValue:c.fee,installedAt:month,condition:100,
   accumulatedDepreciation:0,lastDepreciatedAt:null,retiredAt:null,profileId:c.profileId,
   constructionReceiptId:receipt.id,constructionMaintenance:Math.max(1,localFromBase(t.maintenanceBase,buyer.country,s))};
  if(c.kind==='DR')Object.assign(asset,{fromSiteId:t.p.from,toSiteId:t.p.to,country:buyer.country,status:'VERIFIED',evidence:c.profileId,
@@ -15434,8 +15447,8 @@ function worldCompleteConstruction(s,c,t,events){
  worldMergeCostLayers(asset,{[receipt.id]:c.fee-c.bookCost});
  worldMergeInternationalLayers(asset,c.internationalCostLayers,receipt.id);
  delete c.domesticCostLayers;delete c.internationalCostLayers;
- const table={DR:'domesticRoutes',DW:'domesticWarehouses',IR:'internationalRoutes',IW:'internationalWarehouses'}[c.kind];
- (w[table]??={})[asset.id]=asset;receipt.assetId=asset.id;
+ const table={DR:'domesticRoutes',DW:'domesticWarehouses',IR:'internationalRoutes',IW:'internationalWarehouses',PG:'powerGenerators'}[c.kind];
+ (w[table]??={})[c.kind==='PG'?c.buyerPlantId:asset.id]=asset;receipt.assetId=asset.id;
  (w.constructionReceipts??=[]).push(receipt);
  c.status='COMPLETE';c.finishedAt=month;c.receiptId=receipt.id;
  events.push('建設竣工・実設備検収：'+asset.id);
@@ -15514,6 +15527,7 @@ function worldConstructionCashPairs(s){
   yearMonth:t.month,fromJournal:t.costReceipt.sellerJournal,toJournal:t.costReceipt.buyerJournal}));
 }
 function worldConstructionPayback(s,c){
+ if(c.kind==='PG')return null;
  const w=s.worldExpansion,t=worldConstructionTerms(s,c.kind,c.profileId),buyer=company(c.buyerId,s),now=ym(s.year,s.month);
  if(!t||!buyer)return null;
  const recent=month=>Number.isSafeInteger(month)&&month>=now-12&&month<now;
@@ -15654,6 +15668,7 @@ function worldValidateConstruction(s){
  const w=s.worldExpansion,machines=w.constructionMachines??{},rows=w.constructionContracts??[],receipts=w.constructionReceipts??[];
  if(!machines||typeof machines!=='object'||Array.isArray(machines)||!Array.isArray(rows)||!Array.isArray(receipts))throw Error('建設台帳の形式が不正');
  const now=ym(s.year,s.month),match=worldServiceJournalMatcher(s),active=new Set(),balances=new Map(),byId=new Map(),byReceipt=new Map(),payrollUse=new Map(),fiscalExpenses=new Map();
+ const powerProjects=new Set();
  worldValidateInfrastructureJvs(s);
  for(const [plantId,m] of Object.entries(machines)){
   const f=company(m.ownerCompanyId,s),id=Number(m.id?.slice(3));
@@ -15672,6 +15687,14 @@ function worldValidateConstruction(s){
    ||!Number.isSafeInteger(c.fee)||c.fee<1||c.fee!==cents(c.feeBase/c.referenceFx)||c.duration!==t.months||c.workers!==t.workers
    ||!['OFFERED','ACTIVE','COMPLETE','FAILED','CANCELLED'].includes(c.status)||!Array.isArray(c.work)||c.work.length>c.duration
    ||!Number.isSafeInteger(c.bookCost)||c.bookCost<0)throw Error('建設契約の固定条件が不正：'+c.id);
+  if(c.kind==='PG'){
+   if(c.offeredAt<ym(1915,1)||!buyer.plants.some(p=>p.id===c.buyerPlantId&&p.siteId===t.site)
+    ||!seller.plants.some(p=>p.id===c.sellerPlantId&&p.siteId===t.site))throw Error('発電設備工事の年代・立地が不正：'+c.id);
+   if(['OFFERED','ACTIVE'].includes(c.status)){
+    if(powerProjects.has(c.buyerPlantId))throw Error('同じ施設の発電設備工事が重複：'+c.id);
+    powerProjects.add(c.buyerPlantId);
+   }
+  }
   seq=id;byId.set(c.id,c);
   const accepted=!['OFFERED','CANCELLED'].includes(c.status);
   if(accepted?(!Number.isSafeInteger(c.acceptedAt)||c.acceptedAt<c.offeredAt||c.acceptedAt>now||c.dueAt!==c.acceptedAt+c.duration-1)
@@ -15706,11 +15729,15 @@ function worldValidateConstruction(s){
  }
  for(const t of receipts){
   const c=byId.get(t.contractId),buyer=company(t.buyerId,s),seller=company(t.sellerId,s),id=Number(t.id?.slice(4));
-  const asset=w.domesticRoutes?.[t.assetId]??w.domesticWarehouses?.[t.assetId]??w.internationalRoutes?.[t.assetId]??w.internationalWarehouses?.[t.assetId];
+  const power=c?.kind==='PG';
+  const asset=power?w.powerGenerators?.[c.buyerPlantId]:
+   w.domesticRoutes?.[t.assetId]??w.domesticWarehouses?.[t.assetId]??w.internationalRoutes?.[t.assetId]??w.internationalWarehouses?.[t.assetId];
   const transfers=(w.domesticAssetTransfers??[]).filter(x=>x.assetId===t.assetId);
   if(!c||c.status!=='COMPLETE'||c.receiptId!==t.id||byReceipt.has(t.id)||!/^ICR-\d+$/.test(t.id)||id>=s.seq
    ||t.buyerId!==c.buyerId||t.sellerId!==c.sellerId||t.month!==c.finishedAt||t.amount!==c.fee||t.bookCost!==c.bookCost
-   ||!asset||!asset.id.startsWith(c.kind+'-')||asset.profileId!==c.profileId||asset.installedAt!==t.month||asset.constructionReceiptId!==t.id
+   ||!asset||asset.id!==t.assetId||(!power&&!asset.id.startsWith(c.kind+'-'))
+   ||(power&&(asset.plantId!==c.buyerPlantId||!buyer.plants.some(p=>p.id===asset.plantId&&p.siteId===c.profileId)))
+   ||asset.profileId!==c.profileId||asset.installedAt!==t.month||asset.constructionReceiptId!==t.id
    ||(transfers[0]?.gross??asset.assetValue)!==t.amount||worldDomesticAssetOwnerAt(asset,transfers,t.id)!==buyer.id
    ||asset.constructionMaintenance!==Math.max(1,localFromBase(worldConstructionTerms(s,c.kind,c.profileId).maintenanceBase,buyer.country,s))
    ||(c.funding?(t.funding?.grant!==c.funding.approval.grant||t.funding?.loanId!==c.funding.payment.loanId):t.funding!==undefined)
@@ -15721,8 +15748,9 @@ function worldValidateConstruction(s){
   byReceipt.set(t.id,t);
  }
  for(const c of rows)if(c.status==='COMPLETE'&&!byReceipt.has(c.receiptId))throw Error('竣工証拠がありません');
- for(const assets of [w.domesticRoutes,w.domesticWarehouses,w.internationalRoutes,w.internationalWarehouses])
-  for(const a of Object.values(assets??{}))if(a.constructionReceiptId&&!byReceipt.has(a.constructionReceiptId))throw Error('工事証拠のない物流設備');
+ for(const assets of [w.domesticRoutes,w.domesticWarehouses,w.internationalRoutes,w.internationalWarehouses,w.powerGenerators])
+  for(const a of Object.values(assets??{}))if(a.constructionReceiptId&&byReceipt.get(a.constructionReceiptId)?.assetId!==a.id)
+   throw Error('工事証拠のないインフラ設備');
  for(const f of s.firms)if(acc(f,'worldConstructionWip')!==(balances.get(f.id)??0))throw Error('建設仕掛品の帳簿残高が不一致');
  for(const f of s.firms)for(const loan of f.loans??[])if(loan.infrastructureContractId){
   const project=byId.get(loan.infrastructureContractId),o=project?.funding;
@@ -17648,7 +17676,7 @@ function worldInternationalCostHoldings(s){
  for(const t of w?.storageServices??[])if(t.closedAt===null&&t.internationalCostLayers)
   out.push({owner:t.clientId,layers:t.internationalCostLayers,quantity:t.quantity});
  for(const c of w?.constructionContracts??[])if(c.status==='ACTIVE'&&c.internationalCostLayers)out.push({owner:c.sellerId,layers:c.internationalCostLayers,quantity:c.bookCost});
- for(const assets of [w?.domesticRoutes,w?.domesticWarehouses,w?.internationalRoutes,w?.internationalWarehouses,w?.constructionMachines,w?.publicPowerLines])for(const a of Object.values(assets??{}))if((a.constructionReceiptId||/^(CM|PPL)-/.test(a.id??''))&&a.retiredAt==null&&a.internationalCostLayers)out.push({owner:a.ownerCompanyId,layers:a.internationalCostLayers,quantity:a.assetValue-(a.accumulatedDepreciation??0)});
+ for(const assets of [w?.domesticRoutes,w?.domesticWarehouses,w?.internationalRoutes,w?.internationalWarehouses,w?.powerGenerators,w?.constructionMachines,w?.publicPowerLines])for(const a of Object.values(assets??{}))if((a.constructionReceiptId||/^(CM|PPL)-/.test(a.id??''))&&a.retiredAt==null&&a.internationalCostLayers)out.push({owner:a.ownerCompanyId,layers:a.internationalCostLayers,quantity:a.assetValue-(a.accumulatedDepreciation??0)});
  return out;
 }
 function worldValidateInternationalCostLayers(s){
@@ -19689,13 +19717,14 @@ document.addEventListener('click',event=>{
 });
 
 function worldConstructionPanel(s,f,edit){
- const w=s.worldExpansion,opts=[],machines=Object.values(w.constructionMachines??{}),kinds={DR:'国内輸送',DW:'国内倉庫',IR:'国際輸送',IW:'国際倉庫'};
+ const w=s.worldExpansion,opts=[],machines=Object.values(w.constructionMachines??{}),kinds={DR:'国内輸送',DW:'国内倉庫',IR:'国際輸送',IW:'国際倉庫',PG:'発電設備'};
  const month=ym(s.year,s.month),policy=worldInfrastructurePolicy(f.country,month);
  const partners=edit?controlled(s).filter(x=>x.id!==f.id&&x.country===f.country&&isActiveCorporateFirm(x)):[];
  const banks=partners.filter(x=>worldInfrastructureBankReady(s,x,f,1));
  const jvSites=partners.length?SITE_CATALOG.filter(site=>site.country===f.country&&worldConstructionSiteAvailable(s,site.id)):[];
- if(edit)for(const [kind,profiles] of [['DR',WORLD_DOMESTIC_CORRIDORS],['DW',WORLD_DOMESTIC_WAREHOUSE_PROFILES],['IR',WORLD_INTERNATIONAL_CORRIDORS],['IW',WORLD_INTERNATIONAL_CORRIDORS]]){
-  for(const id of Object.keys(profiles)){
+ if(edit)for(const [kind,profiles] of [['DR',Object.keys(WORLD_DOMESTIC_CORRIDORS)],['DW',Object.keys(WORLD_DOMESTIC_WAREHOUSE_PROFILES)],
+  ['IR',Object.keys(WORLD_INTERNATIONAL_CORRIDORS)],['IW',Object.keys(WORLD_INTERNATIONAL_CORRIDORS)],['PG',new Set(f.plants.map(p=>p.siteId))]]){
+  for(const id of profiles){
    const t=worldConstructionTerms(s,kind,id);
    if(!worldConstructionOpen(s,kind,id,t))continue;
    for(const bp of f.plants.filter(p=>worldDomesticSiteActive(p,t.site)))for(const m of machines){
@@ -19711,15 +19740,15 @@ function worldConstructionPanel(s,f,edit){
   const accept=edit&&c.sellerId===f.id&&c.status==='OFFERED'?'<button class="btn" data-world-build-contract="accept" data-contract-id="'+esc(c.id)+'">承諾</button>':'';
   const cancel=edit&&c.status==='OFFERED'?'<button class="btn" data-world-build-contract="cancel" data-contract-id="'+esc(c.id)+'">取消</button>':'';
   const funding=c.funding?.approval,terms=funding?' / 補助 '+fnum(f,funding.grant)+' / 融資 '+fnum(f,funding.loan):'';
-  return '<tr><td>'+esc(c.id+' '+kinds[c.kind]+' '+c.profileId)+'</td><td>'+esc(company(c.buyerId,s)?.name)+' → '+esc(company(c.sellerId,s)?.name)+'</td><td>'+esc(c.status)+' '+c.work.length+'/'+c.duration+'月</td><td>'+nfmt(c.feeBase)+'円相当'+terms+'</td><td>'+nfmt(c.bookCost/100)+'</td><td>'+(receipt?esc(receipt.assetId):'未竣工')+'</td><td>'+(pb?(pb.months==null?'採算不足':pb.months+'月（実績推計）'):'実績不足')+'</td><td>'+accept+cancel+'</td></tr>';
+  return '<tr><td>'+esc(c.id+' '+kinds[c.kind]+' '+c.profileId)+'</td><td>'+esc(company(c.buyerId,s)?.name)+' → '+esc(company(c.sellerId,s)?.name)+'</td><td>'+esc(c.status)+' '+c.work.length+'/'+c.duration+'月</td><td>'+nfmt(c.feeBase)+'円相当'+terms+'</td><td>'+nfmt(c.bookCost/100)+'</td><td>'+(receipt?esc(receipt.assetId):'未竣工')+'</td><td>'+(pb?(pb.months==null?'採算不足':pb.months+'月（実績推計）'):c.kind==='PG'?'—':'実績不足')+'</td><td>'+accept+cancel+'</td></tr>';
  }).join('');
  const financing=(policy?'<label><input type="checkbox" id="worldConstructionGrant"> 官民事業の補助金を申請（竣工後36か月供用）</label>':'')
   +(banks.length?'<label>融資法人<select id="worldConstructionBank"><option value="">自己資金</option>'+banks.map(b=>'<option value="'+esc(b.id)+'">'+esc(b.name)+'</option>').join('')+'</select></label><label>借入額（円相当）<input id="worldConstructionLoan" type="number" min="0" step="1" value="0"></label>':'');
  const jvs=(w.infrastructureJvs??[]).filter(j=>[j.sponsorId,j.partnerId,j.projectId].includes(f.id)).map(j=>
   '<p>'+esc(company(j.projectId,s)?.name)+' ／ '+esc(company(j.sponsorId,s)?.name)+' 60% ／ '+esc(company(j.partnerId,s)?.name)+' 40%</p>').join('');
- return '<section class="panel span12"><h2>物流インフラ建設請負・投資</h2><p class="hint">工期2か月。竣工時に代金を決済し、輸送・保管容量を登録します。回収期間は直近12月の収入・運営費・金利から推計します。</p>'
+ return '<section class="panel span12"><h2>物流・発電インフラ建設請負</h2><p class="hint">工期2か月。竣工時に代金を決済し、設備を登録します。物流設備の回収期間は直近12か月の収入・運営費・金利から推計します。</p>'
  +(edit&&plants.length?'<div class="formgrid"><label>建設会社の所有施設<select id="worldConstructionMachinePlant">'+plants.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>').join('')+'</select></label><button class="btn" data-world-build-contract="machine">建設機械を設備化</button></div>':'')
- +(edit&&opts.length?'<div class="formgrid"><label>対象設備・請負先<select id="worldConstructionTarget">'+opts.join('')+'</select></label><label>固定請負代金（円相当）<input id="worldConstructionFee" type="number" min="1" max="20000000" step="1" value="40000"></label>'+financing+'<button class="btn primary" data-world-build-contract="offer">建設発注</button></div>':'<p class="hint">発注可能な設備がない場合、開放済みの経路端点に発注者と建設会社の稼働施設・現物建設機械を準備してください。</p>')
+ +(edit&&opts.length?'<div class="formgrid"><label>対象設備・請負先<select id="worldConstructionTarget">'+opts.join('')+'</select></label><label>固定請負代金（円相当）<input id="worldConstructionFee" type="number" min="1" max="20000000" step="1" value="40000"></label>'+financing+'<button class="btn primary" data-world-build-contract="offer">建設発注</button></div>':'<p class="hint">対象地に発注者と建設会社の稼働施設を用意し、建設会社に現物の建設機械を配備してください。</p>')
  +(jvSites.length?'<h3>物流JV</h3><div class="formgrid"><label>法人名<input id="worldInfrastructureJvName" maxlength="38"></label><label>共同出資法人（40%）<select id="worldInfrastructureJvPartner">'+partners.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>').join('')+'</select></label>'
   +'<label>事業立地<select id="worldInfrastructureJvSite">'+jvSites.map(site=>'<option value="'+esc(site.id)+'">'+esc(site.name)+'</option>').join('')+'</select></label><label>総出資額（円相当）<input id="worldInfrastructureJvCapital" type="number" value="'+Math.round(450000*eraCostFactor(s.year))+'" min="1" max="20000000"></label><button class="btn" data-world-build-contract="jv">共同出資を実行</button></div>':'')+jvs
  +'<p>建設仕掛品（現地通貨）：'+nfmt(acc(f,'worldConstructionWip')/100)+'</p><div class="scroll"><table><thead><tr><th>契約・設備</th><th>発注者 → 請負会社</th><th>進捗</th><th>代金</th><th>累計原価（現地通貨）</th><th>竣工設備</th><th>回収期間</th><th>操作</th></tr></thead><tbody>'+(rows||'<tr><td colspan="8">建設契約なし</td></tr>')+'</tbody></table></div></section>';
@@ -19728,7 +19757,7 @@ const worldInfrastructureBeforeConstruction=worldInfrastructurePage;
 worldInfrastructurePage=function(){
  const base=worldInfrastructureBeforeConstruction();
  if(!S?.worldExpansion)return base;
- return base.replace('交通網建設・地図連動は未実装','物流設備の建設請負')+'<div class="grid">'+worldConstructionPanel(S,current(),canEdit(current()))+'</div>';
+ return base.replace('交通網建設・地図連動は未実装','物流・発電設備の建設請負')+'<div class="grid">'+worldConstructionPanel(S,current(),canEdit(current()))+'</div>';
 };
 document.addEventListener('click',event=>{
  const b=event.target.closest('[data-world-build-contract]');

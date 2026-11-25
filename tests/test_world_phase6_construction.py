@@ -83,6 +83,56 @@ def main():
         }""")
         assert len(investment)==4 and all(investment.values()),investment
         print("PASS Phase 6 infrastructure investment ranking: actual margin, shortest payback, controlled buyer, non-delivery and loss rejection")
+        page.evaluate("""({bid,sid})=>{
+          const buyer=company(bid,S),seller=company(sid,S);
+          buyer.research.tree.done=[...new Set([...buyer.research.tree.done,'energy-1'])];
+          for(const [f,key,q,unit] of [[buyer,'PRD-E04',1,400],[buyer,'PRD-R04',5,20],
+                                     [seller,'PRD-E04',1,300],[seller,'PRD-M03',4,20],[seller,'PRD-M09',4,10]]){
+            const amount=q*unit;
+            post(f,{materials:amount},{cash:amount},'試験用有償調達','operating',S);
+            const stock=f.stock[key]??={q:0,v:0};stock.q+=q;stock.v+=amount;
+          }
+          VIEW_FIRM=bid;PAGE='worldInfrastructure';render();
+        }""",ids)
+        plant_target="|".join(["PG","JP-TOK",ids["bp"],ids["sid"],ids["sp"]])
+        page.locator("#worldConstructionTarget").select_option(plant_target)
+        page.locator("#worldConstructionFee").fill("40000")
+        page.locator('[data-world-build-contract="offer"]').click()
+        page.evaluate("sid=>{VIEW_FIRM=sid;PAGE='worldInfrastructure';render()}",ids["sid"])
+        page.locator('[data-world-build-contract="accept"]').click()
+        power=page.evaluate("""async({bid,sid,bp,sp})=>{
+          const reject=fn=>{try{fn();return false}catch{return true}};
+          const initial=S.worldExpansion.constructionContracts.find(c=>c.kind==='PG'),id=initial.id;
+          const close=async()=>{const m=S.monthCommitted;await runMonth();if(S.monthCommitted!==m+1)throw Error(JSON.stringify(LAST_MONTH_DIAGNOSTIC))};
+          const job=()=>S.worldExpansion.constructionContracts.find(c=>c.id===id);
+          const gated=initial.status==='ACTIVE'&&reject(()=>worldSetGridPlan(S,bid,bp,'fuel',3))
+            &&reject(()=>worldInstallGenerator(S,bid,bp))
+            &&reject(()=>worldPlaceConstructionContract(S,bid,{kind:'PG',profileId:'JP-TOK',buyerPlantId:bp,sellerId:sid,sellerPlantId:sp,feeBase:40000}));
+          await close();
+          const partial=job().status==='ACTIVE'&&job().work.length===1&&!S.worldExpansion.powerGenerators[bp]
+            &&job().work[0].items.every(x=>x.productId!=='PRD-E04')&&job().bookCost===acc(company(sid,S),'worldConstructionWip');
+          await close();
+          const asset=S.worldExpansion.powerGenerators[bp],receipt=S.worldExpansion.constructionReceipts.find(r=>r.id===job().receiptId);
+          const delivered=job().status==='COMPLETE'&&asset?.id===receipt?.assetId&&asset.ownerCompanyId===bid
+            &&company(sid,S).stock['PRD-E04'].q===0&&company(bid,S).stock['PRD-E04'].q===1
+            &&job().work[1].items.some(x=>x.productId==='PRD-E04'&&x.quantity===1);
+          const buyer=company(bid,S),seller=company(sid,S);
+          const accounted=asset.assetValue===job().fee&&receipt.amount===job().fee&&receipt.bookCost===job().bookCost
+            &&buyer.journals.some(j=>j.id===receipt.costReceipt.buyerJournal&&j.cr.some(([a,v])=>a==='cash'&&v===asset.assetValue))
+            &&seller.journals.some(j=>j.id===receipt.costReceipt.sellerJournal&&j.dr.some(([a,v])=>a==='cash'&&v===asset.assetValue))
+            &&acc(seller,'worldConstructionWip')===0&&consolidate(S).cf.reconciled;
+          worldSetGridPlan(S,bid,bp,'fuel',3);
+          await close();
+          const w=S.worldExpansion,operating=w.energyReceipts.some(r=>r.plantId===bp&&r.fuelQty===3&&r.deliveredKwh===27)
+            &&w.powerGenerators[bp].accumulatedDepreciation>0&&company(bid,S).stock['PRD-R04'].q===2;
+          const restored=parsePayload(savePayload(S)),forged=structuredClone(restored);
+          forged.worldExpansion.constructionReceipts.find(r=>r.contractId===id).assetId='GEN-other';
+          const saved=restored.worldExpansion.powerGenerators[bp].constructionReceiptId===receipt.id
+            &&!check(restored).length&&!consolidate(restored).errors.length&&reject(()=>parsePayload(savePayload(forged)));
+          return {gated,partial,delivered,accounted,operating,saved};
+        }""",ids)
+        assert len(power)==6 and all(power.values()),power
+        print("PASS Phase 6 contracted power generation: UI order, physical construction, settlement, fuel and restore")
         port=page.evaluate("""async()=>{
           saveAuto=async()=>true;S=newWorldGame({country:'JP',name:'Port customer'});
           VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';PAGE='corporateSubsidiaries';render();
