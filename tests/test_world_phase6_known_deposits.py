@@ -24,16 +24,18 @@ def main():
           document.querySelector('#factoryName').value='Ashio';document.querySelector('#factorySite').value='JP-ASHIO';
           factoryBuild();
           const p=f.plants.find(x=>x.name==='Ashio'),pid=p.id,start=S.monthCommitted;
+          const beforeLand=acc(f,'cash'),title=worldPurchaseMiningLand(S,id,'JP-ASHIO');
+          const titleBeforeOperating=!!p.construction&&acc(f,'worldMiningLand')===title.amount&&acc(f,'cash')===beforeLand-title.amount;
           const close=async()=>{const m=S.monthCommitted;await runMonth();if(S.monthCommitted!==m+1)throw Error(JSON.stringify(LAST_MONTH_DIAGNOSTIC))};
           const reject=fn=>{try{fn();return false}catch{return true}};
           const unavailable=reject(()=>worldClaimKnownDeposit(S,id,pid,'JP-ASHIO'))&&!worldExplorationFieldOpen(S,worldExplorationField('US-MOUNTAINPASS'));
           await close();await close();
           const mf=company(id,S),cash=acc(mf,'cash'),stock=mf.stock['PRD-R02']?.q??0;
           VIEW_FIRM=id;PAGE='facilityProduction';render();
-          return {id,pid,start,cash,stock,unavailable};
+          return {id,pid,start,cash,stock,unavailable,titleBeforeOperating};
         }""")
         page.locator('[data-world-known-plant="'+ids["pid"]+'"][data-world-known-field="JP-ASHIO"]').click()
-        result=page.evaluate("""async({id,pid,start,cash,stock,unavailable})=>{
+        result=page.evaluate("""async({id,pid,start,cash,stock,unavailable,titleBeforeOperating})=>{
           const close=async()=>{const m=S.monthCommitted;await runMonth();if(S.monthCommitted!==m+1)throw Error(JSON.stringify(LAST_MONTH_DIAGNOSTIC))};
           const reject=fn=>{try{fn();return false}catch{return true}};
           const known=Object.keys(WORLD_EXPLORATION_FIELDS).map(worldKnownDeposit);
@@ -50,6 +52,20 @@ def main():
           const colocated=brokenHill.length===3&&new Set(brokenHill.map(x=>x.field.productId)).size===3;
           const mf=company(id,S),did=worldKnownDeposit('JP-ASHIO').id,d=S.worldExpansion.resourceDeposits[did];
           const claim=d.status==='MODEL_KNOWN'&&d.remaining===180&&(mf.stock['PRD-R02']?.q??0)===stock&&acc(mf,'cash')===cash;
+          const title=S.worldExpansion.miningLandTitles['JP-ASHIO'];
+          const claimTitle=S.worldExpansion.knownDepositClaims[0].landTitleId===title.id;
+          const beforeInvalid=JSON.stringify(S);
+          const duplicateTitle=reject(()=>worldPurchaseMiningLand(S,id,'JP-ASHIO'));
+          const foreignTitle=reject(()=>worldPurchaseMiningLand(S,id,'DE-RUH'))&&JSON.stringify(S)===beforeInvalid;
+          const legacy=structuredClone(S),legacyMine=company(id,legacy),legacyClaim=legacy.worldExpansion.knownDepositClaims[0];
+          delete legacy.worldExpansion.miningLandTitles;delete legacy.worldExpansion.miningLandFromSeq;
+          delete legacyClaim.landTitleId;delete legacyMine.ledger.worldMiningLand;
+          legacyMine.ledger.cash+=title.amount;legacyMine.journals=legacyMine.journals.filter(j=>j.id!==title.journal);
+          const migrated=parsePayload(savePayload(legacy));
+          const legacyRestore=migrated.worldExpansion.miningLandFromSeq===legacy.seq&&migrated.worldExpansion.resourceDeposits[did].remaining===180;
+          const missingTitle=structuredClone(S);delete missingTitle.worldExpansion.knownDepositClaims[0].landTitleId;
+          const forgedTitle=structuredClone(S);forgedTitle.worldExpansion.miningLandTitles['JP-ASHIO'].amount++;
+          const titleAudit=reject(()=>parsePayload(savePayload(missingTitle)))&&reject(()=>parsePayload(savePayload(forgedTitle)));
           const duplicate=reject(()=>worldClaimKnownDeposit(S,id,pid,'JP-ASHIO'))&&reject(()=>worldExploreDeposit(S,id,pid,20000,'JP-ASHIO'));
           const forged=structuredClone(S);forged.worldExpansion.resourceDeposits[did].initialReserve++;forged.worldExpansion.resourceDeposits[did].remaining++;
           const tamper=reject(()=>parsePayload(savePayload(forged)));
@@ -57,12 +73,14 @@ def main():
           const a=S.worldExpansion.resourceDeposits[did],n=company(id,S),q=n.stock['PRD-R02'];
           const extraction=a.extracted>0&&a.remaining===180-a.extracted&&q.q===stock+a.extracted;
           const price=worldResourceScarcityBps(S,'JP','PRD-R02')>0&&worldDepositUnitCost(a,190)>190;
-          const saved=parsePayload(savePayload(S)),restore=saved.worldExpansion.knownDepositClaims.length===1&&saved.worldExpansion.resourceDeposits[did].remaining===a.remaining;
+          const saved=parsePayload(savePayload(S)),restore=saved.worldExpansion.knownDepositClaims.length===1&&saved.worldExpansion.resourceDeposits[did].remaining===a.remaining
+            &&saved.worldExpansion.miningLandTitles['JP-ASHIO'].id===title.id&&acc(company(id,saved),'worldMiningLand')===title.amount;
           const clean=check(S).length===0&&consolidate(S).errors.length===0;
-          return {catalog,coverage,historicalOpening,colocated,unavailable,claim,duplicate,tamper,extraction,price,restore,clean,months:S.monthCommitted===start+3};
+          return {catalog,coverage,historicalOpening,colocated,unavailable,claim,duplicate,tamper,extraction,price,restore,clean,months:S.monthCommitted===start+3,
+            titleBeforeOperating,claimTitle,duplicateTitle,foreignTitle,legacyRestore,titleAudit};
         }""",ids)
-        assert len(result)==13 and all(result.values()),result
+        assert len(result)==19 and all(result.values()),result
         assert not errors,errors
-        print("PASS Phase 6 known deposits: 13 checks, 18 minerals, 10 countries, historic opening, UI, extraction and restore")
+        print("PASS Phase 6 known deposits: 19 checks, 18 minerals, 10 countries, independent titles, UI, extraction and restore")
         browser.close()
 if __name__=="__main__":main()

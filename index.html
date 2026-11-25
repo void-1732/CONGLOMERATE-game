@@ -867,7 +867,7 @@ const COUNTRIES={
  SA:{currency:'SAR',fx:49,pop:anchorPopulation('SA',1932),wealth:.72,wage:123,demand:14,
   steel:482,rubber:329,steelSupply:105,rubberSupply:85}
 };
-const ACCTYPE={cash:'asset',materials:'asset',materialsTransit:'asset',componentStock:'asset',componentTransit:'asset',wip:'asset',goods:'asset',goodsTransit:'asset',constructionAssets:'asset',ppe:'asset',accdep:'contra',investment:'asset',ar:'asset',loanrec:'asset',bankLoanAllowance:'contra',resourceRights:'asset',worldShipmentStock:'asset',worldImportDutyPrepaid:'asset',worldInternationalReceivable:'asset',worldStoredStock:'asset',worldConstructionWip:'asset',worldInsuranceReserve:'asset',worldInsurancePrepaid:'asset',worldTravelAdvance:'asset',worldBankDeposits:'asset',worldBankRemittance:'asset',worldBankReserve:'asset',worldSupplierAdvances:'asset',partReceivable:'asset',partPayable:'liability',worldCustomerAdvances:'liability',worldInternationalPayable:'liability',worldInternationalDutyPayable:'liability',worldInsuranceUnearned:'liability',worldDemandDeposits:'liability',payable:'liability',wagesDue:'liability',debt:'liability',interestDue:'liability',taxDue:'liability',capital:'equity',treasuryStock:'contraEquity',dividendsPaid:'contraEquity',sales:'revenue',serviceRevenue:'revenue',otherRevenue:'revenue',cogs:'expense',labor:'expense',rndExpense:'expense',advert:'expense',maintenance:'expense',interestExpense:'expense',depreciation:'expense',taxExpense:'expense',fxLoss:'expense',otherExpense:'expense'};
+const ACCTYPE={cash:'asset',materials:'asset',materialsTransit:'asset',componentStock:'asset',componentTransit:'asset',wip:'asset',goods:'asset',goodsTransit:'asset',constructionAssets:'asset',ppe:'asset',accdep:'contra',investment:'asset',ar:'asset',loanrec:'asset',bankLoanAllowance:'contra',resourceRights:'asset',worldMiningLand:'asset',worldShipmentStock:'asset',worldImportDutyPrepaid:'asset',worldInternationalReceivable:'asset',worldStoredStock:'asset',worldConstructionWip:'asset',worldInsuranceReserve:'asset',worldInsurancePrepaid:'asset',worldTravelAdvance:'asset',worldBankDeposits:'asset',worldBankRemittance:'asset',worldBankReserve:'asset',worldSupplierAdvances:'asset',partReceivable:'asset',partPayable:'liability',worldCustomerAdvances:'liability',worldInternationalPayable:'liability',worldInternationalDutyPayable:'liability',worldInsuranceUnearned:'liability',worldDemandDeposits:'liability',payable:'liability',wagesDue:'liability',debt:'liability',interestDue:'liability',taxDue:'liability',capital:'equity',treasuryStock:'contraEquity',dividendsPaid:'contraEquity',sales:'revenue',serviceRevenue:'revenue',otherRevenue:'revenue',cogs:'expense',labor:'expense',rndExpense:'expense',advert:'expense',maintenance:'expense',interestExpense:'expense',depreciation:'expense',taxExpense:'expense',fxLoss:'expense',otherExpense:'expense'};
 const PAGES={dashboard:'経営概況',marketOwn:'自社グループ市場分析',market:'世界市場分析',product:'製品・開発',factory:'工場・調達',people:'研究・人事',finance:'財務・資金',group:'企業グループ',consolidated:'連結財務三表',reports:'月次レポート',save:'保存・設定'};
 /* STEP 2: navigation only. Every tab points to a current, fully functional PAGE.
    New specialized pages are created in STEP 3+, not silently replaced with placeholders.
@@ -1696,7 +1696,15 @@ function siteEfficiency(f,p){const a=ensurePlantLocation(f,p);return clamp(.65+a
 function siteInvestmentQuote(siteId,scale,kind,s=S){const site=findSite(siteId);if(!site||!siteVisibleInGame(site,s)||!FACTORY_SCALES[scale]||!FACTORY_KINDS[kind])return null;const factory=FACTORY_SCALES[scale];const base=factory.price*(kind==='integrated'?1.25:kind==='assembly'?1:.8);return Math.round(base*(.40+.60*site.land)*eraCostFactor(s?.year||1900));}
 function sitePayrollFactor(f,s){const sites=activeFactories(f);if(!sites.length)return 1;let sum=0,capacity=0;for(const p of sites){const site=ensurePlantLocation(f,p),w=s.world[site.country]?.wage||s.world[f.country].wage;sum+=p.capacity*site.wage*w/Math.max(1,s.world[f.country].wage);capacity+=p.capacity;}return clamp(sum/Math.max(1,capacity),.6,1.8);}
 function siteLogisticsExpenseBase(f){let amount=0;for(const p of activeFactories(f)){const site=ensurePlantLocation(f,p);const transfer=site.country===f.country?25:180;amount+=Math.round((p.lastProduced||0)*(transfer*site.freight));}return amount;}
-function factorySiteChoice(country){return SITE_CATALOG.filter(x=>S?.world?.[x.country]&&siteVisibleInGame(x,S)).map(x=>`<option value="${x.id}" ${x.id===homeSite(country).id?'selected':''}>${NAMES[x.country]}：${esc(x.name)} ／土地${nfmt(x.land*100)}%・技能/インフラ${nfmt(x.infra*100)}%</option>`).join('')}
+function factorySiteAvailable(f,site,s){
+ if(!site||!Object.hasOwn(s.world,site.country)||!siteVisibleInGame(site,s))return false;
+ if(!s.worldExpansion)return true;
+ if(f.industry==='resource')return site.country===f.country&&worldMiningLandOpen(s,site.id);
+ if(f.industry==='service')return site.country===f.country
+  &&(worldConstructionSiteAvailable(s,site.id)||worldPublicPowerDemand(s,site.id)>0);
+ return true;
+}
+function factorySiteChoice(f){return SITE_CATALOG.filter(x=>factorySiteAvailable(f,x,S)).map(x=>`<option value="${x.id}" ${x.id===homeSite(f.country).id?'selected':''}>${NAMES[x.country]}：${esc(x.name)} ／土地${nfmt(x.land*100)}%・技能/インフラ${nfmt(x.infra*100)}%</option>`).join('')}
 function factorySitePreview(){const box=document.getElementById('factorySitePreview');if(!box)return;const site=findSite(inputValue('factorySite')),cost=siteInvestmentQuote(site?.id,inputValue('factoryScale'),inputValue('factoryKind'));if(!site||cost===null){box.textContent='地域の選択を確認してください';return;}box.textContent=`建設見積 ${nfmt(cost)}円相当 ／ 賃金係数 ${nfmt(site.wage*100)}%・インフラ ${nfmt(site.infra*100)}%・労働力 ${nfmt(site.labor*100)}%・輸送 ${nfmt(site.freight*100)}%。法人所在国と異なる場合は海外工場として表示します。`;}
 const V10_COMPETITOR_SEEDS=[
  {name:'東洋精密工業',c:'JP',industry:'manufacturing',size:.78,strategy:'quality'},
@@ -1781,7 +1789,7 @@ function automationSettingsPanel(f){ensureV10Delegation(f);const a=f.delegate.au
 
 function researchUnlocked(s,f,id){const d=RND_DOMAINS[id];return !!d&&s.year>=d.since&&(!d.pre||hasTech(f,d.pre))}
 function researchChoose(){try{const f=current(),topic=inputValue('researchTopic');if(!canEdit(f))throw Error('権限がありません');if(!researchUnlocked(S,f,topic))throw Error('開始年代または前提研究を満たしていません');if(topic!==f.research.topic){f.research.topic=topic;f.rnd.progress=0;}renderKeepingResearchPosition();toast('研究テーマを更新しました。研究予算と研究者数に応じて毎月進行します。')}catch(e){toast(e.message)}}
-function factoryBuild(){try{const f=current();if(!canEdit(f))throw Error('権限がありません');if(!['auto','manufacturing'].includes(f.industry)&&!(S.worldExpansion&&['resource','service'].includes(f.industry)))throw Error('この業態では施設を建てられません');ensureFirmGameplay(f);const size=inputValue('factoryScale'),kind=inputValue('factoryKind'),name=(inputValue('factoryName')||'').trim().slice(0,32);if(!FACTORY_SCALES[size]||!FACTORY_KINDS[kind])throw Error('工場の規模または機能が不正です');if(!name)throw Error('工場名を入力してください');if(f.plants.some(p=>p.name===name))throw Error('同名の工場があります');const d=FACTORY_SCALES[size],siteId=inputValue('factorySite'),site=findSite(siteId),price=siteInvestmentQuote(siteId,size,kind);if(!site||!Object.hasOwn(S.world,site.country)||price===null)throw Error('建設立地が不正、または市場が未開放です');if(f.industry==='resource'&&(site.country!==f.country||!worldExplorationFieldsAt(site.id).some(key=>worldExplorationFieldOpen(S,worldExplorationField(key)))))throw Error('自国の史料付き・開放済み採掘地域を選択してください');if(f.industry==='service'&&(site.country!==f.country||!worldConstructionSiteAvailable(S,site.id)))throw Error('自国の開放済み建設対象地域を選択してください');const amount=verifyMoney(f,price);post(f,{ppe:amount},{cash:amount},'工場建設投資：'+name,'investing');const p={id:'P'+S.seq++,name,kind,scale:size,capacity:d.capacity,condition:100,siteId:site.id,siteCountry:site.country,focus:'all',construction:{monthsLeft:d.months},lastProduced:0,lastUtilization:0};if(S.worldExpansion&&f.industry==='resource')p.worldExplorationFacility=true;f.plants.push(p);
+function factoryBuild(){try{const f=current();if(!canEdit(f))throw Error('権限がありません');if(!['auto','manufacturing'].includes(f.industry)&&!(S.worldExpansion&&['resource','service'].includes(f.industry)))throw Error('この業態では施設を建てられません');ensureFirmGameplay(f);const size=inputValue('factoryScale'),kind=inputValue('factoryKind'),name=(inputValue('factoryName')||'').trim().slice(0,32);if(!FACTORY_SCALES[size]||!FACTORY_KINDS[kind])throw Error('工場の規模または機能が不正です');if(!name)throw Error('工場名を入力してください');if(f.plants.some(p=>p.name===name))throw Error('同名の工場があります');const d=FACTORY_SCALES[size],siteId=inputValue('factorySite'),site=findSite(siteId),price=siteInvestmentQuote(siteId,size,kind);if(!factorySiteAvailable(f,site,S)||price===null)throw Error('建設対象の開放済み地域を選択してください');const amount=verifyMoney(f,price);post(f,{ppe:amount},{cash:amount},'工場建設投資：'+name,'investing');const p={id:'P'+S.seq++,name,kind,scale:size,capacity:d.capacity,condition:100,siteId:site.id,siteCountry:site.country,focus:'all',construction:{monthsLeft:d.months},lastProduced:0,lastUtilization:0};if(S.worldExpansion&&f.industry==='resource')p.worldExplorationFacility=true;f.plants.push(p);
  if(v21ModuleType(p)){
   ensureFactoryV21(f);
   if(!f.factoryOps.modeExplicit&&f.factoryOps.mode==='legacy')transitionSpecialistModeV036(f,'detailed');
@@ -6622,6 +6630,7 @@ function parsePayload(raw){if(typeof raw!=='string')throw Error('保存データ
   s.worldExpansion.uniformDutyFromSeq??=s.seq;
   s.worldExpansion.freightRateFromSeq??=s.seq;
   s.worldExpansion.corporateTaxFromSeq??=s.seq;
+ s.worldExpansion.miningLandFromSeq??=s.seq;
   const errs=check(s);
   if(errs.length)throw Error(errs.slice(0,3).join(' / '));
   return s;
@@ -6921,7 +6930,7 @@ function factoryPage(){const f=current(),edit=canEdit(f);ensureFirmGameplay(f);c
  return titlePage('工場・調達','個別工場の設備能力・稼働実績・支援工場の効果・固定費を管理します。',tag('工場別管理 / 仮係数'))+(!edit?noaccess():'')+`<div class="grid">${card('完成車生産能力',nfmt(info.possible)+'台/月','設備・人員・研究・部品工場支援後','span3')}${card('名目組立能力',nfmt(info.nominal)+'台/月','支援専用設備は含めない','span3')}${card('当月の生産計画',nfmt(planned)+'台','超過計画には負担・減産','span3')}${card('先月の生産実績',nfmt(f._produced||0)+'台','工場別記録を合算','span3')}
  <section class="panel span8"><h2>保有工場・工場別の状態</h2>${factories||'<p>工場がありません。</p>'}<div class="row"><button class="btn primary" data-action="plantSettings" ${edit?'':'disabled'}>車種担当を保存</button><span class="hint">部品・車体・エンジン専門工場は、完成車組立台数を直接増やさず、全体の実効能力を補助します。</span></div></section>
  <section class="panel span4"><h2>工場保全</h2><div class="field"><label>保守対象</label><select id="maintainPlant">${f.plants.filter(p=>!p.construction).map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select></div><button class="btn" style="margin-top:9px" data-action="maintainPlant" ${edit?'':'disabled'}>選択した工場を保全する</button><p class="hint">利用量に応じて設備が摩耗します。名目能力を超える計画を設定しても超過生産できません。低稼働でも人件費・設備固定費が発生します。</p><h3>会社全体の材料</h3>${rowstat('鋼材',nfmt(f.stock.steel.q)+'単位')}${rowstat('ゴム',nfmt(f.stock.rubber.q)+'単位')}${rowstat('仕掛品',fnum(f,acc(f,'wip')))}</section>
- <section class="panel span12"><h2>新しい工場の建設</h2><p class="hint">既存の建物を単純に増床するのではなく、独立した工場施設として建設します。着工時に投資額を支払い、工期完了後に設備能力が有効になります。</p><div class="formgrid"><div class="field"><label>工場名</label><input id="factoryName" value="新設工場" maxlength="32"></div><div class="field"><label>規模</label><select id="factoryScale"><option value="small">小規模・能力25・2か月</option><option value="medium">中規模・能力60・4か月</option><option value="large">大規模・能力120・7か月</option></select></div><div class="field"><label>担当機能</label><select id="factoryKind">${Object.entries(FACTORY_KINDS).map(([k,v])=>`<option value="${k}">${esc(v.name)}</option>`).join('')}</select></div><div class="field"><label>工場建設地域</label><select id="factorySite">${factorySiteChoice(f.country)}</select></div><button class="btn primary" data-action="factoryBuild" ${edit&&(['auto','manufacturing'].includes(f.industry)||(S.worldExpansion&&['resource','service'].includes(f.industry)))?'':'disabled'}>工場建設に投資する</button></div><p class="hint" id="factorySitePreview">建設場所を選んでください。</p><p class="footnote">モデル基準工事費（円相当・仮）：小32万円、中76万円、大155万円。総合工場は×1.25、支援工場は×0.8。年代費用指数は1900年を1とし年間約1.8%上昇。工場建設費・維持費・製造人件費にも反映。係数は試作値です。</p></section>
+ <section class="panel span12"><h2>新しい工場の建設</h2><p class="hint">既存の建物を単純に増床するのではなく、独立した工場施設として建設します。着工時に投資額を支払い、工期完了後に設備能力が有効になります。</p><div class="formgrid"><div class="field"><label>工場名</label><input id="factoryName" value="新設工場" maxlength="32"></div><div class="field"><label>規模</label><select id="factoryScale"><option value="small">小規模・能力25・2か月</option><option value="medium">中規模・能力60・4か月</option><option value="large">大規模・能力120・7か月</option></select></div><div class="field"><label>担当機能</label><select id="factoryKind">${Object.entries(FACTORY_KINDS).map(([k,v])=>`<option value="${k}">${esc(v.name)}</option>`).join('')}</select></div><div class="field"><label>工場建設地域</label><select id="factorySite">${factorySiteChoice(f)}</select></div><button class="btn primary" data-action="factoryBuild" ${edit&&(['auto','manufacturing'].includes(f.industry)||(S.worldExpansion&&['resource','service'].includes(f.industry)))?'':'disabled'}>工場建設に投資する</button></div><p class="hint" id="factorySitePreview">建設場所を選んでください。</p><p class="footnote">モデル基準工事費（円相当・仮）：小32万円、中76万円、大155万円。総合工場は×1.25、支援工場は×0.8。年代費用指数は1900年を1とし年間約1.8%上昇。工場建設費・維持費・製造人件費にも反映。係数は試作値です。</p></section>
  <section class="panel span12"><h2>材料・完成品原価</h2><div class="scroll"><table><thead><tr><th>資源</th><th class="num">数量</th><th class="num">帳簿評価額</th></tr></thead><tbody><tr><td>鋼材</td><td class="num">${nfmt(f.stock.steel.q)}</td><td class="num">${fnum(f,f.stock.steel.v)}</td></tr><tr><td>ゴム</td><td class="num">${nfmt(f.stock.rubber.q)}</td><td class="num">${fnum(f,f.stock.rubber.v)}</td></tr>${Object.entries(f.goods).map(([k,v])=>`<tr><td>${esc(f.models.find(m=>m.id===k)?.name||k)}</td><td class="num">${nfmt(v.q)}</td><td class="num">${fnum(f,v.v)}</td></tr>`).join('')}</tbody></table></div></section>${siteStrategyOverview(f)}${factoryLogisticsPanel(f,edit)}${factoryV21Panel(f,edit)}</div>`}
 function peoplePage(){const f=current(),edit=canEdit(f),w=S.world[f.country];ensureFirmGameplay(f);const topic=f.research.topic,domain=RND_DOMAINS[topic];return titlePage('研究・人事','開発したい技術テーマを選び、研究者・予算・前提技術・研究成果を確認します。',tag('10分野・800技術'))+(!edit?noaccess():'')+`<div class="grid">${card('製造部門',nfmt(f.staff.production)+'人','生産能力・製造労務費','span3')}${card('研究者',nfmt(f.staff.research)+'人','研究進捗を制約','span3')}${card('営業・管理',nfmt(f.staff.sales)+'人','販売・組織運営','span3')}${card('研究の完成度',nfmt(f.rnd.progress)+'%','現在の研究テーマ','span3')}
  ${researchTreePanel(f,edit)}
@@ -7663,6 +7672,7 @@ function consolidatedPage(){const g=consolidate(S,S.playerId),b=g.bs,p=g.pl,c=g.
 }
 
 function finTable(f){const x=financials(f);return `<div class="scroll"><table><thead><tr><th>単体貸借対照表（累計）</th><th class="num">現地通貨</th></tr></thead><tbody>${[['現金',acc(f,'cash')],['材料在庫',acc(f,'materials')],['BOM部品在庫',acc(f,'componentStock')],['輸送中のBOM部品',acc(f,'componentTransit')],['部品取引・使用料売掛',acc(f,'partReceivable')],['部品取引・使用料買掛',-acc(f,'partPayable')],['仕掛品',acc(f,'wip')],['完成品・商品在庫',acc(f,'goods')],['輸送中の完成品',acc(f,'goodsTransit')],['事業設備（純額）',acc(f,'ppe')+acc(f,'accdep')],['ライン建設仮勘定',acc(f,'constructionAssets')],['投資有価証券・子会社株式',acc(f,'investment')],['売掛金・貸付金',acc(f,'ar')+acc(f,'loanrec')],['採取権',acc(f,'resourceRights')],...(S.worldExpansion?[
+ ['採掘用地',acc(f,'worldMiningLand')],
  ['銀行預金',acc(f,'worldBankDeposits')],['外部銀行への送金預け金',acc(f,'worldBankRemittance')],
  ['預金支払準備金',acc(f,'worldBankReserve')],['受入預金負債',-acc(f,'worldDemandDeposits')]
  ]:[]),['資産合計',x.assets],['負債合計',x.liab],['払込資本・自己株式控除後',x.capital],['自己株式控除（取得原価）',-Math.max(0,acc(f,'treasuryStock'))],['累計損益',x.profit],['負債＋純資産',x.liab+x.equity]].map(([k,v])=>`<tr><td>${esc(k)}</td><td class="num">${fnum(f,v)}</td></tr>`).join('')}</tbody></table></div>`}
@@ -8286,8 +8296,12 @@ function executeCorporateShareTransferUnreserved(s,q){
  if(!q.affordable)throw Error('必要な買収資金が不足しています：'+maMoney(q.total));
  const {buyer,target,seller}=q,sellerOwner=target.owners.find(o=>o.id===seller.id);
  const priorUnits=Math.round(sellerOwner.econ*1000000);
- const links=(s.equityLinks||[]).filter(l=>l.parentId===seller.id&&l.childId===target.id&&(l.remainingConsiderationLocal??l.considerationLocal)>0);
+ const links=(s.equityLinks||[]).filter(l=>l.parentId===seller.id&&l.childId===target.id
+  &&((l.remainingRatio??l.ratio)>0||(l.remainingConsiderationLocal??l.considerationLocal)>0));
  if(!links.length)throw Error('売却元の株式取得原価を特定できません。旧保存データの取得履歴を確認してください');
+ const lotUnits=links.map(l=>Math.round((l.remainingRatio??l.ratio)*1000000));
+ const liveUnits=lotUnits.reduce((a,b)=>a+b,0);
+ if(liveUnits<1)throw Error('売却元の株式数を特定できません');
  const totalBasis=links.reduce((a,l)=>a+(l.remainingConsiderationLocal??l.considerationLocal),0);
  if(totalBasis>acc(seller,'investment')+2)throw Error('売り手企業の投資簿価が不足しています');
  const bookCost=Math.round(totalBasis*q.units/priorUnits),gain=q.sellerReceive-bookCost;
@@ -8298,20 +8312,34 @@ function executeCorporateShareTransferUnreserved(s,q){
   {investment:bookCost,...(gain>0?{otherRevenue:gain}:{})},'保有子会社株式譲渡：'+target.name,'investing',s);
  const sellerJournal=seller.journals.at(-1).id;
  // Retain original link ratio/time as history; only live ratio & carrying basis shrink.
- const liveTotal=links.reduce((a,l)=>a+(l.remainingRatio??l.ratio),0);
+ const liveTotal=liveUnits/1000000;
  const heldRatio=priorUnits/1000000;
  const inheritedNet=Math.round(links.reduce((a,l)=>a+(l.consolidationBookEquityBase??l.bookEquityBase??0)*(l.remainingRatio??l.ratio),0)/heldRatio);
  const weightedLocalEquity=links.reduce((a,l)=>a+(l.consolidationSnapshotEquityLocal??l.acquisitionSnapshot?.equity??l.bookEquityLocal??0)*(l.remainingRatio??l.ratio),0)/heldRatio;
- const remaining=priorUnits-q.units;let liveAssigned=0,costAssigned=0;
+ const remaining=priorUnits-q.units,remainingBasis=totalBasis-bookCost;
+ let cumulativeUnits=0,liveAssigned=0;
+ const retainedUnits=lotUnits.map(units=>{
+  cumulativeUnits+=units;
+  const total=Math.round(remaining*cumulativeUnits/liveUnits),keep=total-liveAssigned;
+  liveAssigned=total;
+  return keep;
+ });
+ // Retain all carrying value on lots that still have a share balance.
+ const costs=links.map((l,i)=>retainedUnits[i]>0?(l.remainingConsiderationLocal??l.considerationLocal):0);
+ const costWeight=costs.reduce((a,b)=>a+b,0);
+ let cumulativeCost=0,costAssigned=0;
  for(let i=0;i<links.length;i++){
-  const l=links[i],ratio=l.remainingRatio??l.ratio,cost=l.remainingConsiderationLocal??l.considerationLocal;
+  const l=links[i];
   l.originalRatio??=l.ratio;l.originalConsiderationLocal??=l.considerationLocal;
   const dilutionFactor=liveTotal/heldRatio;
   l.consolidationBookEquityBase=Math.round((l.consolidationBookEquityBase??l.bookEquityBase??0)*dilutionFactor);
   l.consolidationSnapshotEquityLocal=Math.round((l.consolidationSnapshotEquityLocal??l.acquisitionSnapshot?.equity??l.bookEquityLocal??0)*dilutionFactor);
-  l.remainingRatio=roundShare(i===links.length-1?remaining/1000000-liveAssigned:(remaining/1000000)*ratio/liveTotal);
-  l.remainingConsiderationLocal=i===links.length-1?totalBasis-bookCost-costAssigned:Math.round((totalBasis-bookCost)*cost/totalBasis);
-  liveAssigned+=l.remainingRatio;costAssigned+=l.remainingConsiderationLocal;
+  l.remainingRatio=retainedUnits[i]/1000000;
+  const totalWeight=costWeight||remaining;
+  cumulativeCost+=costWeight?costs[i]:retainedUnits[i];
+  const total=totalWeight?Math.round(remainingBasis*(cumulativeCost/totalWeight)):0;
+  l.remainingConsiderationLocal=total-costAssigned;
+  costAssigned=total;
  }
  // Preserve the old acquisition valuation for book-value intra-group transfers.
  sellerOwner.econ=roundShare(sellerOwner.econ-q.fraction);sellerOwner.vote=roundShare(sellerOwner.vote-q.fraction);
@@ -9626,7 +9654,7 @@ function factoryPage(){
 }
 function facilityExpansionPage(){
  const f=current();ensureFirmGameplay(f);ensureFactoryV21(f);const edit=canEdit(f);
- return titlePage('新設・拡張','工場の新設・地域選択・設備拡張・縮小を管理します。')+(!edit?noaccess():'')+facilityLinks()+facilityBrowser(f,edit,'facilityExpansion')+`<section class="panel" style="margin-top:16px"><h2>新しい工場を建設</h2><div class="formgrid"><label class="field"><span>工場名</span><input id="factoryName" value="新設工場" maxlength="32"></label><label class="field"><span>規模</span><select id="factoryScale"><option value="small">小規模・25単位・2か月</option><option value="medium">中規模・60単位・4か月</option><option value="large">大規模・120単位・7か月</option></select></label><label class="field"><span>用途</span><select id="factoryKind">${Object.entries(FACTORY_KINDS).map(([k,v])=>`<option value="${k}">${esc(v.name)}</option>`).join('')}</select></label><label class="field"><span>建設地域</span><select id="factorySite">${factorySiteChoice(f.country)}</select></label><button class="btn primary" data-action="factoryBuild" ${edit&&(['auto','manufacturing'].includes(f.industry)||(S.worldExpansion&&['resource','service'].includes(f.industry)))?'':'disabled'}>建設に投資する</button></div><p class="hint" id="factorySitePreview">地域を選択してください。</p></section>`;
+ return titlePage('新設・拡張','工場の新設・地域選択・設備拡張・縮小を管理します。')+(!edit?noaccess():'')+facilityLinks()+facilityBrowser(f,edit,'facilityExpansion')+`<section class="panel" style="margin-top:16px"><h2>新しい工場を建設</h2><div class="formgrid"><label class="field"><span>工場名</span><input id="factoryName" value="新設工場" maxlength="32"></label><label class="field"><span>規模</span><select id="factoryScale"><option value="small">小規模・25単位・2か月</option><option value="medium">中規模・60単位・4か月</option><option value="large">大規模・120単位・7か月</option></select></label><label class="field"><span>用途</span><select id="factoryKind">${Object.entries(FACTORY_KINDS).map(([k,v])=>`<option value="${k}">${esc(v.name)}</option>`).join('')}</select></label><label class="field"><span>建設地域</span><select id="factorySite">${factorySiteChoice(f)}</select></label><button class="btn primary" data-action="factoryBuild" ${edit&&(['auto','manufacturing'].includes(f.industry)||(S.worldExpansion&&['resource','service'].includes(f.industry)))?'':'disabled'}>建設に投資する</button></div><p class="hint" id="factorySitePreview">地域を選択してください。</p></section>`;
 }
 function facilityProductionPage(){
  const f=current();ensureFirmGameplay(f);ensureFactoryV21(f);const edit=canEdit(f),cap=factoryCapacity(f),planned=Object.values(f.plans).reduce((n,v)=>n+v,0);
@@ -13027,6 +13055,7 @@ function newWorldGame(setup,legacyCurrency=false){
  state.worldExpansion=makeWorldExpansion();
  state.worldExpansion.uniformDutyFromSeq=1;
  state.worldExpansion.corporateTaxFromSeq=1;
+ state.worldExpansion.miningLandFromSeq=1;
  state.worldExpansion.freightRateFromSeq=1;
  // Existing saves keep their booked exchange-rate histories. New games share the EUR rate.
  state.worldExpansion.euroFxUnified=true;
@@ -13789,6 +13818,50 @@ function worldExplorationFieldOpen(s,field){
   &&s.worldExpansion.openMarkets[territory.marketId]!=null&&s.year>=field.availableFromYear
   &&siteVisibleInGame(findSite(field.siteId),s);
 }
+function worldMiningLandOpen(s,siteId){
+ return worldExplorationFieldsAt(siteId).some(key=>worldExplorationFieldOpen(s,worldExplorationField(key)));
+}
+function worldMiningLandPrice(site,year,s){
+ return localFromBase(80000*site.land*eraCostFactor(year),site.country,s);
+}
+function worldPurchaseMiningLand(s,firmId,siteId){
+ const w=s.worldExpansion,f=company(firmId,s),site=findSite(siteId);
+ if(!w||!site||!isActiveCorporateFirm(f)||!controller(s,firmId)||f.industry!=='resource'
+  ||site.country!==f.country||!worldMiningLandOpen(s,siteId))throw Error('自国の開放済み採掘地域を選択してください');
+ worldValidateMiningLand(s);
+ if(w.miningLandTitles?.[siteId])throw Error('この採掘用地は取得済みです');
+ const amount=worldMiningLandPrice(site,s.year,s);
+ if(!Number.isSafeInteger(amount)||amount<1||amount>phase7AvailableCash(s,f))throw Error('土地を取得できる現金が不足しています');
+ const journal=s.seq;
+ post(f,{worldMiningLand:amount},{cash:amount},'採掘用地の所有権取得・'+siteId,'investing',s);
+ const title={id:'MLT-'+s.seq++,siteId,firmId,month:ym(s.year,s.month),amount,journal};
+ (w.miningLandTitles??={})[siteId]=title;
+ return title;
+}
+function worldValidateMiningLand(s){
+ const w=s.worldExpansion,titles=w.miningLandTitles??{},cutoff=w.miningLandFromSeq??s.seq,now=ym(s.year,s.month);
+ if(typeof titles!=='object'||Array.isArray(titles)||!Number.isSafeInteger(cutoff)||cutoff<1||cutoff>s.seq)
+  throw Error('採掘用地の所有権台帳の形式が不正です');
+ const match=worldServiceJournalMatcher(s),totals=new Map();
+ for(const [siteId,t] of Object.entries(titles)){
+  const site=findSite(siteId),f=company(t?.firmId,s),seq=Number(t?.id?.slice(4)),year=Math.floor(t?.month/12);
+  if(!site||!f||f.industry!=='resource'||f.country!==site.country||t.siteId!==siteId
+   ||!/^MLT-\d+$/.test(t.id)||!Number.isSafeInteger(seq)||seq<cutoff||seq>=s.seq||t.journal!==seq-1
+   ||!Number.isSafeInteger(t.month)||t.month>now||!worldExplorationFieldsAt(siteId).some(k=>year>=worldExplorationField(k).availableFromYear)
+   ||!Number.isSafeInteger(t.amount)||t.amount<1||t.amount!==worldMiningLandPrice(site,year,s)
+   ||!match(f,t.journal,t.month,t.amount,'worldMiningLand','cash','investing'))throw Error('採掘用地の権利・取得仕訳が不正です：'+siteId);
+  totals.set(f.id,(totals.get(f.id)??0)+t.amount);
+ }
+ for(const f of s.firms)if(acc(f,'worldMiningLand')!==(totals.get(f.id)??0))
+  throw Error('採掘用地の所有権台帳と帳簿残高が一致しません：'+f.id);
+}
+function worldMiningLandSupportsAction(s,entry,seq,siteId){
+ // Pre-title claims and attempts keep their original legal and accounting records.
+ if(entry.landTitleId===undefined&&seq<(s.worldExpansion.miningLandFromSeq??s.seq))return true;
+ const title=s.worldExpansion.miningLandTitles?.[siteId];
+ return !!title&&title.id===entry.landTitleId&&title.firmId===entry.firmId
+  &&Number(title.id.slice(4))<seq&&title.month<=entry.month;
+}
 function worldResourceScarcityBps(s,country,productId){
  let initial=0,extracted=0;
  for(const d of Object.values(s.worldExpansion?.resourceDeposits??{})){
@@ -13809,16 +13882,15 @@ function worldKnownDepositsAt(s,siteId){
 }
 function worldClaimKnownDeposit(s,firmId,plantId,fieldId){
  const w=s.worldExpansion,f=company(firmId,s),p=f?.plants.find(x=>x.id===plantId),k=worldKnownDeposit(fieldId);
+ const title=w?.miningLandTitles?.[k?.field.siteId];
  if(!w||!k||!isActiveCorporateFirm(f)||!controller(s,firmId)||f.industry!=='resource'
-  ||f.country!==k.field.country||!worldDomesticSiteActive(p,k.field.siteId)||!worldExplorationFieldOpen(s,k.field))
+  ||f.country!==k.field.country||title?.firmId!==firmId||!worldDomesticSiteActive(p,k.field.siteId)||!worldExplorationFieldOpen(s,k.field))
   throw Error('既知鉱床の所在地・稼働施設・所有権を確認してください');
  if(w.resourceDeposits?.[k.id])throw Error('既知鉱床は取得済みです');
  if(Object.values(w.resourceDeposits??{}).some(d=>d.plantId===plantId&&d.remaining>0))
   throw Error('この施設には未枯渇鉱床があります');
  validateWorldResourceDeposits(s);worldValidateExploration(s);
- // The acquisition right uses the existing owned mining site; there is no free
- // extraction, automatic reserve refill, or separate unapproved concession fee.
- const claim={id:'KDC-'+s.seq++,depositId:k.id,fieldId,firmId,plantId,month:ym(s.year,s.month)};
+ const claim={id:'KDC-'+s.seq++,depositId:k.id,fieldId,firmId,plantId,month:ym(s.year,s.month),landTitleId:title.id};
  (w.knownDepositClaims??=[]).push(claim);
  (w.resourceDeposits??={})[k.id]={id:k.id,productId:k.field.productId,status:'MODEL_KNOWN',
   ownerCompanyId:firmId,plantId,locationId:'LOC-'+p.siteId,initialReserve:k.initialReserve,
@@ -13835,6 +13907,7 @@ function worldValidateKnownDeposits(s){
   if(!k||!d||!f||f.industry!=='resource'||f.country!==k.field.country||!p||p.siteId!==k.field.siteId
    ||!/^KDC-\d+$/.test(c.id)||!Number.isSafeInteger(seq)||seq<=last||seq>=s.seq||claimed.has(k.id)
    ||!Number.isSafeInteger(c.month)||c.month<ym(k.field.availableFromYear,1)||c.month>ym(s.year,s.month)
+   ||!worldMiningLandSupportsAction(s,c,seq,k.field.siteId)
    ||c.depositId!==k.id||d.status!=='MODEL_KNOWN'||d.knownClaimId!==c.id||d.ownerCompanyId!==c.firmId||d.plantId!==c.plantId
    ||d.productId!==k.field.productId||d.initialReserve!==k.initialReserve||d.availableFromYear!==k.field.availableFromYear||d.requiredTech!==null
    ||(d.lastExtractedAt!==null&&(d.lastExtractedAt<c.month||d.lastExtractedAt>ym(s.year,s.month))))
@@ -13858,11 +13931,12 @@ function worldExploreDeposit(s,firmId,plantId,budgetBase,fieldId=null){
  const w=s.worldExpansion,firm=company(firmId,s),plant=firm?.plants.find(p=>p.id===plantId);
  fieldId=fieldId??(plant&&worldExplorationFieldsAt(plant.siteId)[0]);
  const field=worldExplorationField(fieldId),month=ym(s.year,s.month);
+ const title=w?.miningLandTitles?.[field?.siteId];
  const terms=worldExplorationTerms(budgetBase);
  if(!w||!field||!isActiveCorporateFirm(firm)||!controller(s,firmId)||firm.industry!=='resource'
   ||firm.country!==field.country||!worldDomesticSiteActive(plant,field.siteId)
-  ||!worldExplorationFieldOpen(s,field))
-  throw Error('史料付き探鉱地域の稼働中の所有採掘施設が必要です');
+  ||title?.firmId!==firmId||!worldExplorationFieldOpen(s,field))
+  throw Error('探鉱地域の土地所有権と稼働中の採掘施設が必要です');
  validateWorldResourceDeposits(s);
  worldValidateExploration(s);
  const rows=w.explorationAttempts??[];
@@ -13880,7 +13954,7 @@ function worldExploreDeposit(s,firmId,plantId,budgetBase,fieldId=null){
  const roll=Math.floor(random(s)*10000),discovered=roll<terms.chanceBps;
  const depositId=discovered?'DEP-'+field.prefix+'-'+(index+1):null;
  const estimate=discovered?worldExplorationEstimate(field.reserves[index],terms.precisionBps,roll):null;
- const attempt={id:'EXP-'+s.seq++,firmId,plantId,siteId:plant.siteId,fieldId,month,budgetBase,referenceFx,amount,
+ const attempt={id:'EXP-'+s.seq++,firmId,plantId,siteId:plant.siteId,fieldId,landTitleId:title.id,month,budgetBase,referenceFx,amount,
   journal,chanceBps:terms.chanceBps,precisionBps:terms.precisionBps,roll,depositId,estimate};
  (w.explorationAttempts??=[]).push(attempt);
  if(discovered){
@@ -13894,6 +13968,7 @@ function worldExploreDeposit(s,firmId,plantId,budgetBase,fieldId=null){
 }
 function worldValidateExploration(s){
  const w=s.worldExpansion,rows=w.explorationAttempts??[],deposits=w.resourceDeposits??{};
+ worldValidateMiningLand(s);
  worldValidateKnownDeposits(s);
  if(!Array.isArray(rows))throw Error('探鉱台帳の形式が不正です');
  const match=worldServiceJournalMatcher(s),claimed=new Set(),months=new Set(),counts=new Map();
@@ -13906,6 +13981,7 @@ function worldValidateExploration(s){
   if(!field||field.siteId!==t.siteId||!f||f.country!==field.country||f.industry!=='resource'||typeof t.plantId!=='string'
    ||!/^EXP-\d+$/.test(t.id)||!Number.isSafeInteger(id)||id<=seq||id>=s.seq||t.journal!==id-1
    ||months.has(key)||!Number.isSafeInteger(t.month)||t.month<ym(field.availableFromYear,1)||t.month>ym(s.year,s.month)
+   ||!worldMiningLandSupportsAction(s,t,id,field.siteId)
    ||!Number.isFinite(t.referenceFx)||t.referenceFx<=0||t.referenceFx!==worldReferenceFx(f.country,s)
    ||!Number.isSafeInteger(t.amount)||t.amount<1||t.amount!==cents(t.budgetBase/t.referenceFx)
    ||t.chanceBps!==terms.chanceBps||t.precisionBps!==terms.precisionBps
@@ -18527,6 +18603,7 @@ function worldDomesticAssetBasis(s,ownerId){
 }
 function worldDomesticBlocksReorganization(s,ownerId,plant=null){
  return Object.values(s.worldExpansion?.resourceDeposits??{}).some(d=>['MODEL_DISCOVERED','MODEL_KNOWN'].includes(d.status)&&d.ownerCompanyId===ownerId&&(!plant||d.plantId===plant.id))
+  ||(!plant&&Object.values(s.worldExpansion?.miningLandTitles??{}).some(t=>t.firmId===ownerId))
   ||(s.worldExpansion?.powerSupplyContracts??[]).some(c=>(c.buyerId===ownerId&&(!plant||c.targetPlantId===plant.id))||(c.sellerId===ownerId&&(!plant||c.sourcePlantId===plant.id)))
   ||Object.values(s.worldExpansion?.publicPowerLines??{}).some(l=>l.ownerCompanyId===ownerId&&(!plant||l.plantId===plant.id))
   ||Object.values(s.worldExpansion?.powerLines??{}).some(l=>(l.gridMode==='REGIONAL'||l.sourceFirmId)&&((l.ownerCompanyId===ownerId&&(!plant||l.targetPlantId===plant.id||l.sourcePlantId===plant.id))||(l.sourceFirmId===ownerId&&(!plant||l.sourcePlantId===plant.id))))
@@ -19727,6 +19804,13 @@ function worldPublicPowerPanel(firm,editable){
 }
 function worldResourceAndPowerPanel(firm,editable){
  const world=S.worldExpansion,facilities=firm.plants.filter(p=>!p.construction);
+ const landRows=firm.industry==='resource'?SITE_CATALOG.filter(site=>site.country===firm.country&&worldMiningLandOpen(S,site.id)).map(site=>{
+  const title=world.miningLandTitles?.[site.id],price=worldMiningLandPrice(site,S.year,S);
+  const owner=title&&company(title.firmId,S);
+  return '<div class="row"><strong>'+esc(site.name)+'の採掘用地</strong>'+(owner
+   ?'<small>所有者 '+esc(owner.name)+'</small>'
+   :'<button class="btn sm" data-world-land-buy="'+esc(site.id)+'" '+(editable&&phase7AvailableCash(S,firm)>=price?'':'disabled')+'>所有権を取得 '+fnum(firm,price)+'</button>')+'</div>';
+ }).join(''):'';
  const mineRows=firm.industry==='resource'?facilities.map((p,i)=>{
   const dep=Object.values(world.resourceDeposits||{}).filter(d=>
    d.ownerCompanyId===firm.id&&d.plantId===p.id&&d.status!=='PROVISIONAL');
@@ -19737,14 +19821,15 @@ function worldResourceAndPowerPanel(firm,editable){
    const explored=(world.explorationAttempts??[]).filter(t=>(t.fieldId??t.siteId)===key&&t.depositId!==null).length;
    return {key,field,remaining:field.reserves.length-explored};
   });
-  const available=fields.filter(x=>x.remaining>0&&worldExplorationFieldOpen(S,x.field));
+  const ownsLand=world.miningLandTitles?.[p.siteId]?.firmId===firm.id;
+  const available=fields.filter(x=>ownsLand&&x.remaining>0&&worldExplorationFieldOpen(S,x.field));
   const last=attempts.at(-1);
   const exploration=fields.length?'<div class="row"><small>史料参照・埋蔵量と確率はモデル値</small><label>探鉱対象<select id="world-explore-field-'+i+'">'+fields.map(x=>'<option value="'+esc(x.key)+'" '+(available.includes(x)?'':'disabled')+'>'+esc(WORLD_PRODUCT_BY_ID.get(x.field.productId).name)+' / 残り区画 '+x.remaining+'</option>').join('')+'</select></label>'
    +'<label>探鉱投資（円相当）<input type="number" id="world-explore-budget-'+i+'" min="1000" max="1000000" value="20000"></label>'
    +'<button class="btn sm" data-world-explore="'+esc(p.id)+'" data-world-explore-budget="world-explore-budget-'+i+'" data-world-explore-field="world-explore-field-'+i+'" '
    +(editable&&available.length&&!dep.some(d=>d.remaining>0)&&last?.month!==ym(S.year,S.month)&&worldDomesticSiteActive(p,p.siteId)?'':'disabled')+'>有償探鉱を実行</button>'
    +(last?'<small>前回：'+(last.depositId?'発見・推定 '+nfmt(last.estimate):'未発見')+' / 成功率 '+nfmt(last.chanceBps/100)+'%・調査精度 '+nfmt(last.precisionBps/100)+'%</small>':'')+'</div>':'';
-  const known=worldKnownDepositsAt(S,p.siteId).map(k=>'<button class="btn sm" data-world-known-plant="'+esc(p.id)+'" data-world-known-field="'+esc(k.fieldId)+'" '+(editable&&!world.resourceDeposits?.[k.id]&&!dep.some(d=>d.remaining>0)&&worldDomesticSiteActive(p,p.siteId)?'':'disabled')+'>'+esc(WORLD_PRODUCT_BY_ID.get(k.field.productId).name)+' 既知鉱床 '+nfmt(k.initialReserve)+(world.resourceDeposits?.[k.id]?'（取得済）':' 取得')+'</button>').join('');
+  const known=worldKnownDepositsAt(S,p.siteId).map(k=>'<button class="btn sm" data-world-known-plant="'+esc(p.id)+'" data-world-known-field="'+esc(k.fieldId)+'" '+(editable&&ownsLand&&!world.resourceDeposits?.[k.id]&&!dep.some(d=>d.remaining>0)&&worldDomesticSiteActive(p,p.siteId)?'':'disabled')+'>'+esc(WORLD_PRODUCT_BY_ID.get(k.field.productId).name)+' 既知鉱床 '+nfmt(k.initialReserve)+(world.resourceDeposits?.[k.id]?'（取得済）':' 取得')+'</button>').join('');
   const opts=dep.map(d=>'<option value="'+esc(d.id)+'" '+(plan?.depositId===d.id?'selected':'')+'>'
    +esc(WORLD_PRODUCT_BY_ID.get(d.productId).name)+' '+nfmt(d.remaining)+'</option>').join('');
   return '<div class="row between"><label>'+esc(p.name)+'の有限鉱床</label><select id="world-dep-'+i+'">'+opts+'</select>'
@@ -19776,15 +19861,16 @@ function worldResourceAndPowerPanel(firm,editable){
    +(line?'<label>月次送電要求 kWh<input type="number" id="world-grid-request-'+i+'" min="0" max="'+line.capacityKwh+'" value="'+(line.monthlyRequestKwh??0)+'"></label><button class="btn sm" data-world-grid-plan="'+esc(p.id)+'" data-world-grid-kind="request" data-world-grid-input="world-grid-request-'+i+'" '+(editable?'':'disabled')+'>月次送電計画</button>':'')+'</div>';
  }).join('');
  return '<section class="panel"><h3>有限資源採掘・探鉱・実燃料発電・有線送電</h3>'
-  +'<p>鉱床は登録された有限埋蔵量だけ採掘します。対応地域は有償探鉱が可能です。発電は設備在庫と石炭在庫を消費し、10%送電損失を記録。'
+  +'<p>探鉱と既知鉱床の新規取得には、採掘用地の所有権と稼働中の採掘施設が必要です。発電は設備在庫と石炭在庫を消費し、10%送電損失を記録。'
   +'燃料/kWhと送電容量・損失は暫定。実使用電力の燃料原価だけを製品原価へ配賦します。国内の広域送電と優先給電、承諾済み法人間契約の実受電量による決済に対応。</p>'
-  +(mineRows||'<p>この企業の稼働可能な有限鉱床は登録されていません。</p>')
+  +landRows+(mineRows||'<p>この企業の稼働可能な有限鉱床は登録されていません。</p>')
   +genRows+worldPowerContractPanel(firm,editable)+worldPublicPowerPanel(firm,editable)+'</section>';
 }
 document.addEventListener('click',event=>{
  const mine=event.target.closest('[data-world-mine-save]');
  const explore=event.target.closest('[data-world-explore]');
  const known=event.target.closest('[data-world-known-plant]');
+ const land=event.target.closest('[data-world-land-buy]');
  const install=event.target.closest('[data-world-generator-install]');
  const generate=event.target.closest('[data-world-generate]');
  const lineInstall=event.target.closest('[data-world-line-install]');
@@ -19792,7 +19878,7 @@ document.addEventListener('click',event=>{
  const gridPlan=event.target.closest('[data-world-grid-plan]');
  const powerOffer=event.target.closest('[data-world-power-offer]'),powerAccept=event.target.closest('[data-world-power-accept]'),powerCancel=event.target.closest('[data-world-power-cancel]');
  const publicInstall=event.target.closest('[data-world-public-power-install]'),publicRetire=event.target.closest('[data-world-public-power-retire]');
- if(!mine&&!explore&&!known&&!install&&!generate&&!lineInstall&&!transfer&&!gridPlan&&!powerOffer&&!powerAccept&&!powerCancel&&!publicInstall&&!publicRetire||!S?.worldExpansion||MONTH_RUNNING||!canEdit(current()))return;
+ if(!mine&&!explore&&!known&&!land&&!install&&!generate&&!lineInstall&&!transfer&&!gridPlan&&!powerOffer&&!powerAccept&&!powerCancel&&!publicInstall&&!publicRetire||!S?.worldExpansion||MONTH_RUNNING||!canEdit(current()))return;
  try{
   const firm=current();
   if(powerOffer){
@@ -19804,6 +19890,7 @@ document.addEventListener('click',event=>{
   }else if(publicRetire)worldRetirePublicPowerLine(S,firm.id,publicRetire.dataset.worldPublicPowerRetire);
   else if(powerAccept)worldAcceptPowerSupply(S,firm.id,powerAccept.dataset.worldPowerAccept);
   else if(powerCancel)worldCancelPowerOffer(S,firm.id,powerCancel.dataset.worldPowerCancel);
+  else if(land)worldPurchaseMiningLand(S,firm.id,land.dataset.worldLandBuy);
   else if(gridPlan){
    const quantity=Number(document.getElementById(gridPlan.dataset.worldGridInput)?.value);
    worldSetGridPlan(S,firm.id,gridPlan.dataset.worldGridPlan,gridPlan.dataset.worldGridKind,quantity);

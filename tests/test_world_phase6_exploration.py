@@ -29,6 +29,8 @@ def main():
           return {firmId:f.id,plantId:p.id};
         }""")
         button = page.locator('[data-world-explore="'+setup["plantId"]+'"]')
+        assert button.is_visible() and button.is_disabled()
+        page.locator('[data-world-land-buy="DE-RUH"]').click()
         assert button.is_visible() and button.is_enabled()
         page.locator('#'+button.get_attribute("data-world-explore-budget")).fill("1000")
         before = page.evaluate("""id => {

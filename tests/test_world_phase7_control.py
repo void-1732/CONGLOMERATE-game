@@ -123,6 +123,31 @@ def main():
  };
 }""")
         assert len(registry)==8 and all(registry.values()),registry
+        lots=page.evaluate("""()=>{
+ const s=newWorldGame({country:'JP',name:'Whole holding units'}),buyer=company(s.playerId,s);
+ const seller=initFirm(s,{name:'Four-lot seller',country:'JP',industry:'service',seedBase:650000,publicOwnership:true});
+ const target=initFirm(s,{name:'Four-lot target',country:'JP',industry:'service',seedBase:650000,publicOwnership:true});
+ syncWorldIdentities(s);
+ for(const f of [buyer,seller])post(f,{cash:1000000000},{capital:1000000000},'検証用資本','financing',s);
+ executeMADeal(s,buyer.id,seller.id,70,2.5);
+ for(let n=0;n<4;n++)executeMADeal(s,seller.id,target.id,20,2.5);
+ const entries=s.equityLinks.filter(l=>l.parentId===seller.id&&l.childId===target.id);
+ const original=entries.reduce((n,l)=>n+l.considerationLocal,0);
+ executeCorporateShareTransfer(s,buyer.id,target.id,seller.id,79.9998,'group',1);
+ const first=s.equityTransfers.at(-1),remainders=entries.map(l=>Math.round(l.remainingRatio*1000000));
+ const balance=remainders.every(x=>x>=0)&&remainders.reduce((a,b)=>a+b,0)===2
+  &&target.owners.find(o=>o.id===seller.id)?.econ===.000002;
+ const basis=entries.every(l=>l.remainingConsiderationLocal>=0&&(l.remainingRatio>0||l.remainingConsiderationLocal===0))
+  &&entries.reduce((n,l)=>n+l.remainingConsiderationLocal,0)===original-first.bookCostLocal;
+ const loaded=parsePayload(savePayload(s));
+ executeCorporateShareTransfer(loaded,buyer.id,target.id,seller.id,.0002,'group',1);
+ const closed=loaded.equityLinks.filter(l=>l.parentId===seller.id&&l.childId===target.id)
+  .every(l=>l.remainingRatio===0&&l.remainingConsiderationLocal===0)
+  &&!company(target.id,loaded).owners.some(o=>o.id===seller.id)&&company(target.id,loaded).owners.find(o=>o.id===buyer.id)?.econ===.8;
+ return {balance,basis,closed,clean:!check(loaded).length&&!consolidate(loaded).errors.length};
+}""")
+        assert len(lots)==4 and all(lots.values()),lots
+        print("PASS Phase 7 SPEC-084/134: nonnegative whole holding units and basis through multi-lot resale and reload")
         circular=page.evaluate("""()=>{
  const s=newWorldGame({country:'JP',name:'Cross ownership audit'});
  const root=company(s.playerId,s),targets=s.firms.filter(f=>f.id!==root.id&&f.country==='JP'&&f.owners.length===1&&f.owners[0].id==='PUBLIC');

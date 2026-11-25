@@ -133,6 +133,24 @@ def main():
         }""",ids)
         assert len(power)==6 and all(power.values()),power
         print("PASS Phase 6 contracted power generation: UI order, physical construction, settlement, fuel and restore")
+        regions=page.evaluate("""({sid})=>{
+          const f=company(sid,S),site=findSite('DE-BER');
+          const local=SITE_CATALOG.find(x=>x.country===f.country&&worldPublicPowerDemand(S,x.id)>0&&!worldConstructionSiteAvailable(S,x.id));
+          if(!local)throw Error('Missing power-only location');
+          const noForeign=!factorySiteAvailable(f,site,S);
+          const earlier={...S,year:1914,month:12};
+          const dateGate=!worldConstructionSiteAvailable(earlier,local.id)&&!factorySiteAvailable(f,local,earlier);
+          post(f,{cash:1000000000},{capital:1000000000},'試験用資金拠出','financing',S);
+          VIEW_FIRM=sid;PAGE='facilityExpansion';render();
+          const select=document.querySelector('#factorySite'),listed=[...select.options].some(x=>x.value===local.id);
+          document.querySelector('#factoryName').value='Regional power facility';select.value=local.id;
+          factoryBuild();
+          const p=f.plants.find(x=>x.name==='Regional power facility');
+          const built=p?.siteId===local.id&&!!p.construction&&worldConstructionTerms(S,'PG',local.id)?.site===p.siteId;
+          return {noForeign,dateGate,listed,built,clean:!check(parsePayload(savePayload(S))).length};
+        }""",ids)
+        assert len(regions)==5 and all(regions.values()),regions
+        print("PASS Phase 6 power-only construction site selection, date gate and save")
         port=page.evaluate("""async()=>{
           saveAuto=async()=>true;S=newWorldGame({country:'JP',name:'Port customer'});
           VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';PAGE='corporateSubsidiaries';render();
