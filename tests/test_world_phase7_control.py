@@ -244,6 +244,26 @@ def main():
 }""")
         assert len(dividend)==8 and all(dividend.values()),dividend
         print("PASS Phase 7 SPEC-056/080/100: eight discretionary distribution and consolidation checks")
+        taxation=page.evaluate("""()=>{
+ const s=newWorldGame({country:'JP',name:'Historical tax audit'});s.year=2023;s.month=1;s.monthCommitted=ym(s.year,s.month)-1;applyWorldHistory(s);syncWorldIdentities(s);
+ const f=company(s.playerId,s),profiles=Object.keys(WORLD_ENGINE_TERRITORY);
+ const coverage=profiles.length===46&&Object.keys(WORLD_CORPORATE_TAX_BPS).length===45&&profiles.every(code=>{const p=phase7CorporateTaxProfile(code,2023);return Number.isSafeInteger(p.bps)&&p.bps>=0&&p.bps<=10000});
+ const country=phase7CorporateTaxProfile('JP',2023).bps===2974&&phase7CorporateTaxProfile('UK',2023).bps===2500&&phase7CorporateTaxProfile('US',2023).bps===2577;
+ const era=phase7CorporateTaxProfile('JP',2000).bps===4087&&phase7CorporateTaxProfile('UK',1980).bps===5200;
+ const missing=phase7CorporateTaxProfile('JP',1900).status==='provisional'&&phase7CorporateTaxProfile('YU',2023).status==='provisional'&&phase7CorporateTaxProfile('JP',2030).dataYear===2023&&phase7CorporateTaxProfile('JP',2030).status==='carried';
+ for(const x of s.firms){x._profitStart=financials(x).profit;x._salesNow=0;x._unitsNow=0;}
+ post(f,{cash:100000000},{otherRevenue:100000000},'課税利益の検証用売上','operating',s);
+ financeMonthly(s,[]);
+ const j=f.journals.findLast(j=>j.taxAssessment),a=j?.taxAssessment;
+ const journal=!!a&&a.country==='JP'&&a.bps===2974&&a.taxableProfit>0&&j.amount===Math.round(a.taxableProfit*2974/10000)&&acc(f,'taxDue')===-j.amount;
+ const payable=f.payables.some(p=>p.account==='taxDue'&&p.amount===j.amount&&p.due===ym(s.year,s.month)+1);
+ const loaded=parsePayload(savePayload(s)),restore=company(f.id,loaded).journals.some(x=>x.id===j.id&&x.taxAssessment?.bps===2974);
+ const forged=structuredClone(loaded);company(f.id,forged).journals.find(x=>x.id===j.id).taxAssessment.bps++;
+ let tamper=false;try{parsePayload(savePayload(forged))}catch(e){tamper=e.message.includes('法人税率')}
+ return {coverage,country,era,missing,journal,payable,restore,tamper,clean:!check(s).length};
+}""")
+        assert len(taxation)==9 and all(taxation.values()),taxation
+        print("PASS Phase 7 SPEC-082: nine country/year tax profile, accounting and restoration checks")
         assert not errors,errors
         print("PASS Phase 7 SPEC-126: six paid purchase boundaries, cash, ownership, 5 staged and 6 inherited-scope accounting checks")
         print("PASS Phase 7 SPEC-134: 8 live and restored shareholder registry checks")

@@ -3763,7 +3763,80 @@ function phase7ValidateLoanSchedules(s){
    throw Error('融資の月次返済台帳が不正：'+loan.id);
  }
 }
-function financeMonthly(s,events){
+// SPEC-082: historical top statutory rates in basis points.
+ // Tax Foundation, worldwide-corporate-tax-rates/intermediate_outputs/rates_final.csv
+ // pinned Git blob c2dc28fb72a0a62d5e06579a95e9c95b63b0cecc, years 1980–2023.
+ // No runtime fetch. Missing observations are NOT labeled historical data.
+ const WORLD_CORPORATE_TAX_SOURCE='https://github.com/TaxFoundation/worldwide-corporate-tax-rates/blob/master/intermediate_outputs/rates_final.csv';
+ const WORLD_CORPORATE_TAX_BPS=Object.freeze({
+  UK:Object.freeze([5200,5200,5200,5000,4500,4000,3500,3500,3500,3500,3400,3300,3300,3300,3300,3300,3300,3100,3100,3000,3000,3000,3000,3000,3000,3000,3000,3000,2800,2800,2800,2600,2400,2300,2100,2000,2000,1900,1900,1900,1900,1900,1900,2500]),
+  FR:Object.freeze([5000,5000,5000,5000,5000,5000,4500,4500,4200,4200,4200,4200,3400,3333,3333,3666,3666,3666,4166,4000,3776,3643,3543,3543,3543,3495,3443,3443,3443,3443,3443,3610,3610,3800,3800,3800,3443,3443,3443,3443,3202,2841,2583,2583]),
+  DE:Object.freeze([null,6000,6000,6000,6000,6000,6000,6000,6000,6000,5455,5625,5815,5652,5217,5511,5588,5680,5605,5203,5203,3890,3890,4022,3890,3890,3890,3890,3018,3018,3018,3018,3018,3018,3018,3018,3018,3018,2983,2990,2990,2994,2983,2994]),
+  NO:Object.freeze([null,5080,5080,5080,5080,5080,5080,5080,5080,5080,5080,5080,2800,2800,2800,2800,2800,2800,2800,2800,2800,2800,2800,2800,2800,2800,2800,2800,2800,2800,2800,2800,2800,2800,2700,2700,2500,2400,2300,2200,2200,2200,2200,2200]),
+  JP:Object.freeze([null,null,null,null,null,null,null,null,null,null,4998,4998,4998,4998,4998,4998,4998,4998,4636,4800,4087,4087,4087,4087,3954,3954,3954,3954,3954,3954,3954,3954,3954,3699,3699,3211,2997,2997,2974,2974,2974,2974,2974,2974]),
+  US:Object.freeze([4970,4970,4970,4983,4979,4979,4982,4418,3859,3867,3865,3885,3886,3975,3969,3961,3953,3945,3944,3939,3934,3927,3930,3932,3932,3929,3930,3927,3925,3916,3921,3919,3913,3905,3908,3900,3892,3891,2584,2589,2577,2575,2581,2577]),
+  CA:Object.freeze([null,5092,4953,4827,4763,4943,4976,4858,4129,4134,4145,4181,4252,4430,4430,4460,4460,4460,4460,4460,4243,4048,3802,3587,3438,3418,3393,3395,3140,3090,2940,2770,2610,2620,2620,2670,2670,2670,2680,2662,2647,2615,2621,2621]),
+  AU:Object.freeze([4600,4600,4600,4600,4600,4600,4900,4900,3900,3900,3900,3900,3900,3300,3300,3600,3600,3600,3600,3600,3400,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000]),
+  NZ:Object.freeze([4500,4500,4500,4500,4500,4500,4800,4800,2800,3300,3300,3300,3300,3300,3300,3300,3300,3300,3300,3300,3300,3300,3300,3300,3300,3300,3300,3300,3000,3000,3000,2800,2800,2800,2800,2800,2800,2800,2800,2800,2800,2800,2800,2800]),
+  MX:Object.freeze([4200,4200,4200,4200,4200,4200,4200,4060,3920,3700,3600,3500,3500,3480,3400,3400,3400,3400,3400,3500,3500,3500,3500,3400,3300,3000,2900,2800,2800,2800,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000]),
+  BR:Object.freeze([3500,3500,3500,3500,3500,3500,3500,3500,3500,3000,3000,3000,3000,2500,2500,2500,2500,2500,2500,3300,3700,3400,3400,3400,3400,3400,3400,3400,3400,3400,3400,3400,3400,3400,3400,3400,3400,3400,3400,3400,3400,3400,3400,3400]),
+  AR:Object.freeze([3300,3300,3300,3300,3300,3300,3300,3300,3300,3300,2000,2000,2000,3000,3000,3000,3000,3300,3300,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3000,3000,3000,3500,3500,3500]),
+  CL:Object.freeze([4860,4860,4860,4860,3700,2350,3700,3700,3250,3250,3250,3500,3500,3500,3500,3500,1500,1500,1500,1500,1500,1500,1600,1650,1700,1700,1700,1700,1700,1700,1700,2000,2000,2000,2100,2250,2400,2500,2500,2500,2500,1000,2700,2700]),
+  CO:Object.freeze([4000,4000,4000,4000,4000,4000,3300,3200,3100,3000,3000,3000,3000,3000,3000,3000,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3400,3300,3300,3300,3300,3300,2500,2500,2500,2500,3400,3300,3300,3200,3100,3500,3500]),
+  SE:Object.freeze([null,5780,5780,5810,5660,5660,5660,5660,5660,6010,5300,3000,3000,3000,2800,2800,2800,2800,2800,2800,2800,2800,2800,2800,2800,2800,2800,2800,2800,2630,2630,2630,2630,2200,2200,2200,2200,2200,2200,2140,2140,2060,2060,2060]),
+  NL:Object.freeze([4800,4800,4800,4800,4300,4300,4200,4200,4200,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3450,3450,3450,3150,2960,2550,2550,2550,2550,2500,2500,2500,2500,2500,2500,2500,2500,2500,2500,2500,2580,2580]),
+  IT:Object.freeze([null,3625,4134,4640,4640,4640,4640,4640,4640,4640,4640,4780,5220,5220,5320,5320,5320,5320,3700,3700,4125,4025,4025,3825,3725,3725,3725,3725,3140,3140,3140,3140,3129,3129,3129,3129,3129,2781,2781,2781,2781,2781,2781,2781]),
+  EG:Object.freeze([3970,3970,3200,3200,4000,4000,4000,4000,4000,4000,4000,4000,4000,4000,4000,4000,4000,4000,4000,4000,4000,4000,4000,4200,4200,2000,2000,2000,2000,2000,2000,2000,2500,2500,2500,2250,2250,2250,2300,2250,2250,2250,2250,2250]),
+  IN:Object.freeze([6000,5910,5640,5640,5500,5500,5000,5000,5000,5000,5000,4000,4500,4500,4500,4000,4000,3500,3500,3500,3850,3955,3570,3675,3588,3659,3366,3399,3399,3399,3399,3244,3245,3399,3399,3461,3461,3461,3500,3000,3000,3000,3000,3000]),
+  ZA:Object.freeze([4200,4000,4000,4200,4200,5000,5000,5000,5000,5000,5000,5000,4800,null,null,null,null,null,null,null,3780,3780,3780,3780,3780,3780,3689,3689,3455,3455,3455,3455,3455,2800,2800,2800,2800,2800,2800,2800,2800,2800,2800,2700]),
+  SG:Object.freeze([4000,4000,4000,4000,4000,4000,4000,3300,3300,3300,3200,3100,3100,3000,2700,2700,2600,2600,2600,2600,2600,2550,2450,2200,2200,2000,2000,2000,1800,1800,1700,1700,1700,1700,1700,1700,1700,1700,1700,1700,1700,1700,1700,1700]),
+  TH:Object.freeze([3500,3500,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,2300,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000]),
+  CN:Object.freeze([5520,5520,5520,4000,4000,4000,4000,4000,4000,4000,4000,4000,3000,3000,3300,3300,3300,3300,3300,3300,3300,3300,3300,3300,3300,3300,3300,3300,2500,2500,2500,2500,2500,2500,2500,2500,2500,2500,2500,2500,2500,2500,2500,2500]),
+  ID:Object.freeze([4500,4500,4500,4500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,2800,2500,2500,2500,2500,2500,2500,2500,2500,2500,2500,2500,2200,2200,2200]),
+  NG:Object.freeze([4500,4500,4500,4500,4500,4500,4500,4000,4000,4000,4000,4000,3500,3500,3500,3500,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000]),
+  ES:Object.freeze([3300,3300,3300,3300,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3250,3000,3000,3000,3000,3000,3000,3000,2800,2500,2500,2500,2500,2500,2500,2500,2500]),
+  PH:Object.freeze([3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3400,3300,3200,3200,3200,3200,3200,3200,3500,3500,3500,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,2500,2500,2500]),
+  RU:Object.freeze([null,null,null,null,null,null,null,null,null,null,3500,3000,3200,3200,3500,3500,3500,3500,3500,3500,3500,3500,2400,2400,2400,2400,2400,2400,2400,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000]),
+  KR:Object.freeze([null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,3080,3080,3080,3080,3080,2970,2970,2970,2750,2750,2750,2750,2420,2420,2420,2420,2420,2420,2420,2420,2420,2750,2750,2750,2750,2750,2650]),
+  TR:Object.freeze([null,null,null,null,null,null,null,null,null,null,null,null,null,4922,4280,4400,4400,4400,4400,3300,3300,3300,3300,3000,3300,3000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2200,2200,2200,2000,2300,2500]),
+  MY:Object.freeze([4000,4000,4000,4000,4000,4000,4000,4000,4000,3500,3500,3500,3500,3400,3200,3000,3000,3000,2800,2800,2800,2800,2800,2800,2800,2800,2800,2700,2600,2500,2500,2500,2500,2500,2500,2500,2400,2400,2400,2400,2400,2400,2400,2400]),
+  KE:Object.freeze([4500,4500,4500,4500,4500,4500,4500,4500,4500,4500,4250,4000,3750,3500,3500,3500,3500,3500,3500,3300,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000]),
+  MA:Object.freeze([4800,4800,4800,4800,4800,4800,4800,4800,4000,4000,4000,4000,4000,3800,3600,3600,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3000,3000,3000,3000,3000,3000,3000,3000,3100,3100,3100,3100,3100,3100,3100,3200]),
+  CH:Object.freeze([null,3305,3305,3305,3287,3187,3168,3169,3059,3060,3060,2772,2803,2847,2847,2847,2847,2847,2780,2509,2493,2470,2442,2410,2410,2133,2133,2132,2117,2117,2117,2117,2117,2115,2115,2115,2115,2115,2115,2115,2115,1970,1970,1965]),
+  AT:Object.freeze([5500,5500,5500,5500,5500,5500,5500,5500,5500,3000,3000,3000,3000,3000,3400,3400,3400,3400,3400,3400,3400,3400,3400,3400,3400,2500,2500,2500,2500,2500,2500,2500,2500,2500,2500,2500,2500,2500,2500,2500,2500,2500,2500,2400]),
+  PL:Object.freeze([null,null,null,null,null,null,null,null,null,null,null,4000,4000,4000,4000,4000,4000,3800,3600,3400,3000,2800,2800,2700,1900,1900,1900,1900,1900,1900,1900,1900,1900,1900,1900,1900,1900,1900,1900,1900,1900,1900,1900,1900]),
+  GR:Object.freeze([null,4500,4500,4500,4500,4900,4900,4900,4900,4600,4600,4600,4050,3500,3500,3500,3500,3500,4000,4000,4000,3750,3500,3500,3500,3200,2900,2500,2500,2500,2400,2000,2000,2600,2600,2600,2900,2900,2900,2400,2400,2400,2200,2200]),
+  VN:Object.freeze([null,null,null,null,null,null,null,null,null,null,null,null,null,2500,2500,2500,2500,2500,2500,3200,3200,3200,3200,3200,2800,2800,2800,2800,2800,2500,2500,2500,2500,2500,2200,2200,2200,2000,2000,2000,2000,2000,2000,2000]),
+  IR:Object.freeze([null,5500,5500,5500,5500,5500,5500,5500,5500,5500,7500,7500,7500,5400,5400,5400,5400,5400,5400,5400,5400,5400,5400,null,2500,2500,2500,null,null,null,null,2500,2500,2500,2500,2500,2500,2500,2500,2500,2500,2500,2500,2500]),
+  BE:Object.freeze([4800,4800,4800,4500,4500,4500,4500,4300,4300,4300,4100,3900,3900,4017,4017,4017,4017,4017,4017,4017,4017,4017,4017,3399,3399,3399,3597,3399,3399,3399,3399,3399,3399,3399,3399,3399,3399,3399,2958,2958,2500,2500,2500,2500]),
+  PT:Object.freeze([null,4896,5072,5512,5512,5512,5028,4808,4808,4015,4015,3960,3960,3960,3960,3960,3960,3740,3740,3740,3520,3520,3300,3300,2750,2750,2750,2650,2650,2650,2650,2850,3150,3150,3150,2950,2950,2950,3150,3150,3150,3150,3150,3150]),
+  LU:Object.freeze([null,null,null,null,null,null,null,null,null,null,null,null,null,3939,3939,4029,4029,3034,3745,3745,3745,3745,3038,3038,3038,3038,2963,2963,2963,2859,2859,2880,2880,2922,2922,2922,2922,2708,2601,2494,2494,2494,2494,2494]),
+  AL:Object.freeze([null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,3000,3000,3000,3000,3000,3000,3000,2500,2500,2500,2300,2000,2000,1000,1000,1000,1000,1000,1000,1500,1500,1500,1500,1500,1500,1500,1500,1500,1500]),
+  IE:Object.freeze([4500,4500,5000,5000,5000,5000,5000,5000,4700,4300,4300,4000,4000,4000,4000,3800,3600,3600,3200,2800,2400,2000,1600,1250,1250,1250,1250,1250,1250,1250,1250,1250,1250,1250,1250,1250,1250,1250,1250,1250,1250,1250,1250,1250]),
+  SA:Object.freeze([4500,4500,4500,4500,4500,4500,4500,4500,4500,4500,4500,4500,4500,4500,4500,4500,4500,4500,4500,4500,4500,3000,3000,3000,3000,3000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000,2000]),
+ });
+ function phase7CorporateTaxProfile(country,year){
+  const series=WORLD_CORPORATE_TAX_BPS[country];
+  if(series&&year>=1980){
+   const index=Math.min(43,year-1980);
+   for(let i=index;i>=0;i--)if(series[i]!==null){
+    const dataYear=1980+i;
+    return {bps:series[i],dataYear,status:dataYear===year?'observed':'carried',country};
+   }
+  }
+  return {bps:1500,dataYear:null,status:'provisional',country};
+ }
+ function phase7ValidateTaxAssessments(s){
+  for(const f of s.firms)for(const j of f.journals){
+   if(j.taxAssessment===undefined)continue;
+   const a=j.taxAssessment,p=phase7CorporateTaxProfile(a?.country,Math.floor(j.when/12));
+   if(!a||!Object.hasOwn(WORLD_ENGINE_TERRITORY,a.country)||!Number.isSafeInteger(a.taxableProfit)||a.taxableProfit<1
+    ||a.bps!==p.bps||a.status!==p.status||a.dataYear!==p.dataYear||j.text!=='当月法人税見込計上'||j.kind!=='operating'
+    ||j.amount!==Math.round(a.taxableProfit*a.bps/10000)||j.dr.length!==1||j.cr.length!==1||j.dr[0][0]!=='taxExpense'||j.cr[0][0]!=='taxDue'||j.dr[0][1]!==j.amount||j.cr[0][1]!==j.amount)
+    throw Error('法人税率・課税利益・仕訳の監査不一致：'+f.id);
+  }
+ }
+ function financeMonthly(s,events){
  // Stage 1: settle intercompany and external liabilities before period-wide financial reporting.
  for(const f of s.firms){
   settleScheduled(f,s);payWages(f,s);
@@ -3797,8 +3870,11 @@ function financeMonthly(s,events){
  // Stage 2: recognize current-period taxes and issue reports after all intercompany legs are posted.
  for(const f of s.firms){
   const prevProfit=f._profitStart??0,delta=financials(f).profit-prevProfit;
-  const tax=Math.max(0,Math.round(delta*.15));
-  if(tax){post(f,{taxExpense:tax},{taxDue:tax},'当月法人税見込計上','operating',s);f.payables.push({amount:tax,due:ym(s.year,s.month)+1,account:'taxDue',note:'法人税'});}
+  const profile=s.worldExpansion?phase7CorporateTaxProfile(f.country,s.year):{bps:1500};
+  const tax=Math.max(0,Math.round(delta*profile.bps/10000));
+  if(tax){post(f,{taxExpense:tax},{taxDue:tax},'当月法人税見込計上','operating',s);
+   if(s.worldExpansion)f.journals.at(-1).taxAssessment={...profile,taxableProfit:delta};
+   f.payables.push({amount:tax,due:ym(s.year,s.month)+1,account:'taxDue',note:'法人税'});}
   if(acc(f,'cash')<0)f.distress.stage=Math.max(f.distress.stage,2);
   if(f.distress.stage>=2){f.distress.months++;if(f.distress.months>=3){f.distress.stage=Math.max(f.distress.stage,3);if(f.player)events.push(`${f.name}：資金繰り再建が必要です（${f.distress.months}か月連続）`);}}
   else {f.distress.months=0;f.distress.stage=0;}
@@ -6512,6 +6588,7 @@ function flushSafetySnapshotV037(){
 function parsePayload(raw){if(typeof raw!=='string')throw Error('保存データが存在しません');const obj=JSON.parse(raw);if(obj.format!=='CONGLOMERATE'||obj.version!==SAVE_FORMAT_VERSION)throw Error('対応しない保存形式です');if(hash(obj.payload)!==obj.checksum)throw Error('チェックサム不一致');const s=JSON.parse(obj.payload);
  validateWorldExpansion(s);
  if(s.config?.scenario==='world'){
+  phase7ValidateTaxAssessments(s);
   upgradeWorldMarketRegistry(s);
   // Preserve pre-existing shipment terms; newly dispatched cargo uses SPEC-079.
   s.worldExpansion.uniformDutyFromSeq??=s.seq;
@@ -7545,9 +7622,9 @@ function financePage(){const f=current(),edit=canEdit(f),x=financials(f);const r
 
 /* STEP 4: existing borrow form moved intact. borrow() and accounting remain unchanged. */
 function financeFundingPage(){
- const f=current(),edit=canEdit(f),x=financials(f),w=S.world[f.country];
+ const f=current(),edit=canEdit(f),x=financials(f),w=S.world[f.country],tax=S.worldExpansion?phase7CorporateTaxProfile(f.country,S.year):null;
  return titlePage('資金調達','銀行借入と既存契約を管理します。',tag('既存の借入処理'))+(!edit?noaccess():'')+`<div class="grid">
- <section class="panel span6"><h2>借入・資金繰り</h2>${rowstat('現金',fnum(f,x.cash))}${rowstat('借入残高',fnum(f,x.debt))}${rowstat('未払金',fnum(f,-acc(f,'payable')))}${rowstat('未払給与',fnum(f,-acc(f,'wagesDue')))}${rowstat('法人税未払',fnum(f,-acc(f,'taxDue')))}${rowstat('市場金利（仮）',(w.rate*100).toFixed(2)+'%')}${rowstat('新規借入金利（仮）',((w.rate+.03)*100).toFixed(2)+'%')}<div class="formgrid" style="margin-top:17px"><div class="field"><label for="borrowBase">借入金額（円相当）</label><input type="number" id="borrowBase" min="50000" max="50000000" value="100000" ${edit?'':'disabled'}></div><button class="btn primary" data-action="borrow" ${edit?'':'disabled'}>銀行借入（36か月）</button></div><div class="sep"></div><h3>既存借入</h3>${f.loans.length?f.loans.map(l=>`<div class="itemstat"><span>残元本 ${fnum(f,l.outstanding)}</span><span class="muted">年率${(l.rate*100).toFixed(1)}%${l.repayment?' ／ 当月元本 '+fnum(f,phase7ScheduledPrincipal(S,l))+' ／ 満期 '+Math.floor(l.due/12)+'年'+(l.due%12+1)+'月':' ／ 満期一括'}</span></div>`).join(''):'<div class="muted small">借入契約なし</div>'}<div class="footnote">借入・利息は実取引として仕訳に反映します。債権者別の再建交渉と詳細な税務処理は未実装です。</div></section>
+ <section class="panel span6"><h2>借入・資金繰り</h2>${rowstat('現金',fnum(f,x.cash))}${rowstat('借入残高',fnum(f,x.debt))}${rowstat('未払金',fnum(f,-acc(f,'payable')))}${rowstat('未払給与',fnum(f,-acc(f,'wagesDue')))}${rowstat('法人税未払',fnum(f,-acc(f,'taxDue')))}${tax?rowstat('法人税率（ゲーム内見込）',(tax.bps/100).toFixed(2)+'%・'+(tax.status==='observed'?tax.dataYear+'年資料':tax.status==='carried'?tax.dataYear+'年資料の据置':'暫定15%')):''}${rowstat('市場金利（仮）',(w.rate*100).toFixed(2)+'%')}${rowstat('新規借入金利（仮）',((w.rate+.03)*100).toFixed(2)+'%')}<div class="formgrid" style="margin-top:17px"><div class="field"><label for="borrowBase">借入金額（円相当）</label><input type="number" id="borrowBase" min="50000" max="50000000" value="100000" ${edit?'':'disabled'}></div><button class="btn primary" data-action="borrow" ${edit?'':'disabled'}>銀行借入（36か月）</button></div><div class="sep"></div><h3>既存借入</h3>${f.loans.length?f.loans.map(l=>`<div class="itemstat"><span>残元本 ${fnum(f,l.outstanding)}</span><span class="muted">年率${(l.rate*100).toFixed(1)}%${l.repayment?' ／ 当月元本 '+fnum(f,phase7ScheduledPrincipal(S,l))+' ／ 満期 '+Math.floor(l.due/12)+'年'+(l.due%12+1)+'月':' ／ 満期一括'}</span></div>`).join(''):'<div class="muted small">借入契約なし</div>'}<div class="footnote">借入・利息は実取引として仕訳に反映します。債権者別の再建交渉と詳細な税務処理は未実装です。</div></section>
  <section class="panel span6"><h2>その他の資金調達</h2><p class="hint">株式発行は「資本政策」、グループ内貸付は「企業グループ」で引き続き操作できます。</p><div class="vlist"><button type="button" class="btn" data-page="capital">株式発行・資本政策へ</button><button type="button" class="btn" data-page="corporateSubsidiaries">グループ内貸付へ</button><button type="button" class="btn" data-page="finance">単体財務へ戻る</button></div></section>
  ${S.worldExpansion?worldBankDepositPanel(S,f,edit):''}</div>`;
 }
