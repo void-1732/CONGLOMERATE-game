@@ -147,7 +147,7 @@ def main():
  return {balance,basis,closed,clean:!check(loaded).length&&!consolidate(loaded).errors.length};
 }""")
         assert len(lots)==4 and all(lots.values()),lots
-        print("PASS Phase 7 SPEC-084/134: nonnegative whole holding units and basis through multi-lot resale and reload")
+        print("PASS Phase 7 SPEC-134: nonnegative whole holding units and basis through multi-lot resale and reload")
         circular=page.evaluate("""()=>{
  const s=newWorldGame({country:'JP',name:'Cross ownership audit'});
  const root=company(s.playerId,s),targets=s.firms.filter(f=>f.id!==root.id&&f.country==='JP'&&f.owners.length===1&&f.owners[0].id==='PUBLIC');
@@ -300,10 +300,25 @@ def main():
  document.querySelector('#loanAmount').value='10000';groupLoan();
  const loan=borrower.loans.find(l=>l.parent===lender.id),id=loan.id;
  const opened=loan.acquisitionFunding.remaining===restricted&&phase7AcquisitionCash(S,lender)===0;
+ const asLegacy=save=>{
+  const copy=structuredClone(save),origin=company(borrower.id,copy).loans.find(l=>l.id===id);
+  delete origin.acquisitionFunding;
+  for(const j of company(lender.id,copy).journals){
+   if(j.acquisitionLoanOrigin?.loanId===id)delete j.acquisitionLoanOrigin;
+   if(j.acquisitionLoanReturn?.loanId===id)delete j.acquisitionLoanReturn;
+  }
+  return copy;
+ };
+ const recovered=parsePayload(savePayload(asLegacy(S))),recoveredLoan=company(borrower.id,recovered).loans.find(l=>l.id===id);
+ const recoveredOrigin=recoveredLoan.acquisitionFunding?.remaining===restricted
+  &&company(lender.id,recovered).journals.find(j=>j.id===recoveredLoan.acquisitionFunding.journal)?.acquisitionLoanOrigin?.loanId===id;
  const restored=parsePayload(savePayload(S)),f=company(lender.id,restored),debtor=company(borrower.id,restored);
- restored.month=2;restored.monthCommitted=ym(restored.year,restored.month)-1;
- for(const firm of restored.firms){firm._profitStart=financials(firm).profit;firm._salesNow=0;firm._unitsNow=0;}
- financeMonthly(restored,[]);
+ const closeFinance=s=>{
+  s.month++;s.monthCommitted=ym(s.year,s.month)-1;
+  for(const firm of s.firms){firm._profitStart=financials(firm).profit;firm._salesNow=0;firm._unitsNow=0;}
+  financeMonthly(s,[]);
+ };
+ closeFinance(restored);closeFinance(recovered);
  const repayment=f.journals.findLast(j=>j.acquisitionLoanReturn),interest=f.journals.findLast(j=>j.text.includes('利息の回収'));
  const repaid=cashOfJournal(repayment)===41667&&repayment.acquisitionLoanReturn.cash===41667
    &&debtor.loans.find(l=>l.id===id).acquisitionFunding.remaining===restricted-41667;
@@ -311,11 +326,20 @@ def main():
  const loaded=parsePayload(savePayload(restored)),forged=structuredClone(loaded);
  company(lender.id,forged).journals.find(j=>j.id===repayment.id).acquisitionLoanReturn.cash--;
  let tamper=false;try{parsePayload(savePayload(forged))}catch(e){tamper=e.message.includes('貸付元本')}
+ const recoveredCash=phase7AcquisitionCash(recovered,company(lender.id,recovered))===cashOfJournal(interest);
+ const partial=parsePayload(savePayload(asLegacy(restored))),partialLender=company(lender.id,partial);
+ const unproved=company(borrower.id,partial).loans.find(l=>l.id===id).acquisitionFunding===undefined;
+ const previousRestricted=phase7RestrictedCash(partial,partialLender),taxDue=-acc(partialLender,'taxDue');
+ closeFinance(partial);
+ const partialReceipt=partialLender.journals.findLast(j=>j.text===PHASE7_LOAN_PRINCIPAL_RECEIPT);
+ const fallback=unproved&&previousRestricted===41667&&partialReceipt.acquisitionLoanReturn===undefined
+  &&phase7RestrictedCash(partial,partialLender)===previousRestricted-taxDue+cashOfJournal(partialReceipt)
+  &&!check(parsePayload(savePayload(partial))).length;
  const clean=!check(loaded).length&&!consolidate(loaded).errors.length&&phase7RestrictedCash(loaded,company(lender.id,loaded))===41667;
- return {opened,repaid,audited,tamper,clean};
+ return {opened,repaid,audited,tamper,recoveredOrigin,recoveredCash,fallback,clean};
 }""")
         assert all(loan_funding.values()),loan_funding
-        print("PASS Phase 7 SPEC-117: related-party principal repayment preserves funding sources and restores its audit")
+        print("PASS Phase 7 SPEC-117: audited loan repayment, legacy origin recovery and restriction of unproven principal")
         dividend=page.evaluate("""async()=>{
  S=newWorldGame({country:'JP',name:'Dividend audit'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';saveAuto=async()=>true;
  const root=company(S.playerId,S),target=S.firms.find(f=>f.id!==root.id&&f.country==='JP'&&f.owners.length===1&&f.owners[0].id==='PUBLIC'),rootId=root.id,targetId=target.id;
@@ -443,11 +467,14 @@ def main():
  for(const f of S.firms){f._profitStart=financials(f).profit;f._salesNow=0;f._unitsNow=0;}
  financeMonthly(S,[]);
  const release=(current.allowance??0)===0&&acc(lender,'bankLoanAllowance')===0&&current.remaining===p-p/12&&current.lossChanges.at(-1).delta===-allowance;
+ const receipt=lender.journals.findLast(j=>j.acquisitionLoanReturn?.loanId===loanId);
+ const ownPrincipal=receipt?.acquisitionLoanReturn.cash===0&&cashOfJournal(receipt)===p/12
+   &&debtor.loans.find(x=>x.id===loanId)?.acquisitionFunding.principal===0;
  const clean=!check(S).length&&!consolidate(S).errors.length&&!check(parsePayload(savePayload(S))).length;
- return {loss,ledger,consolidated,risk,restored,tamper,release,clean};
+ return {loss,ledger,consolidated,risk,restored,tamper,release,ownPrincipal,clean};
 }""")
-        assert len(losses)==8 and all(losses.values()),losses
-        print("PASS Phase 7 SPEC-054: eight loan impairment, reversal, consolidation and integrity checks")
+        assert len(losses)==9 and all(losses.values()),losses
+        print("PASS Phase 7 SPEC-054/117: loan impairment, reversal, consolidation, own principal and integrity checks")
         game_url="http://conglomerate.test/index.html"
         page.route(game_url,lambda route:route.fulfill(path=ROOT/"index.html",content_type="text/html; charset=utf-8"))
         page.goto(game_url)

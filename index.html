@@ -3891,7 +3891,7 @@ function phase7ValidateLoanSchedules(s){
     if(pay){const outstandingBefore=loan.outstanding;post(f,{debt:pay},{cash:pay},'借入元本返済','financing',s);loan.outstanding-=pay;
      if(loan.parent){const parent=company(loan.parent,s),book=pay===outstandingBefore?loan.parentRemaining:Math.min(loan.parentRemaining,Math.round(loan.parentRemaining*pay/outstandingBefore));
       const converted=Math.round(pay*s.world[f.country].fx/s.world[parent.country].fx);
-      journalizeRepayment(parent,'loanrec',book,converted,'investing','子会社貸付元本の回収・換算差額',s);
+      journalizeRepayment(parent,'loanrec',book,converted,'investing',PHASE7_LOAN_PRINCIPAL_RECEIPT,s);
       phase7RecordFundingLoanReturn(loan,parent,book,converted);
       registerInterco(s,{kind:'loanCash',seller:parent.id,buyer:f.id,yearMonth:ym(s.year,s.month),fromJournal:parent.journals.at(-1)?.id,toJournal:f.journals.at(-1)?.id});loan.parentRemaining-=book;phase7RecordBankPayment(s,loan,f,parent,'principal',pay);}
     }
@@ -6625,6 +6625,7 @@ function parsePayload(raw){if(typeof raw!=='string')throw Error('保存データ
  if(s.config?.scenario==='world'){
   phase7ValidateTaxAssessments(s);
   phase7ValidateFundingLoanPostings(s);
+  phase7RecoverOpenLoanFunding(s);
   upgradeWorldMarketRegistry(s);
   // Preserve pre-existing shipment terms; newly dispatched cargo uses SPEC-079.
   s.worldExpansion.uniformDutyFromSeq??=s.seq;
@@ -6829,7 +6830,7 @@ function groupLoan(){
   const loan={id:'L'+S.seq++,outstanding:recv,rate:S.world[child.country].rate+.01,due:month+24,parent:parent.id,
    parentRemaining:amount,interestOutstanding:0,parentInterestRemaining:0};
   if(S.worldExpansion)loan.repayment=phase7LoanSchedule(recv,month,24);
-  phase7RecordFundingLoanOrigin(parent,loan,restricted);
+  if(S.worldExpansion)phase7RecordFundingLoanOrigin(parent,loan,restricted);
   child.loans.push(loan);
   render();toast('会社間貸付を記録しました。単体財務に反映しました。');
  }catch(e){toast(e.message);}
@@ -8036,6 +8037,7 @@ function phase7DepositJournalIndex(s,f){
  }
  return index;
 }
+const PHASE7_LOAN_PRINCIPAL_RECEIPT='子会社貸付元本の回収・換算差額';
 function phase7FundingAfter(state,j,deposit){
  const dr=j.dr.reduce((n,[a,v])=>n+(a==='cash'?v:0),0),cr=j.cr.reduce((n,[a,v])=>n+(a==='cash'?v:0),0),net=dr-cr;
  if(net>0){
@@ -8047,7 +8049,9 @@ function phase7FundingAfter(state,j,deposit){
   }
   const debt=j.cr.reduce((n,[a,v])=>n+(a==='debt'?v:0),0);
   const issue=j.text.startsWith('外部向け新株発行：')?j.cr.reduce((n,[a,v])=>n+(a==='capital'?v:0),0):0;
-  state.restricted+=Math.min(net,debt+issue+(j.acquisitionLoanReturn?.cash??0));
+  // A legacy receipt without an auditable principal source cannot fund a purchase.
+  const principal=j.text===PHASE7_LOAN_PRINCIPAL_RECEIPT?(j.acquisitionLoanReturn?.cash??net):0;
+  state.restricted+=Math.min(net,debt+issue+principal);
  }else if(net<0&&!phase7IsSharePurchase(j.text)){
   const used=Math.min(state.restricted,-net);
   if(deposit&&j.id===deposit.journal)state.deposits.set(j.id,used);
@@ -8064,19 +8068,38 @@ const phase7FundingMemo=new WeakMap();
 function phase7LendingRestrictedPrincipal(s,lender,amount){
  return s.worldExpansion?Math.min(amount,phase7RestrictedCash(s,lender)):0;
 }
-function phase7RecordFundingLoanOrigin(lender,loan,restrictedPrincipal){
- if(!restrictedPrincipal)return;
- const j=lender.journals.at(-1);
+function phase7RecordFundingLoanOrigin(lender,loan,restrictedPrincipal,j=lender.journals.at(-1)){
  loan.acquisitionFunding={journal:j.id,principal:restrictedPrincipal,remaining:restrictedPrincipal};
  j.acquisitionLoanOrigin={loanId:loan.id,principal:restrictedPrincipal};
 }
 function phase7RecordFundingLoanReturn(loan,lender,book,cash){
  const funding=loan.acquisitionFunding;
- if(!funding?.remaining||book<=0)return;
+ if(!funding||(!book&&!cash))return;
  const principal=Math.min(funding.remaining,book);
  lender.journals.at(-1).acquisitionLoanReturn={loanId:loan.id,origin:funding.journal,principal,
-  cash:Math.round(cash*(principal/book))};
+  cash:book?Math.round(cash*(principal/book)):0};
  funding.remaining-=principal;
+}
+function phase7RecoverOpenLoanFunding(s){
+ const origins=new Map((s.intercompanyTx??[]).filter(t=>t.kind==='loan').map(t=>[t.fromJournal,t]));
+ for(const borrower of s.firms)for(const loan of borrower.loans??[]){
+  if(loan.acquisitionFunding!==undefined||!loan.parentRemaining||!loan.outstanding||!/^L\d+$/.test(loan.id))continue;
+  const id=Number(loan.id.slice(1)),lender=company(loan.parent,s);
+  if(!lender||lender.phase7FundingArchive)continue;
+  // Group loans issue an intercompany ID before the loan ID. Bank loans issue it after.
+  const t=[origins.get(id-3),origins.get(id-2)].find(x=>x?.seller===lender.id&&x.buyer===borrower.id&&x.toJournal===x.fromJournal+1);
+  const j=lender.journals.find(x=>x.id===t?.fromJournal),debt=borrower.journals.find(x=>x.id===t?.toJournal);
+  // Only match a retained pair when the original book balances are still outstanding.
+  if(!j||!debt||j.acquisitionLoanOrigin!==undefined||j.when!==t.yearMonth||debt.when!==t.yearMonth||j.kind!=='investing'||debt.kind!=='financing'
+   ||journalAccountFlow(j,'loanrec')!==loan.parentRemaining||cashOfJournal(j)!==-loan.parentRemaining
+   ||journalAccountFlow(debt,'debt')!==-loan.outstanding||cashOfJournal(debt)!==loan.outstanding)continue;
+  const state=phase7FundingState(lender),deposits=phase7DepositJournalIndex(s,lender);
+  for(const entry of lender.journals){
+   if(entry.id===j.id)break;
+   phase7FundingAfter(state,entry,deposits.get(entry.id));
+  }
+  phase7RecordFundingLoanOrigin(lender,loan,Math.min(loan.parentRemaining,state.restricted),j);
+ }
 }
 function phase7ValidateFundingLoanPostings(s){
  const evidence=new Map();
@@ -8086,16 +8109,16 @@ function phase7ValidateFundingLoanPostings(s){
   const fail=()=>Error('貸付元本の買収資金の出所が不正：'+lender.id+' '+j.id);
   if(open!==undefined){
    if(!open||!/^L\d+$/.test(open.loanId)||evidence.has(j.id)||returned!==undefined||j.kind!=='investing'
-    ||!Number.isSafeInteger(open.principal)||open.principal<1||open.principal>j.amount
+    ||!Number.isSafeInteger(open.principal)||open.principal<0||open.principal>j.amount
     ||journalAccountFlow(j,'loanrec')!==j.amount||cashOfJournal(j)!==-j.amount)throw fail();
    evidence.set(j.id,{lenderId:lender.id,loanId:open.loanId,principal:open.principal,remaining:open.principal});
    continue;
   }
   if(!returned||!Number.isSafeInteger(returned.origin)||returned.origin<1||returned.origin>=j.id
-   ||!/^L\d+$/.test(returned.loanId)||j.kind!=='investing'||j.text!=='子会社貸付元本の回収・換算差額')throw fail();
+   ||!/^L\d+$/.test(returned.loanId)||j.kind!=='investing'||j.text!==PHASE7_LOAN_PRINCIPAL_RECEIPT)throw fail();
   const origin=evidence.get(returned.origin),book=-journalAccountFlow(j,'loanrec'),cash=cashOfJournal(j);
-  if(!Number.isSafeInteger(returned.principal)||returned.principal<1||returned.principal>book||cash<0
-   ||returned.cash!==Math.round(cash*(returned.principal/book))
+  if(!Number.isSafeInteger(returned.principal)||returned.principal<0||returned.principal>book||cash<0
+   ||returned.cash!==(book?Math.round(cash*(returned.principal/book)):0)
    ||(origin?(origin.lenderId!==lender.id||origin.loanId!==returned.loanId||returned.principal!==Math.min(origin.remaining,book))
      :returned.origin>(lender.phase7FundingArchive?.through??0)))throw fail();
   if(origin)origin.remaining-=returned.principal;
@@ -8104,7 +8127,7 @@ function phase7ValidateFundingLoanPostings(s){
   if(loan.acquisitionFunding===undefined)continue;
   const funding=loan.acquisitionFunding,lender=company(loan.parent,s),origin=evidence.get(funding?.journal);
   if(!funding||!lender||!Number.isSafeInteger(funding.journal)||funding.journal<1||funding.journal>=s.seq
-   ||!Number.isSafeInteger(funding.principal)||funding.principal<1||!Number.isSafeInteger(funding.remaining)
+   ||!Number.isSafeInteger(funding.principal)||funding.principal<0||!Number.isSafeInteger(funding.remaining)
    ||funding.remaining<0||funding.remaining>Math.min(funding.principal,loan.parentRemaining)
    ||(origin?(origin.lenderId!==lender.id||origin.loanId!==loan.id||origin.principal!==funding.principal||origin.remaining!==funding.remaining)
      :funding.journal>(lender.phase7FundingArchive?.through??0)))throw Error('貸付元本の買収資金の繰越が不正：'+loan.id);
