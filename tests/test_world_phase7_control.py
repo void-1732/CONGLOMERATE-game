@@ -97,6 +97,47 @@ def main():
 }""")
         assert len(whole_shares)==8 and all(whole_shares.values()),whole_shares
         print("PASS Phase 7 SPEC-056/134: whole-share quote after issuance, rejection before reservation, and save")
+        integer_register=page.evaluate("""()=>{
+ const s=newWorldGame({country:'JP',name:'Integer share register audit'}),root=company(s.playerId,s);
+ const [a,b]=s.firms.filter(f=>f.id!==root.id&&f.country==='JP'&&f.owners.every(o=>o.id==='PUBLIC'));
+ post(root,{cash:10000000000},{capital:10000000000},'検証資本','financing',s);
+ const reject=fn=>{try{fn();return false}catch{return true}};
+ executeMADeal(s,root.id,a.id,80,2.5);const before=a.shareRegistry.owners.find(o=>o.id===root.id).count;
+ executeCapitalIssuance(s,a.id,5,1,'institutional','ai');
+ const issued=a.shareRegistry.issued===1050000&&a.shareRegistry.owners.find(o=>o.id===root.id).count===before&&a.owners.find(o=>o.id===root.id).econ===800000/1050000;
+ const buyback=executeShareBuybackV0271(s,a.id,5,1.5);
+ const treasury=a.shareRegistry.treasury===52500&&a.shareRegistry.owners.find(o=>o.id===root.id).count===before&&buyback.quantity===52500;
+ cancelTreasurySharesV0271(s,a.id);
+ const cancel=a.shareRegistry.issued===997500&&a.shareRegistry.treasury===0&&a.shareRegistry.owners.find(o=>o.id===root.id).count===before;
+ post(a,{cash:1000000000},{capital:1000000000},'検証資本','financing',s);
+ executeMADeal(s,a.id,b.id,80,2.5);
+ const old=b.shareRegistry.owners.find(o=>o.id===a.id).count;
+ executeCorporateShareTransfer(s,root.id,b.id,a.id,20,'group',1);
+ const corporate=b.shareRegistry.owners.find(o=>o.id===a.id).count===old-200000&&b.shareRegistry.owners.find(o=>o.id===root.id).count===200000;
+ const saved=parsePayload(savePayload(s)),tampered=structuredClone(saved);company(a.id,tampered).shareRegistry.owners[0].count++;
+ const tamper=reject(()=>parsePayload(savePayload(tampered)));
+ const clean=!check(saved).length&&!consolidate(saved).errors.length;
+ return {before:before===800000,issued,treasury,cancel,corporate,tamper,clean,roundTrip:company(a.id,saved).shareRegistry.issued===997500};
+}""")
+        assert len(integer_register)==8 and all(integer_register.values()),integer_register
+        print("PASS Phase 7 integer share registry: issue, buyback, cancellation, transfer, restore and tamper")
+        exact_share=page.evaluate("""()=>{
+ const s=newWorldGame({country:'JP',name:'Exact one share'}),root=company(s.playerId,s),target=s.firms.find(f=>f.id!==root.id&&f.country==='JP'&&f.owners.every(o=>o.id==='PUBLIC'));
+ post(root,{cash:10000000000},{capital:10000000000},'検証資本','financing',s);
+ executeMADeal(s,root.id,target.id,80,2.5);const first=s.equityLinks.at(-1),originalBasis=first.considerationLocal,oldRatio=first.ratio;
+ executeCapitalIssuance(s,target.id,5,1,'institutional','ai');
+ const diluted=first.remainingShares===800000&&first.remainingRatio===800000/1050000&&first.originalRatio===oldRatio&&first.considerationLocal===originalBasis;
+ const pct=phase7SharePercent(target,1),proposal=phase7ProposeMA(s,root.id,target.id,pct,2.5);
+ const exact=proposal.shareSnapshot.quantity===1;
+ phase7SettleMA(s,root.id,proposal.id);
+ const bought=target.shareRegistry.owners.find(o=>o.id===root.id).count===800001&&s.equityLinks.at(-1).remainingShares===1;
+ const all=target.shareRegistry.owners.reduce((n,o)=>n+o.count,0)+target.shareRegistry.treasury===target.sharesOutstanding;
+ const saved=parsePayload(savePayload(s)),fake=structuredClone(saved);fake.equityLinks.at(-1).remainingShares++;
+ let tamper=false;try{parsePayload(savePayload(fake))}catch(e){tamper=e.message.includes('株主名簿')}
+ return {diluted,exact,bought,all,tamper,clean:!check(saved).length&&!consolidate(saved).errors.length};
+}""")
+        assert len(exact_share)==6 and all(exact_share.values()),exact_share
+        print("PASS Phase 7 exact one-share acquisition, lot dilution, reservation and saved registry")
         staged=page.evaluate("""async()=>{
  S=newWorldGame({country:'JP',name:'Staged acquisition'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';saveAuto=async()=>true;
  const root=company(S.playerId,S),target=S.firms.find(f=>f.id!==root.id&&f.country==='JP'&&f.owners.length===1&&f.owners[0].id==='PUBLIC');
