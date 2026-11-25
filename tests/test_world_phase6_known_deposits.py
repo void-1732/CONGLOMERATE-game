@@ -81,6 +81,10 @@ def main():
         }""",ids)
         assert len(result)==19 and all(result.values()),result
         land=page.evaluate("""({id})=>{
+          const parent=company(S.playerId,S);
+          // The first mine and three monthly closes already consumed founding capital.
+          // Fund the second real UI incorporation explicitly rather than assuming cash.
+          post(parent,{cash:500000000},{capital:500000000},'検証用資本','financing',S);
           VIEW_FIRM=S.playerId;PAGE='corporateSubsidiaries';render();
           document.querySelector('#subName').value='Second mining company';
           document.querySelector('#subCountry').value='JP';
@@ -88,6 +92,7 @@ def main():
           document.querySelector('#subCapital').value='1100000';
           createSub();syncWorldIdentities(S);
           const a=company(id,S),b=S.firms.find(x=>x.name==='Second mining company');
+          if(!a||!b)throw Error('Mining transfer fixture: both subsidiaries must be established before transfer');
           const title=worldPurchaseMiningLand(S,id,'JP-SADO'),amount=title.amount,ac=acc(a,'cash'),bc=acc(b,'cash'),before=acc(a,'worldMiningLand');
           const reject=fn=>{try{fn();return false}catch{return true}};
           const encumbered=reject(()=>worldTransferMiningLand(S,id,b.id,'JP-ASHIO'));
