@@ -895,3 +895,37 @@ PRのテスト用マージツリーと実装SHAのツリーは一致する（`05
 - 固定SHAの1,200か月5条件の実結果と原本照合を確認し、未実装または未合格が確定した場合は根本原因だけ修正する。現行の開発CI、実IndexedDB、37画面、120/1,200か月、輸送・会計・保存の受入条件を維持する。Phase 6の正式受入は、最新の対象SHAで実際の全結果が揃った時点で判定する。
 
 > CONGLOMERATEのPhase 6を継続してください。まず `void-1732/CONGLOMERATE-game` の `codex/world-economy-full` の最新HEADを取得し、この引継ぎを読み、実装SHA `6a278f68a5ac3beda67c65b856c02ffef43f75e9` の開発CI #45399058949、実IndexedDB #45399058656、1,200か月 #45399058732 の結果を確認してください。ユーザー保管の確定仕様台帳174項目と詳細設計原本を取得し、Phase 6対象番号を全件照合してください。特定した差分のみ実装・試験・修正し、正式受入対象SHAの全条件を確認してください。`main` は `61ac0f640d9e99a6d6f93aa49f95048070b76fc5` のまま、PR #29はDraftで維持してください。正式受入が完了したときだけ実装、試験回、SHA、Phase 7へ移行できる根拠を報告し、Phase 7はユーザーの指示を待ってください。
+
+
+## 2026-11-25 — Phase 6/7 finance, ownership and acceptance checkpoint (not accepted)
+
+Original references recovered from user Library: 確定仕様台帳174項目, 実装用詳細設計 v0.1, Codex部分実装から完成まで継続指示書. All 174 ledger items were retrieved; this checkpoint maps the Phase 6/7 scope, not a completed item-by-item acceptance of 174 requirements. Phase 8 is expressly prohibited. Main must remain unchanged and PR #29 Draft.
+
+### Implemented commits and direct regression evidence
+
+| Commit | Specification / implementation | Direct JS assertions |
+|---|---|---|
+| 993177d8 (previous checkpoint) | 132 partial mutual subsidiary holdings; 128 cash reservation; 044 concentration and 086 repayment | included in baseline |
+| 13328ec4 | 117 purchase financing source audit from journals, available own cash, debt/issuance exclusion | 10/10 |
+| 3cd282ae | 056/080/100 discretionary dividends, proportional allocation, separate legal accounts, consolidation elimination | 8/8 |
+| b215049d | 082 annual jurisdiction tax rate and assessed profit/tax journal validation; Tax Foundation source blob c2dc28fb72a0a62d5e06579a95e9c95b63b0cecc | 9/9 |
+| 0b512fc5 | 021 domestic bank lending, paired receivable/debt and principal/interest payment receipts, save audit | 9/9 |
+| 85b11586 | 054 loan impairment allowance and reversal, consolidated elimination, save audit | 8/8 |
+
+Latest code SHA 85b11586ddef88fd4a2de1d81ebf7370af02bd51: direct execution of regression JS extracted from tests/test_world_phase7_control.py and the funded construction case in tests/test_world_phase6_construction.py with DOM/I/O substitutes: 115/115 (result 12, staged 5, indirect 6, registry 8, circular 7, reserve 10, repayment 7, funding 10, dividend 8, taxation 9, banking 9, losses 8, funded 16). Not a real Playwright/IndexedDB or 1,200-month pass.
+
+### Phase 6/7 original-scope crosswalk and outstanding gates
+
+| Scope / related IDs | Implemented evidence / unresolved acceptance |
+|---|---|
+| 036/041/046/076/081/153/158/163 — deposits, exploration, land, depletion | finite deposits, paid exploration, depletion cost; independent land title versus existing owned-plant mining rights remains incomplete; geographic/mineral coverage limited (25 profiles, 18 resources, 10 countries); full original audit pending |
+| 016/032/047/078/094 — power and priority | resource/grid, private/public allocation, hospital and production constraints exist; generator fuel/type diversity and coverage of all required locations not proven |
+| 012/024/037/038/045/048/049/059/062/069/073/088/090/093/154/162/165 — construction and logistics | real construction materials, labor, funding, contracts and logistics asset commissioning; grants cover selected jurisdictions, AI return decisions partial; power-plant construction is not yet linked to the construction contract path; port/warehouse/road/rail coverage not fully audited |
+| 021/044/054/086/091 — banking and debt | deposits, loan origination, risk limits, installment principal/interest, loss allowances; bank lending currently JP/Tokyo scope, impairment covers ordinary new bank loans, not all existing credit instruments. 2x equity and 1.5x sector caps, 25% overdue / 100% withdrawal allowances are provisional model parameters, not historical rules |
+| 056/080/100 — dividends / separate cash | direct dividends and group elimination verified; broader cross-border/ownership combination acceptance pending |
+| 082 — tax | 45 jurisdictions / 1,857 observations, 1980–2023 source years; unavailable country-years use 15% provisional fallback and later years carry last known rate. Historical 1900–1979 coverage and specific tax regimes not accepted |
+| 084/121/126/132/134/137 — share and control | 30/70/100 boundaries and subsidiary reciprocal holdings verified; exact whole-share ledger/rounding across all operations, parent reverse acquisition and independent-group mutual control remain open |
+| 117/128/130/140 — purchase funding and settlement | journal funding-source restriction, reservation/release, buyer cash, atomic rejection verified in tested scenarios. Indirect source laundering (including deposit round trips/affiliates), all corporate/legacy proposal reservation paths, end-to-end cross-border acceptance remain open |
+| 040/116/118 — group finance / protection | partial consolidated accounting and external shareholder allocation; not a complete fair value, shareholder protection or full transaction audit |
+
+Phase 6 earlier fixed evidence: 6a278f68 development #45399058949, IndexedDB #45399058656, five 1,200-month conditions #45399058732 reported passed; cannot transfer these results to current SHA. At check of code SHA 85b11586, development CI #45604108221 running, IndexedDB #45604108602 and long #45604108649 queued. Earlier CI runs superseded/cancelled by subsequent commits are not passes. Require complete development/real-browser/IndexedDB/120/1200-month results for one final SHA plus original specification audit. No Phase 6 or 7 acceptance declared; Phase 8 not started.
