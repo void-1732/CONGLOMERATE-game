@@ -3568,6 +3568,15 @@ function bankruptcyHoldingBasis(s,seller,target){
 function bankruptcyQuoteLocal(s,target,country,units,discount){
  return Math.max(1,localFromBase(Math.max(1,Math.round(maValuation(s,target).reference*(units/1000000)*discount)),country,s));
 }
+// SPEC-056/117: world liquidation uses the exact integer-share grid and
+// paid cash only; old non-world saves retain their historical offset route.
+function phase7LiquidationUnitStep(f){
+ const active=(f.sharesOutstanding??1000000)-(f.treasuryShares??0);
+ if(!Number.isSafeInteger(active)||active<=0)throw Error('清算対象の株数が不正です');
+ let a=BigInt(active),b=1000000n;
+ while(b){const r=a%b;a=b;b=r;}
+ return Number(1000000n/a);
+}
 function bankruptcyCashBid(s,seller,target,units){
  const referenceLocal=bankruptcyQuoteLocal(s,target,seller.country,1000000,.70);
  const candidates=s.firms.filter(b=>b.id!==seller.id&&b.id!==target.id&&
@@ -3577,10 +3586,11 @@ function bankruptcyCashBid(s,seller,target,units){
    (s.worldExpansion?phase7AcquisitionCash(s,b):acc(b,'cash'))-localFromBase(Math.round(20000*eraCostFactor(s.year)),b.country,s)))}))
   .filter(x=>x.capacity>0).sort((a,b)=>b.capacity-a.capacity||a.firm.id.localeCompare(b.firm.id));
  for(const c of candidates){
-  let quantity=Math.min(units,Math.floor(c.capacity/referenceLocal*1000000));
+  const step=s.worldExpansion?phase7LiquidationUnitStep(target):1;
+  let quantity=Math.floor(Math.min(units,Math.floor(c.capacity/referenceLocal*1000000))/step)*step;
   if(quantity<1)continue;
   let payment=bankruptcyQuoteLocal(s,target,seller.country,quantity,.70);
-  while(quantity>0&&payment>c.capacity){quantity--;if(quantity)payment=bankruptcyQuoteLocal(s,target,seller.country,quantity,.70);}
+  while(quantity>0&&payment>c.capacity){quantity-=step;if(quantity)payment=bankruptcyQuoteLocal(s,target,seller.country,quantity,.70);}
   if(quantity>0&&payment>0&&payment<=acc(c.firm,'cash'))return {buyer:c.firm,units:quantity,payment};
  }
  return null;
@@ -3588,6 +3598,7 @@ function bankruptcyCashBid(s,seller,target,units){
 function bankruptcyMoveHolding(s,seller,target,basis,units,toId){
  const {owner,oldUnits,records,totalCost}=basis;
  if(!Number.isSafeInteger(units)||units<1||units>oldUnits)throw Error('清算株式数が不正です');
+ if(s.worldExpansion)phase7WholeShareQuantity(target,units);
  const fraction=roundShare(units/1000000);
  const cost=units===oldUnits?totalCost:Math.round(totalCost*units/oldUnits);
  if(cost>acc(seller,'investment'))throw Error('売却原価が保有投資勘定を超えています');
@@ -3635,6 +3646,7 @@ function bankruptcyRecordSale(s,seller,target,entry,kind,toId,units,amount,cost)
  return rec;
 }
 function bankruptcySaleToFirm(s,seller,target,basis,bid,entry){
+ if(s.worldExpansion)phase7WholeShareQuantity(target,bid.units);
  const priorControl=controller(s,target.id,bid.buyer.id);
  post(bid.buyer,{investment:bid.payment},{cash:bid.payment},'倒産企業保有株式の清算取得：'+target.name,'investing',s);
  const buyerJournal=bid.buyer.journals.at(-1)?.id;
@@ -3652,6 +3664,7 @@ function bankruptcySaleToFirm(s,seller,target,basis,bid,entry){
  return bankruptcyRecordSale(s,seller,target,entry,'sale',bid.buyer.id,bid.units,bid.payment,disposal.cost);
 }
 function bankruptcyBankOffset(s,seller,target,basis,entry){
+ if(s.worldExpansion)return null;
  const externalLoans=(seller.loans||[]).filter(l=>!l.parent&&l.outstanding>0)
   .sort((a,b)=>(a.due||0)-(b.due||0));
  if(!externalLoans.length)return null;
@@ -3732,7 +3745,7 @@ function processBankruptcyLiquidations(s,events){
    const bid=bankruptcyCashBid(s,seller,target,basis.oldUnits);
    const transaction=bid?bankruptcySaleToFirm(s,seller,target,basis,bid,entry):
     bankruptcyBankOffset(s,seller,target,basis,entry);
-   if(!transaction){reason=target.name+'：買受資金・弁済可能な外部銀行債権が不足';continue;}
+   if(!transaction){reason=target.name+(s.worldExpansion?'：現金で買い受ける企業が不足':'：買受資金・弁済可能な外部銀行債権が不足');continue;}
    moved++;
    events.push(seller.name+'：倒産株式清算 '+target.name+' '+maPct(transaction.fraction)+
     (transaction.kind==='sale'?'を'+(company(transaction.buyerId,s)?.name||transaction.buyerId)+'へ売却':'を銀行債務と相殺'));
@@ -7772,7 +7785,7 @@ function bankruptcyLiquidationPanel(){
  const cases=(S.bankruptcyLiquidations||[]).slice(-12).reverse();
  const sales=(S.bankruptcyLiquidationSales||[]).slice(0,16);
  if(!cases.length)return '<section class="panel span12"><h2>倒産企業の保有株式清算</h2><p class="hint">現在、株式清算の記録はありません。市場退出した独立企業の保有株式は翌月以降の月末処理で売却・債務弁済の対象になります。</p></section>';
- return '<section class="panel span12"><h2>倒産企業の保有株式清算</h2><p class="hint">倒産した会社の持分は実際の買い手企業の現金で取得するか、外部銀行への代物弁済で移転します。売却先がいない場合は未清算のまま残し、翌月再判定します。廃止企業の法人・会計履歴は削除しません。</p>'+
+ return '<section class="panel span12"><h2>倒産企業の保有株式清算</h2><p class="hint">倒産した会社の持分は実際の買い手企業の現金で取得します。'+(S.worldExpansion?'世界経済では代物弁済による株式取得を行いません。':'旧版では外部銀行への代物弁済も可能です。')+'売却先がいない場合は未清算のまま残し、翌月再判定します。廃止企業の法人・会計履歴は削除しません。</p>'+
  '<div class="scroll"><table><thead><tr><th>倒産企業</th><th>処理</th><th>未売却投資先</th><th>売却収入（円相当）</th><th>債務弁済等（円相当）</th><th>備考</th></tr></thead><tbody>'+
  cases.map(x=>{const firm=company(x.firmId),country=firm?.country||'JP';return '<tr><td>'+esc(firm?.name||x.firmId)+'</td><td>'+(x.remaining?'売却継続':'保有株式処分完了')+'</td><td class="num">'+(x.remaining||0)+'社</td><td class="num">'+baseMoney(baseFromLocal(x.proceedsLocal||0,country))+'</td><td class="num">'+baseMoney(baseFromLocal((x.repaidLocal||0)+(x.debtOffsetLocal||0),country))+'</td><td>'+esc(x.note||'—')+'</td></tr>';}).join('')+
  '</tbody></table></div>'+
@@ -8439,6 +8452,8 @@ function executeCorporateShareTransferUnreserved(s,q){
 }
 
 function maBeginPlan(s,id){const p=s.maPlans.find(x=>x.id===id);if(!p||p.mode!=='pending')throw Error('統合待ちの案件が見つかりません');if(!controller(s,p.target,p.buyer))throw Error('統合開始には対象企業の議決権支配が必要です');p.mode='active';return p;}
+// SPEC-120: review large AI acquisitions each quarter in the world scenario.
+function phase7MAReviewDue(s){return (s.worldExpansion?[1,4,7,10]:[1,7]).includes(s.month);}
 function processMAMonth(s,events){
  ensureMAState(s);const month=ym(s.year,s.month);
  for(const p of s.maPlans){if(!['active','paused'].includes(p.mode)||p.done)continue;
@@ -8456,8 +8471,9 @@ function processMAMonth(s,events){
   }
   if(p.months>=p.duration){p.done=true;p.mode='completed';target.maReputation=clamp((target.maReputation||50)+3,0,100);events.push(buyer.name+'と'+target.name+'の経営統合が完了（法人・株主は存続）');}
  }
- // AI major transactions: monthly evaluation, at most one independent-company acquisition per 6-month window.
- if(![1,7].includes(s.month)||s.firms.length<3)return;
+ // At most one independent-company acquisition per review window; existing
+ // buyer-specific cooldown remains in force.
+ if(!phase7MAReviewDue(s)||s.firms.length<3)return;
  const pool=s.firms.filter(f=>!f.player&&!controller(s,f.id)&&f.lifecycle?.phase==='active'&&f.reorgStatus!=='integrated'&&month-(f.maCooldown||-200)>18&&financials(f).cash>localFromBase(250000,f.country,s)&&financials(f).equity>0).sort((a,b)=>financials(b).cash/worldReferenceFx(b.country,s)-financials(a).cash/worldReferenceFx(a.country,s));
  let completed=0;
  for(const buyer of pool.slice(0,7)){
@@ -8654,7 +8670,7 @@ function maPage(){const buyer=current(),edit=canEdit(buyer);ensureMAState(S);con
  <div class="footnote">既存の「事業移管・企業統合」機能は、条件を満たす同一国の完全子会社について別途利用できます。</div></section>
  <section class="panel span12"><h2>世界のM&A履歴（AIによる買収も掲載）</h2><div class="scroll"><table><thead><tr><th>年月</th><th>買い手</th><th>買収先</th><th>取得比率</th><th>対価</th><th>実行者</th><th>支配獲得</th></tr></thead><tbody>${deals.map(d=>`<tr><td>${Math.floor(d.month/12)}年${d.month%12+1}月</td><td>${esc(company(d.buyer)?.name||d.buyer)}</td><td>${esc(company(d.target)?.name||d.target)}</td><td>${d.percent}%</td><td>${maMoney(d.priceBase)}</td><td>${d.kind==='corporate-share'?'企業株主から譲受':d.actor==='ai'?'AI競合':'プレイヤー'}</td><td>${d.control?'支配あり':'少数持分'}</td></tr>`).join('')||'<tr><td colspan="7">買収記録なし</td></tr>'}</tbody></table></div>
  <h3>統合進捗（全企業）</h3><div class="scroll"><table><thead><tr><th>買収元</th><th>対象企業</th><th>状態</th><th>統合進捗</th><th>費用／月</th></tr></thead><tbody>${(S.maPlans||[]).slice(-20).reverse().map(p=>`<tr><td>${esc(company(p.buyer)?.name||p.buyer)}</td><td>${esc(company(p.target)?.name||p.target)}</td><td>${esc(({pending:'待機',active:'実行中',completed:'完了',paused:'資金不足',halted:'中断'})[p.mode]||p.mode)}</td><td>${p.progress}%</td><td>${maMoney(p.costBase)}</td></tr>`).join('')||'<tr><td colspan="5">案件なし</td></tr>'}</tbody></table></div>
- <p class="footnote">AI企業は半年ごとに資金余力・戦略適合を調べ、株主承諾と支払能力が成立する場合のみ買収します。発生保証はありません。企業価値・AI評価・留保倍率はすべて試作係数であり、現実の上場市場、株価、実在会社の評価ではありません。</p></section></div>`;
+ <p class="footnote">AI企業は${S.worldExpansion?'四半期':'半年'}ごとに資金余力・戦略適合を調べ、株主承諾と支払能力が成立する場合のみ買収します。発生保証はありません。企業価値・AI評価・留保倍率はすべて試作係数であり、現実の上場市場、株価、実在会社の評価ではありません。</p></section></div>`;
 }
 
 /* CONGLOMERATE v0.20 — AI vehicle competition, supplier disruption, equity issuance.

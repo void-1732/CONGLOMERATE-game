@@ -13,6 +13,32 @@ def main():
         page.on("pageerror",lambda e:errors.append(str(e)))
         page.set_content((ROOT/"index.html").read_text(encoding="utf-8"))
         page.wait_for_function("STORAGE_READY")
+        liquidation=page.evaluate("""()=>{
+ const s=newWorldGame({country:'JP',name:'Cash liquidation and quarter review'}),root=company(s.playerId,s);
+ ensureBankruptcyLiquidationState(s);
+ const pool=s.firms.filter(f=>f.id!==root.id&&f.country==='JP'&&f.owners.every(o=>o.id==='PUBLIC'));
+ const [seller,target,buyer]=pool;
+ if(!buyer)throw Error('liquidation fixture unavailable');
+ post(seller,{cash:1000000000},{capital:1000000000},'検証用資本','financing',s);
+ post(buyer,{cash:1000000000},{capital:1000000000},'検証用資本','financing',s);
+ executeCapitalIssuance(s,target.id,5,1,'institutional','ai');
+ executeMADeal(s,seller.id,target.id,20,2.5,'ai');
+ const basis=bankruptcyHoldingBasis(s,seller,target),before=JSON.stringify(s);
+ const noOffset=bankruptcyBankOffset(s,seller,target,basis,{})===null&&JSON.stringify(s)===before;
+ const step=phase7LiquidationUnitStep(target)===20&&phase7LiquidationUnitStep({sharesOutstanding:1000000})===1
+  &&phase7LiquidationUnitStep({sharesOutstanding:1050000,treasuryShares:50000})===1;
+ let rejected=false;try{bankruptcySaleToFirm(s,seller,target,basis,{buyer,units:1,payment:100},{});}catch(e){rejected=e.message.includes('整数株数')}
+ const unchanged=JSON.stringify(s)===before;
+ const bid=bankruptcyCashBid(s,seller,target,basis.oldUnits),quote=!!bid&&bid.units%20===0&&phase7WholeShareQuantity(target,bid.units)>0;
+ const buyerCash=acc(buyer,'cash'),sellerCash=acc(seller,'cash'),payment=bankruptcyQuoteLocal(s,target,seller.country,20,.70);
+ const sale=bankruptcySaleToFirm(s,seller,target,basis,{buyer,units:20,payment},{});
+ const cash=sale.kind==='sale'&&acc(buyer,'cash')===buyerCash-payment&&acc(seller,'cash')===sellerCash+payment;
+ const quarter=Array.from({length:12},(_,i)=>i+1).filter(month=>phase7MAReviewDue({worldExpansion:{},month})).join(',')==='1,4,7,10';
+ const legacy=Array.from({length:12},(_,i)=>i+1).filter(month=>phase7MAReviewDue({month})).join(',')==='1,7';
+ return {noOffset,step,rejected,unchanged,quote,cash,quarter,legacy,clean:!check(s).length&&!check(parsePayload(savePayload(s))).length};
+}""")
+        assert len(liquidation)==9 and all(liquidation.values()),liquidation
+        print("PASS Phase 7 SPEC-056/117/120: whole share liquidation, cash only, quarter review")
         result=page.evaluate("""async()=>{
  S=newWorldGame({country:'JP',name:'Phase7 thresholds'});
  VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';
