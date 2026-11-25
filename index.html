@@ -931,7 +931,7 @@ const hash=str=>{let h=2166136261;for(let i=0;i<str.length;i++){h^=str.charCodeA
 function company(id,s=S){return s.firms.find(f=>f.id===id)}
 function current(){return company(VIEW_FIRM)||company(S?.playerId)}
 function acc(f,name){return f.ledger[name]||0}
-function post(f,dr,cr,desc,kind='operating',s=S){const d=Object.entries(dr).map(([a,n])=>[a,Math.round(n)]).filter(x=>x[1]), c=Object.entries(cr).map(([a,n])=>[a,Math.round(n)]).filter(x=>x[1]); const ds=d.reduce((a,b)=>a+b[1],0),cs=c.reduce((a,b)=>a+b[1],0); if(ds!==cs||ds<0||!Number.isSafeInteger(ds))throw Error('仕訳不一致: '+desc+' '+ds+'/'+cs);if(!ds)return;if(s.worldExpansion&&phase7IsSharePurchase(desc)){const paid=c.reduce((n,[a,v])=>n+(a==='cash'?v:0),0);if(paid>phase7AcquisitionCash(s,f))throw Error('株式買収に借入・増資資金は利用できません');}if(s.worldExpansion?.maReservations?.length){const net=c.reduce((v,[a,n])=>v+(a==='cash'?n:0),0)-d.reduce((v,[a,n])=>v+(a==='cash'?n:0),0);if(net>0&&phase7ReservedCash(s,f.id)>0&&net>phase7AvailableCash(s,f))throw Error('買収予約資金は他の支出に利用できません');}for(const [a,n] of d){if(!ACCTYPE[a])throw Error('勘定科目 '+a);f.ledger[a]=(f.ledger[a]||0)+n}for(const [a,n] of c){if(!ACCTYPE[a])throw Error('勘定科目 '+a);f.ledger[a]=(f.ledger[a]||0)-n} f.journals.push({id:s.seq++,when:ym(s.year,s.month),text:desc,kind,amount:ds,dr:d,cr:c,fxAtPost:s?.world?.[f.country]?.fx??worldReferenceFx(f.country,s)});if(f.journals.length>10000){const removed=f.journals.splice(0,f.journals.length-10000);if(s.worldExpansion){let prior=f.phase7FundingArchive?.restricted??0;for(const j of removed)prior=phase7FundingAfter(prior,j);f.phase7FundingArchive={through:removed.at(-1).id,restricted:prior};}}}
+function post(f,dr,cr,desc,kind='operating',s=S){const d=Object.entries(dr).map(([a,n])=>[a,Math.round(n)]).filter(x=>x[1]), c=Object.entries(cr).map(([a,n])=>[a,Math.round(n)]).filter(x=>x[1]); const ds=d.reduce((a,b)=>a+b[1],0),cs=c.reduce((a,b)=>a+b[1],0); if(ds!==cs||ds<0||!Number.isSafeInteger(ds))throw Error('仕訳不一致: '+desc+' '+ds+'/'+cs);if(!ds)return;if(s.worldExpansion&&phase7IsSharePurchase(desc)){const paid=c.reduce((n,[a,v])=>n+(a==='cash'?v:0),0);if(paid>phase7AcquisitionCash(s,f))throw Error('株式買収に借入・増資資金は利用できません');}if(s.worldExpansion?.maReservations?.length){const net=c.reduce((v,[a,n])=>v+(a==='cash'?n:0),0)-d.reduce((v,[a,n])=>v+(a==='cash'?n:0),0);if(net>0&&phase7ReservedCash(s,f.id)>0&&net>phase7AvailableCash(s,f))throw Error('買収予約資金は他の支出に利用できません');}for(const [a,n] of d){if(!ACCTYPE[a])throw Error('勘定科目 '+a);f.ledger[a]=(f.ledger[a]||0)+n}for(const [a,n] of c){if(!ACCTYPE[a])throw Error('勘定科目 '+a);f.ledger[a]=(f.ledger[a]||0)-n} f.journals.push({id:s.seq++,when:ym(s.year,s.month),text:desc,kind,amount:ds,dr:d,cr:c,fxAtPost:s?.world?.[f.country]?.fx??worldReferenceFx(f.country,s)});if(f.journals.length>10000){const removed=f.journals.splice(0,f.journals.length-10000);if(s.worldExpansion)phase7ArchiveFunding(s,f,removed);}}
 function financials(f){const a=f.ledger;let assets=0,liab=0,eq=0,rev=0,exp=0;for(const [k,t] of Object.entries(ACCTYPE)){let v=a[k]||0;if(t==='asset'||t==='contra')assets+=v; if(t==='liability')liab-=v;if(t==='equity'||t==='contraEquity')eq-=v;if(t==='revenue')rev-=v;if(t==='expense')exp+=v}return {assets,liab,capital:eq,revenue:rev,expenses:exp,profit:rev-exp, equity:eq+rev-exp,cash:acc(f,'cash'),debt:-acc(f,'debt'),bsDiff:assets-liab-eq-rev+exp};}
 function netWorth(f){const x=financials(f);return x.equity}
 function logNotice(text,level='info',s=S){s.notices.unshift({id:s.seq++,when:dateKey(s),text,level});if(s.notices.length>75)s.notices.pop()}
@@ -7962,29 +7962,70 @@ function phase7AvailableCash(s,buyer){return Math.max(0,acc(buyer,'cash')-phase7
 // SPEC-117: cash raised by new debt or secondary capital raising is segregated
 // in the acquisition eligibility audit; ordinary business expenditures consume it first.
 function phase7IsSharePurchase(desc){return /^(?:M&A株式取得|外部株主から株式取得|株式取得|子会社株式譲受|倒産企業保有株式の清算取得)：/.test(desc);}
-function phase7FundingAfter(prior,j){
+function phase7FundingState(f){
+ const archive=f.phase7FundingArchive;
+ return {restricted:archive?.restricted??0,
+  deposits:new Map(Object.entries(archive?.depositRestricted??{}).map(([journal,amount])=>[Number(journal),amount]))};
+}
+function phase7DepositJournalIndex(s,f){
+ const index=new Map(),receipts=s.worldExpansion?.bankDeposits;
+ if(!Array.isArray(receipts))return index;
+ for(const receipt of receipts){
+  if(receipt?.clientId!==f.id)continue;
+  index.set(receipt.journal,receipt);
+  if(Number.isSafeInteger(receipt.returnJournal))index.set(receipt.returnJournal+1,receipt);
+ }
+ return index;
+}
+function phase7FundingAfter(state,j,deposit){
  const dr=j.dr.reduce((n,[a,v])=>n+(a==='cash'?v:0),0),cr=j.cr.reduce((n,[a,v])=>n+(a==='cash'?v:0),0),net=dr-cr;
  if(net>0){
+  if(deposit&&j.id===deposit.returnJournal+1){
+   // An older archive may have discarded the opening entry before deposit provenance was recorded.
+   state.restricted+=Math.min(net,state.deposits.get(deposit.journal)??net);
+   state.deposits.delete(deposit.journal);
+   return;
+  }
   const debt=j.cr.reduce((n,[a,v])=>n+(a==='debt'?v:0),0);
   const issue=j.text.startsWith('外部向け新株発行：')?j.cr.reduce((n,[a,v])=>n+(a==='capital'?v:0),0):0;
-  return prior+Math.min(net,debt+issue);
+  state.restricted+=Math.min(net,debt+issue);
+ }else if(net<0&&!phase7IsSharePurchase(j.text)){
+  const used=Math.min(state.restricted,-net);
+  if(deposit&&j.id===deposit.journal)state.deposits.set(j.id,used);
+  state.restricted-=used;
  }
- return net<0&&!phase7IsSharePurchase(j.text)?Math.max(0,prior+net):prior;
+}
+function phase7ArchiveFunding(s,f,removed){
+ const state=phase7FundingState(f),deposits=phase7DepositJournalIndex(s,f);
+ for(const j of removed)phase7FundingAfter(state,j,deposits.get(j.id));
+ f.phase7FundingArchive={through:removed.at(-1).id,restricted:state.restricted};
+ if(state.deposits.size)f.phase7FundingArchive.depositRestricted=Object.fromEntries(state.deposits);
 }
 const phase7FundingMemo=new WeakMap();
-function phase7RestrictedCash(f){
+function phase7RestrictedCash(s,f){
  const last=f.journals.at(-1)?.id??0,archive=f.phase7FundingArchive,previous=phase7FundingMemo.get(f);
  if(previous&&previous.last===last&&previous.archive===archive)return Math.min(Math.max(0,acc(f,'cash')),previous.value);
- let value=archive?.restricted??0;
- for(const j of f.journals)value=phase7FundingAfter(value,j);
+ const state=phase7FundingState(f),deposits=phase7DepositJournalIndex(s,f);
+ for(const j of f.journals)phase7FundingAfter(state,j,deposits.get(j.id));
+ const value=state.restricted;
  phase7FundingMemo.set(f,{last,archive,value});
  return Math.min(Math.max(0,acc(f,'cash')),value);
 }
-function phase7AcquisitionCash(s,f){return Math.max(0,phase7AvailableCash(s,f)-phase7RestrictedCash(f));}
+function phase7AcquisitionCash(s,f){return Math.max(0,phase7AvailableCash(s,f)-phase7RestrictedCash(s,f));}
 function phase7ValidateFundingArchive(s){
  for(const f of s.firms){
   const a=f.phase7FundingArchive;
   if(a!==undefined&&(!a||!Number.isSafeInteger(a.through)||a.through<1||a.through>=s.seq||!Number.isSafeInteger(a.restricted)||a.restricted<0||!f.journals.length||a.through>=f.journals[0].id))throw Error('買収資金の繰越監査台帳が不正：'+f.id);
+  if(a?.depositRestricted===undefined)continue;
+  const invalid=()=>Error('買収資金の繰越預金台帳が不正：'+f.id);
+  if(!a.depositRestricted||typeof a.depositRestricted!=='object'||Array.isArray(a.depositRestricted))throw invalid();
+  const deposits=phase7DepositJournalIndex(s,f);
+  for(const [id,amount] of Object.entries(a.depositRestricted)){
+   const journal=Number(id),deposit=deposits.get(journal);
+   if(String(journal)!==id||!deposit||deposit.journal!==journal||journal>a.through
+    ||(deposit.returnJournal!==null&&deposit.returnJournal+1<=a.through)
+    ||!Number.isSafeInteger(amount)||amount<0||amount>deposit.principal)throw invalid();
+  }
  }
 }
 function phase7ValidateMAReservations(s){
@@ -8001,7 +8042,10 @@ function phase7ValidateMAReservations(s){
    throw Error('買収資金予約の金額・参照が不正：'+r?.id);
   ids.add(r.id);pairs.add(key);totals.set(buyer.id,(totals.get(buyer.id)??0)+r.amountLocal);
  }
- for(const [id,total] of totals)if(!Number.isSafeInteger(total)||total>Math.max(0,acc(company(id,s),'cash')-phase7RestrictedCash(company(id,s))))throw Error('買収予約が利用可能な自己資金を超過：'+id);
+ for(const [id,total] of totals){
+  const buyer=company(id,s);
+  if(!Number.isSafeInteger(total)||total>Math.max(0,acc(buyer,'cash')-phase7RestrictedCash(s,buyer)))throw Error('買収予約が利用可能な自己資金を超過：'+id);
+ }
 }
 function phase7ProposeMA(s,buyerId,targetId,percent,multiplier){
  if(!s.worldExpansion)throw Error('世界経済の買収資金予約のみ対応');
@@ -8353,7 +8397,7 @@ function maPage(){const buyer=current(),edit=canEdit(buyer);ensureMAState(S);con
  const plan=S.maPlans.find(x=>x.buyer===buyer.id&&x.target===target.id&&x.mode!=='completed');
  const deals=(S.maDeals||[]).slice(0,16);
  const reserveRows=S.worldExpansion?(S.worldExpansion.maReservations??[]).filter(r=>r.buyerId===buyer.id):[];
- const reservationPanel=S.worldExpansion?'<div class="note">'+rowstat('買収予約額',fnum(buyer,phase7ReservedCash(S,buyer.id)))+rowstat('未予約の現金',fnum(buyer,phase7AvailableCash(S,buyer)))+rowstat('借入・増資由来の買収対象外資金',fnum(buyer,phase7RestrictedCash(buyer)))+rowstat('買収に使用可能な自己資金',fnum(buyer,phase7AcquisitionCash(S,buyer)))+(edit?'<button class="btn" data-phase7-ma-reserve="propose">条件を提示・資金を予約</button>':'')+reserveRows.map(r=>'<div class="row">'+esc(company(r.targetId,S)?.name||r.targetId)+' '+maPct(r.percent/100)+' / '+fnum(buyer,r.amountLocal)+(edit?'<button class="btn primary" data-phase7-ma-reserve="settle" data-id="'+esc(r.id)+'">予約を約定</button><button class="btn" data-phase7-ma-reserve="cancel" data-id="'+esc(r.id)+'">予約取消</button>':'')+'</div>').join('')+'<p class="hint">予約は当月の月末処理開始時に失効します。予約中の資金は他の支出に利用できません。</p></div>':'';
+ const reservationPanel=S.worldExpansion?'<div class="note">'+rowstat('買収予約額',fnum(buyer,phase7ReservedCash(S,buyer.id)))+rowstat('未予約の現金',fnum(buyer,phase7AvailableCash(S,buyer)))+rowstat('借入・増資由来の買収対象外資金',fnum(buyer,phase7RestrictedCash(S,buyer)))+rowstat('買収に使用可能な自己資金',fnum(buyer,phase7AcquisitionCash(S,buyer)))+(edit?'<button class="btn" data-phase7-ma-reserve="propose">条件を提示・資金を予約</button>':'')+reserveRows.map(r=>'<div class="row">'+esc(company(r.targetId,S)?.name||r.targetId)+' '+maPct(r.percent/100)+' / '+fnum(buyer,r.amountLocal)+(edit?'<button class="btn primary" data-phase7-ma-reserve="settle" data-id="'+esc(r.id)+'">予約を約定</button><button class="btn" data-phase7-ma-reserve="cancel" data-id="'+esc(r.id)+'">予約取消</button>':'')+'</div>').join('')+'<p class="hint">予約は当月の月末処理開始時に失効します。予約中の資金は他の支出に利用できません。</p></div>':'';
  return titlePage('M&A・企業価値・株主構成','企業を国・業態・価格・資本構成で絞り込み、価格交渉と買収後統合を実行します。',tag('仮評価／簿価ベースの連結'))+(!edit?noaccess():'')+
  `<div class="grid">
  <section class="panel span12"><h2>買収候補を絞り込む</h2><div class="formgrid">

@@ -203,23 +203,60 @@ def main():
  const reject=fn=>{try{fn();return false}catch{return true}};
  const own=acc(buyer,'cash');post(buyer,{otherExpense:own},{cash:own},'検証用現金支出','operating',s);
  const borrowed=1000000000;post(buyer,{cash:borrowed},{debt:borrowed},'銀行借入','financing',s);
- const debtBlocked=phase7RestrictedCash(buyer)===borrowed&&phase7AcquisitionCash(s,buyer)===0&&!maQuote(s,buyer,target,30,2.5).affordable;
+ const debtBlocked=phase7RestrictedCash(s,buyer)===borrowed&&phase7AcquisitionCash(s,buyer)===0&&!maQuote(s,buyer,target,30,2.5).affordable;
  const before=JSON.stringify(s),denied=reject(()=>phase7ProposeMA(s,buyer.id,target.id,30,2.5))&&before===JSON.stringify(s);
  const issued=200000000;post(buyer,{cash:issued},{capital:issued},'外部向け新株発行：検証','financing',s);
- const issueBlocked=phase7RestrictedCash(buyer)===borrowed+issued&&phase7AcquisitionCash(s,buyer)===0;
+ const issueBlocked=phase7RestrictedCash(s,buyer)===borrowed+issued&&phase7AcquisitionCash(s,buyer)===0;
  const raw=JSON.stringify(buyer.ledger),seq=s.seq;
  const guard=reject(()=>post(buyer,{investment:1},{cash:1},'株式取得：検証','investing',s))&&raw===JSON.stringify(buyer.ledger)&&seq===s.seq;
  post(buyer,{otherExpense:issued},{cash:issued},'通常事業支出','operating',s);
- const consumed=phase7RestrictedCash(buyer)===borrowed;
+ const consumed=phase7RestrictedCash(s,buyer)===borrowed;
  post(buyer,{cash:500000000},{otherRevenue:500000000},'外部営業収入','operating',s);
  const earned=phase7AcquisitionCash(s,buyer)===500000000;
  const r=phase7ProposeMA(s,buyer.id,target.id,30,2.5),reserved=phase7AcquisitionCash(s,buyer)===500000000-r.amountLocal;
- const loaded=parsePayload(savePayload(s)),restored=phase7RestrictedCash(company(buyer.id,loaded))===borrowed&&phase7AcquisitionCash(loaded,company(buyer.id,loaded))===500000000-r.amountLocal;
- phase7SettleMA(s,buyer.id,r.id);const settled=phase7RestrictedCash(buyer)===borrowed&&phase7AcquisitionCash(s,buyer)===500000000-r.amountLocal;
+ const loaded=parsePayload(savePayload(s)),restored=phase7RestrictedCash(loaded,company(buyer.id,loaded))===borrowed&&phase7AcquisitionCash(loaded,company(buyer.id,loaded))===500000000-r.amountLocal;
+ phase7SettleMA(s,buyer.id,r.id);const settled=phase7RestrictedCash(s,buyer)===borrowed&&phase7AcquisitionCash(s,buyer)===500000000-r.amountLocal;
  return {debtBlocked,denied,issueBlocked,guard,consumed,earned,reserved,restored,settled,clean:!check(s).length&&!consolidate(s).errors.length};
 }""")
         assert len(funding)==10 and all(funding.values()),funding
         print("PASS Phase 7 SPEC-117: ten financing source audit and acquisition checks")
+        deposit_funding=page.evaluate("""()=>{
+ const s=newWorldGame({country:'JP',name:'Deposit funding audit'}),buyer=company(s.playerId,s);
+ const target=s.firms.find(f=>f.id!==buyer.id&&f.country==='JP'&&f.owners.every(o=>o.id==='PUBLIC'));
+ const bank=initFirm(s,{name:'Funding audit bank',country:'JP',industry:'service',seedBase:650000,publicOwnership:true});
+ syncWorldIdentities(s);
+ post(buyer,{cash:500000000},{capital:500000000},'検証用資本','financing',s);
+ executeMADeal(s,buyer.id,bank.id,70,2.5);
+ const cash=acc(buyer,'cash');post(buyer,{otherExpense:cash},{cash},'検証用現金支出','operating',s);
+ const restricted=maQuote(s,buyer,target,30,2.5).total*100+100,own=120;
+ post(buyer,{cash:restricted},{debt:restricted},'銀行借入','financing',s);
+ post(buyer,{cash:own},{otherRevenue:own},'外部営業収入','operating',s);
+ const a=worldOpenBankDeposit(s,buyer.id,bank.id,restricted-50);
+ const b=worldOpenBankDeposit(s,buyer.id,bank.id,80);
+ const parked=phase7RestrictedCash(s,buyer)===0&&phase7AcquisitionCash(s,buyer)===90;
+ const loaded=parsePayload(savePayload(s)),client=company(buyer.id,loaded);
+ worldWithdrawBankDeposit(loaded,client.id,b.id);
+ const mixed=phase7RestrictedCash(loaded,client)===50&&phase7AcquisitionCash(loaded,client)===own;
+ worldWithdrawBankDeposit(loaded,client.id,a.id);
+ const roundTrip=phase7RestrictedCash(loaded,client)===restricted&&phase7AcquisitionCash(loaded,client)===own
+   &&!maQuote(loaded,client,company(target.id,loaded),30,2.5).affordable;
+ for(let i=0;i<10000;i++)post(buyer,{otherExpense:1},{otherRevenue:1},'繰越検証用仕訳','operating',s);
+ const archived=parsePayload(savePayload(s)),archivedClient=company(buyer.id,archived);
+ const forged=structuredClone(archived);
+ company(buyer.id,forged).phase7FundingArchive.depositRestricted[b.journal]=b.principal+1;
+ let tamper=false;try{parsePayload(savePayload(forged))}catch(e){tamper=e.message.includes('繰越預金')}
+ worldWithdrawBankDeposit(archived,archivedClient.id,b.id);
+ worldWithdrawBankDeposit(archived,archivedClient.id,a.id);
+ const carried=phase7RestrictedCash(archived,archivedClient)===restricted&&phase7AcquisitionCash(archived,archivedClient)===own
+   &&phase7AcquisitionCash(parsePayload(savePayload(archived)),archivedClient)===own;
+ const oldArchive=structuredClone(archived);
+ delete company(buyer.id,oldArchive).phase7FundingArchive.depositRestricted;
+ const restoredOld=parsePayload(savePayload(oldArchive));
+ const oldArchiveSafe=phase7AcquisitionCash(restoredOld,company(buyer.id,restoredOld))===own-30;
+ return {parked,mixed,roundTrip,carried,tamper,oldArchiveSafe};
+}""")
+        assert all(deposit_funding.values()),deposit_funding
+        print("PASS Phase 7 SPEC-117: deposit provenance through refunds, saves and journal archival")
         dividend=page.evaluate("""async()=>{
  S=newWorldGame({country:'JP',name:'Dividend audit'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';saveAuto=async()=>true;
  const root=company(S.playerId,S),target=S.firms.find(f=>f.id!==root.id&&f.country==='JP'&&f.owners.length===1&&f.owners[0].id==='PUBLIC'),rootId=root.id,targetId=target.id;
@@ -273,7 +310,7 @@ def main():
  executeMADeal(S,rootId,bankId,70,2.5);
  const b0=acc(bank,'cash'),r0=acc(root,'cash'),principal=360000,loan=phase7IssueBankLoan(S,bankId,rootId,principal,12),loanId=loan.id;
  const actual=acc(bank,'cash')===b0-principal&&acc(root,'cash')===r0+principal&&acc(bank,'loanrec')===principal&&-acc(root,'debt')===principal;
- const restricted=phase7RestrictedCash(root)>=principal,service=worldServiceActivity(S,'PRD-S06').some(t=>t.ref===loanId&&t.providerId===bankId&&t.principal===principal);
+ const restricted=phase7RestrictedCash(S,root)>=principal,service=worldServiceActivity(S,'PRD-S06').some(t=>t.ref===loanId&&t.providerId===bankId&&t.principal===principal);
  const snap=JSON.stringify(S);let denied=false;try{phase7IssueBankLoan(S,bankId,rootId,acc(bank,'cash')+1,12)}catch{denied=snap===JSON.stringify(S)}
  const restored=parsePayload(savePayload(S)),saved=restored.worldExpansion.bankLoans[0].remaining===principal&&!check(restored).length;
  const close=async()=>{const m=S.monthCommitted;await runMonth();if(S.monthCommitted!==m+1)throw Error(JSON.stringify(LAST_MONTH_DIAGNOSTIC))};
