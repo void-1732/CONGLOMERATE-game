@@ -98,8 +98,34 @@ def main():
  return {inherited,income:audit.periodEntries[childId].revenue===expected,scopeCash:c.cf.scopeAdded===expectedScope,cf:c.cf.reconciled,clean:!c.errors.length&&!check(S).length,restored:!check(parsePayload(savePayload(S))).length};
 }""")
         assert len(indirect)==6 and all(indirect.values()),indirect
+        registry=page.evaluate("""()=>{
+ const s=newWorldGame({country:'JP',name:'Registry audit'});
+ const root=company(s.playerId,s),other=s.firms.find(f=>f.id!==root.id&&f.owners.length===1&&f.owners[0].id==='PUBLIC');
+ if(!other)throw Error('registry fixture unavailable');
+ const bad=mutate=>{
+  const copy=structuredClone(s),f=company(other.id,copy);
+  mutate(f);
+  const prior=JSON.stringify(f.owners);
+  const live=check(copy).some(e=>e.includes('株主名簿'));
+  let restored=false;
+  try{parsePayload(savePayload(copy))}catch(e){restored=e.message.includes('株主名簿')}
+  return live&&restored&&prior===JSON.stringify(f.owners);
+ };
+ return {
+  valid:!check(s).length&&!check(parsePayload(savePayload(s))).length,
+  duplicate:bad(f=>f.owners.push({...f.owners[0],econ:0,vote:0})),
+  self:bad(f=>f.owners[0].id=f.id),
+  unknown:bad(f=>f.owners[0].id='MISSING-OWNER'),
+  invalidEquity:bad(f=>f.owners[0].econ=-0.1),
+  invalidVotes:bad(f=>f.owners[0].vote=0.5),
+  empty:bad(f=>f.owners=[]),
+  nonFiniteLive:(()=>{const copy=structuredClone(s);company(other.id,copy).owners[0].vote=NaN;return check(copy).some(e=>e.includes('株主名簿'))})()
+ };
+}""")
+        assert len(registry)==8 and all(registry.values()),registry
         assert not errors,errors
         print("PASS Phase 7 SPEC-126: six paid purchase boundaries, cash, ownership, 5 staged and 6 inherited-scope accounting checks")
+        print("PASS Phase 7 SPEC-134: 8 live and restored shareholder registry checks")
         browser.close()
 
 if __name__=="__main__":
