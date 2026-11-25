@@ -174,6 +174,30 @@ def main():
 }""")
         assert len(reserve)==10 and all(reserve.values()),reserve
         print("PASS Phase 7 SPEC-128: ten reservation, settlement, release and integrity checks")
+        repayment=page.evaluate("""async()=>{
+ S=newWorldGame({country:'JP',name:'Monthly external loan'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';saveAuto=async()=>true;PAGE='financeFunding';render();
+ const root=company(S.playerId,S),id=root.id;
+ post(root,{cash:1000000000},{capital:1000000000},'検証用資本','financing',S);
+ root.auto=false;root.delegate.mode='manual';
+ const field=document.getElementById('borrowBase');
+ if(field)field.value='360000';else throw Error('borrowBase not found');
+ borrow();
+ const loan=root.loans.at(-1);if(!loan?.repayment)throw Error('monthly contract missing');
+ const principal=loan.outstanding,installment=Math.floor(principal/36)+(principal%36?1:0),loanId=loan.id;
+ const close=async()=>{const m=S.monthCommitted;await runMonth();if(S.monthCommitted!==m+1)throw Error(JSON.stringify(LAST_MONTH_DIAGNOSTIC))};
+ const issue=loan.repayment.principal===principal&&loan.due===loan.repayment.origin+36&&phase7ScheduledPrincipal(S,loan)===0;
+ await close();const first=company(id,S).loans.find(l=>l.id===loanId);
+ const noEarly=first?.outstanding===principal;
+ await close();const debtor=company(id,S),current=debtor.loans.find(l=>l.id===loanId);
+ const monthly=current?.outstanding===principal-installment&&debtor.journals.some(j=>j.when===S.monthCommitted&&j.text==='借入元本返済'&&j.amount===installment);
+ const interest=debtor.journals.some(j=>j.when===S.monthCommitted&&j.text==='当月借入利息発生'&&j.amount===Math.round(principal*loan.rate/12));
+ const restored=parsePayload(savePayload(S)),loaded=company(id,restored).loans.find(l=>l.id===loanId);
+ const forged=structuredClone(restored);company(id,forged).loans.find(l=>l.id===loanId).repayment.principal++;
+ let tamper=false;try{parsePayload(savePayload(forged))}catch(e){tamper=e.message.includes('返済')}
+ return {issue,noEarly,monthly,interest,restored:loaded?.outstanding===current.outstanding&&loaded.repayment.principal===principal,tamper,clean:!check(S).length&&!consolidate(S).errors.length&&consolidate(S).cf.reconciled};
+}""")
+        assert len(repayment)==7 and all(repayment.values()),repayment
+        print("PASS Phase 7 SPEC-086: seven external monthly principal, interest and save checks")
         assert not errors,errors
         print("PASS Phase 7 SPEC-126: six paid purchase boundaries, cash, ownership, 5 staged and 6 inherited-scope accounting checks")
         print("PASS Phase 7 SPEC-134: 8 live and restored shareholder registry checks")

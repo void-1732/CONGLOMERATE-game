@@ -207,10 +207,19 @@ def main():
             &&!worldInfrastructureBankReady(boundary,lender,borrower,room+1);
           const restoredRisk=worldBankCreditRisk(restored,company(bankId,restored));
           const riskRestore=restoredRisk.total===risk.total&&restoredRisk.sector[debit.industry]===1000000;
-          return {history,shares,ui,forbidden,reserved,noPremature,grant,loan,lock,clean,bankExposure,concentration,riskRestore};
+          const installment=Math.floor(l.outstanding/36)+(l.outstanding%36?1:0),principalBefore=l.outstanding;
+          await close();
+          const borrowerAfter=company(pid,S),bankAfter=company(bankId,S),after=borrowerAfter.loans.find(x=>x.id===l.id);
+          const amortized=after?.outstanding===principalBefore-installment&&after.parentRemaining===after.outstanding
+            &&acc(bankAfter,'loanrec')===after.outstanding&&worldBankCreditRisk(S,bankAfter).total===after.outstanding;
+          const principalJournal=borrowerAfter.journals.some(j=>j.when===S.monthCommitted&&j.text==='借入元本返済'&&j.amount===installment)
+            &&bankAfter.journals.some(j=>j.when===S.monthCommitted&&j.text.includes('貸付元本の回収')&&j.amount===installment);
+          const repaymentRestore=parsePayload(savePayload(S)),loanRestored=company(pid,repaymentRestore).loans.find(x=>x.id===l.id);
+          const repaymentClean=loanRestored?.outstanding===after.outstanding&&!check(S).length&&!consolidate(S).errors.length&&consolidate(S).cf.reconciled;
+          return {history,shares,ui,forbidden,reserved,noPremature,grant,loan,lock,clean,bankExposure,concentration,riskRestore,amortized,principalJournal,repaymentClean};
         }""")
-        assert len(funded)==13 and all(funded.values()),funded
-        print("PASS Phase 6/7 funded infrastructure: 13 checks, JV capital, public grant, lender principal, sector concentration and custody")
+        assert len(funded)==16 and all(funded.values()),funded
+        print("PASS Phase 6/7 funded infrastructure: 16 checks, JV capital, public grant, monthly principal, sector concentration and custody")
         autonomous=page.evaluate("""async()=>{
           S=newWorldGame({country:'JP',name:'Domestic freight customer'});saveAuto=async()=>true;
           S.year=1980;S.month=1;S.monthCommitted=ym(S.year,S.month)-1;applyWorldHistory(S);
