@@ -20,6 +20,10 @@ def main():
             actual = page.evaluate("(x) => phase8StrategicScore(x)", {**base, **patch})
             assert (actual > baseline) - (actual < baseline) == sign, (name, actual, baseline)
         print("Phase 8 strategic scoring: 6/6 passed")
+        for market, expected in json.loads("[[{},1],[{\"cycle\":-0.12},0.61],[{\"unemployment\":0.18},0.675],[{\"rate\":0.18},0.675],[{\"war\":true},0.5775],[{\"cycle\":-1},0.35],[{\"cycle\":0.12,\"unemployment\":0.03,\"rate\":0.04},1]]"):
+            actual = page.evaluate("(w) => phase8CrisisFactor(w)", market)
+            assert abs(actual - expected) < 1e-9, (market, actual, expected)
+        print("Phase 8 crisis spending policy: 7/7 passed")
         browser.close()
     print(f"Phase 8 competitive quotes: {len(CASES)}/{len(CASES)} passed")
 

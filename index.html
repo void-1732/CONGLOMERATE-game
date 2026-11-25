@@ -1730,7 +1730,20 @@ function ensureCompetitionPolicy(f,s){
  const c=f.competitive;c.history??=[];if(c.year!==s.year){c.year=s.year;c.spentThisYearBase=0;c.reserveBase=reserve;c.annualCapexBudgetBase=capex;}return c;
 }
 function recordRivalAction(s,f,kind,description){const month=ym(s.year,s.month);f.competitive.history.unshift({month,kind,description});if(f.competitive.history.length>20)f.competitive.history.pop();f.competitive.lastAction=description;s.competition.history.push({month,company:f.id,type:kind,text:f.name+'：'+description});if(s.competition.history.length>120)s.competition.history.splice(0,s.competition.history.length-120);}
-function capitalBudgetAvailable(s,f,amount){const c=ensureCompetitionPolicy(f,s),cash=baseFromLocal(acc(f,'cash'),f.country,s)/100;return c.spentThisYearBase+amount<=c.annualCapexBudgetBase&&cash>=amount+c.reserveBase;}
+// SPEC-015/020: PROVISIONAL crisis response from simulated macro conditions.
+// No historical shock dates are inferred. Manual and legacy decisions are unchanged.
+function phase8CrisisFactor(w){
+ if(!w)return 1;
+ const cycle=Number.isFinite(w.cycle)?w.cycle:0,unemployment=Number.isFinite(w.unemployment)?w.unemployment:0;
+ const rate=Number.isFinite(w.rate)?w.rate:0;
+ const severity=Math.max(0,Math.min(1,Math.max(-cycle*5,(unemployment-.08)*5,(rate-.08)*5,w.war?.65:0)));
+ return Math.max(.35,1-.65*severity);
+}
+function capitalBudgetAvailable(s,f,amount){
+ const c=ensureCompetitionPolicy(f,s),cash=baseFromLocal(acc(f,'cash'),f.country,s)/100;
+ const factor=s.worldExpansion&&!f.player&&!controller(s,f.id)?phase8CrisisFactor(s.world[f.country]):1;
+ return c.spentThisYearBase+amount<=Math.floor(c.annualCapexBudgetBase*factor)&&cash>=amount+Math.ceil(c.reserveBase/factor);
+}
 function rivalMonthlyStrategy(s,f,events){
  if(f.player||controller(s,f.id)||f.lifecycle?.phase==='withdrawn'||!f.auto)return;
  const c=ensureCompetitionPolicy(f,s),month=ym(s.year,s.month),strategy=f.strategy;
@@ -3386,7 +3399,7 @@ function planAI(f,s){ensureGameplayV07(f);
  }
  planAILegacy(f,s);
 }
-function planAILegacy(f,s){if(!f.auto)return;const runway=acc(f,'cash')/(Math.max(1,(f.staff.production+f.staff.research+f.staff.sales+engineers(f))*localFromBase(s.world[f.country].wage,f.country,s)));const target=f.plant.capacity*(runway<1?.4:.83);for(const m of f.models.filter(m=>m.status==='active'))f.plans[m.id]=Math.round(target/Math.max(1,f.models.filter(m=>m.status==='active').length));if(f.strategy==='tech')f.rnd.budgetBase=16000;else if(f.strategy==='profit')f.rnd.budgetBase=5000;else if(f.strategy==='growth')f.rnd.budgetBase=9500;else f.rnd.budgetBase=8000;if(f.competitive&&f.lifecycle?.phase==='active')f.rnd.budgetBase=f.strategy==='tech'?18000:f.strategy==='quality'?13000:f.strategy==='profit'?4500:8000;autoSelectTech(f,s);}
+function planAILegacy(f,s){if(!f.auto)return;const runway=acc(f,'cash')/(Math.max(1,(f.staff.production+f.staff.research+f.staff.sales+engineers(f))*localFromBase(s.world[f.country].wage,f.country,s)));const target=f.plant.capacity*(runway<1?.4:.83);for(const m of f.models.filter(m=>m.status==='active'))f.plans[m.id]=Math.round(target/Math.max(1,f.models.filter(m=>m.status==='active').length));if(f.strategy==='tech')f.rnd.budgetBase=16000;else if(f.strategy==='profit')f.rnd.budgetBase=5000;else if(f.strategy==='growth')f.rnd.budgetBase=9500;else f.rnd.budgetBase=8000;if(f.competitive&&f.lifecycle?.phase==='active')f.rnd.budgetBase=f.strategy==='tech'?18000:f.strategy==='quality'?13000:f.strategy==='profit'?4500:8000;if(s.worldExpansion&&!f.player&&!controller(s,f.id))f.rnd.budgetBase=Math.floor(f.rnd.budgetBase*phase8CrisisFactor(s.world[f.country]));autoSelectTech(f,s);}
 function procureOld(s,events){const avail={};for(const [c,w] of Object.entries(s.world))avail[c]={steel:w.steelSupply*(w.war?.75:1),rubber:w.rubberSupply*(w.war?.8:1)};for(const typ of ['steel','rubber'])for(const code of Object.keys(s.world)){const buyers=s.firms.filter(f=>f.country===code&&(f.industry==='auto'||f.industry==='manufacturing'));let req=buyers.map(f=>({f,q:Math.max(0,Math.round(f.plant.capacity*1.1)-f.stock[typ].q)}));const total=req.reduce((a,b)=>a+b.q,0);const limit=Math.floor(avail[code][typ]);const ratio=total?Math.min(1,limit/total):1;let assigned=0;for(let i=0;i<req.length;i++){const {f,q}=req[i];let amount=Math.min(q,i===req.length-1?Math.max(0,limit-assigned):Math.floor(q*ratio));if(amount<=0)continue;assigned+=amount;const basePrice=currentMonthPrice(s,code,typ),amountLocal=localFromBase(amount*basePrice,code,s);post(f,{materials:amountLocal},{payable:amountLocal},'原材料受領：'+(typ==='steel'?'鋼材':'ゴム')+' '+amount+'単位','operating',s);f.stock[typ].q+=amount;f.stock[typ].v+=amountLocal;f.payables.push({amount:amountLocal,due:ym(s.year,s.month)+1,note:'材料仕入',account:'payable'});}if(total>limit)events.push(`${NAMES[code]}：${typ==='steel'?'鋼材':'ゴム'}の供給不足 ${total-limit}単位`);}}
 // Keep the existing weighted-average legal cost. Trace each domestic acquisition's
 // embedded profit alongside it so reporting can follow mixed stock without repricing it.
@@ -8697,7 +8710,7 @@ function phase8ReviewIndependentBids(s,events,pool,month){
     const factors=[ceiling,1.50,1.40,1.26].filter((v,i,a)=>v<=ceiling&&a.indexOf(v)===i).sort((a,b)=>b-a);
     for(const multiplier of factors){
      const q=maQuote(s,buyer,target,percent,multiplier);
-     if(!q.accepted||q.total>q.available*.47)continue;
+     if(!q.accepted||q.total>q.available*.47*phase8CrisisFactor(s.world[buyer.country]))continue;
      proposals.push({buyerId:buyer.id,targetId:target.id,score,percent,multiplier,total:q.total,available:q.available,accepted:q.accepted});
      break;
     }
