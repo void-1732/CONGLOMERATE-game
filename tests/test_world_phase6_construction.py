@@ -193,10 +193,24 @@ def main():
           const restored=parsePayload(savePayload(S));
           const forged=structuredClone(restored);forged.worldExpansion.constructionContracts[0].funding.approval.grant++;
           const clean=!check(restored).length&&!g.errors.length&&g.cf.reconciled&&reject(()=>parsePayload(savePayload(forged)));
-          return {history,shares,ui,forbidden,reserved,noPremature,grant,loan,lock,clean};
+          const risk=worldBankCreditRisk(S,credit);
+          const bankExposure=risk.total===1000000&&risk.sector[debit.industry]===1000000
+            &&risk.liquid===Math.max(0,acc(credit,'cash'))&&risk.totalLimit===Math.floor(risk.equity*2)
+            &&risk.sectorLimit===Math.floor(risk.equity*1.5);
+          const boundary=structuredClone(S),lender=company(bankId,boundary),borrower=company(pid,boundary);
+          const cap=worldBankCreditRisk(boundary,lender),room=cap.sectorLimit-cap.sector[borrower.industry];
+          // Isolate the policy boundary from the unrelated liquidity and borrower-capital constraints.
+          // The temporary quote fixture is not persisted or used as evidence of a real loan.
+          post(lender,{cash:cap.totalLimit+100000000},{debt:cap.totalLimit+100000000},'審査境界の資金フィクスチャ','financing',boundary);
+          post(borrower,{cash:cap.totalLimit+100000000},{capital:cap.totalLimit+100000000},'審査境界の資本フィクスチャ','financing',boundary);
+          const concentration=room>0&&worldInfrastructureBankReady(boundary,lender,borrower,room)
+            &&!worldInfrastructureBankReady(boundary,lender,borrower,room+1);
+          const restoredRisk=worldBankCreditRisk(restored,company(bankId,restored));
+          const riskRestore=restoredRisk.total===risk.total&&restoredRisk.sector[debit.industry]===1000000;
+          return {history,shares,ui,forbidden,reserved,noPremature,grant,loan,lock,clean,bankExposure,concentration,riskRestore};
         }""")
-        assert len(funded)==10 and all(funded.values()),funded
-        print("PASS Phase 6 funded infrastructure: 10 checks, JV capital, public grant, lender principal and custody")
+        assert len(funded)==13 and all(funded.values()),funded
+        print("PASS Phase 6/7 funded infrastructure: 13 checks, JV capital, public grant, lender principal, sector concentration and custody")
         autonomous=page.evaluate("""async()=>{
           S=newWorldGame({country:'JP',name:'Domestic freight customer'});saveAuto=async()=>true;
           S.year=1980;S.month=1;S.monthCommitted=ym(S.year,S.month)-1;applyWorldHistory(S);

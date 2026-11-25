@@ -149,6 +149,30 @@ def main():
 }""")
         assert len(circular)==7 and all(circular.values()),circular
         print("PASS Phase 7 SPEC-132: seven paid mutual-holding and consolidation checks")
+        reserve=page.evaluate("""()=>{
+ const s=newWorldGame({country:'JP',name:'Reserved funds audit'}),buyer=company(s.playerId,s);
+ const target=s.firms.find(f=>f.id!==buyer.id&&f.country==='JP'&&f.owners.length===1&&f.owners[0].id==='PUBLIC');
+ post(buyer,{cash:1000000000},{capital:1000000000},'検証用資本','financing',s);
+ const reject=fn=>{try{fn();return false}catch{return true}};
+ const cash=acc(buyer,'cash'),r=phase7ProposeMA(s,buyer.id,target.id,30,2.5);
+ const held=phase7ReservedCash(s,buyer.id)===r.amountLocal&&phase7AvailableCash(s,buyer)===cash-r.amountLocal&&acc(buyer,'cash')===cash;
+ const seq=s.seq,ledger=JSON.stringify(buyer.ledger);
+ const blocked=reject(()=>post(buyer,{otherExpense:cash},{cash:cash},'予約済資金の競合支出','operating',s))&&seq===s.seq&&ledger===JSON.stringify(buyer.ledger);
+ const duplicate=reject(()=>phase7ProposeMA(s,buyer.id,target.id,30,2.5));
+ const loaded=parsePayload(savePayload(s)),saved=phase7ReservedCash(loaded,buyer.id)===r.amountLocal;
+ const forged=structuredClone(loaded);forged.worldExpansion.maReservations[0].amountLocal++;
+ const tamper=reject(()=>parsePayload(savePayload(forged)));
+ phase7CancelMA(s,buyer.id,r.id);const cancelled=phase7AvailableCash(s,buyer)===cash;
+ const low=phase7ProposeMA(s,buyer.id,target.id,100,.75);
+ const refused=reject(()=>phase7SettleMA(s,buyer.id,low.id))&&phase7ReservedCash(s,buyer.id)===0&&acc(buyer,'cash')===cash;
+ const success=phase7ProposeMA(s,buyer.id,target.id,30,2.5);
+ phase7SettleMA(s,buyer.id,success.id);
+ const paid=cash-acc(buyer,'cash')===success.amountLocal&&phase7ReservedCash(s,buyer.id)===0&&target.owners.some(o=>o.id===buyer.id&&o.econ===.3);
+ phase7ProposeMA(s,buyer.id,target.id,10,2.5);phase7ExpireMAReservations(s);
+ return {held,blocked,duplicate,saved,tamper,cancelled,refused,paid,expired:phase7ReservedCash(s,buyer.id)===0,clean:!check(s).length&&!check(parsePayload(savePayload(s))).length};
+}""")
+        assert len(reserve)==10 and all(reserve.values()),reserve
+        print("PASS Phase 7 SPEC-128: ten reservation, settlement, release and integrity checks")
         assert not errors,errors
         print("PASS Phase 7 SPEC-126: six paid purchase boundaries, cash, ownership, 5 staged and 6 inherited-scope accounting checks")
         print("PASS Phase 7 SPEC-134: 8 live and restored shareholder registry checks")
