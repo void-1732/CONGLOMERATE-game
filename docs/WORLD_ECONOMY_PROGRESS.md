@@ -974,3 +974,11 @@ Phase 6 earlier fixed evidence: 6a278f68 development #45399058949, IndexedDB #45
 - 独立AIが買収した子会社を経由するケースが、単独法人を前提とした段階取得の試験で発生した。直接取得と間接取得の対象が明確になるように試験データを調整した。間接取得では、創業仕訳が保存上限により繰り越された子会社の現金を、現行残高から支配開始後の現金移動を差し引いて復元する。支配開始後の仕訳が残っている場合に、連結範囲に入る時点の現金とその後のCFを一致させる。専用試験は1万件の取引を事前に計上し、支配開始前後の売上、CF、保存復元を検証する。 [段階取得の失敗ログ](https://github.com/void-1732/CONGLOMERATE-game/actions/runs/45713951539)
 
 正式受入の判定はリポジトリ直下から `python -B tests/test_world_phase9_replay.py --require-accepted` で再現できる。今回の時点では候補証拠121件、対象範囲に未解決の論点があるもの53件。台帳の合格判定には全174項目の仕様原本と実行証拠の照合が要る。
+
+
+### Phase 6–8 follow-up — fuel-specific power, loan uniqueness, historical macro audit (2026-11-26)
+
+- Code commit `7338203f0f23744e8dce09c42a61820c77e3139d`: Phase 6 private AI electricity quotations use the installed generator's actual fuel, conversion and transmission losses, capacity, existing scheduled private load, fuel stock and conservative 10% margin; successful autonomous acceptance establishes a minimum generation plan. Existing public supply planning and manual contracts are preserved. The margin remains a provisional game coefficient. Direct game-engine execution: 21/21 across coal, oil and gas, actual delivery, ledger and world validation.
+- Phase 7: duplicate live bank loan references and mismatched contract IDs are rejected; a reproduced duplicate had doubled risk exposure without an audit error. Direct checks: 3/3.
+- Phase 8: new monthly macro frames identify their market registry version; historical jurisdiction and market opening are replayed, and versioned frames must include all active economies. Legacy frames are checked against a compatible historical registry without inventing missing observations. Direct checks: 6/6.
+- Tests in existing Phase 6 power, Phase 7 control and Phase 8 competitive-bid suites cover the above cases. Direct tests used the actual game script with DOM/I/O substitutes; real Playwright, IndexedDB, full 120/1200-month CI and complete specification acceptance are pending. The final accepted specification and detailed design were recovered in the user Library; this is not an item-by-item acceptance. Main and Draft PR #29 must be preserved.

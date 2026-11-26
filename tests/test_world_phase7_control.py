@@ -684,6 +684,22 @@ def main():
         assert corporate_result["settled"] and corporate_result["clean"],corporate_result
         assert corporate_result["cash"]==[before[0]-settlement["amountLocal"],before[1]+settlement["corporate"]["receiveLocal"],before[2]]
         print("PASS Phase 7 SPEC-128: corporate acquisition reservation, stale release, cross-border payment and real IndexedDB reload")
+        loan_integrity=page.evaluate("""()=>{
+ const s=newWorldGame({country:'JP',name:'Bank duplicate'}),root=company(s.playerId,s);
+ post(root,{cash:5000000000},{capital:5000000000},'検証用資本','financing',s);
+ const bank=initFirm(s,{name:'Bank',country:'JP',industry:'service',seedBase:650000,publicOwnership:true});syncWorldIdentities(s);
+ post(bank,{cash:1000000000},{capital:1000000000},'検証用資本','financing',s);
+ const r=phase7IssueBankLoan(s,bank.id,root.id,360000,12);
+ const valid=!check(s).length&&worldBankCreditRisk(s,bank).total===360000;
+ const dup=structuredClone(s);company(root.id,dup).loans.push(structuredClone(root.loans.find(l=>l.id===r.id)));
+ const duplicate=check(dup).some(e=>e.includes('重複'));
+ const wrong=structuredClone(s);company(root.id,wrong).loans.find(l=>l.id===r.id).id='L999999';
+ const wrongId=check(wrong).length>0;
+ const reject=x=>{try{parsePayload(savePayload(x));return false}catch(e){return true}};
+ return {valid,duplicate,wrongId,duplicateSave:reject(dup),wrongIdSave:reject(wrong),restore:!check(parsePayload(savePayload(s))).length};
+}""")
+        assert len(loan_integrity)==6 and all(loan_integrity.values()),loan_integrity
+        print("PASS Phase 7 duplicate loan and contract ID integrity: 6 checks")
         assert not errors,errors
         print("PASS Phase 7 SPEC-126: six paid purchase boundaries, cash, ownership, 5 staged and 7 inherited-scope accounting checks")
         print("PASS Phase 7 SPEC-134: 8 live and restored shareholder registry checks")

@@ -129,6 +129,35 @@ return {ui:panel.includes(sid+'|'+g.id+'|'+pid),pending,unauthorized,installed,l
 }""")
         assert len(ai_public)==9 and all(ai_public.values()),ai_public
         print("PASS Phase 6 autonomous public power: funding, actual assets, profitability, dispatch and restore")
+        ai_private=page.evaluate("""()=>{
+ const checks={},reject=fn=>{try{fn();return false}catch(e){return true}};
+ for(const [kind,fuel] of [['coal','PRD-R04'],['oil','PRD-M17'],['gas','PRD-R06']]){
+  const s=newWorldGame({country:'JP',name:'Private supply '+kind});s.year=1950;s.month=1;s.monthCommitted=ym(1950,1)-1;applyWorldHistory(s);
+  const root=company(s.playerId,s),seller=initFirm(s,{name:'Independent '+kind,country:'JP',industry:'service',seedBase:650000,publicOwnership:true});seller.auto=true;syncWorldIdentities(s);
+  const a=seller.plants[0],b=root.plants[0];a.condition=b.condition=100;
+  for(const f of [root,seller])if(!f.research.tree.done.includes('energy-1'))f.research.tree.done.push('energy-1');
+  const add=(f,id,q,unit)=>{post(f,{materials:q*unit},{cash:q*unit},'試験用購入','operating',s);const st=f.stock[id]??={q:0,v:0};st.q+=q;st.v+=q*unit};
+  add(seller,'PRD-E04',1,300);add(root,'PRD-M06',2,20);
+  const g=worldInstallGenerator(s,seller.id,a.id,kind);
+  const contract=worldOfferPowerSupply(s,root.id,{sellerId:seller.id,sourcePlantId:a.id,targetPlantId:b.id,requestKwh:15,unitPriceBase:3});
+  checks[kind+'NoFuel']=worldAiPowerSupplyQuote(s,contract)===null;
+  add(seller,fuel,4,19);
+  const q=worldAiPowerSupplyQuote(s,contract);
+  checks[kind+'ActualFuel']=q?.net>0&&q.delivered===14&&q.fuelQty===2;
+  const low={...contract,unitPrice:1};checks[kind+'LowPrice']=worldAiPowerSupplyQuote(s,low)===null;
+  const line=worldAcceptPowerSupply(s,seller.id,contract.id,true);
+  checks[kind+'Accept']=!!line&&g.monthlyFuelQty===2&&contract.status==='ACTIVE';
+  worldDispatchGrid(s,[]);const t=s.worldExpansion.powerTransfers.at(-1);
+  checks[kind+'Delivery']=t?.contractId===contract.id&&t.deliveredKwh===14&&seller.stock[fuel].q===2;
+  checks[kind+'Ledger']=!check(s).length;
+  try{validateWorldExpansion(s);checks[kind+'Validation']=true}catch(e){checks[kind+'Validation']=false}
+  const restored=parsePayload(savePayload(s));
+  checks[kind+'Restore']=!check(restored).length&&restored.worldExpansion.powerGenerators[a.id].monthlyFuelQty===2;
+ }
+ return checks;
+}""")
+        assert len(ai_private)==24 and all(ai_private.values()),ai_private
+        print("PASS Phase 6 fuel-aware autonomous private electricity: 24 checks")
         assert not errors,errors
         print("PASS Phase 6 private and public power: 20 checks; 11 hospital, public, lower-priority, actual treatment, metering and save checks")
         browser.close()

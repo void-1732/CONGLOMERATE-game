@@ -167,6 +167,29 @@ def main():
         assert len(registry_cases)==11 and all(registry_cases),registry_cases
         print("Phase 8 frozen exchange registry integrity: 11/11 passed")
 
+        macro_integrity=page.evaluate("""()=>{
+ const checks={},reject=fn=>{try{fn();return false}catch(e){return true}};
+ const macro=newWorldGame({country:'JP',name:'Macro history'});
+ for(const [year,month] of [[1900,1],[1905,11],[1910,1],[1912,12],[1922,12],[1933,1],[2000,1]]){
+  macro.year=year;macro.month=month;applyWorldHistory(macro);syncWorldIdentities(macro);
+  macro.monthCommitted=ym(year,month);worldRecordMacroHistory(macro);
+ }
+ checks.valid=worldValidateMacroHistory(macro);
+ const forged=structuredClone(macro);forged.worldExpansion.macroHistory.frames[0].rows.find(x=>x[0]==='JP')[1]='JUR-US';
+ checks.jurisdiction=reject(()=>worldValidateMacroHistory(forged));
+ const omitted=structuredClone(macro);omitted.worldExpansion.macroHistory.frames[0].rows.pop();
+ checks.missingCountry=reject(()=>worldValidateMacroHistory(omitted));
+ const future=structuredClone(macro);future.worldExpansion.macroHistory.frames[0].rows.push(structuredClone(future.worldExpansion.macroHistory.frames.at(-1).rows.find(x=>x[0]==='SA')));
+ checks.futureCountry=reject(()=>worldValidateMacroHistory(future));
+ const legacy=structuredClone(macro);for(const f of legacy.worldExpansion.macroHistory.frames)delete f.registryVersion;
+ checks.legacy=worldValidateMacroHistory(legacy);
+ legacy.worldExpansion.macroHistory.frames[0].rows.find(x=>x[0]==='JP')[1]='JUR-US';
+ checks.legacyForged=reject(()=>worldValidateMacroHistory(legacy));
+ return checks;
+}""")
+        assert len(macro_integrity)==6 and all(macro_integrity.values()),macro_integrity
+        print("PASS Phase 8 historical macro jurisdiction and market opening integrity: 6 checks")
+
         browser.close()
     print(f"Phase 8 competitive quotes: {len(CASES)}/{len(CASES)} passed")
 
