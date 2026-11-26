@@ -3237,13 +3237,80 @@ function groupMergerSize(s,from,to){
  const medium=workers>=150||plants>=3||assetsYen>=10000000;
  return {label:large?'大規模':medium?'中規模':'小規模',turns:large?12:medium?5:2,workers,plants,assetsYen};
 }
+
+/* SPEC-129/135: voluntary minority exchange. Direct 70%-plus parent and
+   ordinary public-share classes only; no compulsory squeeze-out or assumed
+   legal approval. Freeze terms at application and round up by public class. */
+function phase8ExchangeTerms(buyerRegistry,targetRegistry,buyerId,buyerValue,targetValue,premiumBps){
+ const br=buyerRegistry,tr=targetRegistry,bactive=br.issued-br.treasury,tactive=tr.issued-tr.treasury;
+ const direct=tr.owners.find(o=>o.id===buyerId),pub=tr.owners.find(o=>o.id==='PUBLIC');
+ if(!Number.isSafeInteger(bactive)||bactive<1||!Number.isSafeInteger(tactive)||tactive<1||tr.treasury!==0
+  ||!direct||!pub||tr.owners.length!==2||direct.count!==direct.votes||pub.count!==pub.votes
+  ||BigInt(direct.votes)*10n<BigInt(tactive)*7n||!Number.isSafeInteger(buyerValue)||buyerValue<1
+  ||!Number.isSafeInteger(targetValue)||targetValue<1||!Number.isSafeInteger(premiumBps)||premiumBps<10000||premiumBps>25000
+  ||tr.external.reduce((n,x)=>n+x.count,0)!==pub.count)throw Error('少数株主の株式交換条件が未対応または不正です');
+ const numerator=BigInt(targetValue)*BigInt(bactive)*BigInt(premiumBps),denominator=BigInt(tactive)*BigInt(buyerValue)*10000n;
+ const allocations=tr.external.filter(b=>b.count>0).map(b=>({id:b.id,oldShares:b.count,newShares:Number((BigInt(b.count)*numerator+denominator-1n)/denominator)}));
+ const newShares=allocations.reduce((n,b)=>n+b.newShares,0),postShares=br.issued+newShares;
+ if(!Number.isSafeInteger(newShares)||newShares<1||!Number.isSafeInteger(postShares)||allocations.some(b=>!Number.isSafeInteger(b.newShares)||b.newShares<1))throw Error('合併株式交換の発行株数が上限を超過しました');
+ const costBase=Number((BigInt(newShares)*BigInt(buyerValue)+BigInt(bactive)-1n)/BigInt(bactive));
+ if(!Number.isSafeInteger(costBase)||costBase<1)throw Error('合併株式交換の取得原価が不正です');
+ return {newShares,postShares,costBase,allocations,minorityShares:pub.count,preShares:br.issued,activeShares:bactive,dilution:newShares/(bactive+newShares)};
+}
+function phase8MinorityExchangeQuote(s,buyer,target){
+ if(!s.worldExpansion||!buyer||!target||buyer.id===target.id||buyer.country!==target.country||buyer.industry!==target.industry
+  ||!isActiveCorporateFirm(buyer)||!isActiveCorporateFirm(target)||!controller(s,target.id,buyer.id)||!phase8MergerSettlementSafe(s,buyer,target))
+  throw Error('株式交換は承継検証可能な同国・同業種の直接支配法人に限定します');
+ const br=phase7ReadShareRegistry(buyer),tr=phase7ReadShareRegistry(target),bv=maValuation(s,buyer).reference,tv=maValuation(s,target).reference;
+ const activeBlocks=target.shareBlocks.filter(b=>tr.external.some(x=>x.id===b.id&&x.count>0));
+ if(activeBlocks.some(b=>!Number.isFinite(b.reserve)||b.reserve<0))throw Error('株主の交換承諾条件が不正です');
+ const premiumBps=Math.ceil(Math.max(1,...activeBlocks.map(b=>b.reserve))*10000-1e-8);
+ const terms=phase8ExchangeTerms(br,tr,buyer.id,bv,tv,premiumBps);
+ return {...terms,buyerValue:bv,targetValue:tv,premiumBps,buyerRegistry:br,targetRegistry:tr};
+}
+function phase8ExchangePlanValid(q,buyerId){
+ try{
+  if(!q||!q.buyerRegistry||!q.targetRegistry)return false;
+  const t=phase8ExchangeTerms(q.buyerRegistry,q.targetRegistry,buyerId,q.buyerValue,q.targetValue,q.premiumBps);
+  return Object.keys(t).every(k=>JSON.stringify(t[k])===JSON.stringify(q[k]));
+ }catch(e){return false}
+}
+function phase8ApplyMinorityExchange(s,buyer,target,q){
+ if(!phase8ExchangePlanValid(q,buyer.id)||!phase8MergerSettlementSafe(s,buyer,target)||buyer.country!==target.country
+  ||buyer.industry!==target.industry||JSON.stringify(phase7ReadShareRegistry(buyer))!==JSON.stringify(q.buyerRegistry)
+  ||JSON.stringify(phase7ReadShareRegistry(target))!==JSON.stringify(q.targetRegistry))throw Error('申請後に株主名簿・承継条件が変化したため株式交換を保留しました');
+ const br=phase7ReadShareRegistry(buyer),tr=phase7ReadShareRegistry(target);
+ const lots=phase7RegistryPublicLots(target,tr,q.minorityShares,q.premiumBps/10000);
+ if(lots.left||lots.lots.reduce((n,l)=>n+l.quantity,0)!==q.minorityShares)throw Error('少数株主の交換承諾条件が変化しました');
+ const cost=localFromBase(q.costBase,buyer.country,s);
+ if(!Number.isSafeInteger(cost)||cost<1)throw Error('交換対価の会計通貨換算が不正です');
+ const lotPlan=phase7PlanShareLots(s,buyer,{...br,issued:q.postShares});
+ phase7RegistryTakePublic(tr,lots.lots,buyer.id,q.minorityShares);phase7CommitShareRegistry(target,tr);
+ const journal=s.seq;
+ post(buyer,{investment:cost},{capital:cost},'合併対価・少数株主株式交換：'+target.name,'financing',s);
+ registerEquityLink(s,{parentId:buyer.id,childId:target.id,ratio:q.minorityShares/(tr.issued-tr.treasury),shareQuantity:q.minorityShares,
+  kind:'merger-exchange',considerationLocal:cost,buyerJournal:journal,bookEquityBase:baseFromLocal(netWorth(target),target.country,s),cashAcquiredBase:0,controlEstablished:false});
+ br.issued=q.postShares;let pub=br.owners.find(o=>o.id==='PUBLIC');
+ if(!pub){pub={id:'PUBLIC',count:0,votes:0};br.owners.push(pub)}pub.count+=q.newShares;pub.votes+=q.newShares;
+ for(const a of q.allocations){let b=br.external.find(x=>x.id===a.id);if(!b){b={id:a.id,count:0};br.external.push(b)}b.count+=a.newShares;}
+ phase7ApplyShareLotPlan(lotPlan);phase7CommitShareRegistry(buyer,br);
+ phase7ValidateShareLots(s,buyer);phase7ValidateShareLots(s,target);
+ return {newShares:q.newShares,minorityShares:q.minorityShares,considerationLocal:cost,journal};
+}
+
 function startGroupMerger(s,parentId,fromId,toId,actor='player'){
  const parent=company(parentId,s),from=company(fromId,s),to=company(toId,s);
- siblingMergerEligibility(s,parent,from,to,actor);
+ let exchange=null;
+ if(s.worldExpansion&&parent&&from&&to===parent&&!isDirectWhollyOwnedChild(parent,from)){
+  exchange=phase8MinorityExchangeQuote(s,parent,from);
+  const trial=structuredClone(s),b=company(parentId,trial),t=company(fromId,trial);
+  phase8ApplyMinorityExchange(trial,b,t,exchange);
+  siblingMergerEligibility(trial,b,t,b,actor);
+ }else siblingMergerEligibility(s,parent,from,to,actor);
  const plans=groupMergerPlans(s);
  if(plans.some(p=>mergerPlanActive(p)&&[fromId,toId].some(id=>p.fromId===id||p.toId===id)))throw Error('対象法人に進行中の合併手続きがあります');
  const size=groupMergerSize(s,from,to),kind=to.id===parent.id?'parent':'sibling';
- const plan={id:'GM'+s.seq++,parentId,fromId,toId,kind,...(actor==='ai'?{actor}:{}),scale:size.label,duration:size.turns,progress:0,startedMonth:ym(s.year,s.month),lastProcessedMonth:-1,status:'pending',issue:'',finishedMonth:null,workers:size.workers,plants:size.plants,assetsYen:size.assetsYen};
+ const plan={id:'GM'+s.seq++,parentId,fromId,toId,kind,...(actor==='ai'?{actor}:{}),...(exchange?{exchange}:{}),scale:size.label,duration:size.turns,progress:0,startedMonth:ym(s.year,s.month),lastProcessedMonth:-1,status:'pending',issue:'',finishedMonth:null,workers:size.workers,plants:size.plants,assetsYen:size.assetsYen};
  plans.push(plan);return plan;
 }
 function validateGroupMergerPlans(s){
@@ -3253,6 +3320,13 @@ function validateGroupMergerPlans(s){
   if(!p||typeof p!=='object'||typeof p.id!=='string'||ids.has(p.id)){issues.push('合併計画ID重複・形式不正');continue}
   ids.add(p.id);
   if((p.actor!==undefined&&!['ai','player'].includes(p.actor))||!['pending','blocked','completed','cancelled'].includes(p.status)||![2,5,12].includes(p.duration)||!Number.isSafeInteger(p.progress)||p.progress<0||p.progress>p.duration||!Number.isSafeInteger(p.startedMonth)||!Number.isSafeInteger(p.lastProcessedMonth)||!company(p.parentId,s)||!company(p.fromId,s)||!company(p.toId,s)||p.fromId===p.toId)issues.push(p.id+'：合併計画の値または参照が不正');
+  if(p.exchange!==undefined){
+   if(p.parentId!==p.toId||!phase8ExchangePlanValid(p.exchange,p.parentId))issues.push(p.id+'：少数株主株式交換計画が不正');
+   if(p.status==='completed'){const r=p.exchangeReceipt,b=company(p.parentId,s);
+    if(!r||r.newShares!==p.exchange.newShares||r.minorityShares!==p.exchange.minorityShares||!Number.isSafeInteger(r.considerationLocal)||r.considerationLocal<1||!Number.isSafeInteger(r.journal)||r.journal<1||r.journal>=s.seq)issues.push(p.id+'：株式交換完了証憑が不正');
+    else{const j=b?.journals.find(x=>x.id===r.journal);if(j&&(j.amount!==r.considerationLocal||!j.text.startsWith('合併対価・少数株主株式交換：')||j.dr.some(([a])=>a==='cash')||j.cr.some(([a])=>a==='cash')))issues.push(p.id+'：株式交換仕訳が不正');}
+   }else if(p.exchangeReceipt!==undefined)issues.push(p.id+'：未完了の株式交換証憑が不正');
+  }
   if(mergerPlanActive(p))for(const id of [p.fromId,p.toId]){if(locked.has(id))issues.push('同じ法人に複数の進行中合併があります');locked.add(id);}
  }
  return issues;
@@ -3267,6 +3341,7 @@ function processGroupMergers(s,events){
   if(p.progress<p.duration){if(p.progress===1||p.progress===p.duration-1)events.push('合併進行：'+(company(p.fromId,s)?.name||p.fromId)+' → '+(company(p.toId,s)?.name||p.toId)+'（'+p.progress+'/'+p.duration+'ターン）');continue;}
   try{
    const trial=structuredClone(s),record=groupMergerPlans(trial).find(x=>x.id===p.id);
+   if(record.exchange)record.exchangeReceipt=phase8ApplyMinorityExchange(trial,company(p.parentId,trial),company(p.fromId,trial),record.exchange);
    const entry=mergeWhollyOwnedSubsidiaries(trial,p.parentId,p.fromId,p.toId,p.actor??'player');
    record.status='completed';record.issue='';record.finishedMonth=month;
    if(trial.worldExpansion)syncWorldIdentities(trial);
@@ -3310,7 +3385,7 @@ function isDirectWhollyOwnedChild(parent,child){
 }
 function mergerManagedParents(s){
  return s.firms.filter(f=>controller(s,f.id)&&
-   (f.id===s.playerId||s.firms.some(child=>isDirectWhollyOwnedChild(f,child))));
+   (f.id===s.playerId||s.firms.some(child=>isDirectWhollyOwnedChild(f,child)||(s.worldExpansion&&child.id!==f.id&&controller(s,child.id,f.id)))));
 }
 function syncSiblingMergerTarget(){
  const source=company(inputValue('mergeSiblingSource')),targetSelect=document.getElementById('mergeSiblingTarget');
@@ -3338,7 +3413,8 @@ function siblingMergerPanel(f,edit){
  const siblingSources=subs.filter(x=>subs.some(y=>y.id!==x.id&&y.country===x.country&&y.industry===x.industry));
  const initialSource=siblingSources[0],initialTarget=subs.find(x=>x.id!==initialSource?.id&&x.country===initialSource?.country&&x.industry===initialSource?.industry);
  const siblingOk=edit&&!!initialTarget;
- const parentCandidates=subs.filter(x=>x.country===root.country&&x.industry===root.industry);
+ const minority=S.worldExpansion?S.firms.filter(x=>x.id!==root.id&&!isDirectWhollyOwnedChild(root,x)&&controller(S,x.id,root.id)).flatMap(x=>{try{return [{firm:x,quote:phase8MinorityExchangeQuote(S,root,x)}]}catch(e){return []}}):[];
+ const parentCandidates=[...subs.filter(x=>x.country===root.country&&x.industry===root.industry),...minority.map(x=>x.firm)];
  const parentOk=edit&&parentCandidates.length>0;
  const option=(list,selected='',source=null)=>list.map(x=>
    '<option value="'+esc(x.id)+'"'+(x.id===selected?' selected':'')+
@@ -3353,17 +3429,17 @@ function siblingMergerPanel(f,edit){
  const note=owned.length===0?'この親会社が直接100%保有する子会社はありません。':
   subs.length===0?'現在、対象となる営業中の100%子会社はありません。':
   !siblingOk?'子会社同士の合併には、同一国・同一業種の100%子会社が2社必要です。':'';
- return '<section class="panel span12"><h2>100%子会社の合併・手続き管理</h2>'+
- '<p class="hint">親会社が100%保有する子会社同士の合併、または親会社が子会社を吸収する合併を申請できます。合併申請時点では会社は統合されず、月末処理を進めることで完了します。</p>'+
+ return '<section class="panel span12"><h2>子会社の合併・手続き管理</h2>'+
+ '<p class="hint">親会社が100%保有する子会社同士の合併、または親会社が子会社を吸収する合併を申請できます。世界拡張では承諾・承継を検証できる一部の少数株主付き直接支配法人も株式交換に対応します。合併申請時点では会社は統合されず、月末処理を進めることで完了します。</p>'+
  '<div class="note"><b>規模・所要期間</b>：小規模は2ターン（従業員合計150人未満・工場合計3未満・総資産1,000万円未満）。中規模は5ターン（従業員合計500人未満・工場合計8未満・総資産1億円未満）。いずれかが中規模上限以上なら大規模で12ターンです。条件は合併する両社の合計で判定し、申請時に固定します。</div>'+
- '<div class="field" style="margin:12px 0"><label>合併を申請する親会社</label><select id="mergeGroupParent" '+(edit?'':'disabled')+'>'+option(parents,root.id)+'</select><p class="hint">支配下の親会社から申請できます。子会社の画面を閲覧中でも選択可能です。対象は親会社が直接100%保有する法人で、合併する2社は同一国・同一業種である必要があります。統合元が保有する子会社株式も存続法人へ引き継ぎます。</p></div>'+
+ '<div class="field" style="margin:12px 0"><label>合併を申請する親会社</label><select id="mergeGroupParent" '+(edit?'':'disabled')+'>'+option(parents,root.id)+'</select><p class="hint">支配下の親会社から申請できます。子会社の画面を閲覧中でも選択可能です。子会社同士の合併は直接100%保有に限定し、親子合併は検証可能な少数株主株式交換にも対応します。合併する2社は同一国・同一業種である必要があります。統合元が保有する子会社株式も存続法人へ引き継ぎます。</p></div>'+
  (note?'<p class="hint">'+esc(note)+'</p>':'')+
  '<h3>子会社同士の合併</h3><div class="formgrid">'+
  '<div class="field"><label>統合元（営業停止）</label><select id="mergeSiblingSource" '+(siblingOk?'':'disabled')+'>'+option(siblingSources,initialSource?.id)+'</select></div>'+
  '<div class="field"><label>存続子会社</label><select id="mergeSiblingTarget" '+(siblingOk?'':'disabled')+'>'+option(subs,initialTarget?.id,initialSource)+'</select></div>'+
  '<button class="btn primary" data-action="mergeSibling" '+(siblingOk?'':'disabled')+'>合併手続きを申請</button></div>'+
- '<h3>親会社が子会社を吸収</h3><div class="formgrid">'+
- '<div class="field"><label>吸収する100%子会社</label><select id="mergeParentSource" '+(parentOk?'':'disabled')+'>'+option(parentCandidates)+'</select></div>'+
+ '<h3>親会社が子会社を吸収</h3>'+(minority.length?'<p class="hint">株式交換の承諾・希薄化を検証できる直接支配法人：'+minority.map(({firm,quote})=>esc(firm.name)+'（新規'+quote.newShares.toLocaleString('ja-JP')+'株、希薄化'+(quote.dilution*100).toFixed(2)+'%）').join(' / ')+'。申請時の条件を固定し、名簿・承継条件が変化した場合は保留します。</p>':'')+'<div class="formgrid">'+
+ '<div class="field"><label>吸収する子会社（完全保有または株式交換可能）</label><select id="mergeParentSource" '+(parentOk?'':'disabled')+'>'+option(parentCandidates)+'</select></div>'+
  '<div class="field"><label>合併後の存続法人</label><input value="'+esc(root.name)+'（親会社・固定）" readonly></div>'+
  '<button class="btn primary" data-action="mergeParentSub" '+(parentOk?'':'disabled')+'>親子合併を申請</button></div>'+
  '<h3>合併手続きの進捗</h3><div class="scroll"><table><thead><tr><th>統合元 → 存続会社</th><th>規模</th><th>進捗</th><th>状態</th><th>操作</th></tr></thead><tbody>'+
@@ -8777,12 +8853,11 @@ function phase8PlanWhollyOwnedMergers(s,events=[]){
  for(const p of completed){
   const buyer=company(p.buyer,s),target=company(p.target,s);
   if(!buyer||!target||buyer.player||!buyer.auto||controlled.has(buyer.id)||used.has(buyer.id)
-   ||!isDirectWhollyOwnedChild(buyer,target)||!phase8MergerBusinessCase(s,buyer,target)||!phase8MergerSettlementSafe(s,buyer,target)
+   ||!controller(s,target.id,buyer.id)||!phase8MergerBusinessCase(s,buyer,target)||!phase8MergerSettlementSafe(s,buyer,target)
    ||groupMergerPlans(s).some(m=>m.fromId===target.id&&m.parentId===buyer.id))continue;
   try{
-   siblingMergerEligibility(s,buyer,target,buyer,'ai');
    const plan=startGroupMerger(s,buyer.id,target.id,buyer.id,'ai');started.push(plan);used.add(buyer.id);
-   events.push('AI吸収合併申請：'+buyer.name+' ← '+target.name+'（同業・同拠点、完全保有、事業採算）');
+   events.push('AI吸収合併申請：'+buyer.name+' ← '+target.name+'（同業・同拠点、事業採算、'+(plan.exchange?'少数株主株式交換':'完全保有')+'）');
   }catch(e){/* Retain the subsidiary if legal or accounting succession is not supported. */}
  }
  return started;
