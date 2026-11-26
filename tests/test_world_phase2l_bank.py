@@ -148,6 +148,41 @@ def main():
           return {local,consolidated,crossBorder,blocked,returned,paid,clean:!check(loaded).length&&!consolidate(loaded).errors.length};
         }""", london)
         assert all(london_result.values()), london_result
+        regions=page.evaluate("""()=>{
+ const result={},reject=fn=>{try{fn();return false}catch{return true}};
+ for(const country of ['US','DE','FR','CA','CH']){
+  const s=newWorldGame({country,name:'Regional bank '+country});
+  const parent=company(s.playerId,s),profile=worldBankServiceProfile(country);
+  if(parent.country!==country||!s.world[country])throw Error('Invalid starting market '+country);
+  const capital=localFromBase(600000,country,s),payer=s.seq;
+  post(parent,{investment:capital},{cash:capital},'検証用の設立','investing',s);
+  const bank=initFirm(s,{name:'Bank '+country,country,industry:'service',seedBase:600000,publicOwnership:false});
+  bank.owners=[{id:parent.id,econ:1,vote:1}];
+  registerEquityLink(s,{parentId:parent.id,childId:bank.id,ratio:1,kind:'foundation',
+    considerationLocal:capital,buyerJournal:payer,childJournal:bank.journals.find(j=>j.text==='創業資本').id,
+    bookEquityBase:baseFromLocal(capital,country,s),cashAcquiredBase:baseFromLocal(acc(bank,'cash'),country,s)});
+  const p=bank.plants[0];p.siteId=profile.siteId;p.siteCountry=country;
+  syncWorldIdentities(s);
+  result[country+'Open']=worldBankCanReceive(s,bank)&&worldBankSiteOpen(country,p.siteId,ym(s.year,s.month));
+  p.paused=true;result[country+'Paused']=reject(()=>worldOpenBankDeposit(s,parent.id,bank.id,100));p.paused=false;
+  const cash=acc(parent,'cash'),bankCash=acc(bank,'cash');
+  const dep=worldOpenBankDeposit(s,parent.id,bank.id,100);
+  const loan=phase7IssueBankLoan(s,bank.id,parent.id,120,12);
+  result[country+'Accounting']=acc(parent,'cash')===cash-100+120&&acc(bank,'cash')===bankCash-120&&acc(bank,'worldBankReserve')===100&&loan.country===country;
+  const saved=parsePayload(savePayload(s));result[country+'Save']=!check(saved).length&&!consolidate(saved).errors.length;
+  worldWithdrawBankDeposit(s,parent.id,dep.id);result[country+'Withdraw']=acc(bank,'worldBankReserve')===0&&acc(parent,'worldBankDeposits')===0;
+ }
+ const au=newWorldGame({country:'JP',name:'Sydney opening'});
+ au.year=1912;au.month=12;au.monthCommitted=ym(1912,12)-1;applyWorldHistory(au);syncWorldIdentities(au);
+ const bank=initFirm(au,{name:'Sydney Bank',country:'AU',industry:'service',seedBase:600000});
+ bank.plants[0].siteId='AU-SYD';bank.plants[0].siteCountry='AU';syncWorldIdentities(au);
+ result.AUEra=!worldBankCanReceive(au,bank)&&!worldBankSiteOpen('AU','AU-SYD',ym(1912,12));
+ au.year=1913;au.month=1;au.monthCommitted=ym(1913,1)-1;applyWorldHistory(au);syncWorldIdentities(au);
+ result.AUOpen=worldBankCanReceive(au,bank)&&worldBankSiteOpen('AU','AU-SYD',ym(1913,1));
+ result.AUSave=!check(parsePayload(savePayload(au))).length;
+ return result;
+}""")
+        assert len(regions)==28 and all(regions.values()), regions
         assert not errors, errors
         browser.close()
     print("PASS demand deposits and bank loans: Tokyo regression, London GBP accounting, branch commissioning, closure and save")

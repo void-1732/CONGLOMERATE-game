@@ -16990,7 +16990,15 @@ function worldStorageTerms(w,warehouse){
 // in a restricted reserve outside spendable cash. Interest and lending are separate.
 const WORLD_BANK_SERVICE_PROFILES=Object.freeze({
  JP:Object.freeze({siteId:'JP-TOK',opensAt:ym(1900,1),source:'https://www.shibusawa.or.jp/english/eiichi/denki_shiryo/denki_toc04_en.html'}),
- UK:Object.freeze({siteId:'UK-LON',opensAt:ym(1900,1),source:'https://www.natwestgroup.com/heritage/companies/london-and-westminster-bank-ltd.html'})
+ UK:Object.freeze({siteId:'UK-LON',opensAt:ym(1900,1),source:'https://www.natwestgroup.com/heritage/companies/london-and-westminster-bank-ltd.html'}),
+ // Conservative model openings at catalogued financial centres backed by historical
+ // banking institutions; this is not a representation of national licensing law.
+ US:Object.freeze({siteId:'US-NYC',opensAt:ym(1900,1),source:'https://archaeology.cityofnewyork.us/collection/nyc-timeline/the-founding-of-the-bank-of-new-york'}),
+ DE:Object.freeze({siteId:'DE-BER',opensAt:ym(1900,1),source:'https://www.db.com/who-we-are/history/'}),
+ FR:Object.freeze({siteId:'FR-PAR',opensAt:ym(1900,1),source:'https://www.societegenerale.com/en/group/about-us/history'}),
+ CA:Object.freeze({siteId:'CA-MTL',opensAt:ym(1900,1),source:'https://ourheritagebmo.com/montreal-main-branch/'}),
+ CH:Object.freeze({siteId:'CH-BAS',opensAt:ym(1900,1),source:'https://www.ubs.com/global/en/our-firm/our-history/virtual-museum.html'}),
+ AU:Object.freeze({siteId:'AU-SYD',opensAt:ym(1913,1),source:'https://www.commbank.com.au/guidance/newsroom/our-first-sydney-branch-201708.html'})
 });
 function worldBankServiceProfile(country){return Object.hasOwn(WORLD_BANK_SERVICE_PROFILES,country)?WORLD_BANK_SERVICE_PROFILES[country]:null;}
 function worldBankSiteOpen(country,siteId,month){
