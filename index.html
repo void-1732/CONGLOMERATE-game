@@ -3241,7 +3241,25 @@ function groupMergerSize(s,from,to){
 /* SPEC-129/135: voluntary minority exchange. Direct 70%-plus parent and
    ordinary public-share classes only; no compulsory squeeze-out or assumed
    legal approval. Freeze terms at application and round up by public class. */
+function phase8ValidateFrozenShareRegistry(r){
+ if(!r||r.version!==1||!Number.isSafeInteger(r.issued)||!Number.isSafeInteger(r.treasury)
+  ||r.treasury<0||r.issued<=r.treasury||!Array.isArray(r.owners)||!Array.isArray(r.external))return false;
+ const active=BigInt(r.issued-r.treasury),owners=new Set(),blocks=new Set();
+ let shares=0n,votes=0n,pub=0n,external=0n;
+ for(const o of r.owners){
+  if(!o||typeof o.id!=='string'||!o.id||owners.has(o.id)||!Number.isSafeInteger(o.count)||o.count<1
+   ||!Number.isSafeInteger(o.votes)||o.votes<0)return false;
+  owners.add(o.id);shares+=BigInt(o.count);votes+=BigInt(o.votes);if(o.id==='PUBLIC')pub=BigInt(o.count);
+ }
+ for(const b of r.external){
+  if(!b||typeof b.id!=='string'||!b.id||blocks.has(b.id)||!Number.isSafeInteger(b.count)||b.count<0)return false;
+  blocks.add(b.id);external+=BigInt(b.count);
+ }
+ return shares===active&&votes===active&&external===pub;
+}
 function phase8ExchangeTerms(buyerRegistry,targetRegistry,buyerId,buyerValue,targetValue,premiumBps){
+ if(!phase8ValidateFrozenShareRegistry(buyerRegistry)||!phase8ValidateFrozenShareRegistry(targetRegistry))
+  throw Error('合併申請時の整数株式台帳が不正です');
  const br=buyerRegistry,tr=targetRegistry,bactive=br.issued-br.treasury,tactive=tr.issued-tr.treasury;
  const direct=tr.owners.find(o=>o.id===buyerId),pub=tr.owners.find(o=>o.id==='PUBLIC');
  if(!Number.isSafeInteger(bactive)||bactive<1||!Number.isSafeInteger(tactive)||tactive<1||tr.treasury!==0
