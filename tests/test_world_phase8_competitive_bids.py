@@ -139,6 +139,34 @@ def main():
         minority = page.evaluate("""()=>{const s=newWorldGame({country:'JP',name:'Minority merger scenario'}),buyer=initFirm(s,{name:'Parent',country:'JP',industry:'service',seedBase:2000000}),target=initFirm(s,{name:'Minority',country:'JP',industry:'service',seedBase:450000});syncWorldIdentities(s);ensureMAState(s);post(buyer,{cash:1000000000},{capital:1000000000},'検証用資本','financing',s);buyer.monthly.profit=20000;target.monthly.profit=100;executeMADeal(s,buyer.id,target.id,70,2.5,'ai');const pmi=s.maPlans.find(x=>x.buyer===buyer.id&&x.target===target.id);pmi.done=true;pmi.mode='completed';pmi.months=pmi.duration;pmi.progress=100;const before=JSON.stringify([buyer.owners,target.owners,buyer.ledger,target.ledger]),oldCash=acc(buyer,'cash')+acc(target,'cash'),oldAssets=acc(buyer,'ppe')+acc(target,'ppe'),q=phase8MinorityExchangeQuote(s,buyer,target),ev=[],plans=phase8PlanWhollyOwnedMergers(s,ev);if(plans.length!==1)throw Error('no plan');const plan=plans[0];const frozen=JSON.stringify([buyer.owners,target.owners,buyer.ledger,target.ledger])===before;const saved=parsePayload(savePayload(s));const altered=structuredClone(saved),tamper=altered.groupMergerPlans.find(x=>x.id===plan.id);tamper.exchange.newShares++;let bad=false;try{parsePayload(savePayload(altered))}catch(e){bad=true;}const blocked=structuredClone(saved),bt=company(target.id,blocked),bb=company(buyer.id,blocked);const changedBlock=bt.shareBlocks.find(x=>x.holding>0);changedBlock.reserve=2.6;const frozenBlocked=JSON.stringify([bb.owners,bt.owners,bb.ledger,bt.ledger]);const advance=(state)=>{for(let n=0;n<plan.duration;n++){const m=ym(state.year,state.month)+1;state.year=Math.floor(m/12);state.month=m%12+1;state.monthCommitted=m-1;applyWorldHistory(state);processGroupMergers(state,ev);}};advance(blocked);const blockedClean=blocked.groupMergerPlans.find(x=>x.id===plan.id).status==='blocked'&&JSON.stringify([company(buyer.id,blocked).owners,company(target.id,blocked).owners,company(buyer.id,blocked).ledger,company(target.id,blocked).ledger])===frozenBlocked;advance(saved);const b=company(buyer.id,saved),t=company(target.id,saved),done=saved.groupMergerPlans.find(x=>x.id===plan.id);const receiptTamper=structuredClone(saved);receiptTamper.groupMergerPlans.find(x=>x.id===plan.id).exchangeReceipt.newShares++;let receiptBad=false;try{parsePayload(savePayload(receiptTamper))}catch(e){receiptBad=true;}return {quote:phase8ExchangePlanValid(q,buyer.id)&&q.minorityShares===300000&&q.newShares>0,consent:q.allocations.every(a=>BigInt(a.newShares)*BigInt(q.buyerValue)*BigInt(q.targetRegistry.issued)*10000n>=BigInt(a.oldShares)*BigInt(q.targetValue)*BigInt(q.activeShares)*BigInt(q.premiumBps)),frozen,planStored:done.exchange.newShares===q.newShares,tamper:bad,completed:done.status==='completed',issued:b.shareRegistry.issued===q.postShares,receipt:done.exchangeReceipt?.newShares===q.newShares,minorityPreserved:q.allocations.every(a=>b.shareRegistry.external.find(x=>x.id===a.id).count===(q.buyerRegistry.external.find(x=>x.id===a.id)?.count??0)+a.newShares),noCashPayment:acc(b,'cash')===oldCash,assets:acc(b,'ppe')===oldAssets,archive:t.reorgStatus==='integrated'&&t.owners[0].id===b.id,clean:!check(saved).length&&!consolidate(saved,b.id).errors.length,restored:!check(parsePayload(savePayload(saved))).length,blockedClean,receiptTamper:receiptBad};}""")
         assert len(minority)==16 and all(minority.values()),minority
         print("Phase 8 minority exchange: 16/16 passed")
+
+        registry_cases = page.evaluate("""()=>{
+          const br={version:1,issued:100,treasury:0,owners:[{id:'PUBLIC',count:100,votes:100}],external:[{id:'x',count:100}]};
+          const tr={version:1,issued:100,treasury:0,owners:[{id:'A',count:70,votes:70},{id:'PUBLIC',count:30,votes:30}],external:[{id:'x',count:30}]};
+          const q=phase8ExchangeTerms(br,tr,'A',1000,500,10000);
+          const cases=[
+            (b,t)=>t.external=[{id:'x',count:40},{id:'y',count:-10}],
+            (b,t)=>t.external=[{id:'x',count:15},{id:'x',count:15}],
+            (b,t)=>t.external=[{id:'x',count:15.5},{id:'y',count:14.5}],
+            (b,t)=>t.issued=101,
+            (b,t)=>b.treasury=-1,
+            (b,t)=>b.owners[0].votes=99,
+            (b,t)=>b.owners=[{id:'PUBLIC',count:50,votes:50},{id:'PUBLIC',count:50,votes:50}],
+            (b,t)=>b.external[0].count=99,
+            (b,t)=>delete t.version,
+            (b,t)=>t.external[0].id=''
+          ];
+          return [q.newShares===15&&q.minorityShares===30,
+            ...cases.map(mutate=>{
+              const b=structuredClone(br),t=structuredClone(tr);
+              mutate(b,t);
+              try{phase8ExchangeTerms(b,t,'A',1000,500,10000);return false;}
+              catch(e){return e.message.includes('整数株式台帳');}
+            })];
+        }""")
+        assert len(registry_cases)==11 and all(registry_cases),registry_cases
+        print("Phase 8 frozen exchange registry integrity: 11/11 passed")
+
         browser.close()
     print(f"Phase 8 competitive quotes: {len(CASES)}/{len(CASES)} passed")
 
