@@ -1,0 +1,1205 @@
+{
+  "source": "User-confirmed specification register 001–174; original text remains in user library.",
+  "note": "Candidate evidence is not acceptance. No row is accepted until the full requirement and actual final-SHA test evidence are reviewed. OPEN_SCOPE means a known or suspected scope gap, not necessarily absent implementation.",
+  "items": [
+    {
+      "id": 1,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_foundation.py",
+        "tests/test_world_phase9_replay.py"
+      ]
+    },
+    {
+      "id": 2,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_foundation.py",
+        "tests/test_world_phase9_replay.py"
+      ]
+    },
+    {
+      "id": 3,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/audit_world_freight_coverage.py"
+      ]
+    },
+    {
+      "id": 4,
+      "status": "OPEN_SCOPE",
+      "evidence": [
+        "tests/test_world_phase2l_services.py",
+        "tests/test_world_phase2_property_services.py"
+      ]
+    },
+    {
+      "id": 5,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase3_demand.py"
+      ]
+    },
+    {
+      "id": 6,
+      "status": "OPEN_SCOPE",
+      "evidence": [
+        "tests/test_world_foundation.py"
+      ]
+    },
+    {
+      "id": 7,
+      "status": "OPEN_SCOPE",
+      "evidence": []
+    },
+    {
+      "id": 8,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/audit_world_freight_coverage.py"
+      ]
+    },
+    {
+      "id": 9,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase6_construction.py"
+      ]
+    },
+    {
+      "id": 10,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase3_demand.py"
+      ]
+    },
+    {
+      "id": 11,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase2l_services.py"
+      ]
+    },
+    {
+      "id": 12,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase6_construction.py"
+      ]
+    },
+    {
+      "id": 13,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase2l_products.py"
+      ]
+    },
+    {
+      "id": 14,
+      "status": "OPEN_SCOPE",
+      "evidence": [
+        "tests/audit_world_freight_coverage.py"
+      ]
+    },
+    {
+      "id": 15,
+      "status": "OPEN_SCOPE",
+      "evidence": [
+        "tests/test_world_phase8_competitive_bids.py"
+      ]
+    },
+    {
+      "id": 16,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase6_power_contracts.py"
+      ]
+    },
+    {
+      "id": 17,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase3_market_b2b.py"
+      ]
+    },
+    {
+      "id": 18,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase2l_products.py",
+        "tests/test_world_phase2_property_services.py",
+        "tests/test_world_phase9_replay.py"
+      ]
+    },
+    {
+      "id": 19,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase3_demand.py",
+        "tests/test_world_phase6_labor.py"
+      ]
+    },
+    {
+      "id": 20,
+      "status": "OPEN_SCOPE",
+      "evidence": [
+        "tests/test_world_phase8_competitive_bids.py"
+      ]
+    },
+    {
+      "id": 21,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase2l_bank.py",
+        "tests/test_world_phase7_control.py"
+      ]
+    },
+    {
+      "id": 22,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_step9_1200_months.py",
+        "tests/test_world_phase9_replay.py"
+      ]
+    },
+    {
+      "id": 23,
+      "status": "OPEN_SCOPE",
+      "evidence": [
+        "tests/test_world_foundation.py"
+      ]
+    },
+    {
+      "id": 24,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase6_construction.py"
+      ]
+    },
+    {
+      "id": 25,
+      "status": "OPEN_SCOPE",
+      "evidence": [
+        "tests/test_world_phase8_competitive_bids.py"
+      ]
+    },
+    {
+      "id": 26,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase7_control.py"
+      ]
+    },
+    {
+      "id": 27,
+      "status": "OPEN_SCOPE",
+      "evidence": [
+        "tests/test_world_catalog_integrity.py"
+      ]
+    },
+    {
+      "id": 28,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase2l_products.py"
+      ]
+    },
+    {
+      "id": 29,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase2l_products.py"
+      ]
+    },
+    {
+      "id": 30,
+      "status": "OPEN_SCOPE",
+      "evidence": []
+    },
+    {
+      "id": 31,
+      "status": "OPEN_SCOPE",
+      "evidence": []
+    },
+    {
+      "id": 32,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase2l_products.py",
+        "tests/test_world_phase6_power_contracts.py"
+      ]
+    },
+    {
+      "id": 33,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/audit_world_freight_coverage.py"
+      ]
+    },
+    {
+      "id": 34,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase6_construction.py"
+      ]
+    },
+    {
+      "id": 35,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase2l_services.py",
+        "tests/test_world_phase5_map.py"
+      ]
+    },
+    {
+      "id": 36,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase6_exploration.py"
+      ]
+    },
+    {
+      "id": 37,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase6_construction.py"
+      ]
+    },
+    {
+      "id": 38,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/audit_world_freight_coverage.py"
+      ]
+    },
+    {
+      "id": 39,
+      "status": "OPEN_SCOPE",
+      "evidence": []
+    },
+    {
+      "id": 40,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase7_control.py",
+        "tests/test_step13_120_months.py",
+        "tests/test_world_phase9_replay.py"
+      ]
+    },
+    {
+      "id": 41,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase6_exploration.py"
+      ]
+    },
+    {
+      "id": 42,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase2l_services.py"
+      ]
+    },
+    {
+      "id": 43,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase3_demand.py"
+      ]
+    },
+    {
+      "id": 44,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase2l_bank.py",
+        "tests/test_world_phase7_control.py"
+      ]
+    },
+    {
+      "id": 45,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase6_construction.py"
+      ]
+    },
+    {
+      "id": 46,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase6_exploration.py"
+      ]
+    },
+    {
+      "id": 47,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase2l_products.py",
+        "tests/test_world_phase6_power_contracts.py"
+      ]
+    },
+    {
+      "id": 48,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase6_construction.py"
+      ]
+    },
+    {
+      "id": 49,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase6_construction.py"
+      ]
+    },
+    {
+      "id": 50,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_step9_1200_months.py",
+        "tests/test_step13_120_months.py"
+      ]
+    },
+    {
+      "id": 51,
+      "status": "OPEN_SCOPE",
+      "evidence": []
+    },
+    {
+      "id": 52,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase3_market_b2b.py"
+      ]
+    },
+    {
+      "id": 53,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/audit_world_freight_coverage.py"
+      ]
+    },
+    {
+      "id": 54,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase2l_bank.py",
+        "tests/test_world_phase7_control.py"
+      ]
+    },
+    {
+      "id": 55,
+      "status": "OPEN_SCOPE",
+      "evidence": [
+        "tests/test_world_phase3_demand.py"
+      ]
+    },
+    {
+      "id": 56,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase7_control.py"
+      ]
+    },
+    {
+      "id": 57,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase3_market_b2b.py"
+      ]
+    },
+    {
+      "id": 58,
+      "status": "OPEN_SCOPE",
+      "evidence": [
+        "tests/test_world_catalog_integrity.py"
+      ]
+    },
+    {
+      "id": 59,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase6_construction.py"
+      ]
+    },
+    {
+      "id": 60,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase7_control.py"
+      ]
+    },
+    {
+      "id": 61,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase3_market_b2b.py"
+      ]
+    },
+    {
+      "id": 62,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase6_construction.py"
+      ]
+    },
+    {
+      "id": 63,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/audit_world_freight_coverage.py"
+      ]
+    },
+    {
+      "id": 64,
+      "status": "OPEN_SCOPE",
+      "evidence": []
+    },
+    {
+      "id": 65,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase3_demand.py"
+      ]
+    },
+    {
+      "id": 66,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase6_labor.py"
+      ]
+    },
+    {
+      "id": 67,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase2l_products.py"
+      ]
+    },
+    {
+      "id": 68,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase3_market_b2b.py"
+      ]
+    },
+    {
+      "id": 69,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase6_construction.py"
+      ]
+    },
+    {
+      "id": 70,
+      "status": "OPEN_SCOPE",
+      "evidence": [
+        "tests/test_world_phase9_replay.py"
+      ],
+      "review_note": "Monthly simulated macro history and chart implemented; proxy GDP only, full original scope and CI not accepted."
+    },
+    {
+      "id": 71,
+      "status": "OPEN_SCOPE",
+      "evidence": []
+    },
+    {
+      "id": 72,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase2l_products.py"
+      ]
+    },
+    {
+      "id": 73,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase2l_services.py",
+        "tests/test_world_phase6_construction.py"
+      ]
+    },
+    {
+      "id": 74,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/audit_world_freight_coverage.py"
+      ]
+    },
+    {
+      "id": 75,
+      "status": "OPEN_SCOPE",
+      "evidence": [
+        "tests/test_world_phase9_replay.py"
+      ],
+      "review_note": "Monthly simulated macro history and chart implemented; proxy GDP only, full original scope and CI not accepted."
+    },
+    {
+      "id": 76,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase6_exploration.py"
+      ]
+    },
+    {
+      "id": 77,
+      "status": "OPEN_SCOPE",
+      "evidence": []
+    },
+    {
+      "id": 78,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase6_power_contracts.py"
+      ]
+    },
+    {
+      "id": 79,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_catalog_integrity.py"
+      ]
+    },
+    {
+      "id": 80,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase7_control.py"
+      ]
+    },
+    {
+      "id": 81,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase6_exploration.py"
+      ]
+    },
+    {
+      "id": 82,
+      "status": "OPEN_SCOPE",
+      "evidence": [
+        "tests/test_world_phase7_control.py"
+      ]
+    },
+    {
+      "id": 83,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/audit_world_freight_coverage.py"
+      ]
+    },
+    {
+      "id": 84,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase7_control.py"
+      ]
+    },
+    {
+      "id": 85,
+      "status": "OPEN_SCOPE",
+      "evidence": [
+        "tests/test_world_phase3_demand.py"
+      ]
+    },
+    {
+      "id": 86,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase2l_bank.py",
+        "tests/test_world_phase7_control.py"
+      ]
+    },
+    {
+      "id": 87,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase2l_products.py"
+      ]
+    },
+    {
+      "id": 88,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase6_construction.py"
+      ]
+    },
+    {
+      "id": 89,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase3_market_b2b.py"
+      ]
+    },
+    {
+      "id": 90,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase6_construction.py"
+      ]
+    },
+    {
+      "id": 91,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase2l_bank.py",
+        "tests/test_world_phase7_control.py"
+      ]
+    },
+    {
+      "id": 92,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase2l_services.py"
+      ]
+    },
+    {
+      "id": 93,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase6_construction.py"
+      ]
+    },
+    {
+      "id": 94,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase2l_products.py",
+        "tests/test_world_phase6_power_contracts.py"
+      ]
+    },
+    {
+      "id": 95,
+      "status": "OPEN_SCOPE",
+      "evidence": [
+        "tests/test_world_phase8_competitive_bids.py"
+      ]
+    },
+    {
+      "id": 96,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase3_market_b2b.py"
+      ]
+    },
+    {
+      "id": 97,
+      "status": "OPEN_SCOPE",
+      "evidence": [
+        "tests/test_world_phase3_demand.py"
+      ]
+    },
+    {
+      "id": 98,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/audit_world_freight_coverage.py"
+      ]
+    },
+    {
+      "id": 99,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/audit_world_freight_coverage.py"
+      ]
+    },
+    {
+      "id": 100,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase7_control.py"
+      ]
+    },
+    {
+      "id": 101,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase3_market_b2b.py"
+      ]
+    },
+    {
+      "id": 102,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase3_demand.py"
+      ]
+    },
+    {
+      "id": 103,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase3_market_b2b.py"
+      ]
+    },
+    {
+      "id": 104,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/audit_world_freight_coverage.py"
+      ]
+    },
+    {
+      "id": 105,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_step9_1200_months.py",
+        "tests/test_step13_120_months.py",
+        "tests/test_world_phase9_replay.py"
+      ]
+    },
+    {
+      "id": 106,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase2l_products.py"
+      ]
+    },
+    {
+      "id": 107,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase3_market_b2b.py"
+      ]
+    },
+    {
+      "id": 108,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/audit_world_freight_coverage.py"
+      ]
+    },
+    {
+      "id": 109,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/audit_world_freight_coverage.py"
+      ]
+    },
+    {
+      "id": 110,
+      "status": "OPEN_SCOPE",
+      "evidence": [
+        "tests/test_step9_1200_months.py"
+      ]
+    },
+    {
+      "id": 111,
+      "status": "OPEN_SCOPE",
+      "evidence": [
+        "tests/test_world_phase8_competitive_bids.py"
+      ]
+    },
+    {
+      "id": 112,
+      "status": "OPEN_SCOPE",
+      "evidence": []
+    },
+    {
+      "id": 113,
+      "status": "OPEN_SCOPE",
+      "evidence": []
+    },
+    {
+      "id": 114,
+      "status": "OPEN_SCOPE",
+      "evidence": []
+    },
+    {
+      "id": 115,
+      "status": "OPEN_SCOPE",
+      "evidence": []
+    },
+    {
+      "id": 116,
+      "status": "OPEN_SCOPE",
+      "evidence": [
+        "tests/test_world_phase8_competitive_bids.py"
+      ]
+    },
+    {
+      "id": 117,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase7_control.py"
+      ]
+    },
+    {
+      "id": 118,
+      "status": "OPEN_SCOPE",
+      "evidence": []
+    },
+    {
+      "id": 119,
+      "status": "OPEN_SCOPE",
+      "evidence": []
+    },
+    {
+      "id": 120,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase7_control.py",
+        "tests/test_world_phase8_competitive_bids.py"
+      ]
+    },
+    {
+      "id": 121,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase7_control.py",
+        "tests/test_world_phase8_competitive_bids.py"
+      ]
+    },
+    {
+      "id": 122,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase8_competitive_bids.py"
+      ]
+    },
+    {
+      "id": 123,
+      "status": "OPEN_SCOPE",
+      "evidence": []
+    },
+    {
+      "id": 124,
+      "status": "OPEN_SCOPE",
+      "evidence": []
+    },
+    {
+      "id": 125,
+      "status": "OPEN_SCOPE",
+      "evidence": []
+    },
+    {
+      "id": 126,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase7_control.py",
+        "tests/test_world_phase8_competitive_bids.py"
+      ]
+    },
+    {
+      "id": 127,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase7_control.py"
+      ]
+    },
+    {
+      "id": 128,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase7_control.py"
+      ]
+    },
+    {
+      "id": 129,
+      "status": "OPEN_SCOPE",
+      "evidence": []
+    },
+    {
+      "id": 130,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase7_control.py"
+      ]
+    },
+    {
+      "id": 131,
+      "status": "OPEN_SCOPE",
+      "evidence": []
+    },
+    {
+      "id": 132,
+      "status": "OPEN_SCOPE",
+      "evidence": [
+        "tests/test_world_phase7_control.py"
+      ]
+    },
+    {
+      "id": 133,
+      "status": "OPEN_SCOPE",
+      "evidence": []
+    },
+    {
+      "id": 134,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase7_control.py"
+      ]
+    },
+    {
+      "id": 135,
+      "status": "OPEN_SCOPE",
+      "evidence": []
+    },
+    {
+      "id": 136,
+      "status": "OPEN_SCOPE",
+      "evidence": []
+    },
+    {
+      "id": 137,
+      "status": "OPEN_SCOPE",
+      "evidence": [
+        "tests/test_world_phase7_control.py"
+      ]
+    },
+    {
+      "id": 138,
+      "status": "OPEN_SCOPE",
+      "evidence": []
+    },
+    {
+      "id": 139,
+      "status": "OPEN_SCOPE",
+      "evidence": []
+    },
+    {
+      "id": 140,
+      "status": "OPEN_SCOPE",
+      "evidence": [
+        "tests/test_world_phase7_control.py"
+      ]
+    },
+    {
+      "id": 141,
+      "status": "OPEN_SCOPE",
+      "evidence": [
+        "tests/test_world_foundation.py"
+      ]
+    },
+    {
+      "id": 142,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_foundation.py"
+      ]
+    },
+    {
+      "id": 143,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase2l_products.py"
+      ]
+    },
+    {
+      "id": 144,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/audit_world_freight_coverage.py"
+      ]
+    },
+    {
+      "id": 145,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase3_demand.py"
+      ]
+    },
+    {
+      "id": 146,
+      "status": "OPEN_SCOPE",
+      "evidence": [
+        "tests/test_world_phase3_demand.py"
+      ]
+    },
+    {
+      "id": 147,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase2l_products.py"
+      ]
+    },
+    {
+      "id": 148,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_catalog_integrity.py"
+      ]
+    },
+    {
+      "id": 149,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/audit_world_freight_coverage.py"
+      ]
+    },
+    {
+      "id": 150,
+      "status": "OPEN_SCOPE",
+      "evidence": []
+    },
+    {
+      "id": 151,
+      "status": "OPEN_SCOPE",
+      "evidence": []
+    },
+    {
+      "id": 152,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase3_market_b2b.py"
+      ]
+    },
+    {
+      "id": 153,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase6_exploration.py"
+      ]
+    },
+    {
+      "id": 154,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/audit_world_freight_coverage.py",
+        "tests/test_world_phase6_construction.py"
+      ]
+    },
+    {
+      "id": 155,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_catalog_integrity.py"
+      ]
+    },
+    {
+      "id": 156,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase3_demand.py"
+      ]
+    },
+    {
+      "id": 157,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_catalog_integrity.py"
+      ]
+    },
+    {
+      "id": 158,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase6_exploration.py"
+      ]
+    },
+    {
+      "id": 159,
+      "status": "OPEN_SCOPE",
+      "evidence": []
+    },
+    {
+      "id": 160,
+      "status": "OPEN_SCOPE",
+      "evidence": [
+        "tests/test_world_foundation.py"
+      ]
+    },
+    {
+      "id": 161,
+      "status": "OPEN_SCOPE",
+      "evidence": [
+        "tests/test_world_phase3_demand.py"
+      ]
+    },
+    {
+      "id": 162,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase6_construction.py"
+      ]
+    },
+    {
+      "id": 163,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase6_exploration.py"
+      ]
+    },
+    {
+      "id": 164,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase8_competitive_bids.py"
+      ]
+    },
+    {
+      "id": 165,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase6_labor.py"
+      ]
+    },
+    {
+      "id": 166,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_foundation.py"
+      ]
+    },
+    {
+      "id": 167,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase5_map.py"
+      ]
+    },
+    {
+      "id": 168,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_foundation.py",
+        "tests/test_world_phase9_replay.py"
+      ]
+    },
+    {
+      "id": 169,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/audit_world_freight_coverage.py"
+      ]
+    },
+    {
+      "id": 170,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_step9_1200_months.py",
+        "tests/test_step13_120_months.py",
+        "tests/test_world_phase9_replay.py"
+      ]
+    },
+    {
+      "id": 171,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_foundation.py",
+        "tests/test_world_phase9_replay.py"
+      ]
+    },
+    {
+      "id": 172,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_phase2l_products.py",
+        "tests/test_world_phase2_property_services.py",
+        "tests/test_world_phase9_replay.py"
+      ]
+    },
+    {
+      "id": 173,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/audit_world_freight_coverage.py"
+      ]
+    },
+    {
+      "id": 174,
+      "status": "CANDIDATE_EVIDENCE",
+      "evidence": [
+        "tests/test_world_foundation.py",
+        "tests/test_world_phase9_replay.py"
+      ]
+    }
+  ]
+}

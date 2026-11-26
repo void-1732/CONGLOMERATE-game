@@ -49,8 +49,7 @@ with sync_playwright() as p:
     page.reload();page.wait_for_function('STORAGE_READY')
     assert page.evaluate('current().staff.production')==changed,('lost hired workers on refresh',initial,changed)
     # Create plant through user UI, then refresh before next month.
-    page.evaluate("PAGE='factory';render()")
-    page.get_by_text('新工場を建設する',exact=True).click()
+    page.evaluate("PAGE='facilityExpansion';render()")
     page.locator('#factoryName').fill('再読込試験工場')
     page.locator('#factoryKind').select_option('engine')
     page.locator('#factoryScale').select_option('small')

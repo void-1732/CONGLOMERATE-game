@@ -1,0 +1,149 @@
+name: World Economy Expansion / Development CI
+
+on:
+  push:
+    branches:
+      - codex/world-economy-full
+    paths:
+      - index.html
+      - tests/test_world_foundation.py
+      - tests/test_world_catalog_integrity.py
+      - tests/test_world_production.py
+      - tests/test_world_recipe_chains.py
+      - tests/test_world_recipe_graph.py
+      - tests/test_world_resources_services.py
+      - tests/test_world_phase2c.py
+      - tests/test_world_phase2d.py
+      - tests/test_world_phase2e.py
+      - tests/test_world_phase2f.py
+      - tests/test_world_phase2g.py
+      - tests/test_world_phase2h.py
+      - tests/test_world_phase2i.py
+      - tests/test_world_phase2k_cost.py
+      - tests/test_world_phase2k_supply.py
+      - tests/test_world_phase2l_products.py
+      - tests/test_world_phase2l_services.py
+      - tests/test_world_phase2l_passengers.py
+      - tests/test_world_phase2l_bank.py
+      - tests/test_world_phase2l_telephone.py
+      - tests/test_world_phase2m_medical.py
+      - tests/test_world_phase2_property_services.py
+      - tests/test_world_phase3_demand.py
+      - tests/test_world_phase3_market_b2b.py
+      - tests/test_world_phase4_international.py
+      - tests/test_world_phase4_credit.py
+      - tests/test_world_phase4_corridors.py
+      - tests/test_world_phase4_markets.py
+      - tests/test_world_phase4_transshipment.py
+      - tests/audit_world_freight_coverage.py
+      - tests/test_world_phase5_map.py
+      - tests/test_world_phase6_exploration.py
+      - tests/test_world_phase6_resources_grid.py
+      - tests/test_world_phase6_construction.py
+      - tests/test_world_phase6_known_deposits.py
+      - tests/test_world_phase6_power_contracts.py
+      - tests/test_world_phase6_labor.py
+      - tests/test_world_phase7_control.py
+      - tests/test_world_phase8_competitive_bids.py
+      - tests/test_world_phase9_replay.py
+      - docs/WORLD_ECONOMY_ACCEPTANCE.json
+      - tests/test_step10_37_pages.py
+      - tests/test_step13_120_months.py
+      - tests/test_fx_book_and_period_pl.py
+      - tests/test_vehicle_discontinuation.py
+      - .github/workflows/world-economy-development.yml
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: world-economy-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  world-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Playwright Chromium
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: World foundation and products
+        run: |
+          python -B tests/test_world_foundation.py
+          python -B tests/test_world_catalog_integrity.py
+          python -B tests/test_world_production.py
+          python -B tests/test_world_recipe_chains.py
+          python -B tests/test_world_recipe_graph.py
+          python -B tests/test_world_resources_services.py
+          python -B tests/test_world_phase2c.py
+          python -B tests/test_world_phase2d.py
+          python -B tests/test_world_phase2e.py
+          python -B tests/test_world_phase2f.py
+          python -B tests/test_vehicle_discontinuation.py
+      - name: Phase 2-G domestic logistics and title transfer
+        run: python -B tests/test_world_phase2g.py
+      - name: Phase 2-H to 2-J domestic orders and accounting
+        run: |
+          python -B tests/test_world_phase2h.py
+          python -B tests/test_world_phase2i.py
+      - name: Phase 2-K inventory, consolidation and regional procurement
+        run: |
+          python -B tests/test_world_phase2k_cost.py
+          python -B tests/test_world_phase2k_supply.py
+      - name: Phase 2-L physical product catalog and verified service paths
+        run: |
+          python -B tests/test_world_phase2l_products.py
+          python -B tests/test_world_phase2l_services.py
+          python -B tests/test_world_phase2l_passengers.py
+          python -B tests/test_world_phase2l_bank.py
+          python -B tests/test_world_phase2l_telephone.py
+          python -B tests/test_world_phase2m_medical.py
+          python -B tests/test_world_phase2_property_services.py
+      - name: Phase 3 market demand and fixed city distribution
+        run: python -B tests/test_world_phase3_demand.py
+      - name: Phase 3 real-demand B2B purchasing and regional pricing
+        run: python -B tests/test_world_phase3_market_b2b.py
+      - name: Phase 4 international cargo, calendar settlement and save
+        run: python -B tests/audit_world_freight_coverage.py
+      - name: Phase 5 offline geography and logistics management
+        run: python -B tests/test_world_phase5_map.py
+      - name: Phase 6 finite exploration and depletion cost
+        run: python -B tests/test_world_phase6_exploration.py
+      - name: Phase 6 regional resources, grid and real monthly close
+        run: python -B tests/test_world_phase6_resources_grid.py
+      - name: Phase 6 construction contracts and infrastructure
+        run: |
+          python -B tests/test_world_phase6_construction.py
+          python -B tests/test_world_phase6_known_deposits.py
+      - name: Phase 6 physical inter-company power supply
+        run: python -B tests/test_world_phase6_power_contracts.py
+      - name: Phase 6 finite national labor and hiring priority
+        run: python -B tests/test_world_phase6_labor.py
+      - name: Phase 7 ownership and control boundaries
+        run: python -B tests/test_world_phase7_control.py
+      - name: Phase 8 highest admissible competitive offer
+        run: python -B tests/test_world_phase8_competitive_bids.py
+      - name: Phase 9 traceability structure and offline world replay (not final acceptance)
+        run: python -B tests/test_world_phase9_replay.py
+      - name: Existing UI, trade and save regression
+        run: |
+          python -B tests/test_step10_37_pages.py
+          python -B tests/test_v029_trade.py
+          python -B tests/test_fx_book_and_period_pl.py
+          python -B tests/test_autosave_retention.py
+      - name: 120 months world and existing scenarios
+        run: |
+          python -B tests/test_step13_120_months.py --era 1900 --world
+          python -B tests/test_step13_120_months.py --era 1900
+          python -B tests/test_step13_120_months.py --era 2020

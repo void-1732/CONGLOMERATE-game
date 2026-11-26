@@ -1,0 +1,709 @@
+"""Phase 7 SPEC-126: actual paid purchases, control boundaries and save checks."""
+import os
+import shutil
+from pathlib import Path
+from playwright.sync_api import sync_playwright
+ROOT=Path(__file__).resolve().parents[1]
+
+def main():
+    with sync_playwright() as pw:
+        browser=pw.chromium.launch(executable_path=os.getenv("CHROMIUM_EXECUTABLE") or shutil.which("chromium") or None,args=["--no-sandbox"])
+        page=browser.new_page()
+        errors=[]
+        page.on("pageerror",lambda e:errors.append(str(e)))
+        page.set_content((ROOT/"index.html").read_text(encoding="utf-8"))
+        page.wait_for_function("STORAGE_READY")
+        liquidation=page.evaluate("""()=>{
+ const s=newWorldGame({country:'JP',name:'Cash liquidation and quarter review'}),root=company(s.playerId,s);
+ ensureBankruptcyLiquidationState(s);
+ const pool=s.firms.filter(f=>f.id!==root.id&&f.country==='JP'&&f.owners.every(o=>o.id==='PUBLIC'));
+ const [seller,target,buyer]=pool;
+ if(!buyer)throw Error('liquidation fixture unavailable');
+ post(seller,{cash:1000000000},{capital:1000000000},'検証用資本','financing',s);
+ post(buyer,{cash:1000000000},{capital:1000000000},'検証用資本','financing',s);
+ executeCapitalIssuance(s,target.id,5,1,'institutional','ai');
+ executeMADeal(s,seller.id,target.id,20,2.5,'ai');
+ const basis=bankruptcyHoldingBasis(s,seller,target),before=JSON.stringify(s);
+ const noOffset=bankruptcyBankOffset(s,seller,target,basis,{})===null&&JSON.stringify(s)===before;
+ const step=phase7LiquidationUnitStep(target)===20&&phase7LiquidationUnitStep({sharesOutstanding:1000000})===1
+  &&phase7LiquidationUnitStep({sharesOutstanding:1050000,treasuryShares:50000})===1;
+ let rejected=false;try{bankruptcySaleToFirm(s,seller,target,basis,{buyer,units:1,payment:100},{});}catch(e){rejected=e.message.includes('整数株数')}
+ const unchanged=JSON.stringify(s)===before;
+ const bid=bankruptcyCashBid(s,seller,target,basis.oldUnits),quote=!!bid&&bid.units%20===0&&phase7WholeShareQuantity(target,bid.units)>0;
+ const buyerCash=acc(buyer,'cash'),sellerCash=acc(seller,'cash'),payment=bankruptcyQuoteLocal(s,target,seller.country,20,.70);
+ const sale=bankruptcySaleToFirm(s,seller,target,basis,{buyer,units:20,payment},{});
+ const cash=sale.kind==='sale'&&acc(buyer,'cash')===buyerCash-payment&&acc(seller,'cash')===sellerCash+payment;
+ const quarter=Array.from({length:12},(_,i)=>i+1).filter(month=>phase7MAReviewDue({worldExpansion:{},month})).join(',')==='1,4,7,10';
+ const legacy=Array.from({length:12},(_,i)=>i+1).filter(month=>phase7MAReviewDue({month})).join(',')==='1,7';
+ return {noOffset,step,rejected,unchanged,quote,cash,quarter,legacy,clean:!check(s).length&&!check(parsePayload(savePayload(s))).length};
+}""")
+        assert len(liquidation)==9 and all(liquidation.values()),liquidation
+        print("PASS Phase 7 SPEC-056/117/120: whole share liquidation, cash only, quarter review")
+        rollback=page.evaluate("""()=>{
+          const s=newWorldGame({country:'JP',name:'Atomic acquisition rollback'}),buyer=company(s.playerId,s);
+          const target=s.firms.find(f=>f.id!==buyer.id&&f.country==='JP'&&f.owners.every(o=>o.id==='PUBLIC'));
+          post(buyer,{cash:1000000000},{capital:1000000000},'検証用資本','financing',s);
+          const row=phase7ProposeMA(s,buyer.id,target.id,30,2.5);
+          const expected=structuredClone(s);expected.worldExpansion.maReservations=[];
+          const original=registerEquityLink;let injected=false,failed=false;
+          // Inject a failure after cash and ownership have already changed.
+          registerEquityLink=(...args)=>{original(...args);injected=true;throw Error('injected settlement failure')};
+          try{phase7SettleMA(s,buyer.id,row.id)}catch(e){failed=e.message==='injected settlement failure'}
+          finally{registerEquityLink=original}
+          const unchanged=JSON.stringify(s)===JSON.stringify(expected);
+          const references=company(buyer.id,s)===buyer&&company(target.id,s)===target;
+          const restored=!check(parsePayload(savePayload(s))).length;
+          const settled=executeMADeal(s,buyer.id,target.id,30,2.5).actor==='player';
+          return {injected,failed,unchanged,references,restored,settled,clean:!check(s).length};
+        }""")
+        assert len(rollback)==7 and all(rollback.values()),rollback
+        print("PASS Phase 7 SPEC-140: late acquisition failure rolls back cash, stock registry and history; reservation released")
+        result=page.evaluate("""async()=>{
+ S=newWorldGame({country:'JP',name:'Phase7 thresholds'});
+ VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';
+ const root=company(S.playerId,S),target=S.firms.find(f=>f.id!==root.id&&f.country==='JP'&&f.owners.length===1&&f.owners[0].id==='PUBLIC');
+ if(!target)throw Error('target unavailable');
+ post(root,{cash:1000000000},{capital:1000000000},'検証用資本','financing',S);
+ const boundaries=[29.99,30,69.99,70,99.99,100],results=[];
+ let prior=0;
+ for(const pct of boundaries){
+  const amount=Math.round((pct-prior)*100)/100;
+  const quote=maQuote(S,root,target,amount,2.5),cash=acc(root,'cash'),targetCash=acc(target,'cash');
+  executeMADeal(S,root.id,target.id,amount,2.5,'player');
+  const r=phase7ShareholderRights(S,root.id,target.id);
+  const group=controlSet(S,root.id),member=group.has(target.id);
+  const co=consolidate(S),starts=consolidatedMonths(S,S.equityLinks,S.firms.filter(f=>group.has(f.id)),root.id);
+  results.push({pct,rights:r,member,consolidated:co.members.includes(target.id),start:starts[target.id]??null,
+    errors:[...check(S),...co.errors],cash:cash-acc(root,'cash')===localFromBase(quote.total,root.country,S)&&acc(target,'cash')===targetCash});
+  prior=pct;
+ }
+ const loaded=parsePayload(savePayload(S));const good=phase7ShareholderRights(loaded,root.id,target.id);
+ const bad=structuredClone(loaded),b=company(target.id,bad);b.owners.push({...b.owners[0],econ:0,vote:0});let duplicate=false;try{parsePayload(savePayload(bad))}catch(e){duplicate=e.message.includes('株主名簿')}
+ const noCash=structuredClone(loaded),buyer=company(root.id,noCash),other=noCash.firms.find(f=>f.id!==root.id&&f.id!==target.id&&f.owners.every(o=>o.id==='PUBLIC'));
+ const available=acc(buyer,'cash');if(available>0)post(buyer,{otherExpense:available},{cash:available},'検証用現金ゼロ','operating',noCash);
+ const before=JSON.stringify({o:other.owners,gl:buyer.ledger,j:buyer.journals,links:noCash.equityLinks});let denied=false;try{executeMADeal(noCash,buyer.id,other.id,30,2.5,'player')}catch(e){denied=e.message.includes('資金')}
+ const atomic=before===JSON.stringify({o:other.owners,gl:buyer.ledger,j:buyer.journals,links:noCash.equityLinks});
+ const fixture={playerId:'a',worldExpansion:{},firms:[{id:'a',owners:[{id:'PUBLIC',econ:1,vote:1}]},{id:'b',owners:[{id:'a',econ:.7,vote:.7},{id:'PUBLIC',econ:.3,vote:.3}]},{id:'c',owners:[{id:'a',econ:.3,vote:.3},{id:'b',econ:.4,vote:.4},{id:'PUBLIC',econ:.3,vote:.3}]}]};
+ const indirect=controller(fixture,'c','a')&&!controller(fixture,'c','b')&&phase7ShareholderRights(fixture,'a','c').control;
+ const legacy={...fixture,worldExpansion:null};
+ const legacyRule=phase7ControlThreshold(legacy,.55)&&!phase7ControlThreshold(fixture,.55);
+ return {results,save:good.whollyOwned,duplicate,denied,atomic,indirect,legacyRule};
+}""")
+        assert [r["pct"] for r in result["results"]]==[29.99,30,69.99,70,99.99,100],result
+        for r in result["results"]:
+            assert not r["errors"] and r["cash"],r
+            assert r["member"]==r["consolidated"]==r["rights"]["control"]==(r["pct"]>=70),r
+            assert r["rights"]["meeting"]==(r["pct"]>=30),r
+            assert r["rights"]["whollyOwned"]==(r["pct"]==100),r
+            assert (r["start"] is not None)==(r["pct"]>=70),r
+        assert all(result[k] for k in ("save","duplicate","denied","atomic","indirect","legacyRule")),result
+        whole_shares=page.evaluate("""()=>{
+ S=newWorldGame({country:'JP',name:'Whole share quote'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';
+ const root=company(S.playerId,S),target=S.firms.find(f=>f.id!==root.id&&f.country==='JP'&&f.owners.every(o=>o.id==='PUBLIC'));
+ post(root,{cash:1000000000},{capital:1000000000},'検証用資本','financing',S);
+ const issue=executeCapitalIssuance(S,target.id,5,1,'institutional','ai');
+ const before=JSON.stringify(S);
+ let rejected=false;try{executeMADeal(S,root.id,target.id,.0001,2.5)}catch(e){rejected=e.message.includes('整数株数')}
+ const atomic=before===JSON.stringify(S);
+ const q=maQuote(S,root,target,.002,2.5);
+ executeMADeal(S,root.id,target.id,.002,2.5);
+ const own=target.owners.find(o=>o.id===root.id);
+ const loaded=parsePayload(savePayload(S)),restored=company(target.id,loaded);
+ const treasury={sharesOutstanding:1050000,treasuryShares:50000};
+ return {issued:issue.totalShares===1050000,rejected,atomic,quantity:q.shareQuantity===21,
+  paid:Math.round(own.econ*1000000)===20,restored:restored.sharesOutstanding===1050000&&restored.owners.find(o=>o.id===root.id)?.econ===own.econ,
+  treasury:phase7WholeShareQuantity(treasury,1)===1,clean:!check(S).length&&!check(loaded).length};
+}""")
+        assert len(whole_shares)==8 and all(whole_shares.values()),whole_shares
+        print("PASS Phase 7 SPEC-056/134: whole-share quote after issuance, rejection before reservation, and save")
+        integer_register=page.evaluate("""()=>{
+ const s=newWorldGame({country:'JP',name:'Integer share register audit'}),root=company(s.playerId,s);
+ const [a,b]=s.firms.filter(f=>f.id!==root.id&&f.country==='JP'&&f.owners.every(o=>o.id==='PUBLIC'));
+ post(root,{cash:10000000000},{capital:10000000000},'検証資本','financing',s);
+ const reject=fn=>{try{fn();return false}catch{return true}};
+ executeMADeal(s,root.id,a.id,80,2.5);const before=a.shareRegistry.owners.find(o=>o.id===root.id).count;
+ executeCapitalIssuance(s,a.id,5,1,'institutional','ai');
+ const issued=a.shareRegistry.issued===1050000&&a.shareRegistry.owners.find(o=>o.id===root.id).count===before&&a.owners.find(o=>o.id===root.id).econ===800000/1050000;
+ const buyback=executeShareBuybackV0271(s,a.id,5,1.5);
+ const treasury=a.shareRegistry.treasury===52500&&a.shareRegistry.owners.find(o=>o.id===root.id).count===before&&buyback.quantity===52500;
+ cancelTreasurySharesV0271(s,a.id);
+ const cancel=a.shareRegistry.issued===997500&&a.shareRegistry.treasury===0&&a.shareRegistry.owners.find(o=>o.id===root.id).count===before;
+ post(a,{cash:1000000000},{capital:1000000000},'検証資本','financing',s);
+ executeMADeal(s,a.id,b.id,80,2.5);
+ const old=b.shareRegistry.owners.find(o=>o.id===a.id).count;
+ executeCorporateShareTransfer(s,root.id,b.id,a.id,20,'group',1);
+ const corporate=b.shareRegistry.owners.find(o=>o.id===a.id).count===old-200000&&b.shareRegistry.owners.find(o=>o.id===root.id).count===200000;
+ const saved=parsePayload(savePayload(s)),tampered=structuredClone(saved);company(a.id,tampered).shareRegistry.owners[0].count++;
+ const tamper=reject(()=>parsePayload(savePayload(tampered)));
+ const clean=!check(saved).length&&!consolidate(saved).errors.length;
+ return {before:before===800000,issued,treasury,cancel,corporate,tamper,clean,roundTrip:company(a.id,saved).shareRegistry.issued===997500};
+}""")
+        assert len(integer_register)==8 and all(integer_register.values()),integer_register
+        print("PASS Phase 7 integer share registry: issue, buyback, cancellation, transfer, restore and tamper")
+        exact_share=page.evaluate("""()=>{
+ const s=newWorldGame({country:'JP',name:'Exact one share'}),root=company(s.playerId,s),target=s.firms.find(f=>f.id!==root.id&&f.country==='JP'&&f.owners.every(o=>o.id==='PUBLIC'));
+ post(root,{cash:10000000000},{capital:10000000000},'検証資本','financing',s);
+ executeMADeal(s,root.id,target.id,80,2.5);const first=s.equityLinks.at(-1),originalBasis=first.considerationLocal,oldRatio=first.ratio;
+ executeCapitalIssuance(s,target.id,5,1,'institutional','ai');
+ const diluted=first.remainingShares===800000&&first.remainingRatio===800000/1050000&&first.originalRatio===oldRatio&&first.considerationLocal===originalBasis;
+ const pct=phase7SharePercent(target,1),proposal=phase7ProposeMA(s,root.id,target.id,pct,2.5);
+ const exact=proposal.shareSnapshot.quantity===1;
+ phase7SettleMA(s,root.id,proposal.id);
+ const bought=target.shareRegistry.owners.find(o=>o.id===root.id).count===800001&&s.equityLinks.at(-1).remainingShares===1;
+ const all=target.shareRegistry.owners.reduce((n,o)=>n+o.count,0)+target.shareRegistry.treasury===target.sharesOutstanding;
+ const saved=parsePayload(savePayload(s)),fake=structuredClone(saved);fake.equityLinks.at(-1).remainingShares++;
+ let tamper=false;try{parsePayload(savePayload(fake))}catch(e){tamper=e.message.includes('株主名簿')}
+ return {diluted,exact,bought,all,tamper,clean:!check(saved).length&&!consolidate(saved).errors.length};
+}""")
+        assert len(exact_share)==6 and all(exact_share.values()),exact_share
+        print("PASS Phase 7 exact one-share acquisition, lot dilution, reservation and saved registry")
+        staged=page.evaluate("""async()=>{
+ S=newWorldGame({country:'JP',name:'Staged acquisition'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';saveAuto=async()=>true;
+ const root=company(S.playerId,S),rootId=root.id;
+ post(root,{cash:1000000000},{capital:1000000000},'検証用資本','financing',S);
+ const close=async()=>{const m=S.monthCommitted;await runMonth();if(S.monthCommitted!==m+1)throw Error(JSON.stringify(LAST_MONTH_DIAGNOSTIC))};
+ await close();
+ // Use a standalone company after the first AI review to isolate direct entry.
+ const t=S.firms.find(f=>f.id!==rootId&&f.country==='JP'&&f.owners.length===1
+   &&f.owners[0].id==='PUBLIC'&&controlSet(S,f.id).size===1);
+ if(!t)throw Error('Direct acquisition fixture has no standalone target');
+ const targetId=t.id;t.auto=false;t.delegate.mode='manual';for(const m of t.models)t.plans[m.id]=0;
+ executeMADeal(S,rootId,targetId,30,2.5,'player');
+ post(t,{cash:12345},{otherRevenue:12345},'支配前の外部売上','operating',S);
+ executeMADeal(S,rootId,targetId,40,2.5,'player');
+ const crossing=S.equityLinks.at(-1),atControl=acc(t,'cash');
+ post(t,{cash:23456},{otherRevenue:23456},'支配後の外部売上','operating',S);
+ await close();
+ const c=consolidate(S),targetNow=company(targetId,S),audit=accountingFxReview(S,rootId,c);
+ const expected=targetNow.journals.filter(j=>j.when===S.monthCommitted&&j.id>=crossing.buyerJournal).reduce((n,j)=>n+Math.round(journalIncome(j).revenue*Number(j.fxAtPost??worldReferenceFx(targetNow.country,S))),0);
+ return {income:audit.periodEntries[targetId].revenue===expected,cf:c.cf.reconciled,scopeCash:c.cf.scopeAdded===Math.round(atControl*crossing.targetFxOnAcq),clean:!c.errors.length&&!check(S).length,restore:!check(parsePayload(savePayload(S))).length};
+}""")
+        assert len(staged)==5 and all(staged.values()),staged
+        indirect=page.evaluate("""async()=>{
+ S=newWorldGame({country:'JP',name:'Inherited control'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';saveAuto=async()=>true;
+ const root=company(S.playerId,S),p=S.firms.find(f=>f.id!==root.id&&f.country==='JP'&&f.owners.length===1&&f.owners[0].id==='PUBLIC');
+ // Freeze this fixture's parent and child scope during the first AI review.
+ p.maCooldown=ym(S.year,S.month);
+ post(root,{cash:1000000000},{capital:1000000000},'検証用資本','financing',S);
+ const parentId=p.id,rootId=root.id,amount=65000000,payer=S.seq;
+ post(p,{investment:amount},{cash:amount},'検証用子会社出資','investing',S);
+ const child=initFirm(S,{name:'Inherited subsidiary',country:'JP',industry:'service',seedBase:650000,publicOwnership:false});
+ child.owners=[{id:parentId,econ:1,vote:1}];
+ registerEquityLink(S,{parentId,childId:child.id,ratio:1,kind:'foundation',considerationLocal:amount,buyerJournal:payer,childJournal:child.journals.find(j=>j.text==='創業資本').id,bookEquityBase:baseFromLocal(amount,'JP',S),cashAcquiredBase:baseFromLocal(acc(child,'cash'),'JP',S)});
+ syncWorldIdentities(S);const childId=child.id;
+ const close=async()=>{const m=S.monthCommitted;await runMonth();if(S.monthCommitted!==m+1)throw Error(JSON.stringify(LAST_MONTH_DIAGNOSTIC))};
+ await close();
+ const parent=company(parentId,S),sub=company(childId,S);
+ parent.auto=false;sub.auto=false;parent.delegate.mode='manual';sub.delegate.mode='manual';
+ for(const f of [parent,sub])for(const m of f.models)f.plans[m.id]=0;
+ for(let i=0;i<10000;i++)post(sub,{cash:1},{otherRevenue:1},'取得前の検証売上','operating',S);
+ const archived=sub.journals.length===10000&&!sub.journals.some(j=>j.text==='創業資本');
+ post(sub,{cash:12345},{otherRevenue:12345},'支配前の外部売上','operating',S);
+ executeMADeal(S,rootId,parentId,70,2.5,'player');
+ const crossing=S.equityLinks.at(-1),expectedScope=acc(parent,'cash')+acc(sub,'cash');
+ const ids=controlSet(S,rootId),members=S.firms.filter(f=>ids.has(f.id));
+ const scope=consolidationScope(S,S.equityLinks.filter(l=>ids.has(l.parentId)&&ids.has(l.childId)),members,rootId);
+ const inherited=scope.entries[childId].scopeInherited&&scope.entries[childId].buyerJournal===crossing.buyerJournal;
+ post(sub,{cash:23456},{otherRevenue:23456},'支配後の外部売上','operating',S);
+ await close();
+ const c=consolidate(S),audit=accountingFxReview(S,rootId,c),subNow=company(childId,S);
+ const expected=subNow.journals.filter(j=>j.when===S.monthCommitted&&j.id>=crossing.buyerJournal).reduce((n,j)=>n+Math.round(journalIncome(j).revenue*Number(j.fxAtPost??worldReferenceFx(subNow.country,S))),0);
+ return {archived,inherited,income:audit.periodEntries[childId].revenue===expected,scopeCash:c.cf.scopeAdded===expectedScope,cf:c.cf.reconciled,clean:!c.errors.length&&!check(S).length,restored:!check(parsePayload(savePayload(S))).length};
+}""")
+        assert len(indirect)==7 and all(indirect.values()),indirect
+        registry=page.evaluate("""()=>{
+ const s=newWorldGame({country:'JP',name:'Registry audit'});
+ const root=company(s.playerId,s),other=s.firms.find(f=>f.id!==root.id&&f.owners.length===1&&f.owners[0].id==='PUBLIC');
+ if(!other)throw Error('registry fixture unavailable');
+ const bad=mutate=>{
+  const copy=structuredClone(s),f=company(other.id,copy);
+  mutate(f);
+  const prior=JSON.stringify(f.owners);
+  const live=check(copy).some(e=>e.includes('株主名簿'));
+  let restored=false;
+  try{parsePayload(savePayload(copy))}catch(e){restored=e.message.includes('株主名簿')}
+  return live&&restored&&prior===JSON.stringify(f.owners);
+ };
+ return {
+  valid:!check(s).length&&!check(parsePayload(savePayload(s))).length,
+  duplicate:bad(f=>f.owners.push({...f.owners[0],econ:0,vote:0})),
+  self:bad(f=>f.owners[0].id=f.id),
+  unknown:bad(f=>f.owners[0].id='MISSING-OWNER'),
+  invalidEquity:bad(f=>f.owners[0].econ=-0.1),
+  invalidVotes:bad(f=>f.owners[0].vote=0.5),
+  empty:bad(f=>f.owners=[]),
+  nonFiniteLive:(()=>{const copy=structuredClone(s);company(other.id,copy).owners[0].vote=NaN;return check(copy).some(e=>e.includes('株主名簿'))})()
+ };
+}""")
+        assert len(registry)==8 and all(registry.values()),registry
+        lots=page.evaluate("""()=>{
+ const s=newWorldGame({country:'JP',name:'Whole holding units'}),buyer=company(s.playerId,s);
+ const seller=initFirm(s,{name:'Four-lot seller',country:'JP',industry:'service',seedBase:650000,publicOwnership:true});
+ const target=initFirm(s,{name:'Four-lot target',country:'JP',industry:'service',seedBase:650000,publicOwnership:true});
+ syncWorldIdentities(s);
+ for(const f of [buyer,seller])post(f,{cash:1000000000},{capital:1000000000},'検証用資本','financing',s);
+ executeMADeal(s,buyer.id,seller.id,70,2.5);
+ for(let n=0;n<4;n++)executeMADeal(s,seller.id,target.id,20,2.5);
+ const entries=s.equityLinks.filter(l=>l.parentId===seller.id&&l.childId===target.id);
+ const original=entries.reduce((n,l)=>n+l.considerationLocal,0);
+ executeCorporateShareTransfer(s,buyer.id,target.id,seller.id,79.9998,'group',1);
+ const first=s.equityTransfers.at(-1),remainders=entries.map(l=>Math.round(l.remainingRatio*1000000));
+ const balance=remainders.every(x=>x>=0)&&remainders.reduce((a,b)=>a+b,0)===2
+  &&target.owners.find(o=>o.id===seller.id)?.econ===.000002;
+ const basis=entries.every(l=>l.remainingConsiderationLocal>=0&&(l.remainingRatio>0||l.remainingConsiderationLocal===0))
+  &&entries.reduce((n,l)=>n+l.remainingConsiderationLocal,0)===original-first.bookCostLocal;
+ const loaded=parsePayload(savePayload(s));
+ executeCorporateShareTransfer(loaded,buyer.id,target.id,seller.id,.0002,'group',1);
+ const closed=loaded.equityLinks.filter(l=>l.parentId===seller.id&&l.childId===target.id)
+  .every(l=>l.remainingRatio===0&&l.remainingConsiderationLocal===0)
+  &&!company(target.id,loaded).owners.some(o=>o.id===seller.id)&&company(target.id,loaded).owners.find(o=>o.id===buyer.id)?.econ===.8;
+ return {balance,basis,closed,clean:!check(loaded).length&&!consolidate(loaded).errors.length};
+}""")
+        assert len(lots)==4 and all(lots.values()),lots
+        print("PASS Phase 7 SPEC-134: nonnegative whole holding units and basis through multi-lot resale and reload")
+        circular=page.evaluate("""()=>{
+ const s=newWorldGame({country:'JP',name:'Cross ownership audit'});
+ const root=company(s.playerId,s),targets=s.firms.filter(f=>f.id!==root.id&&f.country==='JP'&&f.owners.length===1&&f.owners[0].id==='PUBLIC');
+ if(targets.length<2)throw Error('two acquisition targets required');
+ const [b,c]=targets;
+ post(root,{cash:5000000000},{capital:5000000000},'検証用資本','financing',s);
+ for(const f of [b,c])post(f,{cash:1000000000},{capital:1000000000},'検証用資本','financing',s);
+ executeMADeal(s,root.id,b.id,70,2.5,'player');
+ executeMADeal(s,root.id,c.id,70,2.5,'player');
+ executeMADeal(s,b.id,c.id,20,2.5,'player');
+ executeMADeal(s,c.id,b.id,20,2.5,'player');
+ const g=ownedGroup(s,root.id),co=consolidate(s,root.id);
+ const restored=parsePayload(savePayload(s)),r=ownedGroup(restored,root.id);
+ const reversed=structuredClone(s);reversed.firms.reverse();const other=ownedGroup(reversed,root.id);
+ const exact=x=>Math.abs(x-.875)<1e-9;
+ return {
+  retained:b.owners.some(o=>o.id===c.id&&o.econ===.2)&&c.owners.some(o=>o.id===b.id&&o.econ===.2),
+  shares:exact(g.shares[b.id])&&exact(g.shares[c.id])&&!g.issues.length,
+  unique:g.members.length===3&&new Set(co.members).size===3&&co.members.length===3,
+  ledger:!check(s).length&&!co.errors.length&&co.bs.liabEquityDiff===0&&co.spot.checkDifference===0,
+  order:exact(other.shares[b.id])&&exact(other.shares[c.id])&&!other.issues.length,
+  restored:exact(r.shares[b.id])&&exact(r.shares[c.id])&&!check(restored).length&&!consolidate(restored).errors.length,
+  unseeded:!controlSet(s,b.id).has(c.id)&&!controlSet(s,c.id).has(b.id)
+ };
+}""")
+        assert len(circular)==7 and all(circular.values()),circular
+        print("PASS Phase 7 SPEC-132: seven paid mutual-holding and consolidation checks")
+        reserve=page.evaluate("""()=>{
+ const s=newWorldGame({country:'JP',name:'Reserved funds audit'}),buyer=company(s.playerId,s);
+ const target=s.firms.find(f=>f.id!==buyer.id&&f.country==='JP'&&f.owners.length===1&&f.owners[0].id==='PUBLIC');
+ post(buyer,{cash:1000000000},{capital:1000000000},'検証用資本','financing',s);
+ const reject=fn=>{try{fn();return false}catch{return true}};
+ const cash=acc(buyer,'cash'),r=phase7ProposeMA(s,buyer.id,target.id,30,2.5);
+ const held=phase7ReservedCash(s,buyer.id)===r.amountLocal&&phase7AvailableCash(s,buyer)===cash-r.amountLocal&&acc(buyer,'cash')===cash;
+ const seq=s.seq,ledger=JSON.stringify(buyer.ledger);
+ const blocked=reject(()=>post(buyer,{otherExpense:cash},{cash:cash},'予約済資金の競合支出','operating',s))&&seq===s.seq&&ledger===JSON.stringify(buyer.ledger);
+ const duplicate=reject(()=>phase7ProposeMA(s,buyer.id,target.id,30,2.5));
+ const loaded=parsePayload(savePayload(s)),saved=phase7ReservedCash(loaded,buyer.id)===r.amountLocal;
+ const forged=structuredClone(loaded);forged.worldExpansion.maReservations[0].amountLocal++;
+ const tamper=reject(()=>parsePayload(savePayload(forged)));
+ phase7CancelMA(s,buyer.id,r.id);const cancelled=phase7AvailableCash(s,buyer)===cash;
+ const low=phase7ProposeMA(s,buyer.id,target.id,100,.75);
+ const refused=reject(()=>phase7SettleMA(s,buyer.id,low.id))&&phase7ReservedCash(s,buyer.id)===0&&acc(buyer,'cash')===cash;
+ const success=phase7ProposeMA(s,buyer.id,target.id,30,2.5);
+ phase7SettleMA(s,buyer.id,success.id);
+ const paid=cash-acc(buyer,'cash')===success.amountLocal&&phase7ReservedCash(s,buyer.id)===0&&target.owners.some(o=>o.id===buyer.id&&o.econ===.3);
+ phase7ProposeMA(s,buyer.id,target.id,10,2.5);phase7ExpireMAReservations(s);
+ return {held,blocked,duplicate,saved,tamper,cancelled,refused,paid,expired:phase7ReservedCash(s,buyer.id)===0,clean:!check(s).length&&!check(parsePayload(savePayload(s))).length};
+}""")
+        assert len(reserve)==10 and all(reserve.values()),reserve
+        print("PASS Phase 7 SPEC-128: ten reservation, settlement, release and integrity checks")
+        reservation_quantity=page.evaluate("""()=>{
+ const s=newWorldGame({country:'JP',name:'Reservation quantity audit'}),buyer=company(s.playerId,s);
+ const target=s.firms.find(f=>f.id!==buyer.id&&f.country==='JP'&&f.owners.every(o=>o.id==='PUBLIC'));
+ post(buyer,{cash:1000000000},{capital:1000000000},'検証用資本','financing',s);
+ const r=phase7ProposeMA(s,buyer.id,target.id,30,2.5),cash=acc(buyer,'cash');
+ const loaded=parsePayload(savePayload(s)),saved=loaded.worldExpansion.maReservations[0];
+ const snapshot=saved.shareSnapshot.issued===1000000&&saved.shareSnapshot.treasury===0&&saved.shareSnapshot.quantity===300000;
+ const forged=structuredClone(loaded);forged.worldExpansion.maReservations[0].shareSnapshot.quantity++;
+ let tamper=false;try{parsePayload(savePayload(forged))}catch(e){tamper=e.message.includes('買収資金予約')}
+ // Isolate a share-count change with constant valuation so monetary re-quote alone cannot detect it.
+ target.sharesOutstanding=1100000;
+ const samePrice=maQuote(s,buyer,target,30,2.5).total===r.totalBase;
+ let stale=false;try{phase7SettleMA(s,buyer.id,r.id)}catch(e){stale=e.message.includes('株数')}
+ const released=phase7ReservedCash(s,buyer.id)===0&&acc(buyer,'cash')===cash&&target.owners.every(o=>o.id==='PUBLIC');
+ const fresh=phase7ProposeMA(s,buyer.id,target.id,30,2.5);
+ delete fresh.shareSnapshot;
+ const old=parsePayload(savePayload(s));let legacy=false;
+ try{phase7SettleMA(old,buyer.id,fresh.id)}catch(e){legacy=e.message.includes('旧予約')}
+ return {snapshot,tamper,samePrice,stale,released,legacy,oldReleased:phase7ReservedCash(old,buyer.id)===0,clean:!check(old).length};
+}""")
+        assert len(reservation_quantity)==8 and all(reservation_quantity.values()),reservation_quantity
+        print("PASS Phase 7 SPEC-128: fixed share quantity, stale and legacy proposal release, restore audit")
+        repayment=page.evaluate("""async()=>{
+ S=newWorldGame({country:'JP',name:'Monthly external loan'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';saveAuto=async()=>true;PAGE='financeFunding';render();
+ const root=company(S.playerId,S),id=root.id;
+ post(root,{cash:1000000000},{capital:1000000000},'検証用資本','financing',S);
+ root.auto=false;root.delegate.mode='manual';
+ const field=document.getElementById('borrowBase');
+ if(field)field.value='360000';else throw Error('borrowBase not found');
+ borrow();
+ const loan=root.loans.at(-1);if(!loan?.repayment)throw Error('monthly contract missing');
+ const principal=loan.outstanding,installment=Math.floor(principal/36)+(principal%36?1:0),loanId=loan.id;
+ const close=async()=>{const m=S.monthCommitted;await runMonth();if(S.monthCommitted!==m+1)throw Error(JSON.stringify(LAST_MONTH_DIAGNOSTIC))};
+ const issue=loan.repayment.principal===principal&&loan.due===loan.repayment.origin+36&&phase7ScheduledPrincipal(S,loan)===0;
+ await close();const first=company(id,S).loans.find(l=>l.id===loanId);
+ const noEarly=first?.outstanding===principal;
+ await close();const debtor=company(id,S),current=debtor.loans.find(l=>l.id===loanId);
+ const monthly=current?.outstanding===principal-installment&&debtor.journals.some(j=>j.when===S.monthCommitted&&j.text==='借入元本返済'&&j.amount===installment);
+ const interest=debtor.journals.some(j=>j.when===S.monthCommitted&&j.text==='当月借入利息発生'&&j.amount===Math.round(principal*loan.rate/12));
+ const restored=parsePayload(savePayload(S)),loaded=company(id,restored).loans.find(l=>l.id===loanId);
+ const forged=structuredClone(restored);company(id,forged).loans.find(l=>l.id===loanId).repayment.principal++;
+ let tamper=false;try{parsePayload(savePayload(forged))}catch(e){tamper=e.message.includes('返済')}
+ return {issue,noEarly,monthly,interest,restored:loaded?.outstanding===current.outstanding&&loaded.repayment.principal===principal,tamper,clean:!check(S).length&&!consolidate(S).errors.length&&consolidate(S).cf.reconciled};
+}""")
+        assert len(repayment)==7 and all(repayment.values()),repayment
+        print("PASS Phase 7 SPEC-086: seven external monthly principal, interest and save checks")
+        funding=page.evaluate("""()=>{
+ const s=newWorldGame({country:'JP',name:'Acquisition funding audit'}),buyer=company(s.playerId,s),target=s.firms.find(f=>f.id!==buyer.id&&f.country==='JP'&&f.owners.length===1&&f.owners[0].id==='PUBLIC');
+ const reject=fn=>{try{fn();return false}catch{return true}};
+ const own=acc(buyer,'cash');post(buyer,{otherExpense:own},{cash:own},'検証用現金支出','operating',s);
+ const borrowed=1000000000;post(buyer,{cash:borrowed},{debt:borrowed},'銀行借入','financing',s);
+ const debtBlocked=phase7RestrictedCash(s,buyer)===borrowed&&phase7AcquisitionCash(s,buyer)===0&&!maQuote(s,buyer,target,30,2.5).affordable;
+ const before=JSON.stringify(s),denied=reject(()=>phase7ProposeMA(s,buyer.id,target.id,30,2.5))&&before===JSON.stringify(s);
+ const issued=200000000;post(buyer,{cash:issued},{capital:issued},'外部向け新株発行：検証','financing',s);
+ const issueBlocked=phase7RestrictedCash(s,buyer)===borrowed+issued&&phase7AcquisitionCash(s,buyer)===0;
+ const raw=JSON.stringify(buyer.ledger),seq=s.seq;
+ const guard=reject(()=>post(buyer,{investment:1},{cash:1},'株式取得：検証','investing',s))&&raw===JSON.stringify(buyer.ledger)&&seq===s.seq;
+ post(buyer,{otherExpense:issued},{cash:issued},'通常事業支出','operating',s);
+ const consumed=phase7RestrictedCash(s,buyer)===borrowed;
+ post(buyer,{cash:500000000},{otherRevenue:500000000},'外部営業収入','operating',s);
+ const earned=phase7AcquisitionCash(s,buyer)===500000000;
+ const r=phase7ProposeMA(s,buyer.id,target.id,30,2.5),reserved=phase7AcquisitionCash(s,buyer)===500000000-r.amountLocal;
+ const loaded=parsePayload(savePayload(s)),restored=phase7RestrictedCash(loaded,company(buyer.id,loaded))===borrowed&&phase7AcquisitionCash(loaded,company(buyer.id,loaded))===500000000-r.amountLocal;
+ phase7SettleMA(s,buyer.id,r.id);const settled=phase7RestrictedCash(s,buyer)===borrowed&&phase7AcquisitionCash(s,buyer)===500000000-r.amountLocal;
+ return {debtBlocked,denied,issueBlocked,guard,consumed,earned,reserved,restored,settled,clean:!check(s).length&&!consolidate(s).errors.length};
+}""")
+        assert len(funding)==10 and all(funding.values()),funding
+        print("PASS Phase 7 SPEC-117: ten financing source audit and acquisition checks")
+        deposit_funding=page.evaluate("""()=>{
+ const s=newWorldGame({country:'JP',name:'Deposit funding audit'}),buyer=company(s.playerId,s);
+ const target=s.firms.find(f=>f.id!==buyer.id&&f.country==='JP'&&f.owners.every(o=>o.id==='PUBLIC'));
+ const bank=initFirm(s,{name:'Funding audit bank',country:'JP',industry:'service',seedBase:650000,publicOwnership:true});
+ syncWorldIdentities(s);
+ post(buyer,{cash:500000000},{capital:500000000},'検証用資本','financing',s);
+ executeMADeal(s,buyer.id,bank.id,70,2.5);
+ const cash=acc(buyer,'cash');post(buyer,{otherExpense:cash},{cash},'検証用現金支出','operating',s);
+ const restricted=maQuote(s,buyer,target,30,2.5).total*100+100,own=120;
+ post(buyer,{cash:restricted},{debt:restricted},'銀行借入','financing',s);
+ post(buyer,{cash:own},{otherRevenue:own},'外部営業収入','operating',s);
+ const a=worldOpenBankDeposit(s,buyer.id,bank.id,restricted-50);
+ const b=worldOpenBankDeposit(s,buyer.id,bank.id,80);
+ const parked=phase7RestrictedCash(s,buyer)===0&&phase7AcquisitionCash(s,buyer)===90;
+ const loaded=parsePayload(savePayload(s)),client=company(buyer.id,loaded);
+ worldWithdrawBankDeposit(loaded,client.id,b.id);
+ const mixed=phase7RestrictedCash(loaded,client)===50&&phase7AcquisitionCash(loaded,client)===own;
+ worldWithdrawBankDeposit(loaded,client.id,a.id);
+ const roundTrip=phase7RestrictedCash(loaded,client)===restricted&&phase7AcquisitionCash(loaded,client)===own
+   &&!maQuote(loaded,client,company(target.id,loaded),30,2.5).affordable;
+ for(let i=0;i<10000;i++)post(buyer,{otherExpense:1},{otherRevenue:1},'繰越検証用仕訳','operating',s);
+ const archived=parsePayload(savePayload(s)),archivedClient=company(buyer.id,archived);
+ const forged=structuredClone(archived);
+ company(buyer.id,forged).phase7FundingArchive.depositRestricted[b.journal]=b.principal+1;
+ let tamper=false;try{parsePayload(savePayload(forged))}catch(e){tamper=e.message.includes('繰越預金')}
+ worldWithdrawBankDeposit(archived,archivedClient.id,b.id);
+ worldWithdrawBankDeposit(archived,archivedClient.id,a.id);
+ const carried=phase7RestrictedCash(archived,archivedClient)===restricted&&phase7AcquisitionCash(archived,archivedClient)===own
+   &&phase7AcquisitionCash(parsePayload(savePayload(archived)),archivedClient)===own;
+ const oldArchive=structuredClone(archived);
+ delete company(buyer.id,oldArchive).phase7FundingArchive.depositRestricted;
+ const restoredOld=parsePayload(savePayload(oldArchive));
+ const oldArchiveSafe=phase7AcquisitionCash(restoredOld,company(buyer.id,restoredOld))===own-30;
+ return {parked,mixed,roundTrip,carried,tamper,oldArchiveSafe};
+}""")
+        assert all(deposit_funding.values()),deposit_funding
+        print("PASS Phase 7 SPEC-117: deposit provenance through refunds, saves and journal archival")
+        loan_funding=page.evaluate("""()=>{
+ S=newWorldGame({country:'JP',name:'Related-party funds'});
+ VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';PAGE='corporateSubsidiaries';render();
+ document.querySelector('#subName').value='Related-party borrower';
+ document.querySelector('#subCountry').value='JP';
+ document.querySelector('#subIndustry').value='service';
+ document.querySelector('#subCapital').value='650000';
+ createSub();syncWorldIdentities(S);
+ const lender=company(S.playerId,S),borrower=S.firms.find(f=>f.name==='Related-party borrower');
+ const initial=acc(lender,'cash'),restricted=600000,own=400000;
+ post(lender,{otherExpense:initial},{cash:initial},'検証用現金支出','operating',S);
+ post(lender,{cash:restricted},{debt:restricted},'銀行借入','financing',S);
+ post(lender,{cash:own},{otherRevenue:own},'検証用営業収入','operating',S);
+ VIEW_FIRM=lender.id;render();
+ document.querySelector('#loanSubs').value=borrower.id;
+ document.querySelector('#loanAmount').value='10000';groupLoan();
+ const loan=borrower.loans.find(l=>l.parent===lender.id),id=loan.id;
+ const opened=loan.acquisitionFunding.remaining===restricted&&phase7AcquisitionCash(S,lender)===0;
+ const asLegacy=save=>{
+  const copy=structuredClone(save),origin=company(borrower.id,copy).loans.find(l=>l.id===id);
+  delete origin.acquisitionFunding;
+  for(const j of company(lender.id,copy).journals){
+   if(j.acquisitionLoanOrigin?.loanId===id)delete j.acquisitionLoanOrigin;
+   if(j.acquisitionLoanReturn?.loanId===id)delete j.acquisitionLoanReturn;
+  }
+  return copy;
+ };
+ const recovered=parsePayload(savePayload(asLegacy(S))),recoveredLoan=company(borrower.id,recovered).loans.find(l=>l.id===id);
+ const recoveredOrigin=recoveredLoan.acquisitionFunding?.remaining===restricted
+  &&company(lender.id,recovered).journals.find(j=>j.id===recoveredLoan.acquisitionFunding.journal)?.acquisitionLoanOrigin?.loanId===id;
+ const restored=parsePayload(savePayload(S)),f=company(lender.id,restored),debtor=company(borrower.id,restored);
+ const closeFinance=s=>{
+  s.month++;s.monthCommitted=ym(s.year,s.month)-1;
+  for(const firm of s.firms){firm._profitStart=financials(firm).profit;firm._salesNow=0;firm._unitsNow=0;}
+  financeMonthly(s,[]);
+ };
+ closeFinance(restored);closeFinance(recovered);
+ const repayment=f.journals.findLast(j=>j.acquisitionLoanReturn),interest=f.journals.findLast(j=>j.text.includes('利息の回収'));
+ const repaid=cashOfJournal(repayment)===41667&&repayment.acquisitionLoanReturn.cash===41667
+   &&debtor.loans.find(l=>l.id===id).acquisitionFunding.remaining===restricted-41667;
+ const audited=phase7RestrictedCash(restored,f)===41667&&phase7AcquisitionCash(restored,f)===cashOfJournal(interest);
+ const loaded=parsePayload(savePayload(restored)),forged=structuredClone(loaded);
+ company(lender.id,forged).journals.find(j=>j.id===repayment.id).acquisitionLoanReturn.cash--;
+ let tamper=false;try{parsePayload(savePayload(forged))}catch(e){tamper=e.message.includes('貸付元本')}
+ const recoveredCash=phase7AcquisitionCash(recovered,company(lender.id,recovered))===cashOfJournal(interest);
+ const partial=parsePayload(savePayload(asLegacy(restored))),partialLender=company(lender.id,partial);
+ const unproved=company(borrower.id,partial).loans.find(l=>l.id===id).acquisitionFunding===undefined;
+ const previousRestricted=phase7RestrictedCash(partial,partialLender),taxDue=-acc(partialLender,'taxDue');
+ closeFinance(partial);
+ const partialReceipt=partialLender.journals.findLast(j=>j.text===PHASE7_LOAN_PRINCIPAL_RECEIPT);
+ const fallback=unproved&&previousRestricted===41667&&partialReceipt.acquisitionLoanReturn===undefined
+  &&phase7RestrictedCash(partial,partialLender)===previousRestricted-taxDue+cashOfJournal(partialReceipt)
+  &&!check(parsePayload(savePayload(partial))).length;
+ const clean=!check(loaded).length&&!consolidate(loaded).errors.length&&phase7RestrictedCash(loaded,company(lender.id,loaded))===41667;
+ return {opened,repaid,audited,tamper,recoveredOrigin,recoveredCash,fallback,clean};
+}""")
+        assert all(loan_funding.values()),loan_funding
+        print("PASS Phase 7 SPEC-117: audited loan repayment, legacy origin recovery and restriction of unproven principal")
+        dividend=page.evaluate("""async()=>{
+ S=newWorldGame({country:'JP',name:'Dividend audit'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';saveAuto=async()=>true;
+ const root=company(S.playerId,S),target=S.firms.find(f=>f.id!==root.id&&f.country==='JP'&&f.owners.length===1&&f.owners[0].id==='PUBLIC'),rootId=root.id,targetId=target.id;
+ post(root,{cash:5000000000},{capital:5000000000},'検証用資本','financing',S);
+ executeMADeal(S,rootId,targetId,70,2.5);
+ post(target,{cash:1000000},{otherRevenue:1000000},'配当原資の営業収益','operating',S);
+ const before=consolidate(S),cash=acc(target,'cash'),parentCash=acc(root,'cash'),profit=financials(target).profit;
+ const reject=fn=>{try{fn();return false}catch{return true}};
+ const snapshot=JSON.stringify(S),rejectOver=reject(()=>phase7PayDividend(S,targetId,phase7DividendLimit(S,target)+1))&&snapshot===JSON.stringify(S);
+ const r=phase7PayDividend(S,targetId,100001),p=r.allocations.find(a=>a.ownerId===rootId),ext=r.allocations.find(a=>a.ownerId==='PUBLIC');
+ const allocated=p.paid===70001&&ext.paid===30000&&p.paid+ext.paid===r.amount;
+ const balances=cash-acc(target,'cash')===r.amount&&acc(root,'cash')-parentCash===p.received&&acc(target,'dividendsPaid')===r.amount;
+ const profitPreserved=financials(target).profit===profit;
+ const after=consolidate(S),eliminated=after.pl.profit===before.pl.profit&&before.bs.cash-after.bs.cash===ext.paid&&after.bs.liabEquityDiff===0&&after.spot.checkDifference===0;
+ const loaded=parsePayload(savePayload(S)),restore=loaded.worldExpansion.dividends[0].amount===r.amount&&!check(loaded).length;
+ const forged=structuredClone(loaded);forged.worldExpansion.dividends[0].allocations[0].paid++;
+ const tamper=reject(()=>parsePayload(savePayload(forged)));
+ const close=async()=>{const m=S.monthCommitted;await runMonth();if(S.monthCommitted!==m+1)throw Error(JSON.stringify(LAST_MONTH_DIAGNOSTIC))};
+ await close();
+ const g=consolidate(S),monthly=g.cf.reconciled&&!g.errors.length&&!check(S).length;
+ return {rejectOver,allocated,balances,profitPreserved,eliminated,restore,tamper,monthly};
+}""")
+        assert len(dividend)==8 and all(dividend.values()),dividend
+        print("PASS Phase 7 SPEC-056/080/100: eight discretionary distribution and consolidation checks")
+        taxation=page.evaluate("""()=>{
+ const s=newWorldGame({country:'JP',name:'Historical tax audit'});s.year=2023;s.month=1;s.monthCommitted=ym(s.year,s.month)-1;applyWorldHistory(s);syncWorldIdentities(s);
+ const f=company(s.playerId,s),profiles=Object.keys(WORLD_ENGINE_TERRITORY);
+ const coverage=profiles.length===46&&Object.keys(WORLD_CORPORATE_TAX_BPS).length===45&&profiles.every(code=>{const p=phase7CorporateTaxProfile(code,2023);return Number.isSafeInteger(p.bps)&&p.bps>=0&&p.bps<=10000});
+ const country=phase7CorporateTaxProfile('JP',2023).bps===2974&&phase7CorporateTaxProfile('UK',2023).bps===2500&&phase7CorporateTaxProfile('US',2023).bps===2577;
+ const era=phase7CorporateTaxProfile('JP',2000).bps===4087&&phase7CorporateTaxProfile('UK',1980).bps===5200;
+ const missing=phase7CorporateTaxProfile('JP',1900).status==='provisional'&&phase7CorporateTaxProfile('YU',2023).status==='provisional'&&phase7CorporateTaxProfile('JP',2030).dataYear===2023&&phase7CorporateTaxProfile('JP',2030).status==='carried';
+ for(const x of s.firms){x._profitStart=financials(x).profit;x._salesNow=0;x._unitsNow=0;}
+ post(f,{cash:100000000},{otherRevenue:100000000},'課税利益の検証用売上','operating',s);
+ financeMonthly(s,[]);
+ const j=f.journals.findLast(j=>j.taxAssessment),a=j?.taxAssessment;
+ const journal=!!a&&a.country==='JP'&&a.bps===2974&&a.taxableProfit>0&&j.amount===Math.round(a.taxableProfit*2974/10000)&&acc(f,'taxDue')===-j.amount;
+ const payable=f.payables.some(p=>p.account==='taxDue'&&p.amount===j.amount&&p.due===ym(s.year,s.month)+1);
+ const loaded=parsePayload(savePayload(s)),restore=company(f.id,loaded).journals.some(x=>x.id===j.id&&x.taxAssessment?.bps===2974);
+ const forged=structuredClone(loaded);company(f.id,forged).journals.find(x=>x.id===j.id).taxAssessment.bps++;
+ let tamper=false;try{parsePayload(savePayload(forged))}catch(e){tamper=e.message.includes('法人税率')}
+ return {coverage,country,era,missing,journal,payable,restore,tamper,clean:!check(s).length};
+}""")
+        assert len(taxation)==9 and all(taxation.values()),taxation
+        print("PASS Phase 7 SPEC-082: nine country/year tax profile, accounting and restoration checks")
+        early_tax=page.evaluate("""()=>{
+ const old=newWorldGame({country:'US',name:'Historical corporate tax'});
+ old.year=1968;old.month=3;old.monthCommitted=ym(old.year,old.month)-1;
+ applyWorldHistory(old);syncWorldIdentities(old);
+ delete old.worldExpansion.corporateTaxFromSeq;
+ const revenue=100000;
+ const assess=s=>{
+  for(const f of s.firms){f._profitStart=financials(f).profit;f._salesNow=0;f._unitsNow=0;}
+  const firm=company(s.playerId,s);
+  post(firm,{cash:revenue},{otherRevenue:revenue},'法人税率検証用の営業収益','operating',s);
+  financeMonthly(s,[]);
+  return firm.journals.findLast(j=>j.taxAssessment);
+ };
+ const previous=assess(old),cutoff=old.seq,loaded=parsePayload(savePayload(old));
+ const migrated=previous.amount===15000&&previous.taxAssessment.status==='provisional'
+   &&loaded.worldExpansion.corporateTaxFromSeq===cutoff&&company(loaded.playerId,loaded).journals.some(j=>j.id===previous.id&&j.amount===previous.amount);
+ loaded.month++;loaded.monthCommitted=ym(loaded.year,loaded.month)-1;
+ const current=assess(loaded),a=current.taxAssessment;
+ const federal=a.sourceId==='IRS_SOI_TABLE_1'&&a.bps===5280&&a.dataYear===1968&&current.amount===52800
+   &&phase7CorporateTaxProfile('US',1908).status==='provisional'&&phase7CorporateTaxProfile('US',1909).bps===100
+   &&phase7CorporateTaxProfile('US',1979).bps===4600&&phase7CorporateTaxProfile('US',1980).bps===4970;
+ const uk=phase7CorporateTaxProfile('UK',1973,3).bps===4000&&phase7CorporateTaxProfile('UK',1973,4).bps===5200
+   &&phase7CorporateTaxProfile('UK',1980,1).sourceId==='HMRC_TABLE_A6';
+ const saved=parsePayload(savePayload(loaded)),forged=structuredClone(saved);
+ company(forged.playerId,forged).journals.find(j=>j.id===current.id).taxAssessment.sourceId='HMRC_TABLE_A6';
+ let tamper=false;try{parsePayload(savePayload(forged))}catch(e){tamper=e.message.includes('法人税率')}
+ const clean=!check(saved).length&&acc(company(saved.playerId,saved),'taxExpense')===67800;
+ const japan=newWorldGame({country:'JP',name:'Japan fiscal-rate migration'});
+ japan.year=1984;japan.month=3;japan.monthCommitted=ym(japan.year,japan.month)-1;
+ applyWorldHistory(japan);syncWorldIdentities(japan);
+ delete japan.worldExpansion.corporateTaxJPFromSeq;
+ const jpOld=assess(japan),jpCutoff=japan.seq,jpLoaded=parsePayload(savePayload(japan));
+ jpLoaded.month++;jpLoaded.monthCommitted=ym(jpLoaded.year,jpLoaded.month)-1;
+ const jpNew=assess(jpLoaded),jpSaved=parsePayload(savePayload(jpLoaded));
+ const japanMigration=jpSaved.worldExpansion.corporateTaxJPFromSeq===jpCutoff&&jpOld.amount===15000&&jpNew.amount===43300
+   &&jpNew.taxAssessment.sourceId==='JP_TAX_COMMISSION_FISCAL_RATES'&&!check(jpSaved).length
+   &&acc(company(jpSaved.playerId,jpSaved),'taxExpense')===58300;
+ const japanBoundaries=phase7CorporateTaxProfile('JP',1950,3).status==='provisional'
+   &&phase7CorporateTaxProfile('JP',1950,4).bps===3500&&phase7CorporateTaxProfile('JP',1970,4).bps===3675
+   &&phase7CorporateTaxProfile('JP',1984,3).bps===4200&&phase7CorporateTaxProfile('JP',1984,4).bps===4330
+   &&phase7CorporateTaxProfile('JP',1989,4).bps===4000&&phase7CorporateTaxProfile('JP',1990,1).bps===4998;
+ return {migrated,federal,uk,tamper,clean,japanMigration,japanBoundaries};
+}""")
+        assert all(early_tax.values()),early_tax
+        print("PASS Phase 7 SPEC-082: historical US/UK/JP rates, fiscal-year boundaries and preserved saved assessments")
+        banking=page.evaluate("""async()=>{
+ S=newWorldGame({country:'JP',name:'Ordinary bank customer'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';saveAuto=async()=>true;
+ const root=company(S.playerId,S),rootId=root.id;
+ post(root,{cash:5000000000},{capital:5000000000},'検証用資本','financing',S);
+ const bank=initFirm(S,{name:'Ordinary loan bank',country:'JP',industry:'service',seedBase:650000,publicOwnership:true});const bankId=bank.id;
+ syncWorldIdentities(S);post(bank,{cash:1000000000},{capital:1000000000},'検証用資本','financing',S);
+ executeMADeal(S,rootId,bankId,70,2.5);
+ post(bank,{cash:10000},{debt:10000},'銀行借入','financing',S);
+ const b0=acc(bank,'cash'),r0=acc(root,'cash'),principal=360000,loan=phase7IssueBankLoan(S,bankId,rootId,principal,12),loanId=loan.id;
+ const actual=acc(bank,'cash')===b0-principal&&acc(root,'cash')===r0+principal&&acc(bank,'loanrec')===principal&&-acc(root,'debt')===principal;
+ const restricted=phase7RestrictedCash(S,root)>=principal,service=worldServiceActivity(S,'PRD-S06').some(t=>t.ref===loanId&&t.providerId===bankId&&t.principal===principal);
+ const snap=JSON.stringify(S);let denied=false;try{phase7IssueBankLoan(S,bankId,rootId,acc(bank,'cash')+1,12)}catch{denied=snap===JSON.stringify(S)}
+ const restored=parsePayload(savePayload(S)),saved=restored.worldExpansion.bankLoans[0].remaining===principal&&!check(restored).length;
+ const close=async()=>{const m=S.monthCommitted;await runMonth();if(S.monthCommitted!==m+1)throw Error(JSON.stringify(LAST_MONTH_DIAGNOSTIC))};
+ await close();await close();
+ const r=S.worldExpansion.bankLoans.find(x=>x.id===loanId),debit=company(rootId,S),credit=company(bankId,S),active=debit.loans.find(x=>x.id===loanId);
+ const paid=r.remaining===principal-principal/12&&active.outstanding===r.remaining&&r.payments.some(p=>p.kind==='principal'&&p.amount===principal/12)&&r.interestPaid>0
+   &&credit.journals.some(j=>j.acquisitionLoanReturn?.loanId===loanId&&j.acquisitionLoanReturn.cash===10000);
+ const ledger=acc(credit,'loanrec')===r.remaining&&-acc(debit,'debt')===r.remaining&&worldBankCreditRisk(S,credit).total===r.remaining;
+ const loaded=parsePayload(savePayload(S)),forged=structuredClone(loaded);forged.worldExpansion.bankLoans[0].payments[0].amount++;
+ let tamper=false;try{parsePayload(savePayload(forged))}catch(e){tamper=e.message.includes('銀行事業融資')}
+ const g=consolidate(S),clean=!check(loaded).length&&!g.errors.length&&g.cf.reconciled;
+ return {actual,restricted,service,denied,saved,paid,ledger,tamper,clean};
+}""")
+        assert len(banking)==9 and all(banking.values()),banking
+        print("PASS Phase 7 SPEC-021: nine ordinary bank lending, repayment and integrity checks")
+        losses=page.evaluate("""async()=>{
+ S=newWorldGame({country:'JP',name:'Loan impairment audit'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';saveAuto=async()=>true;
+ const root=company(S.playerId,S),rootId=root.id;
+ post(root,{cash:5000000000},{capital:5000000000},'検証用資本','financing',S);
+ const bank=initFirm(S,{name:'Impairment lender',country:'JP',industry:'service',seedBase:650000,publicOwnership:true}),bankId=bank.id;
+ syncWorldIdentities(S);post(bank,{cash:1000000000},{capital:1000000000},'検証用資本','financing',S);
+ executeMADeal(S,rootId,bankId,70,2.5);
+ const p=360000,r=phase7IssueBankLoan(S,bankId,rootId,p,12),loanId=r.id;
+ const close=async()=>{const m=S.monthCommitted;await runMonth();if(S.monthCommitted!==m+1)throw Error(JSON.stringify(LAST_MONTH_DIAGNOSTIC))};
+ await close();
+ const debtor=company(rootId,S),lender=company(bankId,S),cash=acc(debtor,'cash');
+ post(debtor,{otherExpense:cash},{cash},'支払不能の隔離試験支出','operating',S);
+ const current=S.worldExpansion.bankLoans.find(x=>x.id===loanId),before=consolidate(S),bankEquity=financials(lender).equity;
+ phase7UpdateBankCreditLosses(S);
+ const allowance=current.allowance,after=consolidate(S);
+ const loss=allowance===90000&&acc(lender,'bankLoanAllowance')===-allowance&&financials(lender).equity===bankEquity-allowance&&current.remaining===p;
+ const ledger=lender.journals.at(-1).dr[0][0]==='otherExpense'&&lender.journals.at(-1).cr[0][0]==='bankLoanAllowance';
+ const consolidated=before.bs.assets===after.bs.assets&&before.pl.profit===after.pl.profit&&before.spot.assets===after.spot.assets&&!after.errors.length;
+ const risk=worldBankCreditRisk(S,lender).allowance===allowance&&worldBankCreditRisk(S,lender).netExposure===p-allowance;
+ const loaded=parsePayload(savePayload(S)),restored=loaded.worldExpansion.bankLoans[0].allowance===allowance&&!check(loaded).length;
+ const forged=structuredClone(loaded);forged.worldExpansion.bankLoans[0].lossChanges[0].delta++;
+ let tamper=false;try{parsePayload(savePayload(forged))}catch(e){tamper=e.message.includes('銀行貸出損失')}
+ post(debtor,{cash:500000000},{otherRevenue:500000000},'返済可能資金の営業収入','operating',S);
+ for(const f of S.firms){f._profitStart=financials(f).profit;f._salesNow=0;f._unitsNow=0;}
+ financeMonthly(S,[]);
+ const release=(current.allowance??0)===0&&acc(lender,'bankLoanAllowance')===0&&current.remaining===p-p/12&&current.lossChanges.at(-1).delta===-allowance;
+ const receipt=lender.journals.findLast(j=>j.acquisitionLoanReturn?.loanId===loanId);
+ const ownPrincipal=receipt?.acquisitionLoanReturn.cash===0&&cashOfJournal(receipt)===p/12
+   &&debtor.loans.find(x=>x.id===loanId)?.acquisitionFunding.principal===0;
+ const clean=!check(S).length&&!consolidate(S).errors.length&&!check(parsePayload(savePayload(S))).length;
+ return {loss,ledger,consolidated,risk,restored,tamper,release,ownPrincipal,clean};
+}""")
+        assert len(losses)==9 and all(losses.values()),losses
+        print("PASS Phase 7 SPEC-054/117: loan impairment, reversal, consolidation, own principal and integrity checks")
+        game_url="http://conglomerate.test/index.html"
+        page.route(game_url,lambda route:route.fulfill(path=ROOT/"index.html",content_type="text/html; charset=utf-8"))
+        page.goto(game_url)
+        page.wait_for_function("STORAGE_READY && SAVE_INDEX.backend === 'IndexedDB'")
+        ids=page.evaluate("""()=>{
+ S=newWorldGame({country:'JP',name:'Corporate reservation'});VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';PAGE='ma';
+ const buyer=company(S.playerId,S),seller=initFirm(S,{name:'Corporate seller',country:'UK',industry:'service',seedBase:650000,publicOwnership:true});
+ const target=S.firms.find(f=>f.id!==buyer.id&&f.country==='JP'&&f.owners.every(o=>o.id==='PUBLIC'));
+ syncWorldIdentities(S);
+ for(const [from,to] of [[buyer,seller],[seller,target]]){
+  const required=localFromBase(maQuote(S,from,to,70,2.5).total,from.country,S);
+  const capital=required+500000000;
+  post(from,{cash:capital},{capital},'検証用資本','financing',S);
+  executeMADeal(S,from.id,to.id,70,2.5);
+ }
+ MA_VIEW.target=target.id;render();
+ return {bid:buyer.id,sid:seller.id,tid:target.id};
+}""")
+        def reserve_corporate():
+            page.locator("#maCorpSeller").select_option(ids["sid"])
+            page.locator("#maCorpPercent").fill("20")
+            page.locator("#maCorpMode").select_option("group")
+            page.locator('[data-phase7-ma-reserve="propose-corporate"]').click()
+            return page.evaluate("S.worldExpansion.maReservations.at(-1)")
+        reservation=reserve_corporate()
+        assert reservation["corporate"]["sellerId"]==ids["sid"]
+        blocked=page.evaluate("""({bid,sid,tid})=>{
+ const buyer=company(bid),before=JSON.stringify(S),amount=phase7AvailableCash(S,buyer)+1;
+ const reject=fn=>{try{fn();return false}catch{return true}};
+ const duplicate=reject(()=>phase7ProposeCorporateMA(S,bid,tid,sid,20,'group',1));
+ const ordinary=reject(()=>post(buyer,{otherExpense:amount},{cash:amount},'予約中の支出','operating',S));
+ const forged=structuredClone(S);forged.worldExpansion.maReservations[0].corporate.receiveLocal++;
+ return duplicate&&ordinary&&before===JSON.stringify(S)&&reject(()=>parsePayload(savePayload(forged)));
+}""",ids)
+        assert blocked
+        page.wait_for_function("""async id=>{
+ const active=await idbRead('meta','active');if(!active)return false;
+ const row=await idbRead('snapshots','auto:'+active.slot);
+ return parsePayload(row.serialized).worldExpansion.maReservations.some(r=>r.id===id);
+}""",arg=reservation["id"],timeout=30_000)
+        page.reload()
+        page.wait_for_function("STORAGE_READY && SAVE_INDEX.backend === 'IndexedDB'")
+        page.evaluate("""async ({bid,tid})=>{await restoreAuto();VIEW_FIRM=bid;PAGE='ma';MA_VIEW.target=tid;render();}""",ids)
+        assert page.evaluate("phase7ReservedCash(S,S.playerId)")==reservation["amountLocal"]
+        page.evaluate("""id=>post(company(id),{cash:100000000},{otherRevenue:100000000},'対象の評価額変更','operating',S)""",ids["tid"])
+        page.locator('[data-phase7-ma-reserve="settle"]').click()
+        assert page.evaluate("!phase7ReservedCash(S,S.playerId) && S.equityTransfers.length===0")
+        settlement=reserve_corporate()
+        before=page.evaluate("""({bid,sid,tid})=>[bid,sid,tid].map(id=>acc(company(id),'cash'))""",ids)
+        page.locator('[data-phase7-ma-reserve="settle"]').click()
+        corporate_result=page.evaluate("""({bid,sid,tid})=>{
+ const recorded=S.equityTransfers.at(-1),target=company(tid),report=consolidate(S);
+ return {cash:[bid,sid,tid].map(id=>acc(company(id),'cash')),
+   settled:!phase7ReservedCash(S,bid)&&recorded?.seller===sid&&recorded?.target===tid
+    &&target.owners.find(o=>o.id===bid)?.econ===.2&&target.owners.find(o=>o.id===sid)?.econ===.5,
+   clean:!check(S).length&&!report.errors.length&&!consolidate(parsePayload(savePayload(S))).errors.length};
+}""",ids)
+        assert corporate_result["settled"] and corporate_result["clean"],corporate_result
+        assert corporate_result["cash"]==[before[0]-settlement["amountLocal"],before[1]+settlement["corporate"]["receiveLocal"],before[2]]
+        print("PASS Phase 7 SPEC-128: corporate acquisition reservation, stale release, cross-border payment and real IndexedDB reload")
+        loan_integrity=page.evaluate("""()=>{
+ const s=newWorldGame({country:'JP',name:'Bank duplicate'}),root=company(s.playerId,s);
+ post(root,{cash:5000000000},{capital:5000000000},'検証用資本','financing',s);
+ const bank=initFirm(s,{name:'Bank',country:'JP',industry:'service',seedBase:650000,publicOwnership:true});syncWorldIdentities(s);
+ post(bank,{cash:1000000000},{capital:1000000000},'検証用資本','financing',s);
+ const r=phase7IssueBankLoan(s,bank.id,root.id,360000,12);
+ const valid=!check(s).length&&worldBankCreditRisk(s,bank).total===360000;
+ const dup=structuredClone(s);company(root.id,dup).loans.push(structuredClone(root.loans.find(l=>l.id===r.id)));
+ const duplicate=check(dup).some(e=>e.includes('重複'));
+ const wrong=structuredClone(s);company(root.id,wrong).loans.find(l=>l.id===r.id).id='L999999';
+ const wrongId=check(wrong).length>0;
+ const reject=x=>{try{parsePayload(savePayload(x));return false}catch(e){return true}};
+ return {valid,duplicate,wrongId,duplicateSave:reject(dup),wrongIdSave:reject(wrong),restore:!check(parsePayload(savePayload(s))).length};
+}""")
+        assert len(loan_integrity)==6 and all(loan_integrity.values()),loan_integrity
+        print("PASS Phase 7 duplicate loan and contract ID integrity: 6 checks")
+        assert not errors,errors
+        print("PASS Phase 7 SPEC-126: six paid purchase boundaries, cash, ownership, 5 staged and 7 inherited-scope accounting checks")
+        print("PASS Phase 7 SPEC-134: 8 live and restored shareholder registry checks")
+        browser.close()
+
+if __name__=="__main__":
+    main()

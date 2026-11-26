@@ -37,7 +37,7 @@ with sync_playwright() as pw:
               f.interplant.partPlans[id]=0;
               f.factoryOps.staffAssignments[id]=0;
             }
-            syncPlant(f);PAGE='factory';render();
+            syncPlant(f);PAGE='facilityProduction';render();
         }""",with_assembly)
         assert not page.evaluate('check(S)'),page.evaluate('check(S)')
     def result():
@@ -60,7 +60,7 @@ with sync_playwright() as pw:
     seed(True)
     before=result()
     assert all(x['plan']==0 and x['staff']==0 for x in before),before
-    page.get_by_text('専門部品の製造方式・輸送中在庫・一括管理',exact=True).click()
+    page.get_by_text('専門部品の製造・自動配送・輸送中在庫',exact=True).click()
     page.locator('#factoryV21Mode').select_option('detailed')
     page.locator('[data-action="factoryModeV21"]').click()
     configured=result()

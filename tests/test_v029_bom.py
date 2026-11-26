@@ -38,7 +38,7 @@ with sync_playwright() as playwright:
     page.on("pageerror", lambda e: js_errors.append(str(e)))
     page.set_content(html)
     page.evaluate(start)
-    assert page.evaluate("raw=>restore(raw)", old_save)
+    assert not page.evaluate("raw=>restore(raw)", old_save)  # SPEC-168 rejects incompatible saves
     assert page.evaluate("current().models[0].componentMode==='legacy'")
 
     def months(count=1):
@@ -93,7 +93,7 @@ with sync_playwright() as playwright:
     assert page.evaluate("current().models[0].componentMode==='detailed'")
     assert page.evaluate("document.documentElement.scrollWidth<=innerWidth+2")
 
-    page.evaluate("PAGE='factory';render()")
+    page.evaluate("PAGE='facilityProduction';render()")
     page.locator('[data-factory-view-v026="production"]').click()
     panel = page.locator("#bomShopPanel")
     panel.get_by_text("BOM部品生産・ロット在庫・物流", exact=True).click()
@@ -130,7 +130,7 @@ with sync_playwright() as playwright:
     assert page.evaluate("current()._productionByModel[current().models[1].id]") > 0
     assert page.evaluate("S.partEconomy.shipments.length") == 4
 
-    page.evaluate("PAGE='factory';render()")
+    page.evaluate("PAGE='facilityProduction';render()")
     page.locator('[data-factory-view-v026="production"]').click()
     if panel.get_attribute("open") is None:
         panel.get_by_text("BOM部品生産・ロット在庫・物流", exact=True).click()
@@ -168,7 +168,7 @@ with sync_playwright() as playwright:
         return !restore(savePayload(bad))&&S===prev;
     }""")
     page.set_viewport_size({"width": 1440, "height": 900})
-    page.evaluate("PAGE='factory';render()")
+    page.evaluate("PAGE='facilityProduction';render()")
     assert page.evaluate("document.documentElement.scrollWidth<=innerWidth+2")
     assert not js_errors, js_errors
     browser.close()

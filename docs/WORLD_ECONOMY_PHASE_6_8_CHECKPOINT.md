@@ -1,0 +1,9 @@
+# Phase 6–8 continuation (2026-11-26 JST)
+
+Base: 44f1be134e2c2aba5a1f6a0ba0a4460d6f8035a8. PR #29 remains Draft; main is not a target. The user specification register and continuation instructions were recovered from the user Library. This checkpoint does not assert formal acceptance.
+
+- Phase 6/7: construction placement, acceptance, final funding validation and AI financing use unreserved cash, preventing acquisition reservations from being counted twice. Regression uses a real reserved acquisition and checks that rejected construction does not mutate the contract ledger.
+- Phase 7 SPEC-140: public and corporate-secondary reserved share settlement now restores the pre-settlement state on a late exception, while releasing the failed reservation; validates the affected share registry, lots and remaining reservations. A failure injected after equity link creation tests the late rollback and retry.
+- Phase 8 SPEC-122: competing offers on one target compare actual base-currency consideration per whole share when bidders need different additional stakes. Equal unit price preserves the existing total/ID tie-break. Existing comparable-quantity behavior stays intact.
+
+These are targeted fixes, not completion of all Phase 6–8 scope. Browser CI must pass at this commit before acceptance. Still open: power-source coverage and historical profiles, bank geographical coverage and minority-holder protections, cross-group circular control cases, friendly/hostile offer workflows, statutory merger with minority-share exchange and comprehensive asset/contract succession, historical/macro model coverage. Do not mark all 174 specifications accepted.

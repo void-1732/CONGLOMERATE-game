@@ -35,7 +35,7 @@ with sync_playwright() as p:
     page.on("pageerror", lambda e: errors.append(str(e)))
     page.set_content(html)
     page.evaluate(start)
-    assert page.evaluate("old=>restore(old)", raw)
+    assert not page.evaluate("old=>restore(old)", raw)  # SPEC-168 excludes incompatible old saves
     ai_id = page.evaluate("""()=>{
         const ai=S.firms.find(f=>f.id!==S.playerId&&f.country==='JP'&&f.industry==='auto');
         for(const f of [current(),ai]){
