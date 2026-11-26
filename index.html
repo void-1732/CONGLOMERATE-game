@@ -8460,6 +8460,27 @@ function phase7CancelMA(s,buyerId,id){
 function phase7ExpireMAReservations(s){
  if(s.worldExpansion?.maReservations?.length)s.worldExpansion.maReservations=[];
 }
+// SPEC-140: a failed settlement releases its own reservation, but may not leave
+// partially posted cash, ownership, journals or acquisition history behind.
+function phase7AtomicMASettlement(s,target,settle){
+ const snapshot=structuredClone(s),originalFirms=new Map(s.firms.map(f=>[f.id,f]));
+ try{
+  const entry=settle();
+  phase7ValidateShareRegistry(target);phase7ValidateShareLots(s,target);
+  phase7ValidateMAReservations(s);
+  return entry;
+ }catch(error){
+  // Preserve the identity of existing firm records for callers holding a reference.
+  snapshot.firms=snapshot.firms.map(saved=>{
+   const firm=originalFirms.get(saved.id);if(!firm)return saved;
+   for(const key of Object.keys(firm))if(!Object.hasOwn(saved,key))delete firm[key];
+   return Object.assign(firm,saved);
+  });
+  for(const key of Object.keys(s))if(!Object.hasOwn(snapshot,key))delete s[key];
+  Object.assign(s,snapshot);
+  throw error;
+ }
+}
 function phase7SettleMA(s,buyerId,id,actor='player'){
  const r=phase7CancelMA(s,buyerId,id),buyer=company(buyerId,s),target=company(r.targetId,s);
  // A changed price, rejected offer, or insufficient unreserved funds releases the proposal.
@@ -8468,11 +8489,11 @@ function phase7SettleMA(s,buyerId,id,actor='player'){
  if(r.corporate){
   const {sellerId,mode,receiveLocal}=r.corporate,q=corporateShareQuote(s,buyerId,r.targetId,sellerId,r.percent,mode,r.multiplier);
   if(q.total!==r.totalBase||q.buyerPay!==r.amountLocal||q.sellerReceive!==receiveLocal)throw Error('買収価格が変わりました。予約を解除しました');
-  return executeCorporateShareTransferUnreserved(s,q);
+  return phase7AtomicMASettlement(s,target,()=>executeCorporateShareTransferUnreserved(s,q));
  }
  const q=maQuote(s,buyer,target,r.percent,r.multiplier);
  if(q.total!==r.totalBase||localFromBase(q.total,buyer.country,s)!==r.amountLocal)throw Error('買収価格が変わりました。予約を解除しました');
- return executeMADealUnreserved(s,buyerId,r.targetId,r.percent,r.multiplier,actor);
+ return phase7AtomicMASettlement(s,target,()=>executeMADealUnreserved(s,buyerId,r.targetId,r.percent,r.multiplier,actor));
 }
 function executeMADeal(s,buyerId,targetId,percent,multiplier,actor='player'){
  if(!s.worldExpansion)return executeMADealUnreserved(s,buyerId,targetId,percent,multiplier,actor);
@@ -8662,10 +8683,19 @@ function phase7MAReviewDue(s){return (s.worldExpansion?[1,4,7,10]:[1,7]).include
  function phase8SelectCompetitiveBid(proposals){
  const winners=new Map();
  const cmp=(a,b)=>b.total-a.total||(a.buyerId<b.buyerId?-1:a.buyerId>b.buyerId?1:0);
+ // SPEC-122: when buyers already hold different stakes, compare the actual
+ // quoted consideration per whole share, not the size of their remaining order.
+ const cmpTarget=(a,b)=>{
+  if(Number.isSafeInteger(a.shareQuantity)&&a.shareQuantity>0&&Number.isSafeInteger(b.shareQuantity)&&b.shareQuantity>0){
+   const delta=BigInt(b.total)*BigInt(a.shareQuantity)-BigInt(a.total)*BigInt(b.shareQuantity);
+   if(delta!==0n)return delta>0n?1:-1;
+  }
+  return cmp(a,b);
+ };
  for(const p of proposals){
   if(!p.accepted||!Number.isFinite(p.score)||!Number.isSafeInteger(p.total)||p.total<1||!Number.isFinite(p.available)||p.total>p.available*.47)continue;
   const prior=winners.get(p.targetId);
-  if(!prior||cmp(p,prior)<0)winners.set(p.targetId,p);
+  if(!prior||cmpTarget(p,prior)<0)winners.set(p.targetId,p);
  }
  return [...winners.values()].sort((a,b)=>b.score-a.score||cmp(a,b)||(a.targetId<b.targetId?-1:a.targetId>b.targetId?1:0))[0]??null;
 }
@@ -8751,7 +8781,7 @@ function phase8ReviewIndependentBids(s,events,pool,month,controlledCompanies){
     for(const multiplier of factors){
      const q=maQuote(s,buyer,target,percent,multiplier);
      if(!q.accepted||q.total>q.available*.47*phase8CrisisFactor(s.world[buyer.country]))continue;
-     proposals.push({buyerId:buyer.id,targetId:target.id,score,percent,multiplier,total:q.total,available:q.available,accepted:q.accepted});
+     proposals.push({buyerId:buyer.id,targetId:target.id,score,percent,multiplier,shareQuantity:q.shareQuantity,total:q.total,available:q.available,accepted:q.accepted});
      break;
     }
    }catch(e){/* An inadmissible indication cannot create a transaction. */}
@@ -16451,7 +16481,7 @@ function worldQuoteConstructionFunding(s,c,buyer,month){
 }
 function worldConstructionFundingReady(s,c,buyer){
  const a=c.funding?.approval;
- return acc(buyer,'cash')>=(a?.own??c.fee)
+ return phase7AvailableCash(s,buyer)>=(a?.own??c.fee)
   &&(!a?.loan||worldInfrastructureBankReady(s,company(c.funding.bankId,s),buyer,a.loan));
 }
 function worldPayConstructionFunding(s,c,buyer,month){
@@ -16487,7 +16517,7 @@ function worldPlaceConstructionContract(s,buyerId,{kind,profileId,buyerPlantId,s
  Object.assign(c,{fee,feeBase,referenceFx});
  if(grantRequested||loanBase)c.funding={grantRequested,bankId,loanBase,approval:null,payment:null};
  const quoted=worldQuoteConstructionFunding(s,c,buyer,ym(s.year,s.month));
- if(acc(buyer,'cash')<(quoted?.own??fee))throw Error('工事代金の支払資金が不足しています');
+ if(phase7AvailableCash(s,buyer)<(quoted?.own??fee))throw Error('工事代金の支払資金が不足しています（買収予約資金を除く）');
  if((w.constructionContracts??[]).some(x=>['OFFERED','ACTIVE'].includes(x.status)&&x.buyerPlantId===buyerPlantId&&x.kind===kind&&x.profileId===profileId))
   throw Error('同じ工事の発注が残っています');
  Object.assign(c,{id:'CC-'+s.seq++,feeBase,fee,referenceFx,offeredAt:ym(s.year,s.month),duration:t.months,workers:t.workers,
@@ -16502,7 +16532,7 @@ function worldAcceptConstructionContract(s,sellerId,contractId,ai=false){
   ||seller.staff.production<c.workers)throw Error('建設会社の承諾・専用機械・人員・資金条件が不正です');
  if(ai){const estimate=worldConstructionEstimate(s,c);if(estimate===null||c.fee<Math.ceil(estimate*1.1))throw Error('AIの採算条件を満たしません')}
  const buyer=company(c.buyerId,s),quote=worldQuoteConstructionFunding(s,c,buyer,ym(s.year,s.month));
- if(acc(buyer,'cash')<(quote?.own??c.fee))throw Error('工事代金の支払資金が不足しています');
+ if(phase7AvailableCash(s,buyer)<(quote?.own??c.fee))throw Error('工事代金の支払資金が不足しています（買収予約資金を除く）');
  if(c.funding)c.funding.approval=quote;
  c.status='ACTIVE';c.acceptedAt=ym(s.year,s.month);c.dueAt=c.acceptedAt+c.duration-1;return c;
 }
@@ -16737,7 +16767,7 @@ function worldPlanAiInfrastructure(s,events=[]){
      &&worldConstructionGrantAvailable(s,c,buyer.country,month)>0&&Math.floor(fee*.2)>0;
     const grant=grantRequested?Math.min(worldConstructionGrantAvailable(s,c,buyer.country,month),
      Math.floor(fee*worldInfrastructurePolicy(buyer.country,month).grantBps/10000)):0;
-    const gap=Math.max(0,fee-grant-acc(buyer,'cash'));
+    const gap=Math.max(0,fee-grant-phase7AvailableCash(s,buyer));
     const loanBase=gap?Math.ceil(gap*worldReferenceFx(buyer.country,s)/100):0;
     const loan=localFromBase(loanBase,buyer.country,s);
     const bank=loanBase?s.firms.find(f=>f!==seller&&!f.player&&f.auto&&!controller(s,f.id)&&worldInfrastructureBankReady(s,f,buyer,loan)):null;

@@ -39,6 +39,25 @@ def main():
 }""")
         assert len(liquidation)==9 and all(liquidation.values()),liquidation
         print("PASS Phase 7 SPEC-056/117/120: whole share liquidation, cash only, quarter review")
+        rollback=page.evaluate("""()=>{
+          const s=newWorldGame({country:'JP',name:'Atomic acquisition rollback'}),buyer=company(s.playerId,s);
+          const target=s.firms.find(f=>f.id!==buyer.id&&f.country==='JP'&&f.owners.every(o=>o.id==='PUBLIC'));
+          post(buyer,{cash:1000000000},{capital:1000000000},'検証用資本','financing',s);
+          const row=phase7ProposeMA(s,buyer.id,target.id,30,2.5);
+          const expected=structuredClone(s);expected.worldExpansion.maReservations=[];
+          const original=registerEquityLink;let injected=false,failed=false;
+          // Inject a failure after cash and ownership have already changed.
+          registerEquityLink=(...args)=>{original(...args);injected=true;throw Error('injected settlement failure')};
+          try{phase7SettleMA(s,buyer.id,row.id)}catch(e){failed=e.message==='injected settlement failure'}
+          finally{registerEquityLink=original}
+          const unchanged=JSON.stringify(s)===JSON.stringify(expected);
+          const references=company(buyer.id,s)===buyer&&company(target.id,s)===target;
+          const restored=!check(parsePayload(savePayload(s))).length;
+          const settled=executeMADeal(s,buyer.id,target.id,30,2.5).actor==='player';
+          return {injected,failed,unchanged,references,restored,settled,clean:!check(s).length};
+        }""")
+        assert len(rollback)==7 and all(rollback.values()),rollback
+        print("PASS Phase 7 SPEC-140: late acquisition failure rolls back cash, stock registry and history; reservation released")
         result=page.evaluate("""async()=>{
  S=newWorldGame({country:'JP',name:'Phase7 thresholds'});
  VIEW_FIRM=S.playerId;VIEW_COUNTRY='JP';

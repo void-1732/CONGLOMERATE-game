@@ -31,6 +31,28 @@ def main():
         }""")
         page.locator("#worldConstructionMachinePlant").select_option(ids["sp"])
         page.locator('[data-world-build-contract="machine"]').click()
+        reserved_construction=page.evaluate("""({bid,sid,bp,sp})=>{
+          const s=structuredClone(S),buyer=company(bid,s);
+          const target=s.firms.find(f=>f.id!==bid&&f.id!==sid&&f.country==='JP'&&f.owners.every(o=>o.id==='PUBLIC'));
+          const args={kind:'DR',profileId:'JP-SHIMBASHI-YOKOHAMA',buyerPlantId:bp,sellerId:sid,sellerPlantId:sp,feeBase:40000};
+          const c=worldPlaceConstructionContract(s,bid,args);
+          const amount=localFromBase(maQuote(s,buyer,target,30,2.5).total,buyer.country,s);
+          post(buyer,{cash:amount+c.fee+1000},{capital:amount+c.fee+1000},'検証用資本','financing',s);
+          const r=phase7ProposeMA(s,bid,target.id,30,2.5);
+          const spend=phase7AvailableCash(s,buyer)-(c.fee-1);
+          post(buyer,{otherExpense:spend},{cash:spend},'検証用支出','operating',s);
+          const reject=fn=>{try{fn();return false}catch(e){return e.message.includes('支払資金')}};
+          const before=JSON.stringify(s);
+          const acceptance=reject(()=>worldAcceptConstructionContract(s,sid,c.id))&&before===JSON.stringify(s);
+          const completion=!worldConstructionFundingReady(s,c,buyer);
+          // Use the same valid fixture without an already offered contract.
+          s.worldExpansion.constructionContracts=[];
+          const beforeOffer=JSON.stringify(s);
+          const placement=reject(()=>worldPlaceConstructionContract(s,bid,args))&&beforeOffer===JSON.stringify(s);
+          return {acceptance,completion,placement,reservation:phase7ReservedCash(s,bid)===r.amountLocal};
+        }""",ids)
+        assert len(reserved_construction)==4 and all(reserved_construction.values()),reserved_construction
+        print("PASS Phase 6/7: reserved acquisition cash excluded from construction placement, acceptance and completion")
         page.evaluate("bid=>{VIEW_FIRM=bid;PAGE='worldInfrastructure';render()}",ids["bid"])
         target="|".join(["DR","JP-SHIMBASHI-YOKOHAMA",ids["bp"],ids["sid"],ids["sp"]])
         page.locator("#worldConstructionTarget").select_option(target)
