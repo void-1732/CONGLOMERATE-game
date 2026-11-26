@@ -14049,14 +14049,28 @@ function worldRecordMacroHistory(s){
  const frames=history.frames,last=frames.at(-1);
  if(last&&last.month>=month)throw Error('マクロ統計の重複または逆順確定');
  const rows=Object.keys(s.world).sort().map(code=>worldMacroObservation(code,s.world[code],w.territoryJurisdictions[WORLD_ENGINE_TERRITORY[code]]));
- frames.push({month,rows});
+ frames.push({month,registryVersion:w.marketRegistryVersion??0,rows});
  if(frames.length>WORLD_MACRO_HISTORY_LIMIT)frames.splice(0,frames.length-WORLD_MACRO_HISTORY_LIMIT);
 }
 function worldValidateMacroHistory(s){
  const h=s.worldExpansion?.macroHistory;
  if(h===undefined)return true;
  if(h?.version!==1||!Array.isArray(h.frames)||h.frames.length>WORLD_MACRO_HISTORY_LIMIT)throw Error('マクロ統計台帳の形式が不正');
- let prior=WORLD_START_MONTH-1;
+ const registry=s.worldExpansion.marketRegistryVersion??0;
+ if(!Number.isSafeInteger(registry)||registry<0||registry>WORLD_MARKET_REGISTRY_VERSION)throw Error('マクロ統計の市場台帳版が不正');
+ // Replay the catalog once per version, moving forward with the chronological frames.
+ const timelines=new Map();
+ const expected=(version,month)=>{
+  let t=timelines.get(version);
+  if(!t){const model=makeWorldExpansion(version);t={model,codes:new Set(worldInitialEngineCountries(version)),events:WORLD_EVENTS.filter(e=>(e.registryVersion??0)<=version),i:0};timelines.set(version,t);}
+  while(t.i<t.events.length&&t.events[t.i].month<=month){
+   const event=t.events[t.i++];recordWorldEvent(t.model,event);
+   const code=event.openMarketId===null?null:WORLD_ENGINE_BY_TERRITORY.get(event.territoryId);
+   if(code)t.codes.add(code);
+  }
+  return t;
+ };
+ let prior=WORLD_START_MONTH-1,priorVersion=0;
  for(const frame of h.frames){
   if(!Number.isSafeInteger(frame?.month)||frame.month<=prior||frame.month>s.monthCommitted||!Array.isArray(frame.rows)||!frame.rows.length)throw Error('マクロ統計の確定月が不正');
   prior=frame.month;const seen=new Set();
@@ -14066,6 +14080,22 @@ function worldValidateMacroHistory(s){
    if(!Object.hasOwn(COUNTRIES,code)||seen.has(code)||(jurisdiction!==null&&!WORLD_JURISDICTIONS.has(jurisdiction))||
     row.slice(2).some(v=>!Number.isFinite(v))||pop<=0||wealth<=0||inflation<=-1||unemployment<0||unemployment>1||rate<0||fx<=0||output<=0)throw Error('マクロ統計の数値・管轄・国IDが不正');
    seen.add(code);
+  }
+  const matches=version=>{
+   const t=expected(version,frame.month);
+   return frame.rows.every(([code,jurisdiction])=>t.codes.has(code)&&jurisdiction===(t.model.territoryJurisdictions[WORLD_ENGINE_TERRITORY[code]]??null))
+    &&(frame.registryVersion===undefined||seen.size===t.codes.size);
+  };
+  if(frame.registryVersion!==undefined){
+   const version=frame.registryVersion;
+   if(!Number.isSafeInteger(version)||version<priorVersion||version>registry||!matches(version))
+    throw Error('マクロ統計の歴史管轄・市場開放が不正');
+   priorVersion=version;
+  }else{
+   // Legacy frames had no registry marker; require at least one valid historical catalog.
+   let valid=false;
+   for(let version=registry;version>=priorVersion;version--)if(matches(version)){valid=true;break;}
+   if(!valid)throw Error('マクロ統計の歴史管轄・市場開放が不正');
   }
  }
  return true;
@@ -15459,11 +15489,40 @@ function worldOfferPowerSupply(s,buyerId,{sellerId,sourcePlantId,targetPlantId,r
  Object.assign(c,{id:'PCO-'+s.seq++,offeredAt:ym(s.year,s.month),acceptedAt:null,status:'OFFERED',unitPrice:localFromBase(unitPriceBase,buyer.country,s),referenceFx:worldReferenceFx(buyer.country,s)});
  (w.powerSupplyContracts??=[]).push(c);return c;
 }
+// SPEC-016/045: assess the actual generator's fuel and both conversion losses.
+function worldAiPowerSupplyQuote(s,c){
+ const w=s.worldExpansion,seller=company(c.sellerId,s),buyer=company(c.buyerId,s);
+ const a=seller?.plants.find(p=>p.id===c.sourcePlantId),b=buyer?.plants.find(p=>p.id===c.targetPlantId);
+ const g=w?.powerGenerators?.[c.sourcePlantId],terms=worldGridLineTerms(a,b),fuel=seller?.stock[g?.fuelProductId];
+ if(!g||!terms||g.retiredAt!=null||!Number.isSafeInteger(c.requestKwh)||c.requestKwh<2
+  ||!Number.isSafeInteger(c.unitPrice)||c.unitPrice<1||!fuel||!Number.isSafeInteger(fuel.q)||fuel.q<1
+  ||!Number.isSafeInteger(fuel.v)||fuel.v<1||!Number.isSafeInteger(g.kwhPerFuel)||g.kwhPerFuel<1)return null;
+ // New commitments must fit real capacity, including existing scheduled private loads.
+ const committed=Object.values(w.powerLines??{}).filter(l=>l.sourcePlantId===a.id&&l.retiredAt==null)
+  .reduce((n,l)=>n+(l.monthlyRequestKwh??0),0);
+ const requested=c.requestKwh,capacity=worldGridLineCapacity(terms,a,b);
+ if(requested>capacity)return null;
+ const needed=committed+requested,limit=Math.min(fuel.q,worldGeneratorFuelCapacity(a,g));
+ if(!Number.isSafeInteger(needed)||needed<requested||worldGeneratorNetOutput(g,limit)<needed)return null;
+ let lo=1,hi=limit;
+ while(lo<hi){const mid=lo+Math.floor((hi-lo)/2);if(worldGeneratorNetOutput(g,mid)>=needed)hi=mid;else lo=mid+1;}
+ const fuelQty=lo,delivered=requested-Math.ceil(requested*terms.lossBps/10000);
+ // Conservative stand-alone margin: no assumed revenue from existing commitments.
+ const gross=delivered*c.unitPrice,fuelCost=Math.round(fuel.v*fuelQty/fuel.q),maintenance=g.constructionMaintenance??0;
+ if(!Number.isSafeInteger(gross)||!Number.isSafeInteger(fuelCost)||gross<1||fuelCost<1
+  ||gross<Math.ceil((fuelCost+maintenance)*1.1))return null;
+ return {fuelQty,delivered,gross,fuelCost,maintenance,net:gross-fuelCost-maintenance};
+}
 function worldAcceptPowerSupply(s,sellerId,id,ai=false){
  const c=(s.worldExpansion?.powerSupplyContracts??[]).find(x=>x.id===id),seller=company(sellerId,s);
  if(!c||c.sellerId!==sellerId||c.status!=='OFFERED'||(!ai&&!controller(s,sellerId))||!worldPowerContractReady(s,c))throw Error('供給者の承諾条件を満たしません');
- if(ai){const fuel=seller.stock['PRD-R04'];if(!seller.auto||!fuel?.q||c.unitPrice<Math.ceil(fuel.v/fuel.q/7*1.1))return null;}
+ const quote=ai?worldAiPowerSupplyQuote(s,c):null;
+ if(ai&&(!seller.auto||seller.player||controller(s,sellerId)||!quote))return null;
  const line=worldInstallPowerLine(s,c.buyerId,c.sourcePlantId,c.targetPlantId,c);
+ if(quote){
+  const g=s.worldExpansion.powerGenerators[c.sourcePlantId];
+  g.monthlyFuelQty=Math.max(g.monthlyFuelQty??0,quote.fuelQty);
+ }
  c.status='ACTIVE';c.acceptedAt=ym(s.year,s.month);return line;
 }
 function worldCancelPowerOffer(s,actorId,id){
@@ -17213,7 +17272,7 @@ function phase7ValidateBankLoans(s){
  const rows=s.worldExpansion?.bankLoans??[];
  if(!Array.isArray(rows))throw Error('銀行事業融資台帳が不正');
  if(!rows.length){if(s.firms.some(f=>f.loans.some(l=>l.bankLoanId)||acc(f,'bankLoanAllowance')!==0))throw Error('銀行事業融資の証拠がありません');return;}
- const match=worldServiceJournalMatcher(s),byId=new Map(),used=new Set(),allowanceByBank=new Map();let prior=0;
+ const match=worldServiceJournalMatcher(s),byId=new Map(),used=new Set(),allowanceByBank=new Map(),activeLoanIds=new Set();let prior=0;
  const projects=new Map((s.worldExpansion.constructionContracts??[]).map(c=>[c.id,c]));
  for(const r of rows){
   const bank=company(r?.bankId,s),borrower=company(r?.borrowerId,s),id=Number(r?.id?.slice(1));
@@ -17264,7 +17323,11 @@ function phase7ValidateBankLoans(s){
   allowanceByBank.set(bank.id,(allowanceByBank.get(bank.id)??0)+allowance);
  }
  for(const f of s.firms)if(-acc(f,'bankLoanAllowance')!==(allowanceByBank.get(f.id)??0))throw Error('銀行貸出損失の元帳残高が不正');
- for(const f of s.firms)for(const l of f.loans)if(l.bankLoanId&&(!byId.has(l.bankLoanId)||byId.get(l.bankLoanId).borrowerId!==f.id))throw Error('銀行事業融資の契約参照が不正');
+ for(const f of s.firms)for(const l of f.loans)if(l.bankLoanId){
+  if(activeLoanIds.has(l.bankLoanId)||l.id!==l.bankLoanId||!byId.has(l.bankLoanId)||byId.get(l.bankLoanId).borrowerId!==f.id)
+   throw Error('銀行事業融資の契約参照・重複が不正');
+  activeLoanIds.add(l.bankLoanId);
+ }
 }
 function worldOpenBankDeposit(s,clientId,bankId,principal){
  const w=s.worldExpansion,client=company(clientId,s),bank=company(bankId,s);
