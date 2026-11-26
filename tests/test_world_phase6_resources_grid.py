@@ -123,6 +123,29 @@ def main():
             clean:!check(saved).length&&!consolidate(saved).errors.length};
         }""")
         assert len(grid)==13 and all(grid.values()), grid
+        fuels=page.evaluate("""()=>{
+ const checks={},reject=fn=>{try{fn();return false}catch{return true}};
+ for(const [kind,year,product,output] of [['oil',1944,'PRD-M17',22],['gas',1949,'PRD-R06',27]]){
+  const s=newWorldGame({country:'JP',name:'Fuel profile '+kind});let f=company(s.playerId,s),p=f.plants[0];
+  if(!f.research.tree.done.includes('energy-1'))f.research.tree.done.push('energy-1');
+  const setYear=y=>{s.year=y;s.month=1;s.monthCommitted=ym(y,1)-1;applyWorldHistory(s);syncWorldIdentities(s)};
+  setYear(year-1);checks[kind+'Era']=!worldGeneratorSiteReady(s,f,p,kind);
+  setYear(year);const add=(key,q,price)=>{const amount=q*price;post(f,{materials:amount},{cash:amount},'試験用実物購入','operating',s);const st=f.stock[key]??={q:0,v:0};st.q+=q;st.v+=amount};
+  add('PRD-E04',1,300);add('PRD-R04',5,19);
+  const g=worldInstallGenerator(s,f.id,p.id,kind);
+  checks[kind+'FixedFuel']=g.fuelProductId===product&&reject(()=>worldGeneratePower(s,f.id,p.id,2));
+  add(product,3,20);
+  checks[kind+'Capacity']=reject(()=>worldGeneratePower(s,f.id,p.id,worldGeneratorFuelCapacity(p,g)+1));
+  const r=worldGeneratePower(s,f.id,p.id,2);
+  checks[kind+'Balance']=r.deliveredKwh===output&&r.fuelBookCost===40&&f.stock[product].q===1&&f.stock['PRD-R04'].q===5;
+  checks[kind+'Duplicate']=reject(()=>worldGeneratePower(s,f.id,p.id,1));
+  const saved=parsePayload(savePayload(s));checks[kind+'Restore']=saved.worldExpansion.powerGenerators[p.id].generationKind===kind&&!check(saved).length&&!consolidate(saved).errors.length;
+  saved.worldExpansion.powerGenerators[p.id].kwhPerFuel++;checks[kind+'Tamper']=reject(()=>parsePayload(savePayload(saved)));
+  checks[kind+'Contract']=worldConstructionTerms(s,'PG',p.siteId+':'+kind)?.generationKind===kind;
+ }
+ return checks;
+}""")
+        assert len(fuels)==16 and all(fuels.values()), fuels
         assert not errors, errors
         print("PASS Phase 6 mineral regions 14 checks; physical regional grid 13 checks, real month, manual and scheduled priority, outage, product cost and save")
         browser.close()
