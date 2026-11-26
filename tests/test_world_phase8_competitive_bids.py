@@ -190,6 +190,24 @@ def main():
         assert len(macro_integrity)==6 and all(macro_integrity.values()),macro_integrity
         print("PASS Phase 8 historical macro jurisdiction and market opening integrity: 6 checks")
 
+        transitions=page.evaluate("""()=>{const results={};for(const row of WORLD_POSTCOLONIAL_TRANSITIONS){
+ const s=newWorldGame({country:'JP',name:'Transition '+row.code});
+ const setMonth=(st,m)=>{st.year=Math.floor(m/12);st.month=m%12+1;st.monthCommitted=m-1;applyWorldHistory(st);syncWorldIdentities(st);};
+ setMonth(s,row.month-1);const f=initFirm(s,{name:'Local company',country:row.code,industry:'service',seedBase:650000,publicOwnership:true});syncWorldIdentities(s);
+ const id=f.id,w=s.worldExpansion,before=w.companies[id].jurisdictionId,marketId=WORLD_TERRITORIES.get(WORLD_ENGINE_TERRITORY[row.code]).marketId,opened=w.openMarkets[marketId];
+ const snapshot=st=>{const a=company(id,st),r=st.worldExpansion.companies[id];return JSON.stringify([a.id,a.owners,a.shareRegistry,a.ledger,a.loans,a.plants,r.headquartersId,r.locationId,r.currencyId,st.world[row.code].fx,st.worldExpansion.facilities]);};
+ const state=snapshot(s);
+ const legacy=structuredClone(s);legacy.worldExpansion.marketRegistryVersion=22;const old=makeWorldExpansion(22);for(const event of worldHistoryThrough(row.month-1,22))recordWorldEvent(old,event);Object.assign(legacy.worldExpansion,{openMarkets:old.openMarkets,territoryJurisdictions:old.territoryJurisdictions,appliedEvents:old.appliedEvents});syncWorldIdentities(legacy);
+ legacy.monthCommitted=row.month-1;worldRecordMacroHistory(legacy);setMonth(legacy,row.month);
+ const restoredLegacy=parsePayload(savePayload(legacy));
+ setMonth(s,row.month);applyWorldHistory(s);syncWorldIdentities(s);validateWorldExpansion(s);
+ const restored=parsePayload(savePayload(s));
+ results[row.code]={before:before!==row.jurisdictionId,after:w.companies[id].jurisdictionId===row.jurisdictionId,assets:snapshot(s)===state,market:w.openMarkets[marketId]===opened,once:w.appliedEvents.filter(e=>e.id==='HIST-'+row.code+'-INDEPENDENCE').length===1,save:restored.worldExpansion.companies[id].jurisdictionId===row.jurisdictionId&&!check(restored).length,migration:restoredLegacy.worldExpansion.marketRegistryVersion===23&&restoredLegacy.worldExpansion.companies[id].jurisdictionId===row.jurisdictionId&&snapshot(restoredLegacy)===state,oldMacro:restoredLegacy.worldExpansion.macroHistory.frames[0].registryVersion===22&&restoredLegacy.worldExpansion.macroHistory.frames[0].rows.find(x=>x[0]===row.code)[1]===before};
+ }return results;}""")
+        assert set(transitions)=={"PH","IN","ID","NG","KE"},transitions
+        assert all(len(row)==8 and all(row.values()) for row in transitions.values()),transitions
+        print("PASS Phase 8 sourced postcolonial jurisdiction transitions, identity preservation and v22 migration: 40/40")
+
         browser.close()
     print(f"Phase 8 competitive quotes: {len(CASES)}/{len(CASES)} passed")
 

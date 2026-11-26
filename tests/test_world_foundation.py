@@ -88,6 +88,7 @@ def test_market_opening(page):
         const registration=replay.worldExpansion.companies[child?.id];
         return {
            opened:S.month===12 && S.worldExpansion.openMarkets['MKT-11']===ym(1905,11),
+           historyCatchup:replay.worldExpansion.macroHistory.frames.find(f=>f.month===ym(1905,10))?.rows.some(r=>r[0]==='AU')===true&&replay.worldExpansion.macroHistory.frames.find(f=>f.month===ym(1905,10))?.rows.some(r=>r[0]==='PH')===true&&replay.worldExpansion.macroHistory.frames.find(f=>f.month===ym(1905,10))?.rows.some(r=>r[0]==='NO')===false,
            market:S.world.NO.demand>0,
            resourcePool:npcMarketV033(S,'NO','steel').producedTotal>0,
            subsidiary:child?.country==='NO'&&registration?.jurisdictionId==='JUR-NO'&&

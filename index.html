@@ -4291,7 +4291,7 @@ async function runMonth(){
  try{
   trial=structuredClone(prev);
   step('CHECK_BEFORE',()=>{const errs=check(trial);if(errs.length)throw Error('処理前検算：'+errs.slice(0,15).join(' / '))});
-  step('WORLD',()=>{phase7ExpireMAReservations(trial);maybeWar(trial);ensureV11(trial);ensureV20(trial);if(!trial.worldExpansion)recoverLegacyFormalMergerShares(trial);refreshPartContracts(trial)});
+  step('WORLD',()=>{if(trial.worldExpansion&&trial.worldExpansion.appliedEvents.length<worldHistoryThrough(ym(trial.year,trial.month),trial.worldExpansion.marketRegistryVersion??0).length){applyWorldHistory(trial);syncWorldIdentities(trial);}phase7ExpireMAReservations(trial);maybeWar(trial);ensureV11(trial);ensureV20(trial);if(!trial.worldExpansion)recoverLegacyFormalMergerShares(trial);refreshPartContracts(trial)});
   step('SUPPLY_RISK',()=>advanceSupplierRisks(trial,events));
   step('FACTORY_JOBS',()=>{advanceFactoryJobsV21(trial,events);advanceComponentLines(trial,events)});
   step('AI_PREPARE',()=>{for(const f of trial.firms){ensureFirmGameplay(f);f.marketThisMonth={};f._profitStart=financials(f).profit;rivalMonthlyStrategy(trial,f,events);planAI(f,trial);autoOperations(trial,f)}});
@@ -13123,7 +13123,7 @@ const WORLD_TERRITORIES=new Map(WORLD_MARKETS.flatMap(m=>m.territories.map(t=>[t
 const WORLD_CITIES=new Map(WORLD_MARKETS.flatMap(m=>m.cities.map(c=>[c.id,c])));
 // Registry version zero is the saved pre-expansion world (five initial economies).
 // New onboarding data is additive and does not change the original scenario.
-const WORLD_MARKET_REGISTRY_VERSION=22;
+const WORLD_MARKET_REGISTRY_VERSION=23;
 const WORLD_WEIGHT_DUTY_REGISTRY_VERSION=18;
 const WORLD_MARKET_ONBOARDING=Object.freeze({
  CA:Object.freeze({introducedIn:1,territoryId:'TER-27-01',currencyId:'CUR-CAD',jurisdictionId:'JUR-CA',
@@ -13438,7 +13438,16 @@ function worldLedgerCurrencyNotice(s,firm){
 const WORLD_CURRENCIES=new Set([...Object.values(WORLD_ENGINE_CURRENCIES),
  ...Object.values(WORLD_MODERN_CURRENCIES),
  ...Object.values(WORLD_TERRITORY_MONETARY_REFERENCES).flatMap(entries=>entries.map(row=>row[1]))]);
+// SPEC-141/155/160/166: sourced jurisdiction transitions; market and ledger currency stay unchanged.
+const WORLD_POSTCOLONIAL_TRANSITIONS=Object.freeze([
+ Object.freeze({code:'PH',effectiveDate:'1946-07-04',month:ym(1946,8),jurisdictionId:'JUR-PH-REPUBLIC',name:'フィリピン共和国',source:'https://history.state.gov/countries/philippines'}),
+ Object.freeze({code:'IN',effectiveDate:'1947-08-15',month:ym(1947,9),jurisdictionId:'JUR-IN-INDEPENDENT',name:'インド（独立後）',source:'https://history.state.gov/countries/india'}),
+ Object.freeze({code:'ID',effectiveDate:'1949-12-27',month:ym(1950,1),jurisdictionId:'JUR-ID-SOVEREIGN',name:'インドネシア（主権移譲後）',source:'https://history.state.gov/historicaldocuments/frus1949v07p1/d413'}),
+ Object.freeze({code:'NG',effectiveDate:'1960-10-01',month:ym(1960,10),jurisdictionId:'JUR-NG-INDEPENDENT',name:'ナイジェリア（独立後）',source:'https://history.state.gov/countries/nigeria'}),
+ Object.freeze({code:'KE',effectiveDate:'1963-12-12',month:ym(1964,1),jurisdictionId:'JUR-KE-INDEPENDENT',name:'ケニア（独立後）',source:'https://history.state.gov/countries/kenya'})
+]);
 const WORLD_JURISDICTIONS=new Map([
+ ...WORLD_POSTCOLONIAL_TRANSITIONS.map(row=>[row.jurisdictionId,{name:row.name,currencyId:WORLD_MODERN_CURRENCIES[row.code],source:row.source}]),
  ['JUR-UK',{name:'イギリス',currencyId:'CUR-GBP'}],
  ['JUR-FR',{name:'フランス',currencyId:'CUR-EUR'}],
  ['JUR-DE',{name:'ドイツ',currencyId:'CUR-EUR'}],
@@ -13500,6 +13509,7 @@ function worldEngineMarketArea(s,market,code){
 // Midmonth historical events take effect at the start of the following playable turn.
 // Economic coefficients and the mapping from events to market opening remain provisional.
 const WORLD_EVENTS=[
+ ...WORLD_POSTCOLONIAL_TRANSITIONS.map(row=>({id:'HIST-'+row.code+'-INDEPENDENCE',effectiveDate:row.effectiveDate,month:row.month,territoryId:WORLD_ENGINE_TERRITORY[row.code],jurisdictionId:row.jurisdictionId,openMarketId:null,status:'SOURCED',registryVersion:23,source:row.source})),
  // Proclaimed 5 October 1910, effective from the November game turn.
  {id:'HIST-PT-1910',effectiveDate:'1910-10-05',month:ym(1910,11),
   territoryId:'TER-05-02',jurisdictionId:'JUR-PT-REPUBLIC',
@@ -13726,6 +13736,7 @@ function upgradeWorldMarketRegistry(s){
  worldMatchLedgerCurrencyRates(s);
  for(const firm of s.firms)ensureNetwork(firm,s);
  ensureSupplyNetwork(s);
+ syncWorldIdentities(s);
  validateWorldExpansion(s);
 }
 
