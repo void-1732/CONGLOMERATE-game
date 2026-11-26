@@ -3145,8 +3145,9 @@ function recoverLegacyFormalMergerShares(s){
  }
  return recovered;
 }
-function siblingMergerEligibility(s,parent,from,to){
- if(!parent||!from||!to||!controller(s,parent.id)||parent.reorgStatus==='integrated'||parent.lifecycle?.phase==='withdrawn')throw Error('経営支配下で営業中の親会社から実行してください');
+function siblingMergerEligibility(s,parent,from,to,actor='player'){
+ const authorized=actor==='ai'?!!s.worldExpansion&&parent&&from&&!parent.player&&parent.auto&&!phase8ControlledCompanies(s).has(parent.id)&&phase8MergerSettlementSafe(s,parent,from):actor==='player'&&parent&&controller(s,parent.id);
+ if(!parent||!from||!to||!authorized||parent.reorgStatus==='integrated'||parent.lifecycle?.phase==='withdrawn')throw Error('経営支配下で営業中の親会社から実行してください');
  if(from.id===to.id||from.id===parent.id)throw Error('別々の子会社を2社選択してください');
  if(![from,...(to.id===parent.id?[]:[to])].every(f=>f.owners.length===1&&f.owners[0].id===parent.id&&Math.abs(f.owners[0].econ-1)<1e-9&&Math.abs(f.owners[0].vote-1)<1e-9))throw Error('両社は親会社が直接100%保有する完全子会社である必要があります');
  if(from.industry!==to.industry)throw Error('合併する2社は同じ業種である必要があります');
@@ -3176,9 +3177,9 @@ function siblingMergerEligibility(s,parent,from,to){
  if(engineers(from)+engineers(to)>ENGINEERING_MAX_STAFF)throw Error('設計人員の上限を超えます');
  return financials(from).equity;
 }
-function mergeWhollyOwnedSubsidiaries(s,parentId,fromId,toId){
+function mergeWhollyOwnedSubsidiaries(s,parentId,fromId,toId,actor='player'){
  const parent=company(parentId,s),from=company(fromId,s),to=company(toId,s);
- const transferredEquity=siblingMergerEligibility(s,parent,from,to);
+ const transferredEquity=siblingMergerEligibility(s,parent,from,to,actor);
  const sharesToTransfer=mergerHeldShares(s,from,to); // Capture original cost before journal transfer.
  ensureV09Firm(from,s);ensureV09Firm(to,s);ensureV11Firm(from);ensureV11Firm(to);ensureFactoryV21(from);ensureFactoryV21(to);
  const fDr={},fCr={},tDr={},tCr={};
@@ -3236,13 +3237,13 @@ function groupMergerSize(s,from,to){
  const medium=workers>=150||plants>=3||assetsYen>=10000000;
  return {label:large?'大規模':medium?'中規模':'小規模',turns:large?12:medium?5:2,workers,plants,assetsYen};
 }
-function startGroupMerger(s,parentId,fromId,toId){
+function startGroupMerger(s,parentId,fromId,toId,actor='player'){
  const parent=company(parentId,s),from=company(fromId,s),to=company(toId,s);
- siblingMergerEligibility(s,parent,from,to);
+ siblingMergerEligibility(s,parent,from,to,actor);
  const plans=groupMergerPlans(s);
  if(plans.some(p=>mergerPlanActive(p)&&[fromId,toId].some(id=>p.fromId===id||p.toId===id)))throw Error('対象法人に進行中の合併手続きがあります');
  const size=groupMergerSize(s,from,to),kind=to.id===parent.id?'parent':'sibling';
- const plan={id:'GM'+s.seq++,parentId,fromId,toId,kind,scale:size.label,duration:size.turns,progress:0,startedMonth:ym(s.year,s.month),lastProcessedMonth:-1,status:'pending',issue:'',finishedMonth:null,workers:size.workers,plants:size.plants,assetsYen:size.assetsYen};
+ const plan={id:'GM'+s.seq++,parentId,fromId,toId,kind,...(actor==='ai'?{actor}:{}),scale:size.label,duration:size.turns,progress:0,startedMonth:ym(s.year,s.month),lastProcessedMonth:-1,status:'pending',issue:'',finishedMonth:null,workers:size.workers,plants:size.plants,assetsYen:size.assetsYen};
  plans.push(plan);return plan;
 }
 function validateGroupMergerPlans(s){
@@ -3251,7 +3252,7 @@ function validateGroupMergerPlans(s){
  for(const p of arr){
   if(!p||typeof p!=='object'||typeof p.id!=='string'||ids.has(p.id)){issues.push('合併計画ID重複・形式不正');continue}
   ids.add(p.id);
-  if(!['pending','blocked','completed','cancelled'].includes(p.status)||![2,5,12].includes(p.duration)||!Number.isSafeInteger(p.progress)||p.progress<0||p.progress>p.duration||!Number.isSafeInteger(p.startedMonth)||!Number.isSafeInteger(p.lastProcessedMonth)||!company(p.parentId,s)||!company(p.fromId,s)||!company(p.toId,s)||p.fromId===p.toId)issues.push(p.id+'：合併計画の値または参照が不正');
+  if((p.actor!==undefined&&!['ai','player'].includes(p.actor))||!['pending','blocked','completed','cancelled'].includes(p.status)||![2,5,12].includes(p.duration)||!Number.isSafeInteger(p.progress)||p.progress<0||p.progress>p.duration||!Number.isSafeInteger(p.startedMonth)||!Number.isSafeInteger(p.lastProcessedMonth)||!company(p.parentId,s)||!company(p.fromId,s)||!company(p.toId,s)||p.fromId===p.toId)issues.push(p.id+'：合併計画の値または参照が不正');
   if(mergerPlanActive(p))for(const id of [p.fromId,p.toId]){if(locked.has(id))issues.push('同じ法人に複数の進行中合併があります');locked.add(id);}
  }
  return issues;
@@ -3266,10 +3267,11 @@ function processGroupMergers(s,events){
   if(p.progress<p.duration){if(p.progress===1||p.progress===p.duration-1)events.push('合併進行：'+(company(p.fromId,s)?.name||p.fromId)+' → '+(company(p.toId,s)?.name||p.toId)+'（'+p.progress+'/'+p.duration+'ターン）');continue;}
   try{
    const trial=structuredClone(s),record=groupMergerPlans(trial).find(x=>x.id===p.id);
-   const entry=mergeWhollyOwnedSubsidiaries(trial,p.parentId,p.fromId,p.toId);
+   const entry=mergeWhollyOwnedSubsidiaries(trial,p.parentId,p.fromId,p.toId,p.actor??'player');
    record.status='completed';record.issue='';record.finishedMonth=month;
-   const errors=check(trial),con=consolidate(trial,trial.playerId);
-   if(errors.length||con.errors.length)throw Error([...errors,...con.errors].slice(0,2).join(' / '));
+   if(trial.worldExpansion)syncWorldIdentities(trial);
+   const errors=check(trial),con=consolidate(trial,trial.playerId),parentCon=p.actor==='ai'?consolidate(trial,p.parentId):con;
+   if(errors.length||con.errors.length||parentCon.errors.length)throw Error([...errors,...con.errors,...parentCon.errors].slice(0,2).join(' / '));
    Object.assign(s,trial);
    events.push('合併完了：'+entry.sourceName+' → '+entry.targetName+'（'+record.scale+'・'+record.duration+'ターン）');
   }catch(err){
@@ -8755,6 +8757,36 @@ function phase8ControlledCompanies(s){
  }
  return members;
 }
+// Conservative business case for complete ownership and subsequent legal merger.
+function phase8MergerBusinessCase(s,buyer,target){
+ if(!isActiveCorporateFirm(buyer)||!isActiveCorporateFirm(target)||buyer.country!==target.country||buyer.industry!==target.industry
+  ||(buyer.monthly?.profit??0)<=0||financials(buyer).equity<=0||financials(target).equity<=0||phase8CrisisFactor(s.world[buyer.country])<.7)return false;
+ return (target.plants??[]).some(p=>worldDomesticSiteActive(p,p.siteId)&&buyer.plants.some(q=>worldDomesticSiteActive(q,p.siteId)));
+}
+function phase8MergerSettlementSafe(s,buyer,target){
+ // Do not implicitly reassign a third-party claim, reservation, or world ledger.
+ if(phase7ReservedCash(s,buyer.id)||phase7ReservedCash(s,target.id)||target.loans.length||target.payables.length||target.receivables.length
+  ||['ar','payable','debt','interestDue'].some(k=>acc(target,k)!==0)||worldDomesticBlocksReorganization(s,target.id))return false;
+ return !Object.values(s.worldExpansion?.powerGenerators??{}).some(g=>g.ownerCompanyId===target.id)
+  &&!Object.values(s.worldExpansion?.powerLines??{}).some(g=>g.ownerCompanyId===target.id);
+}
+function phase8PlanWhollyOwnedMergers(s,events=[]){
+ if(!s.worldExpansion||!phase7MAReviewDue(s))return [];
+ const controlled=phase8ControlledCompanies(s),started=[],used=new Set();
+ const completed=(s.maPlans??[]).filter(p=>p.actor==='ai'&&p.done&&p.mode==='completed').sort((a,b)=>a.start-b.start||a.id.localeCompare(b.id));
+ for(const p of completed){
+  const buyer=company(p.buyer,s),target=company(p.target,s);
+  if(!buyer||!target||buyer.player||!buyer.auto||controlled.has(buyer.id)||used.has(buyer.id)
+   ||!isDirectWhollyOwnedChild(buyer,target)||!phase8MergerBusinessCase(s,buyer,target)||!phase8MergerSettlementSafe(s,buyer,target)
+   ||groupMergerPlans(s).some(m=>m.fromId===target.id&&m.parentId===buyer.id))continue;
+  try{
+   siblingMergerEligibility(s,buyer,target,buyer,'ai');
+   const plan=startGroupMerger(s,buyer.id,target.id,buyer.id,'ai');started.push(plan);used.add(buyer.id);
+   events.push('AI吸収合併申請：'+buyer.name+' ← '+target.name+'（同業・同拠点、完全保有、事業採算）');
+  }catch(e){/* Retain the subsidiary if legal or accounting succession is not supported. */}
+ }
+ return started;
+}
 function phase8ReviewIndependentBids(s,events,pool,month,controlledCompanies){
  const proposals=[],peers=new Map();
  for(const f of s.firms.filter(isActiveCorporateFirm)){
@@ -8773,16 +8805,22 @@ function phase8ReviewIndependentBids(s,events,pool,month,controlledCompanies){
     const registry=phase7ReadShareRegistry(target);
     const quantity=phase8ControlPurchaseQuantity(registry,controlSet(s,buyer.id));
     if(quantity<1)continue;
-    const percent=phase7SharePercent(target,quantity);
+    const remaining=registry.owners.find(o=>o.id==='PUBLIC')?.count??0;
+    const full=registry.treasury===0&&registry.owners.every(o=>o.id==='PUBLIC'||o.id===buyer.id)
+     &&remaining>quantity&&phase8MergerBusinessCase(s,buyer,target)&&phase8MergerSettlementSafe(s,buyer,target);
+    const quantities=full?[remaining,quantity]:[quantity];
     // PROVISIONAL: retain the existing 47% cash ceiling; strategic fit
     // permits a bounded premium above the former fixed 126% offer.
     const ceiling=Math.min(2.5,Math.max(1.26,Math.round((1.26+score/200)*100)/100));
     const factors=[ceiling,1.50,1.40,1.26].filter((v,i,a)=>v<=ceiling&&a.indexOf(v)===i).sort((a,b)=>b-a);
-    for(const multiplier of factors){
-     const q=maQuote(s,buyer,target,percent,multiplier);
-     if(!q.accepted||q.total>q.available*.47*phase8CrisisFactor(s.world[buyer.country]))continue;
-     proposals.push({buyerId:buyer.id,targetId:target.id,score,percent,multiplier,shareQuantity:q.shareQuantity,total:q.total,available:q.available,accepted:q.accepted});
-     break;
+    offer:for(const count of quantities){
+     const percent=phase7SharePercent(target,count);
+     for(const multiplier of factors){
+      const q=maQuote(s,buyer,target,percent,multiplier);
+      if(!q.accepted||q.total>q.available*.47*phase8CrisisFactor(s.world[buyer.country]))continue;
+      proposals.push({buyerId:buyer.id,targetId:target.id,score,percent,multiplier,shareQuantity:q.shareQuantity,total:q.total,available:q.available,accepted:q.accepted});
+      break offer;
+     }
     }
    }catch(e){/* An inadmissible indication cannot create a transaction. */}
   }
@@ -8801,7 +8839,7 @@ function processMAMonth(s,events){
  for(const p of s.maPlans){if(!['active','paused'].includes(p.mode)||p.done)continue;
   const buyer=company(p.buyer,s),target=company(p.target,s);if(!buyer||!target||!controller(s,target.id,buyer.id)){p.mode='halted';continue;}
   const fee=localFromBase(p.costBase,buyer.country,s);
-  if(acc(buyer,'cash')<fee){p.mode='paused';events.push(buyer.name+'：'+target.name+'の統合を資金不足で一時停止');continue;}
+  if((s.worldExpansion?phase7AvailableCash(s,buyer):acc(buyer,'cash'))<fee){p.mode='paused';events.push(buyer.name+'：'+target.name+'の統合を資金不足で一時停止');continue;}
   p.mode='active';
   // Fees are real operating expenses; operational improvements affect real market/plant state.
   spendExpense(buyer,'otherExpense',fee,'PMI経営統合・調整費用：'+target.name,'operating',s);
@@ -8816,6 +8854,7 @@ function processMAMonth(s,events){
  // At most one independent-company acquisition per review window; existing
  // buyer-specific cooldown remains in force.
  if(!phase7MAReviewDue(s)||s.firms.length<3)return;
+ if(s.worldExpansion)phase8PlanWhollyOwnedMergers(s,events);
  const controlledCompanies=s.worldExpansion?phase8ControlledCompanies(s):controlSet(s);
  const cashForRanking=f=>s.worldExpansion?baseFromLocal(acc(f,'cash'),f.country,s):acc(f,'cash')/worldReferenceFx(f.country,s);
  const pool=s.firms.filter(f=>!f.player&&!controlledCompanies.has(f.id)&&f.lifecycle?.phase==='active'

@@ -99,6 +99,43 @@ def main():
         }""")
         assert len(vehicles) == 5 and all(vehicles.values()), vehicles
         print("Phase 8 finished vehicle trade: dispatch exclusion, real delivery, saved accounting and tamper rejection")
+        merger=page.evaluate("""()=>{
+ const s=newWorldGame({country:'JP',name:'AI merger scenario'}),root=company(s.playerId,s);
+ const buyer=initFirm(s,{name:'AI service parent',country:'JP',industry:'service',seedBase:2000000});
+ const target=initFirm(s,{name:'AI service target',country:'JP',industry:'service',seedBase:450000});
+ syncWorldIdentities(s);ensureMAState(s);
+ post(buyer,{cash:1000000000},{capital:1000000000},'検証用資本','financing',s);
+ buyer.monthly.profit=20000;target.monthly.profit=100;
+ const reject=fn=>{try{fn();return false}catch{return true}};
+ const business=phase8MergerBusinessCase(s,buyer,target);
+ const notPlayer=reject(()=>startGroupMerger(s,buyer.id,target.id,buyer.id));
+ executeMADeal(s,buyer.id,target.id,100,2.5,'ai');
+ const p=s.maPlans.find(x=>x.buyer===buyer.id&&x.target===target.id);
+ const early=phase8PlanWhollyOwnedMergers(s,[]).length===0;
+ p.done=true;p.mode='completed';p.months=p.duration;p.progress=100;
+ const saved=parsePayload(savePayload(s));const b=company(buyer.id,saved),t=company(target.id,saved);
+ const count=saved.firms.filter(isActiveCorporateFirm).length,assets=acc(b,'ppe')+acc(t,'ppe'),cash=acc(b,'cash')+acc(t,'cash'),staff=b.staff.production+t.staff.production;
+ const ev=[];const plans=phase8PlanWhollyOwnedMergers(saved,ev);
+ const planned=plans.length===1&&plans[0].actor==='ai'&&plans[0].parentId===b.id;
+ if(!planned)throw Error('Merger not planned: '+JSON.stringify({safe:phase8MergerSettlementSafe(saved,b,t),active:isActiveCorporateFirm(t),business:phase8MergerBusinessCase(saved,b,t),equity:financials(t).equity,eligibility:(()=>{try{return siblingMergerEligibility(saved,b,t,b,'ai')}catch(e){return e.message}})()}));
+ const once=phase8PlanWhollyOwnedMergers(saved,[]).length===0;
+ const duration=plans[0].duration;
+ for(let n=0;n<duration;n++){
+  const month=ym(saved.year,saved.month)+1;saved.year=Math.floor(month/12);saved.month=month%12+1;
+  saved.monthCommitted=month-1;applyWorldHistory(saved);processGroupMergers(saved,ev);
+ }
+ const b2=company(b.id,saved),t2=company(t.id,saved),plan=groupMergerPlans(saved).find(m=>m.id===plans[0].id);
+ const completed=plan.status==='completed';
+ if(!completed)throw Error('Merger incomplete: '+plan.issue);
+ return {business,notPlayer,early,planned,once,completed,
+  activeCount:saved.firms.filter(isActiveCorporateFirm).length===count-1,
+  archive:t2.reorgStatus==='integrated'&&t2.integrationInto===b2.id,
+  assetSuccession:acc(b2,'ppe')===assets&&acc(b2,'cash')===cash&&b2.staff.production===staff,
+  preservedOwner:t2.owners[0].id===b2.id,
+  saved:!check(parsePayload(savePayload(saved))).length,
+  clean:!check(saved).length&&!consolidate(saved,b2.id).errors.length};
+}""")
+        assert len(merger)==12 and all(merger.values()),merger
         browser.close()
     print(f"Phase 8 competitive quotes: {len(CASES)}/{len(CASES)} passed")
 
